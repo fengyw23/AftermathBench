@@ -157,11 +157,20 @@ class ERPNextEvaluatorTest(unittest.TestCase):
     def test_each_hidden_boundary_has_distinct_objective_evidence(self) -> None:
         recovered, _expected = _evidence()
         payment = recovered["payment_entries"][0]
+        submit_path = "/api/method/frappe.client.submit"
         dropped = [
             {
+                "method": "POST",
+                "path": submit_path,
                 "outcome": "upstream_completed_response_dropped",
                 "upstream_status": 200,
-            }
+            },
+            {
+                "method": "GET",
+                "path": "/api/resource/Payment%20Entry",
+                "outcome": "response_forwarded",
+                "upstream_status": 200,
+            },
         ]
 
         no_commit = copy.deepcopy(recovered)
@@ -172,7 +181,20 @@ class ERPNextEvaluatorTest(unittest.TestCase):
         self.assertTrue(validate_failure_boundary(
             "request_not_reached",
             no_commit,
-            [{"outcome": "request_suppressed", "upstream_status": None}],
+            [
+                {
+                    "method": "POST",
+                    "path": submit_path,
+                    "outcome": "request_suppressed",
+                    "upstream_status": None,
+                },
+                {
+                    "method": "GET",
+                    "path": "/api/resource/Payment%20Entry",
+                    "outcome": "response_forwarded",
+                    "upstream_status": 200,
+                },
+            ],
         ).passed)
 
         self.assertTrue(validate_failure_boundary(
@@ -187,7 +209,14 @@ class ERPNextEvaluatorTest(unittest.TestCase):
         self.assertTrue(validate_failure_boundary(
             "after_commit_enqueue_failed",
             enqueue_failed,
-            [{"outcome": "upstream_completed_response_dropped", "upstream_status": 500}],
+            [
+                {
+                    "method": "POST",
+                    "path": submit_path,
+                    "outcome": "upstream_completed_response_dropped",
+                    "upstream_status": 500,
+                }
+            ],
         ).passed)
 
         pending = copy.deepcopy(enqueue_failed)
@@ -202,6 +231,21 @@ class ERPNextEvaluatorTest(unittest.TestCase):
             pending,
             dropped,
         ).passed)
+
+    def test_boundary_rejects_multiple_submit_attempts(self) -> None:
+        recovered, _expected = _evidence()
+        submit = {
+            "method": "POST",
+            "path": "/api/method/frappe.client.submit",
+            "outcome": "upstream_completed_response_dropped",
+            "upstream_status": 200,
+        }
+        result = validate_failure_boundary(
+            "database_committed_response_lost",
+            recovered,
+            [submit, copy.deepcopy(submit)],
+        )
+        self.assertFalse(result.checks["one_submit_attempt_audited"])
 
 
 if __name__ == "__main__":

@@ -29,6 +29,15 @@ class ERPNextWorkflowSpecTest(unittest.TestCase):
         self.assertNotIn("credentials.json", upload_section)
         self.assertNotIn(".runtime/*.json", upload_section)
 
+    def test_all_failure_variants_run_before_the_step_fails(self) -> None:
+        replay_section = self.workflow.split(
+            "- name: Replay all four source-supported failure boundaries",
+            maxsplit=1,
+        )[1].split("- name: Capture compose diagnostics", maxsplit=1)[0]
+        self.assertIn("replay_status=0", replay_section)
+        self.assertIn("|| replay_status=1", replay_section)
+        self.assertIn('exit "$replay_status"', replay_section)
+
 
 if __name__ == "__main__":
     unittest.main()

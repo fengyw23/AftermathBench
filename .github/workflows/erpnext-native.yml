@@ -43,6 +43,7 @@ jobs:
 
       - name: Replay all four source-supported failure boundaries
         run: |
+          replay_status=0
           for variant in \
             request_not_reached \
             database_committed_response_lost \
@@ -54,8 +55,10 @@ jobs:
               --credentials runtimes/erpnext/.runtime/credentials.json \
               --prefix runtimes/erpnext/.runtime/prefix.json \
               --snapshot runtimes/erpnext/.runtime/prefix.sql \
-              --output "runtimes/erpnext/.runtime/${variant}.json"
+              --output "runtimes/erpnext/.runtime/${variant}.json" \
+              || replay_status=1
           done
+          exit "$replay_status"
 
       - name: Capture compose diagnostics
         if: always()

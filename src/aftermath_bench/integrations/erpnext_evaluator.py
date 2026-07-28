@@ -264,11 +264,19 @@ def validate_failure_boundary(
             for payment in payments
         )
     ]
-    last_gateway = gateway_events[-1] if gateway_events else {}
+    submit_events = [
+        event
+        for event in gateway_events
+        if str(event.get("method", "")).upper() == "POST"
+        and str(event.get("path", "")).split("?", 1)[0]
+        == "/api/method/frappe.client.submit"
+    ]
+    submit_gateway = submit_events[-1] if submit_events else {}
     common = {
         "one_relevant_payment_document": len(payments) == 1,
+        "one_submit_attempt_audited": len(submit_events) == 1,
         "surface_failure_was_hidden": (
-            last_gateway.get("outcome")
+            submit_gateway.get("outcome")
             in {
                 "request_suppressed",
                 "upstream_completed_response_dropped",
@@ -285,8 +293,8 @@ def validate_failure_boundary(
             "no_remittance": evidence.get("remittance") is None,
             "no_remittance_job": not unfinished_jobs,
             "request_never_reached_upstream": (
-                last_gateway.get("outcome") == "request_suppressed"
-                and last_gateway.get("upstream_status") is None
+                submit_gateway.get("outcome") == "request_suppressed"
+                and submit_gateway.get("upstream_status") is None
             ),
         }
     else:
@@ -297,9 +305,9 @@ def validate_failure_boundary(
                 _decimal(invoice.get("outstanding_amount")) == 0
             ),
             "upstream_completed_before_surface_failure": (
-                last_gateway.get("outcome")
+                submit_gateway.get("outcome")
                 == "upstream_completed_response_dropped"
-                and last_gateway.get("upstream_status") is not None
+                and submit_gateway.get("upstream_status") is not None
             ),
         }
         if variant == "database_committed_response_lost":

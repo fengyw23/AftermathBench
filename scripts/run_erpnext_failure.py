@@ -131,11 +131,6 @@ def main() -> int:
         evidence,
         gateway_audit.get("events", []),
     )
-    if not boundary_validation.passed:
-        raise RuntimeError(
-            f"fault boundary does not match {args.variant}: "
-            f"{boundary_validation.failures}"
-        )
     report = {
         "schema_version": "0.3",
         "variant": args.variant,
@@ -168,7 +163,7 @@ def main() -> int:
         },
         indent=2,
     ))
-    return 0
+    return 0 if boundary_validation.passed else 1
 
 
 if __name__ == "__main__":
