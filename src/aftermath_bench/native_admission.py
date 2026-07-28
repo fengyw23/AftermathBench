@@ -127,6 +127,35 @@ def validate_native_scenario(
     passed_references = [
         bool(report.get("passed", False)) for report in variants
     ]
+    reference_query_groups = []
+    for report in variants:
+        query_tools = set(report.get("query_tools", ()))
+        reference_query_groups.append(
+            {
+                "documents": bool(
+                    query_tools & {"get_document", "list_documents"}
+                ),
+                "ledgers": bool(
+                    query_tools
+                    & {"get_stock_ledger", "get_general_ledger"}
+                ),
+                "async": bool(
+                    query_tools
+                    & {
+                        "find_background_jobs",
+                        "get_external_delivery",
+                        "wait_for_external_delivery",
+                    }
+                ),
+            }
+        )
+    minimum_reference_evidence_groups = min(
+        (
+            sum(bool(value) for value in groups.values())
+            for groups in reference_query_groups
+        ),
+        default=0,
+    )
     heuristic_rates = [
         float(item.get("pass_rate", 1.0))
         for item in baselines.get("heuristics", ())
@@ -142,6 +171,13 @@ def validate_native_scenario(
     depth = _dependency_depth(entity_ids, relations)
     evidence_groups = graph.get("required_evidence_groups", ())
     single_query_decisive = bool(graph.get("single_query_decisive", True))
+    minimum_boundary_query_groups = int(
+        graph.get("minimum_boundary_query_groups", 0)
+    )
+    relations_observed = all(
+        bool(relation.get("observed", False))
+        for relation in relations
+    )
     unsafe_actions = graph.get("unsafe_actions", ())
 
     observed: dict[str, int | float | bool] = {
@@ -152,7 +188,12 @@ def validate_native_scenario(
         "relation_type_count": len(relation_types),
         "dependency_depth": depth,
         "evidence_group_count": len(evidence_groups),
+        "minimum_reference_evidence_groups": (
+            minimum_reference_evidence_groups
+        ),
         "single_query_decisive": single_query_decisive,
+        "minimum_boundary_query_groups": minimum_boundary_query_groups,
+        "all_relations_observed": relations_observed,
         "minimum_repair_mutations": minimum_mutations,
         "minimum_downstream_repairs": minimum_downstream_repairs,
         "unsafe_action_count": len(unsafe_actions),
@@ -169,7 +210,14 @@ def validate_native_scenario(
         "dependency_depth>=4": depth >= 4,
         "relation_types>=4": len(relation_types) >= 4,
         "evidence_groups>=3": len(evidence_groups) >= 3,
+        "reference_uses_three_evidence_groups": (
+            minimum_reference_evidence_groups >= 3
+        ),
         "no_single_query_is_decisive": not single_query_decisive,
+        "minimum_boundary_query_groups>=2": (
+            minimum_boundary_query_groups >= 2
+        ),
+        "all_relations_have_replay_evidence": relations_observed,
         "minimum_mutations>=3": minimum_mutations >= 3,
         "downstream_repairs>=2": minimum_downstream_repairs >= 2,
         "unsafe_actions>=2": len(unsafe_actions) >= 2,

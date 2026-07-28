@@ -233,12 +233,14 @@ class ERPNextStack:
         path = Path(source).resolve()
         if not path.is_file():
             raise FileNotFoundError(path)
+        # The benchmark runtime is isolated and receives no requests while a
+        # snapshot is restored. Keep the stateless HTTP processes alive and
+        # stop only queue consumers, so no job can observe the database during
+        # import. Restarting every Frappe container concurrently can race in
+        # the upstream image's shared-assets entrypoint and is unnecessary:
+        # Frappe opens a fresh database connection for the next request.
         self.run(
             "stop",
-            "fault-gateway",
-            "frontend",
-            "backend",
-            "websocket",
             "queue-short",
             "queue-long",
         )
@@ -254,15 +256,7 @@ class ERPNextStack:
             self.runner(command, check=True, stdin=handle)
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
         self.run("exec", "-T", "redis-queue", "redis-cli", "FLUSHALL")
-        self.run(
-            "start",
-            "backend",
-            "websocket",
-            "queue-short",
-            "queue-long",
-            "frontend",
-            "fault-gateway",
-        )
+        self.run("start", "queue-short", "queue-long")
         self._wait_http_service(
             "http://127.0.0.1:8080/api/method/ping"
         )

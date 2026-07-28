@@ -101,14 +101,51 @@ def main() -> int:
             "resume_workers",
         }
     ]
+    query_tools = [
+        step["tool"]
+        for step in trace
+        if step["tool"] not in {
+            "submit_document",
+            "cancel_document",
+            "create_purchase_return",
+            "create_debit_note",
+            "create_purchase_receipt_from_order",
+            "create_purchase_invoice_from_receipt",
+            "reconcile_supplier_documents",
+            "enqueue_document_webhook",
+            "resume_workers",
+        }
+    ]
+    submitted_names = {
+        step["arguments"].get("name")
+        for step in trace
+        if step["tool"] == "submit_document"
+    }
+    repaired_groups = {
+        "supplier_credit": (
+            prefix["debit_note"] in submitted_names
+            and "reconcile_supplier_documents" in mutation_tools
+        ),
+        "replacement_chain": (
+            prefix["replacement_purchase_receipt"] in submitted_names
+            and "create_purchase_invoice_from_receipt" in mutation_tools
+            and "reconcile_supplier_documents" in mutation_tools
+        ),
+        "pickup_delivery": (
+            "enqueue_document_webhook" in mutation_tools
+            or "resume_workers" in mutation_tools
+        ),
+    }
     report = {
         "schema_version": "0.4",
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
         "control": "state_driven_reference_using_agent_visible_tools",
         "reference_trace": trace,
+        "query_tools": query_tools,
         "mutation_tools": mutation_tools,
-        "downstream_repairs": 3,
+        "repaired_groups": repaired_groups,
+        "downstream_repairs": sum(repaired_groups.values()),
         "control_error": error,
         "final_evidence": evidence,
         "evaluation": {

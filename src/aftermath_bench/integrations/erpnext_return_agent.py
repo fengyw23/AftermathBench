@@ -530,4 +530,18 @@ def reference_partial_return_recovery(
             reference=prefix["purchase_return"],
             timeout_seconds=30,
         )
+    call(
+        "get_stock_ledger",
+        voucher_no=prefix["purchase_return"],
+    )
+    call(
+        "get_stock_ledger",
+        voucher_no=prefix["replacement_purchase_receipt"],
+    )
+    for voucher_no in (
+        prefix["shared_payment_entry"],
+        prefix["purchase_return"],
+        prefix["debit_note"],
+    ):
+        call("get_general_ledger", voucher_no=voucher_no)
     return tuple(trace)
