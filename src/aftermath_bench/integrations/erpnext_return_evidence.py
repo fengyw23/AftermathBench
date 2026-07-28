@@ -32,12 +32,14 @@ class ERPNextPartialReturnEvidenceCollector:
         *,
         filters: dict[str, Any] | list[list[Any]] | None = None,
         fields: list[str] | None = None,
+        order_by: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
         summaries = _data(self.adapter.list_resources(
             doctype,
             fields=fields or ["name"],
             filters=filters,
+            order_by=order_by,
             limit=limit,
         ))
         return [dict(row) for row in summaries]
@@ -182,6 +184,7 @@ class ERPNextPartialReturnEvidenceCollector:
         jobs = self.list_documents(
             "RQ Job",
             fields=["name", "job_name", "status", "arguments", "queue"],
+            order_by="creation desc",
             limit=500,
         )
         return {

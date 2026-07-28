@@ -232,6 +232,7 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
         jobs = self.collector.list_documents(
             "RQ Job",
             fields=["name", "job_name", "status", "arguments", "queue"],
+            order_by="creation desc",
             limit=500,
         )
         return {
