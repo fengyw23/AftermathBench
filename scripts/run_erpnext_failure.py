@@ -84,13 +84,17 @@ def main() -> int:
             api_secret=credentials["api_secret"],
         )
     )
+    payment_response = adapter.get_resource(
+        "Payment Entry",
+        prefix["payment_entry"],
+    )
+    payment_document = payment_response.get("data")
+    if not isinstance(payment_document, dict):
+        raise RuntimeError("Frappe returned no Payment Entry before fault arming")
     fault.arm(args.variant)
     visible_failure = None
     try:
-        response = adapter.submit_document(
-            "Payment Entry",
-            prefix["payment_entry"],
-        )
+        response = adapter.submit_loaded_document(payment_document)
     except Exception as error:
         visible_failure = {
             "ok": False,

@@ -140,16 +140,29 @@ class FrappeHTTPAdapter:
                     f"Frappe returned no document for {doctype} {name}"
                 )
             try:
-                return self.call_method(
-                    "frappe.client.submit",
-                    {"doc": document},
-                )
+                return self.submit_loaded_document(document)
             except RuntimeError as error:
                 if "TimestampMismatchError" not in str(error):
                     raise
                 last_error = error
         assert last_error is not None
         raise last_error
+
+    def submit_loaded_document(
+        self,
+        document: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Submit an already-read document without an intervening HTTP read.
+
+        Failure-boundary experiments use this method after arming transport
+        faults so the fault applies to the mutating submit request itself.
+        """
+        if not document.get("doctype") or not document.get("name"):
+            raise ValueError("loaded document must contain doctype and name")
+        return self.call_method(
+            "frappe.client.submit",
+            {"doc": document},
+        )
 
     def cancel_document(
         self,

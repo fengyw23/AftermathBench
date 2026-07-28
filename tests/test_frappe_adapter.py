@@ -61,6 +61,32 @@ class FrappeAdapterTest(unittest.TestCase):
         )
         self.assertEqual(payload, {"doc": document})
 
+    @patch("urllib.request.urlopen")
+    def test_loaded_submit_sends_only_the_mutating_request(self, urlopen) -> None:
+        document = {
+            "doctype": "Payment Entry",
+            "name": "ACC-PAY-1",
+            "modified": "2026-07-28 10:53:20.273925",
+        }
+        urlopen.return_value = _Response({"message": {"docstatus": 1}})
+
+        self.adapter.submit_loaded_document(document)
+
+        self.assertEqual(urlopen.call_count, 1)
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://erp.test/api/method/frappe.client.submit",
+        )
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8")),
+            {"doc": document},
+        )
+
+    def test_loaded_submit_rejects_an_unidentified_document(self) -> None:
+        with self.assertRaisesRegex(ValueError, "doctype and name"):
+            self.adapter.submit_loaded_document({"doctype": "Payment Entry"})
+
     def test_submit_refreshes_only_after_timestamp_mismatch(self) -> None:
         first = {
             "doctype": "Purchase Order",
