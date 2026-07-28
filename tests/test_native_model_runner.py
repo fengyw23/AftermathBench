@@ -79,6 +79,8 @@ class NativeModelRunnerTest(unittest.TestCase):
         )
         self.assertIn("correct recovery scope is supplied", message)
         self.assertIn("shared Payment Entry", message)
+        self.assertIn("Search the Purchase Invoices", message)
+        self.assertIn("never create a second", message)
         for variant in self.scenario.variants:
             self.assertNotIn(variant, message)
 
