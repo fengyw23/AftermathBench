@@ -29,6 +29,9 @@ class ERPNextComposeSpecTest(unittest.TestCase):
         self.assertIn("aftermathbench/erpnext:v15.118.1", self.compose)
         self.assertIn("pull_policy: never", self.compose)
 
+    def test_site_creation_does_not_depend_on_missing_wait_helper(self) -> None:
+        self.assertNotIn("wait-for-it", self.compose)
+
     def test_direct_runtime_images_are_digest_pinned(self) -> None:
         images = self.lock["infrastructure_images"]
         self.assertTrue(
