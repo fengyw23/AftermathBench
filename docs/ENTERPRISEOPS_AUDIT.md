@@ -20,8 +20,13 @@ revision: de22905d21a080b83bf4a54258afe4250ee2dd55
 - Container images for each domain service.
 
 The checked-out seed archive contains 93 entries and is approximately 14.5 MB.
-The public repository contains only a small revised-task sample; the full task
-set is loaded separately from Hugging Face.
+Across all snapshots, seed inserts reference 149 distinct Hybrid-domain tables.
+This is a union statistic: an individual Hybrid SQL snapshot references between
+15 and 47 tables, with a maximum of 47. Dataset scale must therefore not be
+reported as if every task operated on all 149 tables.
+
+The public repository contains only 13 revised-task examples; the full task set
+is loaded separately from Hugging Face.
 
 ## What is not present in the public repository
 
@@ -72,3 +77,8 @@ verified from public state. If a required transition cannot be verified or
 decomposed, that workflow must be rejected rather than assigned a synthetic
 partial-commit label.
 
+The reproducible archive audit is available as:
+
+```bash
+python scripts/audit_enterprise_ops.py /path/to/gym_dbs.zip
+```
