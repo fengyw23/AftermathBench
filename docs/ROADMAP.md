@@ -41,7 +41,9 @@ promoted into the final native-runtime benchmark.
 - [x] Add restricted model-visible investigation and repair tools.
 - [x] Pass scripted end-to-end recovery controls.
 - [x] Connect the native environment to the provider-agnostic model loop.
-- [ ] Run the first four-state GLM pilot and attribute model failures.
+- [x] Run the first four-state GLM pilot and attribute model behavior.
+- [ ] Add a harder ERPNext family that cannot be solved by the first pilot's
+  compact payment/job/delivery decision tree.
 
 ## Phase 4 — Forgejo coding/DevOps vertical slice
 

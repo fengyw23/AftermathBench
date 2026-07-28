@@ -87,12 +87,29 @@ attempt and zero unfinished relevant jobs.
 
 ## Next enterprise implementation
 
-1. Run the first four-state GLM pilot through the provider-agnostic native
-   ERPNext model loop and attribute failures.
+The first native model pilot completed in GitHub Actions run
+[`30382460087`](https://github.com/fengyw23/AftermathBench/actions/runs/30382460087)
+at commit `a84337d1e0f52cf83d50144cf13d8f196dc2a93d`. `glm-5.2` passed all four
+matched hidden states in one repetition. It selected submit, no write,
+remittance requeue, and worker resume respectively, after inspecting the
+authoritative payment and remittance state. There were no unsafe retries,
+unnecessary requeues, tool errors, duplicate payments, or duplicate
+remittance attempts.
+
+This validates the native model interface but also shows that the first task
+is too clean to separate a strong model: each hidden state has a direct
+decision-complete signature. The sanitized complete trajectories are stored
+under `data/evidence/erpnext-glm52-pilot-20260729`.
+
+Next:
+
+1. Add a second ERPNext task whose recovery requires multi-hop evidence across
+   documents and where multiple plausible writes remain until those relations
+   are combined.
 2. Reduce tracing overhead by replacing per-tool full evidence scans with
    incremental event fingerprints.
-3. Repeat the matched-state experiment across GPT, Claude, Qwen, DeepSeek, and
-   open-weight agents after the single-model interface pilot passes.
+3. Repeat cross-model experiments only after the task family defeats compact
+   fixed decision trees; otherwise additional model runs add little evidence.
 
 ## Coding/DevOps candidate
 
