@@ -10,6 +10,13 @@ from .scenarios.release_migration import (
     evaluate_release,
     reference_release_recovery,
 )
+from .scenarios.itsm_major_incident import (
+    ITSM_VARIANTS,
+    ITSMMajorIncidentEnv,
+    build_itsm_failure_state,
+    evaluate_itsm,
+    reference_itsm_recovery,
+)
 
 ReleasePolicy = Callable[[ReleaseMigrationEnv], None]
 
@@ -68,3 +75,73 @@ def run_release_baselines() -> dict[str, dict[str, Any]]:
         }
     return report
 
+
+ITSMPolicy = Callable[[ITSMMajorIncidentEnv], None]
+
+
+def _finalize_itsm(environment: ITSMMajorIncidentEnv) -> None:
+    incident_id = environment.INCIDENT_ID
+    environment.invoke("record_escalation_audit", incident_id=incident_id)
+    environment.invoke("send_caller_update", incident_id=incident_id)
+    environment.invoke(
+        "close_escalation_review",
+        review_id="review-001",
+        incident_id=incident_id,
+    )
+
+
+def itsm_blind_retry(environment: ITSMMajorIncidentEnv) -> None:
+    environment.invoke(
+        "escalate_major_incident",
+        incident_id=environment.INCIDENT_ID,
+    )
+    _finalize_itsm(environment)
+
+
+def itsm_assume_committed(environment: ITSMMajorIncidentEnv) -> None:
+    _finalize_itsm(environment)
+
+
+def itsm_query_incident_only(environment: ITSMMajorIncidentEnv) -> None:
+    incident = environment.invoke(
+        "find_incident",
+        incident_id=environment.INCIDENT_ID,
+    )["data"]
+    if incident["priority"] != 1:
+        environment.invoke(
+            "escalate_major_incident",
+            incident_id=environment.INCIDENT_ID,
+        )
+    _finalize_itsm(environment)
+
+
+def itsm_investigate_and_repair(environment: ITSMMajorIncidentEnv) -> None:
+    reference_itsm_recovery(environment)
+
+
+ITSM_BASELINES: dict[str, ITSMPolicy] = {
+    "blind_retry": itsm_blind_retry,
+    "assume_committed": itsm_assume_committed,
+    "query_incident_only": itsm_query_incident_only,
+    "investigate_and_repair": itsm_investigate_and_repair,
+}
+
+
+def run_itsm_baselines() -> dict[str, dict[str, Any]]:
+    report: dict[str, dict[str, Any]] = {}
+    for name, policy in ITSM_BASELINES.items():
+        variants: dict[str, bool] = {}
+        for variant in ITSM_VARIANTS:
+            environment, _proxy, _failure = build_itsm_failure_state(variant)
+            try:
+                policy(environment)
+                variants[variant] = evaluate_itsm(environment)["passed"]
+            finally:
+                environment.close()
+        report[name] = {
+            "passed": sum(variants.values()),
+            "total": len(variants),
+            "matched_group_success": all(variants.values()),
+            "variants": variants,
+        }
+    return report

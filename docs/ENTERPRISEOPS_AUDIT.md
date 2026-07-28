@@ -82,3 +82,28 @@ The reproducible archive audit is available as:
 ```bash
 python scripts/audit_enterprise_ops.py /path/to/gym_dbs.zip
 ```
+
+## Implemented ITSM semantic slice
+
+`itsm-major-incident-001` is the first workflow built from an audited
+EnterpriseOps schema slice. It uses the upstream table names and relevant
+columns for:
+
+- `incident`, including impact, urgency, priority, assignment, service, parent,
+  and work-note state;
+- `incident_sla` and `sla_definition`;
+- `configuration_item` and `incident_affected_cis`;
+- `child_incident`;
+- `knowledge` and `incident_knowledge`;
+- `users`, `user_group`, and `user_group_member`;
+- `notification`.
+
+The successful prefix is replayed through six public benchmark tools. The
+ambiguous escalation then has four real state-transition implementations:
+no write, full multi-table commit with response loss, parent-only partial
+commit, and a persisted queued job.
+
+This slice runs in local SQLite and does not claim to execute the unpublished
+EnterpriseOps server-side tool code. The benchmark-owned `escalation_job`,
+`escalation_review`, `audit_event`, and `protocol_event` tables are explicitly
+separated from the upstream-derived tables.

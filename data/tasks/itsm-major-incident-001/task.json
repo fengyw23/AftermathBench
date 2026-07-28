@@ -1,0 +1,187 @@
+{
+  "schema_version": "0.1",
+  "task_id": "itsm-major-incident-001",
+  "domain": "enterprise_itsm_major_incident",
+  "title": "Recover a P1 escalation after an ambiguous gateway timeout",
+  "user_instruction": "Complete the P1 escalation of payment outage INC001042. Preserve its assigned response team, affected configuration item, verified runbook, child incident, and valid prior history. Ensure the parent and child reflect P1 impact, exactly one active P1 SLA replaces the former P3 SLA, the major-incident manager and caller are each notified exactly once, the recovery is audited, and review-001 is closed.",
+  "systems": [
+    "incident_management",
+    "identity_and_groups",
+    "configuration_management",
+    "knowledge_management",
+    "sla_management",
+    "notification_and_review"
+  ],
+  "surface_failure": {
+    "tool": "escalate_major_incident",
+    "arguments": {"incident_id": "inc-major-001"},
+    "result": {"ok": false, "error": "504 Gateway Timeout"}
+  },
+  "prefix_trace": [
+    {
+      "step": 1,
+      "kind": "write",
+      "tool": "create_incident",
+      "status": "success",
+      "effect": "INC001042 exists as an in-progress P3 payment outage"
+    },
+    {
+      "step": 2,
+      "kind": "write",
+      "tool": "link_affected_ci",
+      "status": "success",
+      "effect": "the payment gateway cluster is an affected configuration item"
+    },
+    {
+      "step": 3,
+      "kind": "write",
+      "tool": "assign_incident",
+      "status": "success",
+      "effect": "the incident is assigned to an active member of Major Incident Response"
+    },
+    {
+      "step": 4,
+      "kind": "write",
+      "tool": "link_incident_knowledge",
+      "status": "success",
+      "effect": "the published payment outage runbook is linked"
+    },
+    {
+      "step": 5,
+      "kind": "write",
+      "tool": "create_child_incident",
+      "status": "success",
+      "effect": "merchant checkout incident INC001043 is linked as a child"
+    },
+    {
+      "step": 6,
+      "kind": "write",
+      "tool": "link_incident_sla",
+      "status": "success",
+      "effect": "the active P3 response SLA is linked to the incident"
+    }
+  ],
+  "protected_effects": [
+    "INC001042 retains its stable identity and history",
+    "Major Incident Response and Agent One remain assigned",
+    "the payment gateway CI link remains present",
+    "the published runbook link remains present",
+    "INC001043 remains linked as the child incident",
+    "the former P3 SLA remains as cancelled history rather than being deleted"
+  ],
+  "entities": [
+    {"id": "caller-casey", "system": "identity_and_groups", "kind": "user"},
+    {"id": "agent-one", "system": "identity_and_groups", "kind": "user"},
+    {"id": "manager-mira", "system": "identity_and_groups", "kind": "user"},
+    {"id": "group-major-response", "system": "identity_and_groups", "kind": "user_group"},
+    {"id": "membership-agent-major", "system": "identity_and_groups", "kind": "group_membership"},
+    {"id": "service-payments", "system": "configuration_management", "kind": "service"},
+    {"id": "ci-payment-gateway", "system": "configuration_management", "kind": "configuration_item"},
+    {"id": "incident-parent", "system": "incident_management", "kind": "incident"},
+    {"id": "incident-child", "system": "incident_management", "kind": "incident"},
+    {"id": "child-mapping", "system": "incident_management", "kind": "child_incident"},
+    {"id": "affected-ci-link", "system": "configuration_management", "kind": "incident_affected_ci"},
+    {"id": "knowledge-runbook", "system": "knowledge_management", "kind": "knowledge"},
+    {"id": "incident-knowledge-link", "system": "knowledge_management", "kind": "incident_knowledge"},
+    {"id": "sla-definition-p3", "system": "sla_management", "kind": "sla_definition"},
+    {"id": "sla-definition-p1", "system": "sla_management", "kind": "sla_definition"},
+    {"id": "incident-sla-p3", "system": "sla_management", "kind": "incident_sla"},
+    {"id": "incident-sla-p1", "system": "sla_management", "kind": "incident_sla"},
+    {"id": "escalation-call", "system": "incident_management", "kind": "tool_call"},
+    {"id": "escalation-job", "system": "incident_management", "kind": "async_job"},
+    {"id": "manager-notification", "system": "notification_and_review", "kind": "notification"},
+    {"id": "caller-notification", "system": "notification_and_review", "kind": "notification"},
+    {"id": "escalation-audit", "system": "notification_and_review", "kind": "audit_event"},
+    {"id": "escalation-review", "system": "notification_and_review", "kind": "review"},
+    {"id": "priority-rule", "system": "incident_management", "kind": "business_rule"},
+    {"id": "sla-replacement-rule", "system": "sla_management", "kind": "business_rule"},
+    {"id": "closure-rule", "system": "notification_and_review", "kind": "business_rule"}
+  ],
+  "relations": [
+    {"source": "caller-casey", "target": "incident-parent", "type": "reports"},
+    {"source": "manager-mira", "target": "group-major-response", "type": "manages"},
+    {"source": "agent-one", "target": "membership-agent-major", "type": "member_identity"},
+    {"source": "group-major-response", "target": "membership-agent-major", "type": "contains"},
+    {"source": "membership-agent-major", "target": "incident-parent", "type": "assignment_authorization"},
+    {"source": "service-payments", "target": "ci-payment-gateway", "type": "implemented_by"},
+    {"source": "ci-payment-gateway", "target": "affected-ci-link", "type": "affected_resource"},
+    {"source": "affected-ci-link", "target": "incident-parent", "type": "diagnostic_context"},
+    {"source": "knowledge-runbook", "target": "incident-knowledge-link", "type": "published_guidance"},
+    {"source": "incident-knowledge-link", "target": "incident-parent", "type": "diagnostic_context"},
+    {"source": "incident-parent", "target": "child-mapping", "type": "parent_side"},
+    {"source": "child-mapping", "target": "incident-child", "type": "child_side"},
+    {"source": "priority-rule", "target": "escalation-call", "type": "transition_rule"},
+    {"source": "incident-parent", "target": "escalation-call", "type": "state_transition_input"},
+    {"source": "affected-ci-link", "target": "escalation-call", "type": "verification_input"},
+    {"source": "incident-knowledge-link", "target": "escalation-call", "type": "verification_input"},
+    {"source": "membership-agent-major", "target": "escalation-call", "type": "verification_input"},
+    {"source": "sla-definition-p3", "target": "incident-sla-p3", "type": "defines"},
+    {"source": "incident-sla-p3", "target": "escalation-call", "type": "replacement_input"},
+    {"source": "sla-replacement-rule", "target": "escalation-call", "type": "transition_rule"},
+    {"source": "escalation-call", "target": "escalation-job", "type": "asynchronous_boundary"},
+    {"source": "escalation-call", "target": "incident-sla-p1", "type": "state_transition"},
+    {"source": "sla-definition-p1", "target": "incident-sla-p1", "type": "defines"},
+    {"source": "escalation-call", "target": "incident-child", "type": "priority_propagation"},
+    {"source": "escalation-call", "target": "manager-notification", "type": "notification_trigger"},
+    {"source": "escalation-job", "target": "incident-sla-p1", "type": "deferred_effect"},
+    {"source": "escalation-job", "target": "incident-child", "type": "deferred_effect"},
+    {"source": "escalation-job", "target": "manager-notification", "type": "deferred_effect"},
+    {"source": "incident-sla-p1", "target": "escalation-audit", "type": "verification_precondition"},
+    {"source": "incident-child", "target": "escalation-audit", "type": "verification_precondition"},
+    {"source": "manager-notification", "target": "escalation-audit", "type": "verification_precondition"},
+    {"source": "escalation-audit", "target": "caller-notification", "type": "notification_precondition"},
+    {"source": "incident-sla-p1", "target": "closure-rule", "type": "closure_precondition"},
+    {"source": "manager-notification", "target": "closure-rule", "type": "closure_precondition"},
+    {"source": "caller-notification", "target": "closure-rule", "type": "closure_precondition"},
+    {"source": "escalation-audit", "target": "closure-rule", "type": "closure_precondition"},
+    {"source": "closure-rule", "target": "escalation-review", "type": "state_transition"}
+  ],
+  "nonlinear_motifs": [
+    "fan_in",
+    "fan_out",
+    "and_join",
+    "cross_table_referential_integrity",
+    "asynchronous_boundary",
+    "protected_irreversible_prefix"
+  ],
+  "required_evidence_sources": [
+    "incident parent priority and assignment",
+    "affected configuration item and knowledge links",
+    "child incident priority",
+    "incident SLA records and SLA definitions",
+    "notification records",
+    "asynchronous escalation job"
+  ],
+  "minimum_downstream_repairs": 3,
+  "unsafe_retry_actions": [
+    "escalate_major_incident",
+    "send_major_incident_notification",
+    "send_caller_update"
+  ],
+  "variants": [
+    {
+      "id": "not_committed",
+      "hidden_outcome": "no_commit",
+      "snapshot_selector": "not_committed",
+      "minimum_repair_mutations": 4
+    },
+    {
+      "id": "commit_response_lost",
+      "hidden_outcome": "full_commit_response_lost",
+      "snapshot_selector": "commit_response_lost",
+      "minimum_repair_mutations": 3
+    },
+    {
+      "id": "partial_commit",
+      "hidden_outcome": "partial_commit",
+      "snapshot_selector": "partial_commit",
+      "minimum_repair_mutations": 6
+    },
+    {
+      "id": "async_pending",
+      "hidden_outcome": "asynchronous_commit_pending",
+      "snapshot_selector": "async_pending",
+      "minimum_repair_mutations": 4
+    }
+  ]
+}

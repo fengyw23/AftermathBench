@@ -15,10 +15,10 @@ actions.
 ```text
 Recovery Integrity
 = Remaining Goal Completion
-∧ State and Business Integrity
-∧ Repair Completeness
-∧ Valid-Prefix Preservation
-∧ Protocol Safety
+AND State and Business Integrity
+AND Repair Completeness
+AND Valid-Prefix Preservation
+AND Protocol Safety
 ```
 
 AftermathBench does **not** require one gold action sequence and does not score
@@ -27,20 +27,28 @@ and event history satisfy deterministic checks.
 
 ## Repository status
 
-This repository is an executable research scaffold. It currently contains an
-enterprise transfer workflow and a software-release/database-migration workflow,
-each with four matched commit-state variants:
+This repository is an executable research scaffold. It currently contains
+three workflows:
 
-- `not_committed`
-- `commit_response_lost`
-- `partial_commit`
-- `async_pending`
+- an enterprise employee transfer;
+- a multi-table ITSM major-incident escalation;
+- a software release and database migration.
 
-Both samples are built against the hard-task admission gate. The release task
-uses a real Git repository, application and control-plane SQLite databases, and
-a content-addressed registry manifest. The next implementation stage will add:
+Each workflow contains four matched commit-state variants:
 
-1. Enterprise workflows adapted from EnterpriseOps-Gym.
+- `not_committed`;
+- `commit_response_lost`;
+- `partial_commit`;
+- `async_pending`.
+
+All three samples pass the hard-task admission gate. The ITSM task uses
+EnterpriseOps-Gym's native public table names and business relations across
+incidents, SLAs, configuration items, child incidents, knowledge, users,
+groups, and notifications. The release task uses a real Git repository,
+application and control-plane SQLite databases, and a content-addressed
+registry manifest. The next implementation stage will add:
+
+1. More enterprise workflows adapted from EnterpriseOps-Gym.
 2. Software-delivery and database-migration workflows running in containers.
 3. Model adapters and trajectory logging.
 
@@ -53,6 +61,7 @@ python -m unittest discover -s tests -v
 python -m aftermath_bench validate
 python -m aftermath_bench demo --all
 python -m aftermath_bench demo-release --all
+python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
 ```
 
@@ -70,6 +79,7 @@ $env:PYTHONPATH = "src"
 python -m aftermath_bench validate
 python -m aftermath_bench demo --all
 python -m aftermath_bench demo-release --all
+python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
 ```
 

@@ -4,7 +4,7 @@ import argparse
 import json
 
 from .admission import validate_task
-from .baselines import run_release_baselines
+from .baselines import run_itsm_baselines, run_release_baselines
 from .evaluator import evaluate
 from .scenarios.enterprise_transfer import (
     VARIANTS,
@@ -16,6 +16,12 @@ from .scenarios.release_migration import (
     build_release_failure_state,
     evaluate_release,
     reference_release_recovery,
+)
+from .scenarios.itsm_major_incident import (
+    ITSM_VARIANTS,
+    build_itsm_failure_state,
+    evaluate_itsm,
+    reference_itsm_recovery,
 )
 from .schema import load_task, task_paths
 
@@ -84,6 +90,32 @@ def _run_release_demo(variants: tuple[str, ...]) -> int:
     return 0 if all_passed else 1
 
 
+def _run_itsm_demo(variants: tuple[str, ...]) -> int:
+    all_passed = True
+    for variant in variants:
+        environment, _proxy, failure = build_itsm_failure_state(variant)
+        try:
+            reference_itsm_recovery(environment)
+            result = evaluate_itsm(environment)
+            all_passed = all_passed and result["passed"]
+            print(json.dumps(
+                {
+                    "variant": variant,
+                    "surface_failure": failure,
+                    "passed": result["passed"],
+                    "components": result,
+                    "recovery_tools": [
+                        event.tool
+                        for event in environment.events_after("failure")
+                    ],
+                },
+                indent=2,
+            ))
+        finally:
+            environment.close()
+    return 0 if all_passed else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aftermath-bench")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -97,6 +129,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     release_demo.add_argument("--variant", choices=RELEASE_VARIANTS)
     release_demo.add_argument("--all", action="store_true")
+    itsm_demo = subparsers.add_parser(
+        "demo-itsm",
+        help="run the multi-table ITSM major-incident recovery",
+    )
+    itsm_demo.add_argument("--variant", choices=ITSM_VARIANTS)
+    itsm_demo.add_argument("--all", action="store_true")
     subparsers.add_parser(
         "baselines",
         help="run fixed recovery heuristics on matched release faults",
@@ -109,8 +147,19 @@ def main() -> int:
     if args.command == "validate":
         return _validate()
     if args.command == "baselines":
-        print(json.dumps(run_release_baselines(), indent=2))
+        print(json.dumps(
+            {
+                "release_migration": run_release_baselines(),
+                "itsm_major_incident": run_itsm_baselines(),
+            },
+            indent=2,
+        ))
         return 0
+    if args.command == "demo-itsm":
+        variants = ITSM_VARIANTS if args.all else (
+            args.variant or ITSM_VARIANTS[0],
+        )
+        return _run_itsm_demo(variants)
     if args.command == "demo-release":
         variants = RELEASE_VARIANTS if args.all else (
             args.variant or RELEASE_VARIANTS[0],
