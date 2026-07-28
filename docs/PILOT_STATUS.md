@@ -87,11 +87,12 @@ attempt and zero unfinished relevant jobs.
 
 ## Next enterprise implementation
 
-1. Connect the restricted ERPNext environment to the provider-agnostic model
-   loop.
+1. Run the first four-state GLM pilot through the provider-agnostic native
+   ERPNext model loop and attribute failures.
 2. Reduce tracing overhead by replacing per-tool full evidence scans with
    incremental event fingerprints.
-3. Evaluate language models on matched hidden states.
+3. Repeat the matched-state experiment across GPT, Claude, Qwen, DeepSeek, and
+   open-weight agents after the single-model interface pilot passes.
 
 ## Coding/DevOps candidate
 

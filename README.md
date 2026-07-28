@@ -64,8 +64,8 @@ failure variants, and terminal checks passed the native replay workflow on
 2026-07-28, so ERPNext now passes both runtime gates. Twelve restricted
 investigation and repair tools plus a state-driven reference control have also
 recovered all four hidden states without duplicate remittance attempts. Model
-loop integration and experiments remain. Forgejo is the selected coding/DevOps
-runtime candidate.
+loop integration is now complete; the next experiment is the first native
+four-state model pilot. Forgejo is the selected coding/DevOps runtime candidate.
 
 ## Quick start
 
@@ -81,6 +81,7 @@ python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
 python -m aftermath_bench fetch-enterpriseops
 python -m aftermath_bench run-itsm-suite --help
+python -m aftermath_bench run-erpnext-model --help
 ```
 
 When running directly from a checkout without installing the package:
@@ -103,6 +104,7 @@ python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
 python -m aftermath_bench fetch-enterpriseops
 python -m aftermath_bench run-itsm-suite --help
+python -m aftermath_bench run-erpnext-model --help
 ```
 
 ## Design principles

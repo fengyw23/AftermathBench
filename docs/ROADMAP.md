@@ -37,9 +37,11 @@ promoted into the final native-runtime benchmark.
 - [x] Implement SQL/Redis/audit reset and deterministic terminal checks.
 - [x] Record gateway correlation events, queue state, remittance attempts,
   document state, stock ledger, and GL evidence.
-- [ ] Complete the first source build and four native replays.
-- [ ] Add restricted model-visible investigation and repair tools.
-- [ ] Pass scripted end-to-end recovery controls.
+- [x] Complete the first source build and four native replays.
+- [x] Add restricted model-visible investigation and repair tools.
+- [x] Pass scripted end-to-end recovery controls.
+- [x] Connect the native environment to the provider-agnostic model loop.
+- [ ] Run the first four-state GLM pilot and attribute model failures.
 
 ## Phase 4 — Forgejo coding/DevOps vertical slice
 

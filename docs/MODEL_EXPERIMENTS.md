@@ -1,6 +1,64 @@
 # Model Experiment Protocol
 
-## Official ITSM state source
+## Primary native ERPNext pilot
+
+The primary model experiment runs against the source-built ERPNext/Frappe
+runtime. Each run restores the same seven-write procurement prefix, injects
+one of four source-supported ambiguous failure boundaries, and then gives the
+model twelve restricted investigation and repair tools.
+
+The model receives:
+
+1. the still-valid invoice-payment and supplier-remittance request;
+2. the seven successful public-API prefix writes;
+3. the ambiguous failed Payment Entry submission result;
+4. live ERPNext query and mutation tools.
+
+It does not receive the hidden boundary label, evaluator checks, expected
+mutation, database evidence snapshot, or reference control trajectory.
+
+The native pilot requires a Docker-capable host. The manual GitHub workflow
+`erpnext-native-model-pilot` builds the pinned runtime and runs all four
+matched states. Configure the repository secret `ZHIPU_CODING_API_KEY`, then
+dispatch the workflow with the desired OpenAI-compatible model ID. The default
+is `glm-5.2` using:
+
+```text
+https://open.bigmodel.cn/api/coding/paas/v4
+```
+
+For a live failure state that has already been constructed:
+
+```powershell
+$env:AFTERMATH_API_KEY = "<key>"
+python -m aftermath_bench run-erpnext-model `
+  --provider openai-compatible `
+  --base-url "https://open.bigmodel.cn/api/coding/paas/v4" `
+  --model "glm-5.2" `
+  --variant request_not_reached `
+  --credentials "runtimes/erpnext/.runtime/credentials.json" `
+  --prefix "runtimes/erpnext/.runtime/prefix.json" `
+  --failure-report "runtimes/erpnext/.runtime/request_not_reached.json" `
+  --output "runs/erpnext/request_not_reached.json"
+```
+
+Every trajectory records the complete model-visible input, sanitized provider
+responses, tool calls and results, final persistent evidence, deterministic
+checks, and diagnostics for investigation coverage, unsafe submission retries,
+unnecessary remittance requeues, and tool errors. API keys and authorization
+headers are never serialized.
+
+The first pilot runs one repetition of each matched state. Scale to five
+repetitions only after confirming that any failures are caused by recovery
+behavior rather than provider or runtime errors.
+
+## Legacy ITSM concept experiment
+
+The following EnterpriseOps-Gym ITSM protocol is retained for regression only.
+Its seed data is public, but its local server behavior is inferred and it is
+not part of the final native-runtime leaderboard.
+
+### State source
 
 Official model runs use the pinned EnterpriseOps-Gym asset:
 

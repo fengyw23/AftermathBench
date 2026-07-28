@@ -1,0 +1,76 @@
+import json
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from aftermath_bench.schema import repository_root
+from scripts.summarize_erpnext_model_runs import summarize
+
+
+class ERPNextModelWorkflowTest(unittest.TestCase):
+    def test_workflow_runs_every_matched_state_and_uses_a_secret(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "erpnext-model-pilot.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("run-erpnext-model", workflow)
+        for variant in (
+            "request_not_reached",
+            "database_committed_response_lost",
+            "after_commit_enqueue_failed",
+            "async_job_pending",
+        ):
+            self.assertIn(variant, workflow)
+        upload_section = workflow.split(
+            "- name: Upload sanitized model trajectories",
+            1,
+        )[1]
+        self.assertNotIn("credentials.json", upload_section)
+
+    def test_summary_distinguishes_task_failure_from_run_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for repetition in (1,):
+                run_dir = root / f"repetition-{repetition:02d}"
+                run_dir.mkdir(parents=True)
+                for index, variant in enumerate(
+                    (
+                        "request_not_reached",
+                        "database_committed_response_lost",
+                        "after_commit_enqueue_failed",
+                        "async_job_pending",
+                    )
+                ):
+                    report = {
+                        "variant": variant,
+                        "evaluation": {
+                            "passed": index != 0,
+                            "checks": {"complete": index != 0},
+                        },
+                        "turns": [{}, {}],
+                        "stop_reason": "model_stopped",
+                        "trajectory_diagnostics": {
+                            "selected_mutations": [],
+                            "inspected_payment_state": True,
+                            "inspected_remittance_state": index != 0,
+                            "unsafe_submit_retry": False,
+                            "unnecessary_remittance_requeue": False,
+                            "tool_error_count": 0,
+                        },
+                    }
+                    (run_dir / f"{variant}.json").write_text(
+                        json.dumps(report),
+                        encoding="utf-8",
+                    )
+            summary = summarize(root)
+            self.assertEqual(summary["completed_runs"], 4)
+            self.assertEqual(summary["run_errors"], 0)
+            self.assertEqual(summary["task_pass_rate"], 0.75)
+            self.assertEqual(summary["matched_group_success_rate"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -5,6 +5,7 @@ import json
 
 from .admission import validate_task
 from .baselines import run_itsm_baselines, run_release_baselines
+from .erpnext_model_runner import run_live_erpnext_agent
 from .evaluator import evaluate
 from .integrations.enterprise_ops_assets import fetch_enterpriseops_archive
 from .model_runner import (
@@ -229,6 +230,45 @@ def build_parser() -> argparse.ArgumentParser:
     model_suite.add_argument("--repetitions", type=int, default=5)
     model_suite.add_argument("--max-turns", type=int, default=15)
     model_suite.add_argument("--output-directory", required=True)
+    erpnext_model_run = subparsers.add_parser(
+        "run-erpnext-model",
+        help="run a model against one live native ERPNext failure state",
+    )
+    erpnext_model_run.add_argument(
+        "--provider",
+        required=True,
+        choices=("openai-compatible", "anthropic"),
+    )
+    erpnext_model_run.add_argument("--model", required=True)
+    erpnext_model_run.add_argument("--base-url")
+    erpnext_model_run.add_argument(
+        "--api-key-env",
+        default="AFTERMATH_API_KEY",
+    )
+    erpnext_model_run.add_argument(
+        "--variant",
+        required=True,
+        choices=(
+            "request_not_reached",
+            "database_committed_response_lost",
+            "after_commit_enqueue_failed",
+            "async_job_pending",
+        ),
+    )
+    erpnext_model_run.add_argument("--credentials", required=True)
+    erpnext_model_run.add_argument("--prefix", required=True)
+    erpnext_model_run.add_argument("--failure-report", required=True)
+    erpnext_model_run.add_argument("--max-turns", type=int, default=15)
+    erpnext_model_run.add_argument("--output", required=True)
+    erpnext_model_run.add_argument(
+        "--erpnext-base-url",
+        default="http://127.0.0.1:8080",
+    )
+    erpnext_model_run.add_argument(
+        "--container-cli",
+        choices=("docker", "podman"),
+        default="docker",
+    )
     subparsers.add_parser(
         "baselines",
         help="run fixed recovery heuristics on matched release faults",
@@ -315,6 +355,37 @@ def main() -> int:
             indent=2,
         ))
         return 0 if not summary["run_errors"] else 2
+    if args.command == "run-erpnext-model":
+        client = client_from_environment(
+            provider=args.provider,
+            model=args.model,
+            base_url=args.base_url,
+            api_key_env=args.api_key_env,
+        )
+        report = run_live_erpnext_agent(
+            client,
+            variant=args.variant,
+            credentials_path=args.credentials,
+            prefix_path=args.prefix,
+            failure_report_path=args.failure_report,
+            max_turns=args.max_turns,
+            output_path=args.output,
+            erpnext_base_url=args.erpnext_base_url,
+            container_cli=args.container_cli,
+        )
+        print(json.dumps(
+            {
+                "run_id": report["run_id"],
+                "evaluation": report["evaluation"],
+                "trajectory_diagnostics": report[
+                    "trajectory_diagnostics"
+                ],
+                "stop_reason": report["stop_reason"],
+                "output": args.output,
+            },
+            indent=2,
+        ))
+        return 0 if report["evaluation"]["passed"] else 1
     if args.command == "demo-itsm":
         variants = ITSM_VARIANTS if args.all else (
             args.variant or ITSM_VARIANTS[0],
