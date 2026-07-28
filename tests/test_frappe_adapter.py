@@ -43,17 +43,55 @@ class FrappeAdapterTest(unittest.TestCase):
 
     @patch("urllib.request.urlopen")
     def test_submit_delegates_to_native_frappe_method(self, urlopen) -> None:
-        urlopen.return_value = _Response({"message": {"docstatus": 1}})
+        document = {
+            "doctype": "Payment Entry",
+            "name": "ACC-PAY-1",
+            "modified": "2026-07-28 10:53:20.273925",
+        }
+        urlopen.side_effect = [
+            _Response({"data": document}),
+            _Response({"message": {"docstatus": 1}}),
+        ]
         self.adapter.submit_document("Payment Entry", "ACC-PAY-1")
-        request = urlopen.call_args.args[0]
+        request = urlopen.call_args_list[1].args[0]
         payload = json.loads(request.data.decode("utf-8"))
         self.assertEqual(
             request.full_url,
             "http://erp.test/api/method/frappe.client.submit",
         )
+        self.assertEqual(payload, {"doc": document})
+
+    def test_submit_refreshes_only_after_timestamp_mismatch(self) -> None:
+        first = {
+            "doctype": "Purchase Order",
+            "name": "PUR-ORD-1",
+            "modified": "old",
+        }
+        refreshed = {**first, "modified": "new"}
+        with (
+            patch.object(
+                self.adapter,
+                "get_resource",
+                side_effect=[{"data": first}, {"data": refreshed}],
+            ) as get_resource,
+            patch.object(
+                self.adapter,
+                "call_method",
+                side_effect=[
+                    RuntimeError("TimestampMismatchError: refresh"),
+                    {"message": {"docstatus": 1}},
+                ],
+            ) as call_method,
+        ):
+            result = self.adapter.submit_document(
+                "Purchase Order",
+                "PUR-ORD-1",
+            )
+        self.assertEqual(result["message"]["docstatus"], 1)
+        self.assertEqual(get_resource.call_count, 2)
         self.assertEqual(
-            payload,
-            {"doc": {"doctype": "Payment Entry", "name": "ACC-PAY-1"}},
+            call_method.call_args_list[1].args[1],
+            {"doc": refreshed},
         )
 
     @patch("urllib.request.urlopen")

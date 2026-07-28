@@ -128,10 +128,25 @@ class FrappeHTTPAdapter:
         doctype: str,
         name: str,
     ) -> dict[str, Any]:
-        return self.call_method(
-            "frappe.client.submit",
-            {"doc": {"doctype": doctype, "name": name}},
-        )
+        last_error: RuntimeError | None = None
+        for _attempt in range(3):
+            response = self.get_resource(doctype, name)
+            document = response.get("data")
+            if not isinstance(document, dict):
+                raise RuntimeError(
+                    f"Frappe returned no document for {doctype} {name}"
+                )
+            try:
+                return self.call_method(
+                    "frappe.client.submit",
+                    {"doc": document},
+                )
+            except RuntimeError as error:
+                if "TimestampMismatchError" not in str(error):
+                    raise
+                last_error = error
+        assert last_error is not None
+        raise last_error
 
     def cancel_document(
         self,
