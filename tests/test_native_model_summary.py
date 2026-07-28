@@ -86,6 +86,41 @@ class NativeModelSummaryTest(unittest.TestCase):
             summary["run_errors"][0],
         )
 
+    def test_reports_a_missing_matched_variant(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_dir = root / "repetition-01"
+            run_dir.mkdir()
+            for variant in (
+                "request_not_reached",
+                "database_committed_response_lost",
+                "after_commit_enqueue_failed",
+            ):
+                (run_dir / f"{variant}.json").write_text(
+                    json.dumps(
+                        {
+                            "scenario_id": "hard-1",
+                            "variant": variant,
+                            "execution_control": False,
+                            "evaluation": {
+                                "passed": True,
+                                "components": {},
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            summary = summarize(
+                root,
+                expected_execution_control=False,
+            )
+        self.assertEqual(summary["completed_runs"], 3)
+        self.assertEqual(len(summary["run_errors"]), 1)
+        self.assertIn(
+            "async_job_pending.json: missing trajectory",
+            summary["run_errors"][0],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

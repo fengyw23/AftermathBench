@@ -18,6 +18,18 @@ VARIANTS = {
 def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
     reports = []
     errors = []
+    repetition_directories = sorted(
+        path
+        for path in root.rglob("repetition-*")
+        if path.is_dir()
+    )
+    for run_directory in repetition_directories:
+        for variant in sorted(VARIANTS):
+            path = run_directory / f"{variant}.json"
+            if not path.is_file() or path.stat().st_size == 0:
+                errors.append(
+                    f"{path}: missing trajectory after provider retry"
+                )
     for path in sorted(root.rglob("*.json")):
         if path.name.endswith("-failure.json") or path.name in {
             "summary.json",

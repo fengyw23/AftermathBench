@@ -118,6 +118,44 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             self.assertEqual(summary["task_pass_rate"], 0.75)
             self.assertEqual(summary["matched_group_success_rate"], 0)
 
+    def test_easy_summary_counts_a_missing_trajectory_as_run_error(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_dir = root / "repetition-01"
+            run_dir.mkdir(parents=True)
+            for variant in (
+                "request_not_reached",
+                "database_committed_response_lost",
+                "after_commit_enqueue_failed",
+            ):
+                (run_dir / f"{variant}.json").write_text(
+                    json.dumps(
+                        {
+                            "variant": variant,
+                            "evaluation": {
+                                "passed": True,
+                                "checks": {"complete": True},
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            summary = summarize(root)
+        self.assertEqual(summary["completed_runs"], 3)
+        self.assertEqual(summary["run_errors"], 1)
+        missing = [
+            run
+            for run in summary["runs"]
+            if run["status"] == "run_error"
+        ]
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(
+            missing[0]["variant"],
+            "async_job_pending",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

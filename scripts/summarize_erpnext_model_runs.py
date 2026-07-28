@@ -16,53 +16,86 @@ VARIANTS = (
 
 def summarize(root: Path) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
-    for path in sorted(root.glob("repetition-*/*.json")):
-        if path.name.endswith("-failure.json"):
-            continue
-        report = json.loads(path.read_text(encoding="utf-8"))
-        if "evaluation" not in report:
+    repetition_directories = sorted(root.glob("repetition-*"))
+    for run_directory in repetition_directories:
+        repetition = int(run_directory.name.split("-", 1)[1])
+        for variant in VARIANTS:
+            path = run_directory / f"{variant}.json"
+            if not path.is_file() or path.stat().st_size == 0:
+                records.append(
+                    {
+                        "trajectory": str(path),
+                        "status": "run_error",
+                        "variant": variant,
+                        "repetition": repetition,
+                        "error": "missing trajectory after provider retry",
+                    }
+                )
+                continue
+            try:
+                report = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                records.append(
+                    {
+                        "trajectory": str(path),
+                        "status": "run_error",
+                        "variant": variant,
+                        "repetition": repetition,
+                        "error": str(error),
+                    }
+                )
+                continue
+            if "evaluation" not in report:
+                records.append(
+                    {
+                        "trajectory": str(path),
+                        "status": "run_error",
+                        "variant": variant,
+                        "repetition": repetition,
+                        "error": report.get(
+                            "error",
+                            "missing evaluation",
+                        ),
+                    }
+                )
+                continue
+            diagnostics = report.get("trajectory_diagnostics", {})
             records.append(
                 {
                     "trajectory": str(path),
-                    "status": "run_error",
-                    "error": report.get("error", "missing evaluation"),
+                    "status": "completed",
+                    "variant": report["variant"],
+                    "repetition": repetition,
+                    "passed": bool(report["evaluation"]["passed"]),
+                    "checks": report["evaluation"]["checks"],
+                    "turns": len(report.get("turns", ())),
+                    "stop_reason": report.get("stop_reason"),
+                    "selected_mutations": diagnostics.get(
+                        "selected_mutations",
+                        (),
+                    ),
+                    "inspected_payment_state": diagnostics.get(
+                        "inspected_payment_state",
+                        False,
+                    ),
+                    "inspected_remittance_state": diagnostics.get(
+                        "inspected_remittance_state",
+                        False,
+                    ),
+                    "unsafe_submit_retry": diagnostics.get(
+                        "unsafe_submit_retry",
+                        False,
+                    ),
+                    "unnecessary_remittance_requeue": diagnostics.get(
+                        "unnecessary_remittance_requeue",
+                        False,
+                    ),
+                    "tool_error_count": diagnostics.get(
+                        "tool_error_count",
+                        0,
+                    ),
                 }
             )
-            continue
-        diagnostics = report.get("trajectory_diagnostics", {})
-        records.append(
-            {
-                "trajectory": str(path),
-                "status": "completed",
-                "variant": report["variant"],
-                "repetition": int(path.parent.name.split("-", 1)[1]),
-                "passed": bool(report["evaluation"]["passed"]),
-                "checks": report["evaluation"]["checks"],
-                "turns": len(report.get("turns", ())),
-                "stop_reason": report.get("stop_reason"),
-                "selected_mutations": diagnostics.get(
-                    "selected_mutations",
-                    (),
-                ),
-                "inspected_payment_state": diagnostics.get(
-                    "inspected_payment_state",
-                    False,
-                ),
-                "inspected_remittance_state": diagnostics.get(
-                    "inspected_remittance_state",
-                    False,
-                ),
-                "unsafe_submit_retry": diagnostics.get(
-                    "unsafe_submit_retry",
-                    False,
-                ),
-                "unnecessary_remittance_requeue": diagnostics.get(
-                    "unnecessary_remittance_requeue",
-                    False,
-                ),
-                "tool_error_count": diagnostics.get("tool_error_count", 0),
-            }
-        )
 
     completed = [record for record in records if record["status"] == "completed"]
     repetitions = sorted(
