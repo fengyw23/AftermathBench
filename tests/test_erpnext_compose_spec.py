@@ -34,7 +34,11 @@ class ERPNextComposeSpecTest(unittest.TestCase):
 
     def test_native_recovery_bridge_is_read_only_and_source_visible(self) -> None:
         self.assertIn(
-            "./bridge:/opt/aftermath-bridge:ro",
+            (
+                "./bridge/aftermath_frappe_bridge.py:"
+                "/home/frappe/frappe-bench/apps/frappe/frappe/"
+                "aftermath_bridge.py:ro"
+            ),
             self.compose,
         )
         bridge = (

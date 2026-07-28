@@ -127,13 +127,11 @@ class ERPNextStack:
                 "exec",
                 "-T",
                 "backend",
-                "env",
-                "PYTHONPATH=/opt/aftermath-bridge",
                 "bench",
                 "--site",
                 "aftermath.localhost",
                 "execute",
-                "aftermath_frappe_bridge.requeue_payment_remittance",
+                "frappe.aftermath_bridge.requeue_payment_remittance",
                 "--kwargs",
                 json.dumps(
                     {

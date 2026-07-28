@@ -66,9 +66,8 @@ class ERPNextStackTest(unittest.TestCase):
         result = stack.requeue_payment_remittance("PAY-1")
 
         command = runner.call_args.args[0]
-        self.assertIn("PYTHONPATH=/opt/aftermath-bridge", command)
         self.assertIn(
-            "aftermath_frappe_bridge.requeue_payment_remittance",
+            "frappe.aftermath_bridge.requeue_payment_remittance",
             command,
         )
         kwargs = json.loads(command[command.index("--kwargs") + 1])
