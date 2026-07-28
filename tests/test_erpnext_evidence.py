@@ -9,6 +9,7 @@ from aftermath_bench.integrations.erpnext_evidence import (
 
 class _FakeAdapter:
     def __init__(self):
+        self.list_calls = []
         self.documents = {
             ("Purchase Order", "PO-1"): {"name": "PO-1", "docstatus": 1},
             ("Purchase Receipt", "PR-1"): {"name": "PR-1", "docstatus": 1},
@@ -37,7 +38,8 @@ class _FakeAdapter:
     def get_resource(self, doctype, name):
         return {"data": self.documents[(doctype, name)]}
 
-    def list_resources(self, doctype, **_kwargs):
+    def list_resources(self, doctype, **kwargs):
+        self.list_calls.append((doctype, kwargs))
         if doctype == "Payment Entry":
             return {"data": [{"name": "PAY-1"}, {"name": "PAY-OTHER"}]}
         if doctype == "Stock Ledger Entry":
@@ -84,6 +86,12 @@ class ERPNextEvidenceCollectorTest(unittest.TestCase):
         )
         self.assertEqual(len(evidence["gl_entries"]), 2)
         self.assertEqual(evidence["remittance"]["key"], "PAY-1")
+        rq_call = next(
+            kwargs
+            for doctype, kwargs in collector.adapter.list_calls
+            if doctype == "RQ Job"
+        )
+        self.assertEqual(rq_call["order_by"], "creation desc")
 
 
 if __name__ == "__main__":

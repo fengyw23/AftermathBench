@@ -86,6 +86,7 @@ class FrappeHTTPAdapter:
         *,
         fields: list[str] | None = None,
         filters: list[list[Any]] | dict[str, Any] | None = None,
+        order_by: str | None = None,
         limit: int = 100,
     ) -> dict[str, Any]:
         query = {
@@ -94,6 +95,8 @@ class FrappeHTTPAdapter:
         }
         if filters is not None:
             query["filters"] = json.dumps(filters)
+        if order_by is not None:
+            query["order_by"] = order_by
         return self._request(
             "GET",
             f"{self._resource_path(doctype)}?"

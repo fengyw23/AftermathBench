@@ -101,11 +101,13 @@ class FrappeAdapterTest(unittest.TestCase):
             "GL Entry",
             fields=["name", "voucher_no"],
             filters={"voucher_no": "ACC-PAY-1"},
+            order_by="creation desc",
         )
         request = urlopen.call_args.args[0]
         self.assertIn("/api/resource/GL%20Entry?", request.full_url)
         self.assertIn("limit_page_length=100", request.full_url)
         self.assertIn("%22voucher_no%22", request.full_url)
+        self.assertIn("order_by=creation+desc", request.full_url)
 
 
 if __name__ == "__main__":

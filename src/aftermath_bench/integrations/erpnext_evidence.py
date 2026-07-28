@@ -40,12 +40,14 @@ class ERPNextEvidenceCollector:
         *,
         fields: list[str],
         filters: list[list[Any]] | dict[str, Any] | None = None,
+        order_by: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         response = self.adapter.list_resources(
             doctype,
             fields=fields,
             filters=filters,
+            order_by=order_by,
             limit=limit,
         )
         return [dict(item) for item in _data(response)]
@@ -122,6 +124,7 @@ class ERPNextEvidenceCollector:
         jobs = self._list(
             "RQ Job",
             fields=["name", "job_name", "status", "arguments", "queue"],
+            order_by="creation desc",
             limit=500,
         )
 
@@ -145,4 +148,3 @@ class ERPNextEvidenceCollector:
             "rq_jobs": jobs,
             "remittance": remittance,
         }
-
