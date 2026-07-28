@@ -91,7 +91,7 @@ class ERPNextStack:
             "execute",
             "frappe.desk.page.setup_wizard.setup_wizard.setup_complete",
             "--kwargs",
-            json.dumps(setup_arguments, separators=(",", ":")),
+            json.dumps({"args": setup_arguments}, separators=(",", ":")),
         )
 
     def generate_administrator_keys(self) -> dict[str, str]:
@@ -178,4 +178,3 @@ class ERPNextStack:
         with urllib.request.urlopen(request, timeout=30) as response:
             if response.status != 200:
                 raise RuntimeError(f"reset endpoint returned {response.status}")
-
