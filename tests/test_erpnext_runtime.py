@@ -48,9 +48,16 @@ class ERPNextRuntimeTest(unittest.TestCase):
 
     def test_build_plan_does_not_use_a_prebuilt_erpnext_image(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            plan = create_build_plan(Path(directory) / "frappe_docker")
+            source = Path(directory) / "frappe_docker"
+            plan = create_build_plan(source)
         rendered = " ".join(plan.build_command)
-        self.assertIn("images/production/Containerfile", rendered)
+        containerfile = Path(
+            plan.build_command[plan.build_command.index("--file") + 1]
+        )
+        self.assertEqual(
+            containerfile,
+            source.resolve() / "images" / "production" / "Containerfile",
+        )
         self.assertNotIn("frappe/erpnext:", rendered)
 
     @patch("subprocess.check_output")

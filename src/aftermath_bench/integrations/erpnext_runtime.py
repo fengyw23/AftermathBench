@@ -104,7 +104,7 @@ def create_build_plan(
         "--tag",
         str(runtime_lock["image"]),
         "--file",
-        str(driver["containerfile"]),
+        str(source / driver["containerfile"]),
     ]
     for name, value in sorted(runtime_lock["build_args"].items()):
         build.extend(("--build-arg", f"{name}={value}"))
