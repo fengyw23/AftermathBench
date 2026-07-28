@@ -90,6 +90,23 @@ replays. Examples include `Purchase Receipt Item.purchase_order`,
 `return_against`, ledger `voucher_no`, RQ job arguments, and the external
 delivery idempotency key.
 
+For both the development and frozen holdout instances, replay produced:
+
+| Observed property | Value |
+|---|---:|
+| Successful prefix writes | 17 |
+| Protected prefix effects | 4 |
+| Task-relevant entities | 18 |
+| Replay-witnessed semantic edges | 19 |
+| Relation types | 11 |
+| Dependency depth | 6 |
+| Independent evidence groups | 3 |
+| Minimum boundary query groups | 3 |
+| Minimum recovery mutations | 3 |
+| Minimum downstream repair groups | 2 |
+| Executable unsafe actions | 5 |
+| Maximum fixed-heuristic pass rate | 0% |
+
 The four failure reports also form a boundary-signal matrix. The minimum
 number of query groups needed to distinguish the four action requirements is
 computed by enumerating subsets of:
@@ -113,6 +130,10 @@ Three controls separate task validity from model capability:
 
 The evaluator checks Goal Completion, Repair Completeness, Preservation, and
 Protocol Safety. A Recovery Integrity Pass requires all four components.
+
+The valid GLM-5.2 execution control passed all four variants in 5–8 model
+turns with zero provider or tool errors. This result is archived separately
+from the main benchmark runs because the correct scope is explicitly supplied.
 
 ## Snapshot discipline
 
