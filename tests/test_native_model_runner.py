@@ -1,9 +1,11 @@
 import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from aftermath_bench.native_model_runner import (
     NATIVE_RETURN_TOOL_DEFINITIONS,
+    _diagnose,
     native_initial_message,
 )
 from aftermath_bench.native_scenario import load_native_scenario
@@ -70,6 +72,27 @@ class NativeModelRunnerTest(unittest.TestCase):
         self.assertIn("shared Payment Entry", message)
         for variant in self.scenario.variants:
             self.assertNotIn(variant, message)
+
+    def test_success_is_not_given_a_failure_attribution(self) -> None:
+        diagnostics = _diagnose(
+            turns=[],
+            evaluation=SimpleNamespace(
+                passed=True,
+                components={
+                    "goal_completion": True,
+                    "repair_completeness": True,
+                    "preservation": True,
+                    "protocol_safety": True,
+                },
+            ),
+            failure_report={
+                "failure_boundary_evidence": {
+                    "purchase_return": {"docstatus": 0}
+                }
+            },
+            prefix={"purchase_return": "PR-RET-1"},
+        )
+        self.assertIsNone(diagnostics["primary_error"])
 
 
 if __name__ == "__main__":

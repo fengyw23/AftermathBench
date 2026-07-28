@@ -35,6 +35,18 @@ def _get_json(url: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def _reset_gateway_audit(url: str) -> None:
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json"},
+        method="DELETE",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not payload.get("ok"):
+        raise RuntimeError(f"gateway audit reset failed: {payload}")
+
+
 def _unfinished_jobs(evidence: dict, reference: str) -> list[dict]:
     return [
         job
@@ -61,16 +73,26 @@ def _validate_boundary(
     ]
     jobs = _unfinished_jobs(evidence, prefix["purchase_return"])
     delivery = evidence.get("pickup_delivery")
-    submit_events = [
+    # Submission can synchronously release legitimate downstream workflows
+    # (for example, submitting the replacement receipt).  Those later normal
+    # writes are not additional attempts at the ambiguous operation.  Audit
+    # exactly the submit whose transport outcome was hidden.
+    ambiguous_submit_events = [
         event
         for event in gateway_events
         if str(event.get("method", "")).upper() == "POST"
         and str(event.get("path", "")).split("?", 1)[0]
         == "/api/method/frappe.client.submit"
+        and event.get("outcome")
+        in {"request_suppressed", "upstream_completed_response_dropped"}
     ]
-    gateway = submit_events[-1] if submit_events else {}
+    gateway = (
+        ambiguous_submit_events[-1] if ambiguous_submit_events else {}
+    )
     checks = {
-        "one_submit_attempt_audited": len(submit_events) == 1,
+        "one_submit_attempt_audited": (
+            len(ambiguous_submit_events) == 1
+        ),
         "surface_result_hidden": gateway.get("outcome")
         in {"request_suppressed", "upstream_completed_response_dropped"},
         "downstream_debit_note_still_draft": (
@@ -196,6 +218,7 @@ def main() -> int:
         ),
     )
     stack.restore_database(args.snapshot)
+    _reset_gateway_audit("http://127.0.0.1:9091/admin/reset")
     adapter = FrappeHTTPAdapter(
         FrappeConfig(
             base_url=args.base_url,

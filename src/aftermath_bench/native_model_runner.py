@@ -381,7 +381,12 @@ def _diagnose(
             and "get_external_delivery" in query_names
         ),
     }
-    if not all(evidence_groups.values()):
+    # Error attribution explains failed runs.  A successful terminal state
+    # must not be relabelled as an investigation failure merely because the
+    # model reached it without issuing every diagnostic query.
+    if evaluation.passed:
+        primary_error = None
+    elif not all(evidence_groups.values()):
         primary_error = "investigation_failure"
     elif unsafe_retry:
         primary_error = "state_inference_failure"
