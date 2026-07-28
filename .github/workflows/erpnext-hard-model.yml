@@ -1,6 +1,11 @@
 name: erpnext-native-hard-model
 
 on:
+  push:
+    branches:
+      - native-hard-model-dev
+      - native-hard-control-dev
+      - native-hard-holdout-final
   workflow_dispatch:
     inputs:
       split:
@@ -49,16 +54,48 @@ jobs:
       - name: Select and validate the scenario
         run: |
           test -n "$AFTERMATH_API_KEY"
-          if [ "${{ inputs.split }}" = "holdout" ]
+          requested_split="${{ inputs.split }}"
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          if [ "$GITHUB_REF_NAME" = "native-hard-holdout-final" ]
+          then
+            requested_split=holdout
+            requested_repetitions=5
+          elif [ "$GITHUB_REF_NAME" = "native-hard-control-dev" ]
+          then
+            requested_split=development
+            requested_repetitions=1
+            requested_control=true
+          elif [ "$GITHUB_REF_NAME" = "native-hard-model-dev" ]
+          then
+            requested_split=development
+            requested_repetitions=1
+            requested_control=false
+          fi
+          if [ -z "$requested_model" ]
+          then
+            requested_model=glm-5.2
+          fi
+          if [ -z "$requested_repetitions" ]
+          then
+            requested_repetitions=1
+          fi
+          if [ "$requested_split" = "holdout" ]
           then
             scenario_id=erpnext-partial-return-holdout-001
           else
             scenario_id=erpnext-partial-return-dev-001
+            requested_split=development
           fi
           scenario="data/scenarios/${scenario_id}/scenario.json"
           test -f "$scenario"
           echo "SCENARIO_ID=$scenario_id" >> "$GITHUB_ENV"
           echo "SCENARIO=$scenario" >> "$GITHUB_ENV"
+          echo "RUN_SPLIT=$requested_split" >> "$GITHUB_ENV"
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -v
           python -m aftermath_bench validate-runtimes
 
@@ -80,7 +117,7 @@ jobs:
             --output "$run_root/prefix.json"
           python scripts/manage_erpnext_stack.py snapshot \
             --snapshot "$run_root/prefix.sql"
-          if [ "${{ inputs.split }}" = "holdout" ]
+          if [ "$RUN_SPLIT" = "holdout" ]
           then
             python scripts/verify_native_freeze.py \
               --freeze "data/scenarios/${SCENARIO_ID}/freeze.json" \
@@ -93,9 +130,9 @@ jobs:
             echo "scenario_sha256=$(sha256sum "$SCENARIO" | cut -d' ' -f1)"
             echo "prefix_sha256=$(sha256sum "$run_root/prefix.json" | cut -d' ' -f1)"
             echo "snapshot_sha256=$(sha256sum "$run_root/prefix.sql" | cut -d' ' -f1)"
-            echo "model=${{ inputs.model }}"
-            echo "repetitions=${{ inputs.repetitions }}"
-            echo "execution_control=${{ inputs.execution_control }}"
+            echo "model=$MODEL_ID"
+            echo "repetitions=$REPETITIONS"
+            echo "execution_control=$EXECUTION_CONTROL"
             echo "commit=$GITHUB_SHA"
           } > "$run_root/model-runs/manifest.txt"
 
@@ -109,7 +146,7 @@ jobs:
             after_commit_enqueue_failed
             async_job_pending
           )
-          for repetition in $(seq 1 "${{ inputs.repetitions }}")
+          for repetition in $(seq 1 "$REPETITIONS")
           do
             run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
             mkdir -p "$run_dir"
@@ -125,14 +162,14 @@ jobs:
                   --output "$failure_report"
               then
                 control_flag=()
-                if [ "${{ inputs.execution_control }}" = "true" ]
+                if [ "$EXECUTION_CONTROL" = "true" ]
                 then
                   control_flag=(--execution-control)
                 fi
                 if python -m aftermath_bench run-native-model \
                     --provider openai-compatible \
                     --base-url "$AFTERMATH_MODEL_BASE_URL" \
-                    --model "${{ inputs.model }}" \
+                    --model "$MODEL_ID" \
                     --scenario "$SCENARIO" \
                     --credentials runtimes/erpnext/.runtime/credentials.json \
                     --prefix "$run_root/prefix.json" \
@@ -180,7 +217,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: erpnext-hard-${{ inputs.split }}-${{ inputs.model }}
+          name: erpnext-hard-model-output
           include-hidden-files: true
           path: |
             runtimes/erpnext/.runtime/hard-model/model-runs/
