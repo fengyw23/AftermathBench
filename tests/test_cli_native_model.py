@@ -52,7 +52,9 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             "test-model",
         )
 
-    def test_easy_model_command_uses_non_control_condition(self) -> None:
+    def test_easy_model_command_does_not_forward_native_only_control(
+        self,
+    ) -> None:
         report = {
             "run_id": "easy-run",
             "evaluation": {"passed": True},
@@ -89,9 +91,9 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
         ):
             self.assertEqual(cli.main(), 0)
 
-        self.assertIs(
-            runner.call_args.kwargs["execution_control"],
-            False,
+        self.assertNotIn(
+            "execution_control",
+            runner.call_args.kwargs,
         )
 
 

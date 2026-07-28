@@ -442,7 +442,6 @@ def main() -> int:
             prefix_path=args.prefix,
             failure_report_path=args.failure_report,
             max_turns=args.max_turns,
-            execution_control=False,
             output_path=args.output,
             erpnext_base_url=args.erpnext_base_url,
             container_cli=args.container_cli,
