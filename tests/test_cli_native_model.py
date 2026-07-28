@@ -52,6 +52,48 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             "test-model",
         )
 
+    def test_easy_model_command_uses_non_control_condition(self) -> None:
+        report = {
+            "run_id": "easy-run",
+            "evaluation": {"passed": True},
+            "trajectory_diagnostics": {},
+            "stop_reason": "model_stopped",
+        }
+        argv = [
+            "aftermath-bench",
+            "run-erpnext-model",
+            "--provider",
+            "openai-compatible",
+            "--model",
+            "test-model",
+            "--variant",
+            "request_not_reached",
+            "--credentials",
+            "credentials.json",
+            "--prefix",
+            "prefix.json",
+            "--failure-report",
+            "failure.json",
+            "--output",
+            "trajectory.json",
+        ]
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(cli, "client_from_environment"),
+            patch.object(
+                cli,
+                "run_live_erpnext_agent",
+                return_value=report,
+            ) as runner,
+            patch("builtins.print"),
+        ):
+            self.assertEqual(cli.main(), 0)
+
+        self.assertIs(
+            runner.call_args.kwargs["execution_control"],
+            False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
