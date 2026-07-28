@@ -49,6 +49,15 @@ class NativeModelRunnerTest(unittest.TestCase):
         self.assertIn("submit_document", names)
         self.assertNotIn("repair_purchase_return", names)
         self.assertNotIn("get_recommended_action", names)
+        list_documents = next(
+            tool
+            for tool in NATIVE_RETURN_TOOL_DEFINITIONS
+            if tool.name == "list_documents"
+        )
+        self.assertIn(
+            "Webhook",
+            list_documents.input_schema["properties"]["doctype"]["enum"],
+        )
         for tool in NATIVE_RETURN_TOOL_DEFINITIONS:
             self.assertFalse(tool.input_schema["additionalProperties"])
             self.assertNotIn("hidden", json.dumps(tool.input_schema).lower())

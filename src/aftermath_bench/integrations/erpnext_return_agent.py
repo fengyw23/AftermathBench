@@ -55,6 +55,7 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
         "Payment Entry",
         "Quality Inspection",
         "Item",
+        "Webhook",
     }
 
     def __init__(

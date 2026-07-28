@@ -69,6 +69,7 @@ _DOCTYPE = {
             "Payment Entry",
             "Quality Inspection",
             "Item",
+            "Webhook",
         ],
         "description": "ERPNext document type.",
     }
