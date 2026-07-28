@@ -117,6 +117,34 @@ class ERPNextStack:
             "api_secret": str(keys["api_secret"]),
         }
 
+    def requeue_payment_remittance(
+        self,
+        payment_entry: str,
+        webhook_name: str = "Aftermath Payment Remittance",
+    ) -> dict[str, Any]:
+        result = self.run(
+            "exec",
+            "-T",
+            "backend",
+            "env",
+            "PYTHONPATH=/opt/aftermath-bridge",
+            "bench",
+            "--site",
+            "aftermath.localhost",
+            "execute",
+            "aftermath_frappe_bridge.requeue_payment_remittance",
+            "--kwargs",
+            json.dumps(
+                {
+                    "payment_entry": payment_entry,
+                    "webhook_name": webhook_name,
+                },
+                separators=(",", ":"),
+            ),
+            capture_output=True,
+        )
+        return _parse_mapping_output(result.stdout)
+
     def snapshot_database(self, destination: str | Path) -> str:
         path = Path(destination).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

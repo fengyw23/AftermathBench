@@ -70,6 +70,12 @@ class ERPNextEvidenceCollector:
                 return None
             raise
 
+    def get_remittance_delivery(
+        self,
+        payment_name: str,
+    ) -> dict[str, Any] | None:
+        return self._remittance(payment_name)
+
     def collect(self, ids: ProcurementPaymentIDs) -> dict[str, Any]:
         purchase_order = self._get("Purchase Order", ids.purchase_order)
         receipt = self._get("Purchase Receipt", ids.purchase_receipt)

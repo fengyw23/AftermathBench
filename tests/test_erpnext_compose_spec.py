@@ -32,6 +32,25 @@ class ERPNextComposeSpecTest(unittest.TestCase):
     def test_site_creation_does_not_depend_on_missing_wait_helper(self) -> None:
         self.assertNotIn("wait-for-it", self.compose)
 
+    def test_native_recovery_bridge_is_read_only_and_source_visible(self) -> None:
+        self.assertIn(
+            "./bridge:/opt/aftermath-bridge:ro",
+            self.compose,
+        )
+        bridge = (
+            repository_root()
+            / "runtimes"
+            / "erpnext"
+            / "bridge"
+            / "aftermath_frappe_bridge.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("frappe.get_doc(\"Payment Entry\"", bridge)
+        self.assertIn("frappe.enqueue(", bridge)
+        self.assertIn(
+            "frappe.integrations.doctype.webhook.webhook.enqueue_webhook",
+            bridge,
+        )
+
     def test_site_creation_is_one_atomic_shell_command(self) -> None:
         command = next(
             line.strip()

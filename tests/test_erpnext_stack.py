@@ -47,6 +47,34 @@ class ERPNextStackTest(unittest.TestCase):
         self.assertEqual(kwargs["args"]["currency"], "USD")
         self.assertEqual(kwargs["args"]["company_abbr"], "AL")
 
+    def test_remittance_requeue_calls_the_mounted_native_bridge(self) -> None:
+        runner = Mock(
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=(
+                    '{"job_id":"job-1","payment_entry":"PAY-1",'
+                    '"webhook":"Aftermath Payment Remittance","queue":"short"}\n'
+                ),
+            )
+        )
+        stack = ERPNextStack(
+            compose_file=Path("runtime/compose.yaml"),
+            runner=runner,
+        )
+
+        result = stack.requeue_payment_remittance("PAY-1")
+
+        command = runner.call_args.args[0]
+        self.assertIn("PYTHONPATH=/opt/aftermath-bridge", command)
+        self.assertIn(
+            "aftermath_frappe_bridge.requeue_payment_remittance",
+            command,
+        )
+        kwargs = json.loads(command[command.index("--kwargs") + 1])
+        self.assertEqual(kwargs["payment_entry"], "PAY-1")
+        self.assertEqual(result["job_id"], "job-1")
+
     def test_snapshot_writes_exact_dump_and_returns_digest(self) -> None:
         def runner(command, **kwargs):
             kwargs["stdout"].write(b"SQL-DUMP")

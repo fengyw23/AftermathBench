@@ -208,6 +208,10 @@ def evaluate_erpnext_recovery(
             and remittance is not None
             and remittance.get("key") == payment.get("name")
         ),
+        "one_remittance_delivery_attempt": (
+            remittance is not None
+            and int(remittance.get("attempt_count", 0)) == 1
+        ),
         "no_unfinished_remittance_job": not unfinished_jobs,
     }
     diagnostics = {

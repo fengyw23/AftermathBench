@@ -50,13 +50,22 @@ jobs:
             after_commit_enqueue_failed \
             async_job_pending
           do
-            python scripts/run_erpnext_failure.py \
-              --variant "$variant" \
-              --credentials runtimes/erpnext/.runtime/credentials.json \
-              --prefix runtimes/erpnext/.runtime/prefix.json \
-              --snapshot runtimes/erpnext/.runtime/prefix.sql \
-              --output "runtimes/erpnext/.runtime/${variant}.json" \
-              || replay_status=1
+            if python scripts/run_erpnext_failure.py \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix runtimes/erpnext/.runtime/prefix.json \
+                --snapshot runtimes/erpnext/.runtime/prefix.sql \
+                --output "runtimes/erpnext/.runtime/${variant}.json"
+            then
+              python scripts/run_erpnext_recovery_control.py \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix runtimes/erpnext/.runtime/prefix.json \
+                --output "runtimes/erpnext/.runtime/${variant}_recovery.json" \
+                || replay_status=1
+            else
+              replay_status=1
+            fi
           done
           exit "$replay_status"
 
@@ -92,6 +101,10 @@ jobs:
             runtimes/erpnext/.runtime/database_committed_response_lost.json
             runtimes/erpnext/.runtime/after_commit_enqueue_failed.json
             runtimes/erpnext/.runtime/async_job_pending.json
+            runtimes/erpnext/.runtime/request_not_reached_recovery.json
+            runtimes/erpnext/.runtime/database_committed_response_lost_recovery.json
+            runtimes/erpnext/.runtime/after_commit_enqueue_failed_recovery.json
+            runtimes/erpnext/.runtime/async_job_pending_recovery.json
             runtimes/erpnext/.runtime/*.txt
             runtimes/erpnext/.runtime/*.log
           if-no-files-found: warn

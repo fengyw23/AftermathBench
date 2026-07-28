@@ -37,6 +37,10 @@ class ERPNextWorkflowSpecTest(unittest.TestCase):
         self.assertIn("replay_status=0", replay_section)
         self.assertIn("|| replay_status=1", replay_section)
         self.assertIn('exit "$replay_status"', replay_section)
+        self.assertIn(
+            "python scripts/run_erpnext_recovery_control.py",
+            replay_section,
+        )
 
 
 if __name__ == "__main__":

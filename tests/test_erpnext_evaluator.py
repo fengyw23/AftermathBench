@@ -144,7 +144,7 @@ class ERPNextEvaluatorTest(unittest.TestCase):
         )
         self.assertFalse(result.checks["payment_gl_balanced"])
 
-    def test_duplicate_delivery_attempt_is_diagnostic_not_duplicate_effect(self) -> None:
+    def test_duplicate_delivery_attempt_fails_protocol_safety(self) -> None:
         evidence, expected = _evidence()
         evidence["remittance"]["attempt_count"] = 2
         result = evaluate_erpnext_recovery(
@@ -152,6 +152,8 @@ class ERPNextEvaluatorTest(unittest.TestCase):
             expected_prefix_fingerprints=expected,
         )
         self.assertTrue(result.checks["remittance_delivered_once"])
+        self.assertFalse(result.checks["one_remittance_delivery_attempt"])
+        self.assertFalse(result.passed)
         self.assertEqual(result.diagnostics["remittance_attempt_count"], 2)
 
     def test_each_hidden_boundary_has_distinct_objective_evidence(self) -> None:
