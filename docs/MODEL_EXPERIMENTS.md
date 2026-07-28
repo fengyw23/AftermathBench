@@ -1,41 +1,61 @@
 # Model Experiment Protocol
 
-## Primary native ERPNext pilot
+## Primary native ERPNext experiments
 
-The primary model experiment runs against the source-built ERPNext/Frappe
-runtime. Each run restores the same seven-write procurement prefix, injects
-one of four source-supported ambiguous failure boundaries, and then gives the
-model twelve restricted investigation and repair tools.
+The formal experiments run against source-built, version-pinned
+ERPNext/Frappe. Two levels use the same model API and 15-turn budget:
 
-The model receives:
+1. the frozen easy procurement-payment pilot, with seven successful prefix
+   writes and one payment/remittance recovery boundary;
+2. the partial-return hard family, with 17 successful prefix writes, a shared
+   payment, partial return and supplier credit, replacement procurement,
+   stock/accounting effects, and an exactly-once pickup event.
 
-1. the still-valid invoice-payment and supplier-remittance request;
-2. the seven successful public-API prefix writes;
-3. the ambiguous failed Payment Entry submission result;
-4. live ERPNext query and mutation tools.
+Every run restores the corresponding database and queue snapshot before
+injecting one of four matched hidden transition states:
 
-It does not receive the hidden boundary label, evaluator checks, expected
-mutation, database evidence snapshot, or reference control trajectory.
+- the ambiguous request did not reach ERPNext;
+- the document committed but the response was lost;
+- the document committed but its after-commit enqueue failed;
+- the document committed and its job is pending while workers are paused.
 
-The native pilot requires a Docker-capable host. The manual GitHub workflow
-`erpnext-native-model-pilot` builds the pinned runtime and runs all four
-matched states. Configure the repository secret `ZHIPU_CODING_API_KEY`, then
-dispatch the workflow with the desired OpenAI-compatible model ID. The default
-is `glm-5.2` using:
+The surface connection error is identical. In the hard task, the model
+receives:
+
+1. the still-valid partial-return and replacement request;
+2. the 17 successful native prefix writes and their document identifiers;
+3. the ambiguous failed Purchase Return submission result;
+4. ordinary ERPNext document, ledger, queue, delivery, and mutation tools.
+
+It does not receive the hidden boundary label, evaluator checks, reference
+trajectory, global state summary, database fingerprint, or a repair macro.
+There is no `finish()` requirement: the model stops by returning no tool calls
+or at 15 turns.
+
+The final comparison is one GitHub Actions job:
+`erpnext-final-easy-vs-holdout`. It builds ERPNext/Frappe once, runs
+`4 variants × 5 repetitions` on the easy task, rebuilds a clean native state,
+verifies the pre-model holdout hashes, and then runs
+`4 variants × 5 repetitions` on the frozen hard instance. A provider or
+runtime failure with no trajectory is restored and retried once; it is never
+counted as a benchmark failure.
+
+Configure the repository secret `ZHIPU_CODING_API_KEY`. The default provider
+configuration is GLM-5.2 through:
 
 ```text
 https://open.bigmodel.cn/api/coding/paas/v4
 ```
 
-For a live failure state that has already been constructed:
+For one already-constructed hard failure state:
 
 ```powershell
 $env:AFTERMATH_API_KEY = "<key>"
-python -m aftermath_bench run-erpnext-model `
+python -m aftermath_bench run-native-model `
   --provider openai-compatible `
   --base-url "https://open.bigmodel.cn/api/coding/paas/v4" `
   --model "glm-5.2" `
-  --variant request_not_reached `
+  --scenario "data/scenarios/erpnext-partial-return-dev-001/scenario.json" `
   --credentials "runtimes/erpnext/.runtime/credentials.json" `
   --prefix "runtimes/erpnext/.runtime/prefix.json" `
   --failure-report "runtimes/erpnext/.runtime/request_not_reached.json" `
@@ -44,13 +64,19 @@ python -m aftermath_bench run-erpnext-model `
 
 Every trajectory records the complete model-visible input, sanitized provider
 responses, tool calls and results, final persistent evidence, deterministic
-checks, and diagnostics for investigation coverage, unsafe submission retries,
-unnecessary remittance requeues, and tool errors. API keys and authorization
-headers are never serialized.
+checks, and diagnostics. API keys and authorization headers are never
+serialized.
 
-The first pilot runs one repetition of each matched state. Scale to five
-repetitions only after confirming that any failures are caused by recovery
-behavior rather than provider or runtime errors.
+Three controls must be interpreted alongside model scores:
+
+- the state-driven reference recovery must pass all matched variants;
+- the explicit-scope execution control must show that the model can execute a
+  supplied correct scope with the same public tools;
+- fixed strategies must fail to solve the matched group.
+
+The primary result reports Recovery Integrity Pass, matched-group success,
+each evaluator component, failure attribution, and the easy-to-holdout
+absolute pass-rate drop.
 
 ## Legacy ITSM concept experiment
 

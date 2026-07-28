@@ -27,45 +27,36 @@ and event history satisfy deterministic checks.
 
 ## Repository status
 
-The tagged `v0.2.0` repository is an executable concept scaffold containing
-three workflows:
+The repository contains three legacy concept workflows:
 
 - an enterprise employee transfer;
 - a multi-table ITSM major-incident escalation;
 - a software release and database migration.
 
-Each workflow contains four matched commit-state variants:
-
-- `not_committed`;
-- `commit_response_lost`;
-- `partial_commit`;
-- `async_pending`.
-
-All three samples pass the task-structure admission gate. The ITSM task uses
-EnterpriseOps-Gym's native public table names and business relations across
-incidents, SLAs, configuration items, child incidents, knowledge, users,
-groups, and notifications. Official ITSM runs load a pinned full upstream seed
-with 24 tables and 241 pre-existing rows before replaying the benchmark prefix.
-The release task uses a real Git repository,
-application and control-plane SQLite databases, and a content-addressed
-registry manifest.
-
 EnterpriseOps-Gym does not publish the domain service implementation and
 native transaction logic used inside its MCP images. AftermathBench therefore
-labels the existing ITSM implementation as a **legacy concept prototype**, not
-a final native-runtime task.
+labels the ITSM implementation as a **legacy concept prototype**, not a formal
+native-runtime task. The release task remains useful as a local design probe,
+but is not part of the current primary result.
 
-The `v0.3` line introduced a machine-checked fully open runtime gate and pivoted
-the primary enterprise implementation to source-built ERPNext/Frappe. Its
-first procurement-to-payment task now has a digest-pinned service topology,
-public-API prefix builder, real HTTP/queue fault controllers, snapshot reset,
-and deterministic terminal evaluator. The pinned source build, reset, all four
-failure variants, and terminal checks passed the native replay workflow on
-2026-07-28, so ERPNext now passes both runtime gates. Twelve restricted
-investigation and repair tools plus a state-driven reference control have also
-recovered all four hidden states without duplicate remittance attempts. Model
-loop integration is now complete; the next experiment is the first native
-four-state model pilot. Forgejo is the selected coding/DevOps runtime candidate.
+The formal implementation uses source-built, version-pinned ERPNext/Frappe.
+It provides a digest-pinned service topology, native public-API writes, real
+HTTP and queue fault boundaries, full database/queue reset, ordinary domain
+tools, and deterministic terminal evaluation.
+
+Two native task levels are retained:
+
+- `erpnext-procurement-payment-001` is the frozen easy pilot;
+- `erpnext-partial-return-{dev,holdout}-001` is the hard vertical slice for
+  partial return, replacement procurement, supplier credit, shared payment,
+  stock/accounting consistency, and exactly-once pickup delivery.
+
+The hard family has four matched hidden transition states behind the same
+connection-loss observation. Its complexity is derived from replay artifacts,
+its reference recovery passes all variants, seven fixed heuristics have zero
+matched-group success, and the holdout scenario and prefix were frozen before
+any model access. The repository still contains only one formal native hard
+family, so it does not yet claim broad benchmark coverage.
 
 ## Quick start
 
@@ -75,6 +66,7 @@ Python 3.12 or newer is required.
 python -m unittest discover -s tests -v
 python -m aftermath_bench validate
 python -m aftermath_bench validate-runtimes
+python -m aftermath_bench validate-native-scenario --help
 python -m aftermath_bench demo --all
 python -m aftermath_bench demo-release --all
 python -m aftermath_bench demo-itsm --all
@@ -82,6 +74,7 @@ python -m aftermath_bench baselines
 python -m aftermath_bench fetch-enterpriseops
 python -m aftermath_bench run-itsm-suite --help
 python -m aftermath_bench run-erpnext-model --help
+python -m aftermath_bench run-native-model --help
 ```
 
 When running directly from a checkout without installing the package:
@@ -90,6 +83,7 @@ When running directly from a checkout without installing the package:
 set PYTHONPATH=src
 python -m aftermath_bench validate
 python -m aftermath_bench validate-runtimes
+python -m aftermath_bench validate-native-scenario --help
 ```
 
 On PowerShell:
@@ -105,6 +99,7 @@ python -m aftermath_bench baselines
 python -m aftermath_bench fetch-enterpriseops
 python -m aftermath_bench run-itsm-suite --help
 python -m aftermath_bench run-erpnext-model --help
+python -m aftermath_bench run-native-model --help
 ```
 
 ## Design principles
@@ -134,3 +129,6 @@ model-visible inputs, and trajectory contents are specified in
 [Model Experiment Protocol](docs/MODEL_EXPERIMENTS.md).
 The substrate decision and source evidence are documented in
 [Fully Open Runtime Selection](docs/OPEN_RUNTIME_SELECTION.md).
+The native hard-task recipe and experiment audit are documented in
+[Hard Task Construction](docs/HARD_TASK_CONSTRUCTION.md) and
+[GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md).
