@@ -13,6 +13,8 @@ from .model_runner import (
     run_itsm_agent,
     run_itsm_suite,
 )
+from .native_admission import validate_native_scenario
+from .native_scenario import load_native_scenario, native_scenario_paths
 from .scenarios.enterprise_transfer import (
     VARIANTS,
     build_enterprise_failure_state,
@@ -78,6 +80,29 @@ def _validate_runtimes() -> int:
         for report in reports
     )
     return 0 if truthful else 1
+
+
+def _validate_native_scenarios(path: str | None = None) -> int:
+    paths = (path,) if path is not None else native_scenario_paths()
+    all_truthful = True
+    for scenario_path in paths:
+        report = validate_native_scenario(
+            load_native_scenario(scenario_path)
+        )
+        all_truthful = all_truthful and report.passed
+        print(json.dumps(
+            {
+                "scenario_id": report.scenario_id,
+                "requested_tier": report.requested_tier,
+                "admitted_tier": report.admitted_tier,
+                "passed": report.passed,
+                "observed": report.observed,
+                "failures": report.failures,
+                "artifact_sha256": report.artifact_sha256,
+            },
+            indent=2,
+        ))
+    return 0 if all_truthful else 1
 
 
 def _run_demo(variants: tuple[str, ...]) -> int:
@@ -167,6 +192,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "validate-runtimes",
         help="audit open-source and execution admission for every runtime",
+    )
+    native_validation = subparsers.add_parser(
+        "validate-native-scenario",
+        help="validate replay-derived native scenario difficulty",
+    )
+    native_validation.add_argument("--scenario")
+    native_validation.add_argument(
+        "--execute",
+        action="store_true",
+        help="reserved for live replay validation; artifacts are always audited",
     )
     demo = subparsers.add_parser("demo", help="run reference recovery")
     demo.add_argument("--variant", choices=VARIANTS)
@@ -282,6 +317,8 @@ def main() -> int:
         return _validate()
     if args.command == "validate-runtimes":
         return _validate_runtimes()
+    if args.command == "validate-native-scenario":
+        return _validate_native_scenarios(args.scenario)
     if args.command == "baselines":
         print(json.dumps(
             {

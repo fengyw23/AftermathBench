@@ -1,0 +1,201 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterable
+
+from .native_scenario import NativeScenario
+
+
+@dataclass(frozen=True)
+class NativeAdmissionReport:
+    scenario_id: str
+    requested_tier: str
+    admitted_tier: str
+    passed: bool
+    checks: dict[str, bool]
+    observed: dict[str, int | float | bool]
+    artifact_sha256: dict[str, str]
+
+    @property
+    def failures(self) -> tuple[str, ...]:
+        return tuple(name for name, passed in self.checks.items() if not passed)
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _dependency_depth(
+    nodes: Iterable[str],
+    relations: Iterable[dict[str, Any]],
+) -> int:
+    node_set = set(nodes)
+    adjacency: dict[str, list[str]] = {node: [] for node in node_set}
+    indegree: dict[str, int] = {node: 0 for node in node_set}
+    for relation in relations:
+        source = str(relation["source"])
+        target = str(relation["target"])
+        if source not in node_set or target not in node_set:
+            return 0
+        adjacency[source].append(target)
+        indegree[target] += 1
+
+    queue = [node for node, degree in indegree.items() if degree == 0]
+    depth = {node: 1 for node in queue}
+    visited = 0
+    while queue:
+        node = queue.pop(0)
+        visited += 1
+        for target in adjacency[node]:
+            depth[target] = max(depth.get(target, 1), depth[node] + 1)
+            indegree[target] -= 1
+            if indegree[target] == 0:
+                queue.append(target)
+    if visited != len(node_set):
+        return 0
+    return max(depth.values(), default=0)
+
+
+def validate_native_scenario(
+    scenario: NativeScenario,
+) -> NativeAdmissionReport:
+    prefix_path = scenario.resolve_artifact("prefix")
+    reference_path = scenario.resolve_artifact("reference")
+    graph_path = scenario.resolve_artifact("observed_graph")
+    baseline_path = scenario.resolve_artifact("baselines")
+    paths = {
+        "prefix": prefix_path,
+        "reference": reference_path,
+        "observed_graph": graph_path,
+        "baselines": baseline_path,
+    }
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
+        checks = {f"artifact_exists:{name}": False for name in missing}
+        return NativeAdmissionReport(
+            scenario_id=scenario.scenario_id,
+            requested_tier=scenario.tier,
+            admitted_tier="invalid",
+            passed=False,
+            checks=checks,
+            observed={"missing_artifact_count": len(missing)},
+            artifact_sha256={},
+        )
+
+    prefix = _load_json(prefix_path)
+    reference = _load_json(reference_path)
+    graph = _load_json(graph_path)
+    baselines = _load_json(baseline_path)
+
+    trace = prefix.get("trace", ())
+    successful_prefix_writes = sum(
+        1
+        for event in trace
+        if event.get("kind") == "write"
+        and event.get("status", "success") == "success"
+    )
+    protected_effects = graph.get("protected_effects", ())
+    entities = graph.get("entities", ())
+    entity_ids = {str(entity["id"]) for entity in entities}
+    relations = graph.get("relations", ())
+    relation_types = {str(relation["type"]) for relation in relations}
+    variants = reference.get("reports", ())
+    variant_ids = {str(report["variant"]) for report in variants}
+    expected_variants = set(scenario.variants)
+    mutation_counts = [
+        len(report.get("mutation_tools", ()))
+        if "mutation_tools" in report
+        else int(report.get("selected_mutation") is not None)
+        for report in variants
+    ]
+    downstream_repairs = [
+        int(report.get("downstream_repairs", 0)) for report in variants
+    ]
+    passed_references = [
+        bool(report.get("passed", False)) for report in variants
+    ]
+    heuristic_rates = [
+        float(item.get("pass_rate", 1.0))
+        for item in baselines.get("heuristics", ())
+    ]
+    matched_heuristic_successes = [
+        bool(item.get("matched_group_success", True))
+        for item in baselines.get("heuristics", ())
+    ]
+
+    minimum_mutations = min(mutation_counts, default=0)
+    minimum_downstream_repairs = min(downstream_repairs, default=0)
+    maximum_heuristic_pass_rate = max(heuristic_rates, default=1.0)
+    depth = _dependency_depth(entity_ids, relations)
+    evidence_groups = graph.get("required_evidence_groups", ())
+    single_query_decisive = bool(graph.get("single_query_decisive", True))
+    unsafe_actions = graph.get("unsafe_actions", ())
+
+    observed: dict[str, int | float | bool] = {
+        "successful_prefix_writes": successful_prefix_writes,
+        "protected_effect_count": len(protected_effects),
+        "relevant_entity_count": len(entity_ids),
+        "semantic_edge_count": len(relations),
+        "relation_type_count": len(relation_types),
+        "dependency_depth": depth,
+        "evidence_group_count": len(evidence_groups),
+        "single_query_decisive": single_query_decisive,
+        "minimum_repair_mutations": minimum_mutations,
+        "minimum_downstream_repairs": minimum_downstream_repairs,
+        "unsafe_action_count": len(unsafe_actions),
+        "maximum_heuristic_pass_rate": maximum_heuristic_pass_rate,
+    }
+    checks = {
+        "variant_coverage_complete": variant_ids == expected_variants,
+        "reference_recovery_passes": (
+            len(passed_references) == len(expected_variants)
+            and all(passed_references)
+        ),
+        "prefix_writes>=6": successful_prefix_writes >= 6,
+        "protected_effects>=3": len(protected_effects) >= 3,
+        "dependency_depth>=4": depth >= 4,
+        "relation_types>=4": len(relation_types) >= 4,
+        "evidence_groups>=3": len(evidence_groups) >= 3,
+        "no_single_query_is_decisive": not single_query_decisive,
+        "minimum_mutations>=3": minimum_mutations >= 3,
+        "downstream_repairs>=2": minimum_downstream_repairs >= 2,
+        "unsafe_actions>=2": len(unsafe_actions) >= 2,
+        "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
+        "heuristic_matched_group_zero": not any(
+            matched_heuristic_successes
+        ),
+    }
+    passed = all(checks.values())
+    requested_tier = scenario.tier
+    admitted_tier = "hard" if passed else "easy"
+    if requested_tier == "hard":
+        tier_consistent = passed
+    elif requested_tier == "easy":
+        tier_consistent = not passed
+    else:
+        tier_consistent = False
+    checks["declared_tier_is_truthful"] = tier_consistent
+    return NativeAdmissionReport(
+        scenario_id=scenario.scenario_id,
+        requested_tier=requested_tier,
+        admitted_tier=admitted_tier,
+        passed=tier_consistent,
+        checks=checks,
+        observed=observed,
+        artifact_sha256={
+            name: _sha256(path) for name, path in paths.items()
+        },
+    )

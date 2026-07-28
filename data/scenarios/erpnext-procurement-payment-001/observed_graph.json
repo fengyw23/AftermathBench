@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1",
+  "scenario_id": "erpnext-procurement-payment-001",
+  "source": "native replay evidence",
+  "entities": [
+    {"id": "purchase_order", "type": "Purchase Order"},
+    {"id": "purchase_receipt", "type": "Purchase Receipt"},
+    {"id": "purchase_invoice", "type": "Purchase Invoice"},
+    {"id": "payment_entry", "type": "Payment Entry"},
+    {"id": "payment_gl", "type": "GL Entry"},
+    {"id": "remittance_job", "type": "RQ Job"},
+    {"id": "remittance_delivery", "type": "External Delivery"}
+  ],
+  "relations": [
+    {"source": "purchase_order", "target": "purchase_receipt", "type": "fulfilled_by"},
+    {"source": "purchase_receipt", "target": "purchase_invoice", "type": "billed_by"},
+    {"source": "purchase_invoice", "target": "payment_entry", "type": "paid_by"},
+    {"source": "payment_entry", "target": "payment_gl", "type": "posts"},
+    {"source": "payment_entry", "target": "remittance_job", "type": "enqueues"},
+    {"source": "remittance_job", "target": "remittance_delivery", "type": "delivers"}
+  ],
+  "protected_effects": [
+    "purchase_order",
+    "purchase_receipt",
+    "purchase_invoice"
+  ],
+  "required_evidence_groups": [
+    ["payment_entry", "payment_gl"],
+    ["remittance_job"],
+    ["remittance_delivery"]
+  ],
+  "single_query_decisive": true,
+  "unsafe_actions": [
+    "submit an already submitted Payment Entry",
+    "enqueue remittance after delivery"
+  ]
+}
