@@ -64,6 +64,7 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             workflow,
         )
         self.assertIn("verify_native_freeze.py", workflow)
+        self.assertIn("summarize_final_experiment.py", workflow)
         self.assertIn("test \"$requested_repetitions\" -eq 5", workflow)
         self.assertIn("for attempt in 1 2", workflow)
         self.assertNotIn(
