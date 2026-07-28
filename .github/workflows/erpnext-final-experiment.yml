@@ -1,0 +1,270 @@
+name: erpnext-final-easy-vs-holdout
+
+on:
+  push:
+    branches:
+      - native-hard-final-experiment
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Repetitions for each matched state
+        required: true
+        default: "5"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  easy-vs-frozen-holdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      HOLDOUT_SCENARIO: data/scenarios/erpnext-partial-return-holdout-001/scenario.json
+      HOLDOUT_FREEZE: data/scenarios/erpnext-partial-return-holdout-001/freeze.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve immutable experiment configuration
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          if [ -z "$requested_model" ]
+          then
+            requested_model=glm-5.2
+          fi
+          if [ -z "$requested_repetitions" ]
+          then
+            requested_repetitions=5
+          fi
+          test "$requested_repetitions" -eq 5
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe once
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute
+
+      - name: Build the easy prefix and snapshot
+        run: |
+          easy_root="runtimes/erpnext/.runtime/final/easy"
+          mkdir -p "$easy_root/runs"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_prefix.py \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --output "$easy_root/prefix.json"
+          python scripts/manage_erpnext_stack.py snapshot \
+            --snapshot "$easy_root/prefix.sql"
+          {
+            echo "schema_version=0.1"
+            echo "split=easy"
+            echo "model=$MODEL_ID"
+            echo "repetitions=$REPETITIONS"
+            echo "commit=$GITHUB_SHA"
+            echo "prefix_sha256=$(sha256sum "$easy_root/prefix.json" | cut -d' ' -f1)"
+            echo "snapshot_sha256=$(sha256sum "$easy_root/prefix.sql" | cut -d' ' -f1)"
+          } > "$easy_root/runs/manifest.txt"
+
+      - name: Run easy pilot, four variants by five repetitions
+        run: |
+          run_status=0
+          easy_root="runtimes/erpnext/.runtime/final/easy"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$easy_root/runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              trajectory="$run_dir/${variant}.json"
+              for attempt in 1 2
+              do
+                failure_report="$run_dir/${variant}-attempt-${attempt}-failure.json"
+                rm -f "$trajectory"
+                if ! python scripts/run_erpnext_failure.py \
+                    --variant "$variant" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$easy_root/prefix.json" \
+                    --snapshot "$easy_root/prefix.sql" \
+                    --output "$failure_report"
+                then
+                  continue
+                fi
+                if python -m aftermath_bench run-erpnext-model \
+                    --provider openai-compatible \
+                    --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                    --model "$MODEL_ID" \
+                    --variant "$variant" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$easy_root/prefix.json" \
+                    --failure-report "$failure_report" \
+                    --max-turns 15 \
+                    --output "$trajectory"
+                then
+                  break
+                elif [ -s "$trajectory" ]
+                then
+                  break
+                fi
+              done
+              if [ ! -s "$trajectory" ]
+              then
+                run_status=1
+              fi
+            done
+          done
+          python scripts/summarize_erpnext_model_runs.py \
+            --run-directory "$easy_root/runs" \
+            --output "$easy_root/runs/summary.json" \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Reset ERPNext and build the frozen holdout prefix
+        if: always()
+        run: |
+          hard_root="runtimes/erpnext/.runtime/final/holdout"
+          mkdir -p "$hard_root/runs"
+          python scripts/manage_erpnext_stack.py purge
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_return_prefix.py \
+            --scenario "$HOLDOUT_SCENARIO" \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --output "$hard_root/prefix.json"
+          python scripts/manage_erpnext_stack.py snapshot \
+            --snapshot "$hard_root/prefix.sql"
+          python scripts/verify_native_freeze.py \
+            --freeze "$HOLDOUT_FREEZE" \
+            --scenario "$HOLDOUT_SCENARIO" \
+            --prefix "$hard_root/prefix.json"
+          {
+            echo "schema_version=0.1"
+            echo "split=frozen-holdout"
+            echo "scenario_id=erpnext-partial-return-holdout-001"
+            echo "scenario_sha256=$(sha256sum "$HOLDOUT_SCENARIO" | cut -d' ' -f1)"
+            echo "prefix_sha256=$(sha256sum "$hard_root/prefix.json" | cut -d' ' -f1)"
+            echo "snapshot_sha256=$(sha256sum "$hard_root/prefix.sql" | cut -d' ' -f1)"
+            echo "model=$MODEL_ID"
+            echo "repetitions=$REPETITIONS"
+            echo "execution_control=false"
+            echo "commit=$GITHUB_SHA"
+          } > "$hard_root/runs/manifest.txt"
+
+      - name: Run frozen holdout, four variants by five repetitions
+        if: always()
+        run: |
+          run_status=0
+          hard_root="runtimes/erpnext/.runtime/final/holdout"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$hard_root/runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              trajectory="$run_dir/${variant}.json"
+              for attempt in 1 2
+              do
+                failure_report="$run_dir/${variant}-attempt-${attempt}-failure.json"
+                rm -f "$trajectory"
+                if ! python scripts/run_erpnext_return_failure.py \
+                    --variant "$variant" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$hard_root/prefix.json" \
+                    --snapshot "$hard_root/prefix.sql" \
+                    --output "$failure_report"
+                then
+                  continue
+                fi
+                if python -m aftermath_bench run-native-model \
+                    --provider openai-compatible \
+                    --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                    --model "$MODEL_ID" \
+                    --scenario "$HOLDOUT_SCENARIO" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$hard_root/prefix.json" \
+                    --failure-report "$failure_report" \
+                    --max-turns 15 \
+                    --output "$trajectory"
+                then
+                  break
+                elif [ -s "$trajectory" ]
+                then
+                  break
+                fi
+              done
+              if [ ! -s "$trajectory" ]
+              then
+                run_status=1
+              fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$hard_root/runs" \
+            --output "$hard_root/runs/summary.json" \
+            --expected-execution-control false \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Capture compose diagnostics
+        if: always()
+        run: |
+          final_root="runtimes/erpnext/.runtime/final"
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all > "$final_root/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color > "$final_root/compose.log" 2>&1 || true
+
+      - name: Remove credentials and database snapshots
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          rm -f runtimes/erpnext/.runtime/final/easy/prefix.sql
+          rm -f runtimes/erpnext/.runtime/final/holdout/prefix.sql
+
+      - name: Upload sanitized final experiment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-glm52-easy-vs-frozen-holdout
+          include-hidden-files: true
+          path: |
+            runtimes/erpnext/.runtime/final/
+          if-no-files-found: error
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge

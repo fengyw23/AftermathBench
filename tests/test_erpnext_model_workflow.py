@@ -42,6 +42,35 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             workflow,
         )
 
+    def test_final_experiment_is_one_job_with_frozen_holdout(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "erpnext-final-experiment.yml"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(
+            workflow.count(
+                "python scripts/build_erpnext_runtime.py"
+            ),
+            1,
+        )
+        self.assertIn(
+            "Run easy pilot, four variants by five repetitions",
+            workflow,
+        )
+        self.assertIn(
+            "Run frozen holdout, four variants by five repetitions",
+            workflow,
+        )
+        self.assertIn("verify_native_freeze.py", workflow)
+        self.assertIn("test \"$requested_repetitions\" -eq 5", workflow)
+        self.assertIn("for attempt in 1 2", workflow)
+        self.assertNotIn(
+            "\n                    --execution-control",
+            workflow,
+        )
+
     def test_summary_distinguishes_task_failure_from_run_error(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
