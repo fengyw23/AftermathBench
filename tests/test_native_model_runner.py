@@ -103,6 +103,106 @@ class NativeModelRunnerTest(unittest.TestCase):
         )
         self.assertIsNone(diagnostics["primary_error"])
 
+    @staticmethod
+    def _failed_protocol_evaluation():
+        return SimpleNamespace(
+            passed=False,
+            checks={"no_duplicate_replacement_invoice": False},
+            components={
+                "goal_completion": True,
+                "repair_completeness": True,
+                "preservation": True,
+                "protocol_safety": False,
+            },
+        )
+
+    def test_missing_linked_invoice_query_is_investigation_failure(
+        self,
+    ) -> None:
+        diagnostics = _diagnose(
+            turns=[
+                {
+                    "tool_calls": [
+                        {
+                            "name": "create_purchase_invoice_from_receipt",
+                            "arguments": {
+                                "purchase_receipt": "PR-REPLACEMENT"
+                            },
+                        }
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=self._failed_protocol_evaluation(),
+            failure_report={
+                "failure_boundary_evidence": {
+                    "purchase_return": {"docstatus": 1},
+                    "replacement_invoices": [
+                        {"name": "PINV-EXISTING", "docstatus": 0}
+                    ],
+                }
+            },
+            prefix={
+                "purchase_return": "PR-RETURN",
+                "replacement_purchase_receipt": "PR-REPLACEMENT",
+            },
+        )
+        self.assertEqual(
+            diagnostics["primary_error"],
+            "investigation_failure",
+        )
+        self.assertTrue(
+            diagnostics[
+                "created_invoice_without_linked_invoice_investigation"
+            ]
+        )
+
+    def test_duplicate_after_query_is_scope_failure(self) -> None:
+        diagnostics = _diagnose(
+            turns=[
+                {
+                    "tool_calls": [
+                        {
+                            "name": "list_documents",
+                            "arguments": {
+                                "doctype": "Purchase Invoice",
+                                "filters": None,
+                            },
+                        },
+                        {
+                            "name": "get_external_delivery",
+                            "arguments": {"reference": "PR-RETURN"},
+                        },
+                        {
+                            "name": "find_background_jobs",
+                            "arguments": {"reference": "PR-RETURN"},
+                        },
+                        {
+                            "name": "create_purchase_invoice_from_receipt",
+                            "arguments": {
+                                "purchase_receipt": "PR-REPLACEMENT"
+                            },
+                        },
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=self._failed_protocol_evaluation(),
+            failure_report={
+                "failure_boundary_evidence": {
+                    "purchase_return": {"docstatus": 1},
+                    "replacement_invoices": [
+                        {"name": "PINV-EXISTING", "docstatus": 0}
+                    ],
+                }
+            },
+            prefix={
+                "purchase_return": "PR-RETURN",
+                "replacement_purchase_receipt": "PR-REPLACEMENT",
+            },
+        )
+        self.assertEqual(diagnostics["primary_error"], "scope_failure")
+
 
 if __name__ == "__main__":
     unittest.main()

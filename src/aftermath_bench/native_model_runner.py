@@ -360,6 +360,54 @@ def _diagnose(
         "failure_boundary_evidence",
         {},
     ).get("purchase_return", {})
+    boundary_replacement_invoices = [
+        invoice
+        for invoice in failure_report.get(
+            "failure_boundary_evidence",
+            {},
+        ).get("replacement_invoices", [])
+        if int(invoice.get("docstatus", 0)) != 2
+    ]
+    existing_replacement_invoice_names = {
+        str(invoice.get("name"))
+        for invoice in boundary_replacement_invoices
+        if invoice.get("name")
+    }
+    create_invoice_positions = [
+        index
+        for index, call in enumerate(calls)
+        if call["name"] == "create_purchase_invoice_from_receipt"
+        and call["arguments"].get("purchase_receipt")
+        == prefix.get("replacement_purchase_receipt")
+    ]
+    first_create_invoice_position = (
+        min(create_invoice_positions)
+        if create_invoice_positions
+        else None
+    )
+    calls_before_invoice_create = (
+        calls[:first_create_invoice_position]
+        if first_create_invoice_position is not None
+        else calls
+    )
+    queried_linked_invoices = any(
+        (
+            call["name"] == "list_documents"
+            and call["arguments"].get("doctype") == "Purchase Invoice"
+        )
+        or (
+            call["name"] == "get_document"
+            and call["arguments"].get("doctype") == "Purchase Invoice"
+            and str(call["arguments"].get("name"))
+            in existing_replacement_invoice_names
+        )
+        for call in calls_before_invoice_create
+    )
+    created_without_linked_invoice_investigation = bool(
+        boundary_replacement_invoices
+        and create_invoice_positions
+        and not queried_linked_invoices
+    )
     unsafe_retry = (
         int(boundary_return.get("docstatus", 0)) == 1
         and any(
@@ -381,16 +429,26 @@ def _diagnose(
             "find_background_jobs" in query_names
             and "get_external_delivery" in query_names
         ),
+        "linked_invoices": (
+            queried_linked_invoices
+            or not boundary_replacement_invoices
+            or not create_invoice_positions
+        ),
     }
     # Error attribution explains failed runs.  A successful terminal state
     # must not be relabelled as an investigation failure merely because the
     # model reached it without issuing every diagnostic query.
     if evaluation.passed:
         primary_error = None
-    elif not all(evidence_groups.values()):
-        primary_error = "investigation_failure"
     elif unsafe_retry:
         primary_error = "state_inference_failure"
+    elif created_without_linked_invoice_investigation:
+        primary_error = "investigation_failure"
+    elif not (
+        evidence_groups["documents"]
+        and evidence_groups["async"]
+    ):
+        primary_error = "investigation_failure"
     elif not evaluation.components["preservation"] or not evaluation.components[
         "protocol_safety"
     ]:
@@ -416,6 +474,15 @@ def _diagnose(
         "mutation_tool_count": len(mutation_names),
         "selected_mutations": mutation_names,
         "unsafe_return_resubmit": unsafe_retry,
+        "boundary_active_replacement_invoice_count": len(
+            boundary_replacement_invoices
+        ),
+        "queried_linked_invoices_before_create": (
+            queried_linked_invoices
+        ),
+        "created_invoice_without_linked_invoice_investigation": (
+            created_without_linked_invoice_investigation
+        ),
         "tool_error_count": len(tool_errors),
         "tool_errors": tool_errors,
     }
