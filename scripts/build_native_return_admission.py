@@ -40,12 +40,13 @@ def main() -> int:
             for report in reports
         ],
     }
-    baseline_reports = [
-        _read(path)
-        for path in sorted(
-            args.control_directory.glob("*-baseline-*.json")
-        )
-    ]
+    baseline_reports = []
+    for path in sorted(
+        args.control_directory.glob("*-baseline-*.json")
+    ):
+        report = _read(path)
+        if "baseline" in report and "evaluation" in report:
+            baseline_reports.append(report)
     baseline_names = sorted(
         {str(report["baseline"]) for report in baseline_reports}
     )
@@ -56,6 +57,16 @@ def main() -> int:
         raise RuntimeError(
             "expected at least six executed baselines across four variants"
         )
+    for baseline_name in baseline_names:
+        covered = {
+            str(report["variant"])
+            for report in baseline_reports
+            if report["baseline"] == baseline_name
+        }
+        if len(covered) != 4:
+            raise RuntimeError(
+                f"baseline {baseline_name!r} does not cover four variants"
+            )
     entity_types = {
         "original_purchase_order": "Purchase Order",
         "original_purchase_receipt": "Purchase Receipt",

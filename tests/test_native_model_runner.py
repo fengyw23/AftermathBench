@@ -51,6 +51,26 @@ class NativeModelRunnerTest(unittest.TestCase):
             self.assertFalse(tool.input_schema["additionalProperties"])
             self.assertNotIn("hidden", json.dumps(tool.input_schema).lower())
 
+    def test_execution_control_supplies_scope_but_not_hidden_state(self) -> None:
+        message = native_initial_message(
+            scenario=self.scenario,
+            prefix={
+                "purchase_return": "PR-RET-1",
+                "trace": [],
+            },
+            failure_report={
+                "visible_failure": {
+                    "ok": False,
+                    "error": "connection_lost_before_confirmation",
+                }
+            },
+            execution_control=True,
+        )
+        self.assertIn("correct recovery scope is supplied", message)
+        self.assertIn("shared Payment Entry", message)
+        for variant in self.scenario.variants:
+            self.assertNotIn(variant, message)
+
 
 if __name__ == "__main__":
     unittest.main()

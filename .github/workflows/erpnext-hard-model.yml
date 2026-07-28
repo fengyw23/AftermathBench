@@ -21,6 +21,11 @@ on:
         required: true
         default: "1"
         type: string
+      execution_control:
+        description: Supply the gold recovery scope to isolate execution
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -83,6 +88,7 @@ jobs:
             echo "snapshot_sha256=$(sha256sum "$run_root/prefix.sql" | cut -d' ' -f1)"
             echo "model=${{ inputs.model }}"
             echo "repetitions=${{ inputs.repetitions }}"
+            echo "execution_control=${{ inputs.execution_control }}"
             echo "commit=$GITHUB_SHA"
           } > "$run_root/model-runs/manifest.txt"
 
@@ -111,6 +117,11 @@ jobs:
                   --snapshot "$run_root/prefix.sql" \
                   --output "$failure_report"
               then
+                control_flag=()
+                if [ "${{ inputs.execution_control }}" = "true" ]
+                then
+                  control_flag=(--execution-control)
+                fi
                 if python -m aftermath_bench run-native-model \
                     --provider openai-compatible \
                     --base-url "$AFTERMATH_MODEL_BASE_URL" \
@@ -120,6 +131,7 @@ jobs:
                     --prefix "$run_root/prefix.json" \
                     --failure-report "$failure_report" \
                     --max-turns 15 \
+                    "${control_flag[@]}" \
                     --output "$trajectory"
                 then
                   true

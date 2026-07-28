@@ -295,6 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
     native_model_run.add_argument("--prefix", required=True)
     native_model_run.add_argument("--failure-report", required=True)
     native_model_run.add_argument("--max-turns", type=int, default=15)
+    native_model_run.add_argument(
+        "--execution-control",
+        action="store_true",
+        help="supply the correct recovery scope to isolate tool execution",
+    )
     native_model_run.add_argument("--output", required=True)
     native_model_run.add_argument(
         "--erpnext-base-url",
@@ -437,6 +442,7 @@ def main() -> int:
             prefix_path=args.prefix,
             failure_report_path=args.failure_report,
             max_turns=args.max_turns,
+            execution_control=args.execution_control,
             output_path=args.output,
             erpnext_base_url=args.erpnext_base_url,
             container_cli=args.container_cli,

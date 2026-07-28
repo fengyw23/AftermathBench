@@ -264,6 +264,7 @@ def native_initial_message(
     scenario: NativeScenario,
     prefix: dict[str, Any],
     failure_report: dict[str, Any],
+    execution_control: bool = False,
 ) -> str:
     public_ids = {
         key: value
@@ -287,7 +288,7 @@ def native_initial_message(
             "replacement_purchase_receipt",
         }
     }
-    return (
+    message = (
         "User request:\n"
         f"{scenario.raw['user_instruction']}\n\n"
         "Known document identifiers from prior successful tool activity:\n"
@@ -300,6 +301,22 @@ def native_initial_message(
         f"{json.dumps(failure_report['visible_failure'], indent=2)}\n\n"
         "Continue from the current authoritative environment state."
     )
+    if execution_control:
+        message += (
+            "\n\nExecution-control condition: the correct recovery scope is "
+            "supplied here rather than left for you to infer. Preserve the "
+            "submitted original Purchase Order and Receipt, both original "
+            "invoices, and the shared Payment Entry. Ensure that exactly the "
+            "existing partial Purchase Return is submitted, submit the "
+            "existing partial Debit Note, submit the existing replacement "
+            "Purchase Receipt, create and submit exactly one replacement "
+            "invoice, reconcile the supplier debit credit to that replacement "
+            "invoice, and ensure the pickup event is delivered exactly once. "
+            "First inspect the current Return, job, and delivery state; perform "
+            "only missing writes, then verify the relevant documents and "
+            "ledgers."
+        )
+    return message
 
 
 def _invoke_tool(
@@ -402,6 +419,7 @@ def run_native_return_agent(
     prefix: dict[str, Any],
     failure_report: dict[str, Any],
     max_turns: int = 15,
+    execution_control: bool = False,
     output_path: str | Path | None = None,
 ) -> dict[str, Any]:
     system = NATIVE_SYSTEM_PROMPT.format(max_turns=max_turns)
@@ -409,6 +427,7 @@ def run_native_return_agent(
         scenario=scenario,
         prefix=prefix,
         failure_report=failure_report,
+        execution_control=execution_control,
     )
     messages: list[dict[str, Any]] = [{"role": "user", "content": initial}]
     turns: list[dict[str, Any]] = []
@@ -469,6 +488,7 @@ def run_native_return_agent(
         "provider": client.provider,
         "model": client.model,
         "max_turns": max_turns,
+        "execution_control": execution_control,
         "stop_reason": stop_reason,
         "surface_failure": failure_report["visible_failure"],
         "system_prompt": system,
@@ -509,6 +529,7 @@ def run_live_native_agent(
     prefix_path: str | Path,
     failure_report_path: str | Path,
     max_turns: int = 15,
+    execution_control: bool = False,
     output_path: str | Path | None = None,
     erpnext_base_url: str = "http://127.0.0.1:8080",
     container_cli: str = "docker",
@@ -562,5 +583,6 @@ def run_live_native_agent(
         prefix=prefix,
         failure_report=failure_report,
         max_turns=max_turns,
+        execution_control=execution_control,
         output_path=output_path,
     )
