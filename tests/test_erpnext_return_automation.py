@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unittest
+
 from aftermath_bench.integrations.erpnext_return_prefix import (
     ensure_return_replacement_automation,
 )
@@ -61,34 +63,43 @@ PREFIX = {
 }
 
 
-def test_post_return_workflow_submits_receipt_and_creates_draft_invoice():
-    adapter = FakeAdapter(receipt_docstatus=0)
-    result = ensure_return_replacement_automation(
-        adapter,  # type: ignore[arg-type]
-        PREFIX,
-    )
-    assert result["replacement_invoice_docstatus"] == 0
-    assert result["actions"] == [
-        "submit replacement Purchase Receipt",
-        "create draft replacement Purchase Invoice",
-    ]
-
-
-def test_post_return_workflow_reuses_existing_active_invoice():
-    adapter = FakeAdapter(
-        receipt_docstatus=1,
-        invoice={
-            "name": "PINV-EXISTING",
-            "docstatus": 0,
-            "items": [
-                {"purchase_receipt": "PREC-REPLACEMENT"}
+class ReturnReplacementAutomationTest(unittest.TestCase):
+    def test_submits_receipt_and_creates_draft_invoice(self) -> None:
+        adapter = FakeAdapter(receipt_docstatus=0)
+        result = ensure_return_replacement_automation(
+            adapter,  # type: ignore[arg-type]
+            PREFIX,
+        )
+        self.assertEqual(result["replacement_invoice_docstatus"], 0)
+        self.assertEqual(
+            result["actions"],
+            [
+                "submit replacement Purchase Receipt",
+                "create draft replacement Purchase Invoice",
             ],
-        },
-    )
-    result = ensure_return_replacement_automation(
-        adapter,  # type: ignore[arg-type]
-        PREFIX,
-    )
-    assert result["replacement_invoice"] == "PINV-EXISTING"
-    assert result["actions"] == []
-    assert not any(call[0] == "create_resource" for call in adapter.calls)
+        )
+
+    def test_reuses_existing_active_invoice(self) -> None:
+        adapter = FakeAdapter(
+            receipt_docstatus=1,
+            invoice={
+                "name": "PINV-EXISTING",
+                "docstatus": 0,
+                "items": [
+                    {"purchase_receipt": "PREC-REPLACEMENT"}
+                ],
+            },
+        )
+        result = ensure_return_replacement_automation(
+            adapter,  # type: ignore[arg-type]
+            PREFIX,
+        )
+        self.assertEqual(result["replacement_invoice"], "PINV-EXISTING")
+        self.assertEqual(result["actions"], [])
+        self.assertFalse(
+            any(call[0] == "create_resource" for call in adapter.calls)
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

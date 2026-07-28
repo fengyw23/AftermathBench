@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unittest
 from typing import Any
 
 from aftermath_bench.integrations.erpnext_return_baselines import (
@@ -50,41 +51,50 @@ class FakeEnvironment:
         return {"ok": True}
 
 
-def test_blind_retry_aborts_after_a_committed_return_rejects_retry():
-    environment = FakeEnvironment(return_docstatus=1, retry_ok=False)
-    trace = run_fixed_return_baseline(
-        "blind_retry",
-        environment=environment,  # type: ignore[arg-type]
-        prefix=PREFIX,
-    )
-    assert [step["tool"] for step in trace] == ["submit_document"]
+class ReturnBaselineTest(unittest.TestCase):
+    def test_blind_retry_aborts_after_rejected_retry(self) -> None:
+        environment = FakeEnvironment(return_docstatus=1, retry_ok=False)
+        trace = run_fixed_return_baseline(
+            "blind_retry",
+            environment=environment,  # type: ignore[arg-type]
+            prefix=PREFIX,
+        )
+        self.assertEqual(
+            [step["tool"] for step in trace],
+            ["submit_document"],
+        )
+
+    def test_blind_retry_completes_downstream_after_success(self) -> None:
+        environment = FakeEnvironment(return_docstatus=0, retry_ok=True)
+        trace = run_fixed_return_baseline(
+            "blind_retry",
+            environment=environment,  # type: ignore[arg-type]
+            prefix=PREFIX,
+        )
+        names = [step["tool"] for step in trace]
+        self.assertEqual(names[0], "submit_document")
+        self.assertIn("create_purchase_invoice_from_receipt", names)
+        self.assertIn("reconcile_supplier_documents", names)
+
+    def test_compact_tree_then_fixed_downstream_sequence(self) -> None:
+        environment = FakeEnvironment(return_docstatus=1)
+        trace = run_fixed_return_baseline(
+            "compact_boundary_tree",
+            environment=environment,  # type: ignore[arg-type]
+            prefix=PREFIX,
+        )
+        names = [step["tool"] for step in trace]
+        self.assertEqual(
+            names[:3],
+            [
+                "get_document",
+                "get_external_delivery",
+                "find_background_jobs",
+            ],
+        )
+        self.assertIn("create_purchase_invoice_from_receipt", names)
+        self.assertIn("reconcile_supplier_documents", names)
 
 
-def test_blind_retry_only_completes_downstream_after_retry_succeeds():
-    environment = FakeEnvironment(return_docstatus=0, retry_ok=True)
-    trace = run_fixed_return_baseline(
-        "blind_retry",
-        environment=environment,  # type: ignore[arg-type]
-        prefix=PREFIX,
-    )
-    names = [step["tool"] for step in trace]
-    assert names[0] == "submit_document"
-    assert "create_purchase_invoice_from_receipt" in names
-    assert "reconcile_supplier_documents" in names
-
-
-def test_compact_tree_uses_boundary_tree_then_fixed_downstream_sequence():
-    environment = FakeEnvironment(return_docstatus=1)
-    trace = run_fixed_return_baseline(
-        "compact_boundary_tree",
-        environment=environment,  # type: ignore[arg-type]
-        prefix=PREFIX,
-    )
-    names = [step["tool"] for step in trace]
-    assert names[:3] == [
-        "get_document",
-        "get_external_delivery",
-        "find_background_jobs",
-    ]
-    assert "create_purchase_invoice_from_receipt" in names
-    assert "reconcile_supplier_documents" in names
+if __name__ == "__main__":
+    unittest.main()
