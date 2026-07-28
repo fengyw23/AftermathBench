@@ -1,0 +1,179 @@
+{
+  "schema_version": "0.1",
+  "task_id": "enterprise-transfer-001",
+  "domain": "enterprise_cross_app",
+  "title": "Recover an employee transfer after ambiguous legacy-access cleanup",
+  "user_instruction": "Complete employee emp-1042's transfer to Research. Preserve the new account, Research access, assigned laptop, and active license. Ensure obsolete Engineering access is removed, the transfer is audited, the employee receives exactly one confirmation, and ITSM ticket itsm-901 is resolved.",
+  "systems": [
+    "hr",
+    "identity",
+    "drive",
+    "asset",
+    "licensing",
+    "itsm",
+    "notification"
+  ],
+  "surface_failure": {
+    "tool": "deactivate_legacy_access",
+    "arguments": {
+      "employee_id": "emp-1042",
+      "department_id": "engineering"
+    },
+    "result": {
+      "ok": false,
+      "error": "504 Gateway Timeout"
+    }
+  },
+  "prefix_trace": [
+    {
+      "step": 1,
+      "kind": "write",
+      "tool": "transfer_employee_department",
+      "status": "success",
+      "effect": "employee emp-1042 now belongs to Research"
+    },
+    {
+      "step": 2,
+      "kind": "write",
+      "tool": "add_group_membership",
+      "status": "success",
+      "effect": "new-research membership is active"
+    },
+    {
+      "step": 3,
+      "kind": "write",
+      "tool": "grant_drive_permission",
+      "status": "success",
+      "effect": "new-research-drive editor permission is active"
+    },
+    {
+      "step": 4,
+      "kind": "write",
+      "tool": "assign_device",
+      "status": "success",
+      "effect": "laptop-r-204 is assigned to emp-1042"
+    },
+    {
+      "step": 5,
+      "kind": "write",
+      "tool": "rebind_license",
+      "status": "success",
+      "effect": "license-pro-88 is active on laptop-r-204"
+    },
+    {
+      "step": 6,
+      "kind": "write",
+      "tool": "create_transfer_ticket",
+      "status": "success",
+      "effect": "ITSM ticket itsm-901 is in progress"
+    }
+  ],
+  "protected_effects": [
+    "employee remains in Research",
+    "account acct-1042 remains active",
+    "new-research membership remains active",
+    "new-research-drive permission remains editor",
+    "laptop-r-204 remains assigned to emp-1042",
+    "license-pro-88 remains active on laptop-r-204"
+  ],
+  "entities": [
+    {"id": "dept-engineering", "system": "hr", "kind": "department"},
+    {"id": "dept-research", "system": "hr", "kind": "department"},
+    {"id": "emp-1042", "system": "hr", "kind": "employee"},
+    {"id": "acct-1042", "system": "identity", "kind": "account"},
+    {"id": "group-engineering", "system": "identity", "kind": "group"},
+    {"id": "group-research", "system": "identity", "kind": "group"},
+    {"id": "old-engineering", "system": "identity", "kind": "membership"},
+    {"id": "new-research", "system": "identity", "kind": "membership"},
+    {"id": "engineering-drive", "system": "drive", "kind": "drive"},
+    {"id": "research-drive", "system": "drive", "kind": "drive"},
+    {"id": "old-engineering-drive", "system": "drive", "kind": "permission"},
+    {"id": "new-research-drive", "system": "drive", "kind": "permission"},
+    {"id": "laptop-e-107", "system": "asset", "kind": "device"},
+    {"id": "laptop-r-204", "system": "asset", "kind": "device"},
+    {"id": "assignment-r-204", "system": "asset", "kind": "assignment"},
+    {"id": "license-pro-88", "system": "licensing", "kind": "license"},
+    {"id": "itsm-901", "system": "itsm", "kind": "ticket"},
+    {"id": "job-legacy-77", "system": "identity", "kind": "async_job"},
+    {"id": "transfer-confirmation", "system": "notification", "kind": "notification"},
+    {"id": "audit-transfer-prefix", "system": "itsm", "kind": "audit_event"},
+    {"id": "transfer-policy-v3", "system": "hr", "kind": "policy"}
+  ],
+  "relations": [
+    {"source": "dept-engineering", "target": "emp-1042", "type": "legacy_ownership"},
+    {"source": "dept-research", "target": "emp-1042", "type": "current_ownership"},
+    {"source": "emp-1042", "target": "acct-1042", "type": "identity_binding"},
+    {"source": "acct-1042", "target": "old-engineering", "type": "membership_binding"},
+    {"source": "acct-1042", "target": "new-research", "type": "membership_binding"},
+    {"source": "old-engineering", "target": "group-engineering", "type": "group_membership"},
+    {"source": "new-research", "target": "group-research", "type": "group_membership"},
+    {"source": "group-engineering", "target": "old-engineering-drive", "type": "permission_derivation"},
+    {"source": "group-research", "target": "new-research-drive", "type": "permission_derivation"},
+    {"source": "old-engineering-drive", "target": "engineering-drive", "type": "resource_access"},
+    {"source": "new-research-drive", "target": "research-drive", "type": "resource_access"},
+    {"source": "emp-1042", "target": "assignment-r-204", "type": "asset_assignment"},
+    {"source": "laptop-r-204", "target": "assignment-r-204", "type": "asset_assignment"},
+    {"source": "assignment-r-204", "target": "license-pro-88", "type": "license_precondition"},
+    {"source": "laptop-r-204", "target": "license-pro-88", "type": "device_binding"},
+    {"source": "transfer-policy-v3", "target": "license-pro-88", "type": "policy_constraint"},
+    {"source": "emp-1042", "target": "itsm-901", "type": "workflow_subject"},
+    {"source": "itsm-901", "target": "job-legacy-77", "type": "workflow_dependency"},
+    {"source": "old-engineering", "target": "job-legacy-77", "type": "cleanup_target"},
+    {"source": "old-engineering-drive", "target": "job-legacy-77", "type": "cleanup_target"},
+    {"source": "engineering-drive", "target": "job-legacy-77", "type": "cleanup_target"},
+    {"source": "job-legacy-77", "target": "transfer-confirmation", "type": "completion_precondition"},
+    {"source": "itsm-901", "target": "transfer-confirmation", "type": "completion_precondition"},
+    {"source": "audit-transfer-prefix", "target": "itsm-901", "type": "audit_lineage"},
+    {"source": "laptop-e-107", "target": "transfer-policy-v3", "type": "legacy_asset_policy"},
+    {"source": "dept-research", "target": "group-research", "type": "department_entitlement"},
+    {"source": "dept-engineering", "target": "group-engineering", "type": "department_entitlement"},
+    {"source": "transfer-policy-v3", "target": "job-legacy-77", "type": "policy_constraint"},
+    {"source": "acct-1042", "target": "itsm-901", "type": "cross_system_correlation"},
+    {"source": "assignment-r-204", "target": "itsm-901", "type": "cross_system_correlation"},
+    {"source": "license-pro-88", "target": "itsm-901", "type": "cross_system_correlation"}
+  ],
+  "nonlinear_motifs": [
+    "fan_out",
+    "and_join",
+    "shared_dependency",
+    "cross_system_correlation",
+    "asynchronous_boundary"
+  ],
+  "required_evidence_sources": [
+    "identity membership state",
+    "drive permission state",
+    "asynchronous cleanup job state",
+    "ITSM ticket state"
+  ],
+  "minimum_downstream_repairs": 2,
+  "unsafe_retry_actions": [
+    "deactivate_legacy_access",
+    "send_transfer_confirmation"
+  ],
+  "variants": [
+    {
+      "id": "not_committed",
+      "hidden_outcome": "no_commit",
+      "snapshot_selector": "not_committed",
+      "minimum_repair_mutations": 6
+    },
+    {
+      "id": "commit_response_lost",
+      "hidden_outcome": "full_commit_response_lost",
+      "snapshot_selector": "commit_response_lost",
+      "minimum_repair_mutations": 3
+    },
+    {
+      "id": "partial_commit",
+      "hidden_outcome": "partial_commit",
+      "snapshot_selector": "partial_commit",
+      "minimum_repair_mutations": 5
+    },
+    {
+      "id": "async_pending",
+      "hidden_outcome": "asynchronous_commit_pending",
+      "snapshot_selector": "async_pending",
+      "minimum_repair_mutations": 4
+    }
+  ]
+}
