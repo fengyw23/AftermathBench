@@ -40,6 +40,22 @@ def main() -> int:
             for report in reports
         ],
     }
+    baseline_reports = [
+        _read(path)
+        for path in sorted(
+            args.control_directory.glob("*-baseline-*.json")
+        )
+    ]
+    baseline_names = sorted(
+        {str(report["baseline"]) for report in baseline_reports}
+    )
+    variant_names = sorted(
+        {str(report["variant"]) for report in baseline_reports}
+    )
+    if len(baseline_names) < 6 or len(variant_names) != 4:
+        raise RuntimeError(
+            "expected at least six executed baselines across four variants"
+        )
     entity_types = {
         "original_purchase_order": "Purchase Order",
         "original_purchase_receipt": "Purchase Receipt",
@@ -125,18 +141,36 @@ def main() -> int:
             "enqueue a duplicate pickup delivery"
         ]
     }
+    heuristics = []
+    for baseline_name in baseline_names:
+        baseline_group = [
+            report
+            for report in baseline_reports
+            if report["baseline"] == baseline_name
+        ]
+        passed = [
+            bool(report["evaluation"]["passed"])
+            for report in baseline_group
+        ]
+        heuristics.append(
+            {
+                "name": baseline_name,
+                "pass_rate": sum(passed) / len(passed),
+                "matched_group_success": all(passed),
+                "reports": [
+                    {
+                        "variant": report["variant"],
+                        "passed": report["evaluation"]["passed"],
+                    }
+                    for report in baseline_group
+                ],
+            }
+        )
     baselines = {
         "schema_version": "0.2",
         "scenario_id": prefix["scenario_id"],
-        "source": "terminal-state replay of fixed incomplete policies",
-        "heuristics": [
-            {"name": "no_op", "pass_rate": 0.0, "matched_group_success": False},
-            {"name": "blind_retry", "pass_rate": 0.0, "matched_group_success": False},
-            {"name": "assume_committed", "pass_rate": 0.0, "matched_group_success": False},
-            {"name": "repair_failed_record_only", "pass_rate": 0.0, "matched_group_success": False},
-            {"name": "cancel_shared_payment", "pass_rate": 0.0, "matched_group_success": False},
-            {"name": "four_signal_boundary_tree_only", "pass_rate": 0.0, "matched_group_success": False}
-        ]
+        "source": "executed native terminal-state evaluations",
+        "heuristics": heuristics,
     }
     args.output_directory.mkdir(parents=True, exist_ok=True)
     for name, payload in (

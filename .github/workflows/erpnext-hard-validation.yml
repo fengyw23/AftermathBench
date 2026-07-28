@@ -63,8 +63,32 @@ jobs:
             after_commit_enqueue_failed
             async_job_pending
           )
+          baselines=(
+            no_op
+            blind_retry
+            assume_committed
+            repair_failed_record_only
+            all_rollback
+            cancel_shared_payment
+            compact_boundary_tree
+          )
           for variant in "${variants[@]}"
           do
+            for baseline in "${baselines[@]}"
+            do
+              python scripts/run_erpnext_return_failure.py \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix runtimes/erpnext/.runtime/hard-dev/prefix.json \
+                --snapshot runtimes/erpnext/.runtime/hard-dev/prefix.sql \
+                --output "runtimes/erpnext/.runtime/hard-dev/${variant}-baseline-${baseline}-failure.json"
+              python scripts/run_erpnext_return_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix runtimes/erpnext/.runtime/hard-dev/prefix.json \
+                --output "runtimes/erpnext/.runtime/hard-dev/${variant}-baseline-${baseline}.json"
+            done
             python scripts/run_erpnext_return_failure.py \
               --variant "$variant" \
               --credentials runtimes/erpnext/.runtime/credentials.json \
