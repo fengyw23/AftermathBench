@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import Mock, patch
 
 from aftermath_bench.integrations.erpnext_agent import (
+    ERPNextRecoveryEnvironment,
     reference_erpnext_recovery,
 )
 from aftermath_bench.integrations.erpnext_evidence import ProcurementPaymentIDs
@@ -90,6 +92,50 @@ class ERPNextReferenceRecoveryTest(unittest.TestCase):
             self._mutations(fixture),
             ["resume_remittance_workers"],
         )
+
+    @patch("aftermath_bench.integrations.erpnext_agent.time.sleep")
+    def test_wait_requires_delivery_and_job_settlement(self, sleep) -> None:
+        adapter = Mock()
+        adapter.list_resources.side_effect = [
+            {
+                "data": [
+                    {
+                        "name": "job-1",
+                        "status": "started",
+                        "arguments": '{"payment_entry":"PAY-1"}',
+                    }
+                ]
+            },
+            {
+                "data": [
+                    {
+                        "name": "job-1",
+                        "status": "finished",
+                        "arguments": '{"payment_entry":"PAY-1"}',
+                    }
+                ]
+            },
+        ]
+        collector = Mock()
+        collector.get_remittance_delivery.return_value = {
+            "key": "PAY-1",
+            "attempt_count": 1,
+        }
+        environment = ERPNextRecoveryEnvironment(
+            adapter=adapter,
+            ids=ProcurementPaymentIDs("PO-1", "PR-1", "PI-1"),
+            payment_entry="PAY-1",
+            stack=Mock(),
+            worker_control=Mock(),
+            collector=collector,
+        )
+
+        result = environment._wait_for_remittance("PAY-1", 10)
+
+        self.assertTrue(result["delivered"])
+        self.assertTrue(result["jobs_settled"])
+        self.assertEqual(result["relevant_jobs"][0]["status"], "finished")
+        sleep.assert_called_once_with(0.25)
 
 
 if __name__ == "__main__":

@@ -192,6 +192,17 @@ class ERPNextRecoveryEnvironment(RecordedEnvironment):
         }
 
     def _find_remittance_jobs(self, payment_name: str) -> dict[str, Any]:
+        relevant = self._list_relevant_jobs(payment_name)
+        return {
+            "ok": True,
+            "payment_entry": payment_name,
+            "jobs": relevant,
+        }
+
+    def _list_relevant_jobs(
+        self,
+        payment_name: str,
+    ) -> list[dict[str, Any]]:
         jobs = _data(self.adapter.list_resources(
             "RQ Job",
             fields=["name", "job_name", "status", "arguments", "queue"],
@@ -199,7 +210,7 @@ class ERPNextRecoveryEnvironment(RecordedEnvironment):
             limit=500,
         ))
         relevant = [
-            job
+            dict(job)
             for job in jobs
             if payment_name in json.dumps(
                 job,
@@ -207,11 +218,7 @@ class ERPNextRecoveryEnvironment(RecordedEnvironment):
                 default=str,
             )
         ]
-        return {
-            "ok": True,
-            "payment_entry": payment_name,
-            "jobs": relevant,
-        }
+        return relevant
 
     def _get_remittance_delivery(self, payment_name: str) -> dict[str, Any]:
         delivery = self.collector.get_remittance_delivery(payment_name)
@@ -252,15 +259,30 @@ class ERPNextRecoveryEnvironment(RecordedEnvironment):
         if timeout_seconds < 1 or timeout_seconds > 30:
             raise ValueError("timeout_seconds must be between 1 and 30")
         deadline = time.monotonic() + timeout_seconds
-        delivery = self.collector.get_remittance_delivery(payment_name)
-        while delivery is None and time.monotonic() < deadline:
-            time.sleep(0.25)
+        delivery = None
+        relevant_jobs: list[dict[str, Any]] = []
+        unfinished_jobs: list[dict[str, Any]] = []
+        while True:
             delivery = self.collector.get_remittance_delivery(payment_name)
+            relevant_jobs = self._list_relevant_jobs(payment_name)
+            unfinished_jobs = [
+                job
+                for job in relevant_jobs
+                if str(job.get("status", "")).lower()
+                in UNFINISHED_JOB_STATUSES
+            ]
+            if delivery is not None and not unfinished_jobs:
+                break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.25)
         return {
             "ok": True,
             "payment_entry": payment_name,
             "delivered": delivery is not None,
             "delivery": delivery,
+            "jobs_settled": not unfinished_jobs,
+            "relevant_jobs": relevant_jobs,
         }
 
 

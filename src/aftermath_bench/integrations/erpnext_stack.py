@@ -198,8 +198,40 @@ class ERPNextStack:
             "frontend",
             "fault-gateway",
         )
+        self._wait_http_service(
+            "http://127.0.0.1:8080/api/method/ping"
+        )
         self._reset_http_service("http://127.0.0.1:9091/admin/reset")
         self._reset_http_service("http://127.0.0.1:9092/admin/reset")
+
+    @staticmethod
+    def _wait_http_service(
+        url: str,
+        *,
+        attempts: int = 30,
+        delay_seconds: float = 1.0,
+        opener: Callable[..., Any] = urllib.request.urlopen,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if attempts < 1:
+            raise ValueError("attempts must be at least one")
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            request = urllib.request.Request(url, method="GET")
+            try:
+                with opener(request, timeout=2) as response:
+                    if response.status == 200:
+                        return
+                    last_error = RuntimeError(
+                        f"readiness endpoint returned {response.status}"
+                    )
+            except OSError as error:
+                last_error = error
+            if attempt + 1 < attempts:
+                sleeper(delay_seconds)
+        raise RuntimeError(
+            f"service did not become ready after {attempts} attempts: {url}"
+        ) from last_error
 
     @staticmethod
     def _reset_http_service(

@@ -113,6 +113,26 @@ class ERPNextStackTest(unittest.TestCase):
         self.assertEqual(opener.call_count, 2)
         sleeper.assert_called_once_with(0.01)
 
+    def test_erp_http_readiness_retries_a_transient_bad_gateway(self) -> None:
+        response = Mock()
+        response.status = 200
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        opener = Mock(side_effect=[ConnectionResetError(), response])
+        sleeper = Mock()
+
+        ERPNextStack._wait_http_service(
+            "http://127.0.0.1:8080/api/method/ping",
+            attempts=2,
+            delay_seconds=0.01,
+            opener=opener,
+            sleeper=sleeper,
+        )
+
+        requests = [call.args[0] for call in opener.call_args_list]
+        self.assertTrue(all(request.method == "GET" for request in requests))
+        sleeper.assert_called_once_with(0.01)
+
     def test_reset_fails_after_bounded_readiness_attempts(self) -> None:
         opener = Mock(side_effect=ConnectionRefusedError())
         sleeper = Mock()
