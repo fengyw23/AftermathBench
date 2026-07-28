@@ -27,16 +27,18 @@ and event history satisfy deterministic checks.
 
 ## Repository status
 
-This repository is an executable research scaffold. It currently contains one
-enterprise workflow with four matched commit-state variants:
+This repository is an executable research scaffold. It currently contains an
+enterprise transfer workflow and a software-release/database-migration workflow,
+each with four matched commit-state variants:
 
 - `not_committed`
 - `commit_response_lost`
 - `partial_commit`
 - `async_pending`
 
-The sample is intentionally built against the hard-task admission gate. The
-next implementation stage will add:
+Both samples are built against the hard-task admission gate. The release task
+uses a real Git repository, application and control-plane SQLite databases, and
+a content-addressed registry manifest. The next implementation stage will add:
 
 1. Enterprise workflows adapted from EnterpriseOps-Gym.
 2. Software-delivery and database-migration workflows running in containers.
@@ -50,6 +52,8 @@ Python 3.12 or newer is required.
 python -m unittest discover -s tests -v
 python -m aftermath_bench validate
 python -m aftermath_bench demo --all
+python -m aftermath_bench demo-release --all
+python -m aftermath_bench baselines
 ```
 
 When running directly from a checkout without installing the package:
@@ -65,6 +69,8 @@ On PowerShell:
 $env:PYTHONPATH = "src"
 python -m aftermath_bench validate
 python -m aftermath_bench demo --all
+python -m aftermath_bench demo-release --all
+python -m aftermath_bench baselines
 ```
 
 ## Design principles
@@ -83,5 +89,6 @@ python -m aftermath_bench demo --all
   not imitation of a reference action order.
 
 See [Benchmark Specification](docs/BENCHMARK_SPEC.md) and
-[Task Schema](docs/TASK_SCHEMA.md).
-
+[Task Schema](docs/TASK_SCHEMA.md). The current upstream integration findings
+are documented in
+[EnterpriseOps-Gym Integration Audit](docs/ENTERPRISEOPS_AUDIT.md).

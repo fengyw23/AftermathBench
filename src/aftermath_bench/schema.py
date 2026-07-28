@@ -34,8 +34,11 @@ def default_task_path() -> Path:
     return repository_root() / "data" / "tasks" / "enterprise-transfer-001" / "task.json"
 
 
+def task_paths() -> tuple[Path, ...]:
+    return tuple(sorted((repository_root() / "data" / "tasks").glob("*/task.json")))
+
+
 def load_task(path: str | Path | None = None) -> TaskSpec:
     task_path = Path(path) if path is not None else default_task_path()
     with task_path.open("r", encoding="utf-8") as handle:
         return TaskSpec(json.load(handle))
-
