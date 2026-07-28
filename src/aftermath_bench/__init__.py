@@ -27,4 +27,4 @@ __all__ = [
     "validate_runtime_manifest",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

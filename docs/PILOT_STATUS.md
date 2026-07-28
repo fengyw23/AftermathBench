@@ -37,18 +37,30 @@ callbacks, webhook queuing, and background jobs. The first
 procurement-to-payment scenario contains seven successful prefix writes and
 four matched, source-supported failure states.
 
-This scenario is not yet executable. It remains blocked from execution
-admission until the pinned stack is built from source, deterministic reset is
-verified, every fault is replayed, and terminal checks pass.
+The repository now contains:
+
+- a digest-pinned MariaDB, Redis, Toxiproxy, gateway, remittance, and
+  source-built ERPNext Compose topology;
+- a seven-write public-API prefix builder;
+- SQL dump/restore plus Redis and audit reset;
+- executable controllers for request suppression, post-commit response loss,
+  queue enqueue failure, and pending workers;
+- deterministic checks over protected documents, stock ledger, invoice
+  outstanding, Payment Entry references, balanced GL, RQ jobs, and remittance;
+- a manual CI workflow that builds and replays all four variants.
+
+Component-level tests pass. Native execution admission is still pending because
+the current development machine has no Docker/Podman runtime. The manifest
+continues to report `built_from_source=false`,
+`deterministic_reset_verified=false`, `fault_variants_replayed=false`, and
+`terminal_checks_replayed=false` until the manual native workflow succeeds.
 
 ## Next enterprise implementation
 
-1. Build pinned ERPNext/Frappe/MariaDB/Redis services from source.
-2. Implement the procurement prefix exclusively through public document APIs.
-3. Add a benchmark-owned idempotent remittance receiver.
-4. Replay the four HTTP/commit/queue failure variants.
-5. Verify document, stock ledger, GL, outstanding balance, queue, and delivery
-   invariants before admitting the task.
+1. Run and debug the manual native workflow.
+2. Attach the four replay reports as admission evidence.
+3. Expose the restricted agent-facing investigation and repair tools.
+4. Run scripted recovery controls before evaluating language models.
 
 ## Coding/DevOps candidate
 

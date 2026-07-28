@@ -27,6 +27,7 @@ class ERPNextBuildPlan:
     expected_driver_revision: str
     source_refs: tuple[tuple[str, str, str], ...]
     fetch_commands: tuple[tuple[str, ...], ...]
+    prepare_commands: tuple[tuple[str, ...], ...]
     build_command: tuple[str, ...]
 
     def as_dict(self) -> dict[str, Any]:
@@ -39,6 +40,9 @@ class ERPNextBuildPlan:
                 for repo, tag, revision in self.source_refs
             ],
             "fetch_commands": [list(command) for command in self.fetch_commands],
+            "prepare_commands": [
+                list(command) for command in self.prepare_commands
+            ],
             "build_command": list(self.build_command),
         }
 
@@ -75,6 +79,24 @@ def create_build_plan(
         ),
         ("git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"),
     )
+    patch = (
+        repository_root()
+        / "runtimes"
+        / "erpnext"
+        / "patches"
+        / "pin-python-base.patch"
+    ).resolve()
+    prepare_commands = (
+        (
+            "git",
+            "-C",
+            str(source),
+            "apply",
+            "--check",
+            str(patch),
+        ),
+        ("git", "-C", str(source), "apply", str(patch)),
+    )
     build: list[str] = [
         container_cli,
         "build",
@@ -100,6 +122,7 @@ def create_build_plan(
             for name in ("frappe", "erpnext")
         ),
         fetch_commands=fetch_commands,
+        prepare_commands=prepare_commands,
         build_command=tuple(build),
     )
 
@@ -147,4 +170,6 @@ def execute_build_plan(plan: ERPNextBuildPlan) -> None:
             f"build-driver revision mismatch: {actual_revision} != "
             f"{expected_revision}"
         )
+    for command in plan.prepare_commands:
+        _run(command)
     _run(plan.build_command)

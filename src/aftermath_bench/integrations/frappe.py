@@ -80,6 +80,26 @@ class FrappeHTTPAdapter:
     def get_resource(self, doctype: str, name: str) -> dict[str, Any]:
         return self._request("GET", self._resource_path(doctype, name))
 
+    def list_resources(
+        self,
+        doctype: str,
+        *,
+        fields: list[str] | None = None,
+        filters: list[list[Any]] | dict[str, Any] | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        query = {
+            "fields": json.dumps(fields or ["name"]),
+            "limit_page_length": str(limit),
+        }
+        if filters is not None:
+            query["filters"] = json.dumps(filters)
+        return self._request(
+            "GET",
+            f"{self._resource_path(doctype)}?"
+            f"{urllib.parse.urlencode(query)}",
+        )
+
     def update_resource(
         self,
         doctype: str,
@@ -122,4 +142,3 @@ class FrappeHTTPAdapter:
             "frappe.client.cancel",
             {"doctype": doctype, "name": name},
         )
-

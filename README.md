@@ -55,10 +55,13 @@ native transaction logic used inside its MCP images. AftermathBench therefore
 labels the existing ITSM implementation as a **legacy concept prototype**, not
 a final native-runtime task.
 
-The `v0.3` line introduces a machine-checked fully open runtime gate and pivots
+The `v0.3` line introduced a machine-checked fully open runtime gate and pivoted
 the primary enterprise implementation to source-built ERPNext/Frappe. Its
-first procurement-to-payment task is source-audited but not yet execution
-admitted. Forgejo is the selected coding/DevOps runtime candidate.
+first procurement-to-payment task now has a digest-pinned service topology,
+public-API prefix builder, real HTTP/queue fault controllers, snapshot reset,
+and deterministic terminal evaluator. It is source-audited but remains outside
+the leaderboard until the native replay workflow succeeds. Forgejo is the
+selected coding/DevOps runtime candidate.
 
 ## Quick start
 

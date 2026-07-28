@@ -1,0 +1,51 @@
+import json
+import unittest
+
+from aftermath_bench.schema import repository_root
+
+
+class ERPNextComposeSpecTest(unittest.TestCase):
+    def setUp(self) -> None:
+        runtime = repository_root() / "runtimes" / "erpnext"
+        self.compose = (runtime / "compose.yaml").read_text(encoding="utf-8")
+        self.lock = json.loads(
+            (runtime / "runtime.lock.json").read_text(encoding="utf-8")
+        )
+
+    def test_native_state_and_fault_services_are_present(self) -> None:
+        for service in (
+            "db:",
+            "redis-queue:",
+            "queue-fault:",
+            "backend:",
+            "queue-short:",
+            "queue-long:",
+            "fault-gateway:",
+            "remittance:",
+        ):
+            self.assertIn(service, self.compose)
+
+    def test_erpnext_application_image_is_local_source_build(self) -> None:
+        self.assertIn("aftermathbench/erpnext:v15.118.1", self.compose)
+        self.assertIn("pull_policy: never", self.compose)
+
+    def test_direct_runtime_images_are_digest_pinned(self) -> None:
+        images = self.lock["infrastructure_images"]
+        self.assertTrue(
+            all(
+                str(image["digest"]).startswith("sha256:")
+                for image in images.values()
+            )
+        )
+        for image in images.values():
+            self.assertIn(image["digest"], self.compose + (
+                repository_root()
+                / "runtimes"
+                / "erpnext"
+                / "control"
+                / "Containerfile"
+            ).read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

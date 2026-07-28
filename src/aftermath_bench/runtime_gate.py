@@ -18,6 +18,7 @@ SOURCE_REQUIREMENTS = (
 )
 
 EXECUTION_REQUIREMENTS = (
+    "container_images_digest_pinned",
     "built_from_source",
     "deterministic_reset_verified",
     "fault_variants_replayed",
@@ -96,4 +97,3 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         execution_checks=execution_checks,
         failures=failures,
     )
-

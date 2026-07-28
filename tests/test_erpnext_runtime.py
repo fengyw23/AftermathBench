@@ -20,7 +20,16 @@ class ERPNextRuntimeTest(unittest.TestCase):
         self.assertEqual(plan.image, "aftermathbench/erpnext:v15.118.1")
         self.assertIn("FRAPPE_BRANCH=v15.116.0", command)
         self.assertIn("ERPNEXT_BRANCH=v15.118.1", command)
+        self.assertIn(
+            "PYTHON_BASE_IMAGE=python:3.12.11-slim-bookworm@"
+            "sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7",
+            command,
+        )
         self.assertIn(lock["build_driver"]["revision"], plan.fetch_commands[2])
+        self.assertEqual(plan.prepare_commands[0][4], "--check")
+        self.assertTrue(
+            plan.prepare_commands[0][-1].endswith("pin-python-base.patch")
+        )
         self.assertEqual(
             plan.source_refs,
             (

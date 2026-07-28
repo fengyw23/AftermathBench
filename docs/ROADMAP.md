@@ -30,14 +30,16 @@ promoted into the final native-runtime benchmark.
 
 ## Phase 3 — native ERPNext vertical slice (current)
 
-- Build the pinned ERPNext/Frappe/MariaDB/Redis stack from source.
-- Create procurement, receipt, invoice, payment, GL, and remittance effects
-  through public APIs.
-- Inject request suppression, lost response, post-commit enqueue failure, and
-  queued-worker-pending faults at real boundaries.
-- Implement deterministic reset and task-scoped terminal checks.
-- Record read/write sets, correlation IDs, events, transaction boundaries, and
-  asynchronous job state.
+- [x] Define the digest-pinned ERPNext/Frappe/MariaDB/Redis stack.
+- [x] Create the seven-write procurement prefix through public APIs.
+- [x] Implement request suppression, lost response, post-commit enqueue
+  failure, and queued-worker-pending controls.
+- [x] Implement SQL/Redis/audit reset and deterministic terminal checks.
+- [x] Record gateway correlation events, queue state, remittance attempts,
+  document state, stock ledger, and GL evidence.
+- [ ] Complete the first source build and four native replays.
+- [ ] Add restricted model-visible investigation and repair tools.
+- [ ] Pass scripted end-to-end recovery controls.
 
 ## Phase 4 — Forgejo coding/DevOps vertical slice
 
