@@ -6,6 +6,12 @@ import json
 from .admission import validate_task
 from .baselines import run_itsm_baselines, run_release_baselines
 from .evaluator import evaluate
+from .integrations.enterprise_ops_assets import fetch_enterpriseops_archive
+from .model_runner import (
+    client_from_environment,
+    run_itsm_agent,
+    run_itsm_suite,
+)
 from .scenarios.enterprise_transfer import (
     VARIANTS,
     build_enterprise_failure_state,
@@ -90,10 +96,17 @@ def _run_release_demo(variants: tuple[str, ...]) -> int:
     return 0 if all_passed else 1
 
 
-def _run_itsm_demo(variants: tuple[str, ...]) -> int:
+def _run_itsm_demo(
+    variants: tuple[str, ...],
+    *,
+    seed_archive: str | None = None,
+) -> int:
     all_passed = True
     for variant in variants:
-        environment, _proxy, failure = build_itsm_failure_state(variant)
+        environment, _proxy, failure = build_itsm_failure_state(
+            variant,
+            seed_archive=seed_archive,
+        )
         try:
             reference_itsm_recovery(environment)
             result = evaluate_itsm(environment)
@@ -135,6 +148,53 @@ def build_parser() -> argparse.ArgumentParser:
     )
     itsm_demo.add_argument("--variant", choices=ITSM_VARIANTS)
     itsm_demo.add_argument("--all", action="store_true")
+    itsm_demo.add_argument(
+        "--enterpriseops-archive",
+        help="use the pinned full EnterpriseOps gym_dbs.zip seed",
+    )
+    fetch_assets = subparsers.add_parser(
+        "fetch-enterpriseops",
+        help="download and verify the pinned EnterpriseOps seed archive",
+    )
+    fetch_assets.add_argument("--destination")
+    model_run = subparsers.add_parser(
+        "run-itsm-model",
+        help="run a model against one hidden ITSM commit-state variant",
+    )
+    model_run.add_argument(
+        "--provider",
+        required=True,
+        choices=("openai-compatible", "anthropic"),
+    )
+    model_run.add_argument("--model", required=True)
+    model_run.add_argument("--base-url")
+    model_run.add_argument("--api-key-env", default="AFTERMATH_API_KEY")
+    model_run.add_argument("--variant", required=True, choices=ITSM_VARIANTS)
+    seed_source = model_run.add_mutually_exclusive_group()
+    seed_source.add_argument("--enterpriseops-archive")
+    seed_source.add_argument(
+        "--minimal-fixture",
+        action="store_true",
+        help="use only the small test fixture instead of the official full seed",
+    )
+    model_run.add_argument("--max-turns", type=int, default=15)
+    model_run.add_argument("--output")
+    model_suite = subparsers.add_parser(
+        "run-itsm-suite",
+        help="run every hidden ITSM state repeatedly and aggregate results",
+    )
+    model_suite.add_argument(
+        "--provider",
+        required=True,
+        choices=("openai-compatible", "anthropic"),
+    )
+    model_suite.add_argument("--model", required=True)
+    model_suite.add_argument("--base-url")
+    model_suite.add_argument("--api-key-env", default="AFTERMATH_API_KEY")
+    model_suite.add_argument("--enterpriseops-archive")
+    model_suite.add_argument("--repetitions", type=int, default=5)
+    model_suite.add_argument("--max-turns", type=int, default=15)
+    model_suite.add_argument("--output-directory", required=True)
     subparsers.add_parser(
         "baselines",
         help="run fixed recovery heuristics on matched release faults",
@@ -155,11 +215,78 @@ def main() -> int:
             indent=2,
         ))
         return 0
+    if args.command == "fetch-enterpriseops":
+        print(fetch_enterpriseops_archive(args.destination))
+        return 0
+    if args.command == "run-itsm-model":
+        seed_archive = None
+        if not args.minimal_fixture:
+            seed_archive = (
+                args.enterpriseops_archive
+                or str(fetch_enterpriseops_archive())
+            )
+        client = client_from_environment(
+            provider=args.provider,
+            model=args.model,
+            base_url=args.base_url,
+            api_key_env=args.api_key_env,
+        )
+        report = run_itsm_agent(
+            client,
+            variant=args.variant,
+            seed_archive=seed_archive,
+            max_turns=args.max_turns,
+            output_path=args.output,
+        )
+        print(json.dumps(
+            {
+                "run_id": report["run_id"],
+                "evaluation": report["evaluation"],
+                "stop_reason": report["stop_reason"],
+                "output": args.output,
+            },
+            indent=2,
+        ))
+        return 0 if report["evaluation"]["passed"] else 1
+    if args.command == "run-itsm-suite":
+        archive = (
+            args.enterpriseops_archive
+            or str(fetch_enterpriseops_archive())
+        )
+        client = client_from_environment(
+            provider=args.provider,
+            model=args.model,
+            base_url=args.base_url,
+            api_key_env=args.api_key_env,
+        )
+        summary = run_itsm_suite(
+            client,
+            seed_archive=archive,
+            output_directory=args.output_directory,
+            repetitions=args.repetitions,
+            max_turns=args.max_turns,
+        )
+        print(json.dumps(
+            {
+                "model": summary["model"],
+                "completed_runs": summary["completed_runs"],
+                "run_errors": summary["run_errors"],
+                "task_pass_rate": summary["task_pass_rate"],
+                "matched_group_success_rate": summary[
+                    "matched_group_success_rate"
+                ],
+            },
+            indent=2,
+        ))
+        return 0 if not summary["run_errors"] else 2
     if args.command == "demo-itsm":
         variants = ITSM_VARIANTS if args.all else (
             args.variant or ITSM_VARIANTS[0],
         )
-        return _run_itsm_demo(variants)
+        return _run_itsm_demo(
+            variants,
+            seed_archive=args.enterpriseops_archive,
+        )
     if args.command == "demo-release":
         variants = RELEASE_VARIANTS if args.all else (
             args.variant or RELEASE_VARIANTS[0],

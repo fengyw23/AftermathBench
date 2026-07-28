@@ -5,7 +5,7 @@
 | Workflow | Prefix provenance | Persistent state carriers | Matched faults | Deterministic evaluation |
 |---|---|---|---|---|
 | Enterprise employee transfer | Six public environment write tools | Prototype enterprise state store | no commit, response lost, partial, async | Yes |
-| ITSM major-incident escalation | Six public environment write tools | EnterpriseOps-native incident/SLA/CI/knowledge/notification tables in persistent SQLite | no commit, response lost, partial, async | Yes |
+| ITSM major-incident escalation | Six public environment write tools | Pinned 24-table, 241-row EnterpriseOps seed plus task records and explicit recovery extensions | no commit, response lost, partial, async | Yes |
 | Release and database migration | Six public environment write tools | Real Git repository, two SQLite databases, registry file | no commit, response lost, partial, async | Yes |
 
 Both workflows begin from a clean state, replay the successful prefix, inject
@@ -25,6 +25,12 @@ as native-schema semantics, not native tool-runtime execution.
 The release workflow already uses independent, persistent state carriers. It is
 not a text-only simulation, although its deployment control plane is local
 rather than Kubernetes.
+
+The ITSM workflow now has OpenAI-compatible and Anthropic model adapters,
+closed JSON tool schemas, a 15-turn execution loop, complete JSON trajectory
+logging, fixed-state fingerprints, and fourteen task-scoped SQL verifier
+checks. The full upstream seed is the default for official CLI model runs; the
+minimal fixture remains available only for unit and interface tests.
 
 ## Next four enterprise workflows
 

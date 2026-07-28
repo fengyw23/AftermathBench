@@ -8,6 +8,7 @@ from aftermath_bench.scenarios.itsm_major_incident import (
     build_itsm_failure_state,
     evaluate_itsm,
     reference_itsm_recovery,
+    verify_itsm_sql,
 )
 
 
@@ -23,6 +24,7 @@ class ITSMMajorIncidentTest(unittest.TestCase):
                     )
                     reference_itsm_recovery(environment)
                     self.assertTrue(evaluate_itsm(environment)["passed"])
+                    self.assertTrue(verify_itsm_sql(environment)["passed"])
                     self.assertEqual(len(proxy.events), 1)
                 finally:
                     environment.close()

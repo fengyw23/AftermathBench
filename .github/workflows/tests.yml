@@ -17,4 +17,9 @@ jobs:
         run: PYTHONPATH=src python -m aftermath_bench validate
       - name: Run unit and integration tests
         run: PYTHONPATH=src python -W error::ResourceWarning -m unittest discover -s tests -v
-
+      - name: Fetch pinned EnterpriseOps seed
+        run: PYTHONPATH=src python -m aftermath_bench fetch-enterpriseops --destination "$RUNNER_TEMP/gym_dbs.zip"
+      - name: Run full-seed ITSM integration test
+        env:
+          AFTERMATH_ENTERPRISEOPS_ARCHIVE: ${{ runner.temp }}/gym_dbs.zip
+        run: PYTHONPATH=src python -W error::ResourceWarning -m unittest discover -s tests -p "test_itsm_full_seed.py" -v

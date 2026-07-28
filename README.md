@@ -44,7 +44,9 @@ Each workflow contains four matched commit-state variants:
 All three samples pass the hard-task admission gate. The ITSM task uses
 EnterpriseOps-Gym's native public table names and business relations across
 incidents, SLAs, configuration items, child incidents, knowledge, users,
-groups, and notifications. The release task uses a real Git repository,
+groups, and notifications. Official ITSM runs load a pinned full upstream seed
+with 24 tables and 241 pre-existing rows before replaying the benchmark prefix.
+The release task uses a real Git repository,
 application and control-plane SQLite databases, and a content-addressed
 registry manifest. The next implementation stage will add:
 
@@ -63,6 +65,8 @@ python -m aftermath_bench demo --all
 python -m aftermath_bench demo-release --all
 python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
+python -m aftermath_bench fetch-enterpriseops
+python -m aftermath_bench run-itsm-suite --help
 ```
 
 When running directly from a checkout without installing the package:
@@ -81,6 +85,8 @@ python -m aftermath_bench demo --all
 python -m aftermath_bench demo-release --all
 python -m aftermath_bench demo-itsm --all
 python -m aftermath_bench baselines
+python -m aftermath_bench fetch-enterpriseops
+python -m aftermath_bench run-itsm-suite --help
 ```
 
 ## Design principles
@@ -103,4 +109,6 @@ See [Benchmark Specification](docs/BENCHMARK_SPEC.md) and
 are documented in
 [EnterpriseOps-Gym Integration Audit](docs/ENTERPRISEOPS_AUDIT.md). The
 implemented-versus-planned boundary is tracked explicitly in
-[Pilot Implementation Status](docs/PILOT_STATUS.md).
+[Pilot Implementation Status](docs/PILOT_STATUS.md). Model-provider setup,
+model-visible inputs, and trajectory contents are specified in
+[Model Experiment Protocol](docs/MODEL_EXPERIMENTS.md).

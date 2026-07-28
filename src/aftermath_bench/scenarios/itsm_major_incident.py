@@ -14,6 +14,13 @@ from ..core import (
     TransitionFaultProxy,
     canonical_fingerprint,
 )
+from ..integrations.enterprise_ops_assets import (
+    ENTERPRISEOPS_REVISION,
+    ITSM_SEED_ENTRY,
+    ITSM_SEED_SHA256,
+    SeedMaterialization,
+    materialize_itsm_seed,
+)
 
 ITSM_VARIANTS = (
     "not_committed",
@@ -43,11 +50,14 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
         root: str | Path | None = None,
         *,
         initialize: bool = True,
+        seed_archive: str | Path | None = None,
     ) -> None:
         super().__init__()
         self._temporary = tempfile.TemporaryDirectory() if root is None else None
         self.root = Path(self._temporary.name if self._temporary else root)
         self.database = self.root / "itsm.sqlite"
+        self.seed_archive = None if seed_archive is None else Path(seed_archive)
+        self.seed_materialization: SeedMaterialization | None = None
         if initialize:
             self._initialize()
 
@@ -76,10 +86,15 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
 
     def _initialize(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
+        if self.seed_archive is not None:
+            self.seed_materialization = materialize_itsm_seed(
+                self.seed_archive,
+                self.database,
+            )
         with closing(sqlite3.connect(self.database)) as connection, connection:
             connection.executescript(
                 """
-                CREATE TABLE users(
+                CREATE TABLE IF NOT EXISTS users(
                     user_id TEXT PRIMARY KEY,
                     user_name TEXT NOT NULL,
                     first_name TEXT NOT NULL,
@@ -94,7 +109,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE user_group(
+                CREATE TABLE IF NOT EXISTS user_group(
                     group_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     type TEXT NOT NULL,
@@ -106,7 +121,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE user_group_member(
+                CREATE TABLE IF NOT EXISTS user_group_member(
                     member_id TEXT PRIMARY KEY,
                     group_id TEXT NOT NULL,
                     user_id TEXT NOT NULL,
@@ -114,7 +129,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE service(
+                CREATE TABLE IF NOT EXISTS service(
                     service_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     owned_by TEXT,
@@ -127,7 +142,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE configuration_item(
+                CREATE TABLE IF NOT EXISTS configuration_item(
                     configuration_item_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     serial_number TEXT,
@@ -139,7 +154,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE knowledge(
+                CREATE TABLE IF NOT EXISTS knowledge(
                     knowledge_id TEXT PRIMARY KEY,
                     kb_number TEXT NOT NULL,
                     title TEXT NOT NULL,
@@ -152,7 +167,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE sla_definition(
+                CREATE TABLE IF NOT EXISTS sla_definition(
                     sla_def_id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
                     metric TEXT NOT NULL,
@@ -165,7 +180,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE incident(
+                CREATE TABLE IF NOT EXISTS incident(
                     incident_id TEXT PRIMARY KEY,
                     number TEXT UNIQUE NOT NULL,
                     short_description TEXT NOT NULL,
@@ -208,7 +223,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     change_request_display TEXT,
                     incident_template_display TEXT
                 );
-                CREATE TABLE incident_affected_cis(
+                CREATE TABLE IF NOT EXISTS incident_affected_cis(
                     incident_affected_cis_id TEXT PRIMARY KEY,
                     configuration_item TEXT NOT NULL,
                     incident_id TEXT NOT NULL,
@@ -216,7 +231,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE incident_knowledge(
+                CREATE TABLE IF NOT EXISTS incident_knowledge(
                     incident_kb_id TEXT PRIMARY KEY,
                     incident_id TEXT NOT NULL,
                     knowledge_id TEXT NOT NULL,
@@ -225,14 +240,14 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE child_incident(
+                CREATE TABLE IF NOT EXISTS child_incident(
                     child_incident_mapping_id TEXT PRIMARY KEY,
                     parent_incident TEXT NOT NULL,
                     child_incident TEXT NOT NULL,
                     created_at TEXT,
                     updated_at TEXT
                 );
-                CREATE TABLE incident_sla(
+                CREATE TABLE IF NOT EXISTS incident_sla(
                     incident_sla_id TEXT PRIMARY KEY,
                     incident_id TEXT NOT NULL,
                     sla_def_id TEXT NOT NULL,
@@ -245,7 +260,7 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                     created_on TEXT,
                     updated_on TEXT
                 );
-                CREATE TABLE notification(
+                CREATE TABLE IF NOT EXISTS notification(
                     notification_id TEXT PRIMARY KEY,
                     incident_id TEXT NOT NULL,
                     org_id TEXT NOT NULL,
@@ -260,22 +275,22 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
 
                 -- AftermathBench extension tables model the asynchronous boundary
                 -- and recovery protocol absent from the public EnterpriseOps seed.
-                CREATE TABLE escalation_job(
+                CREATE TABLE IF NOT EXISTS escalation_job(
                     job_id TEXT PRIMARY KEY,
                     incident_id TEXT NOT NULL,
                     status TEXT NOT NULL
                 );
-                CREATE TABLE escalation_review(
+                CREATE TABLE IF NOT EXISTS escalation_review(
                     review_id TEXT PRIMARY KEY,
                     incident_id TEXT NOT NULL,
                     status TEXT NOT NULL
                 );
-                CREATE TABLE audit_event(
+                CREATE TABLE IF NOT EXISTS audit_event(
                     audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     incident_id TEXT NOT NULL,
                     kind TEXT NOT NULL
                 );
-                CREATE TABLE protocol_event(
+                CREATE TABLE IF NOT EXISTS protocol_event(
                     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     kind TEXT NOT NULL,
                     detail TEXT NOT NULL
@@ -312,6 +327,39 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
                      '24x7','org-acme',NULL,NULL);
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE benchmark_seed_provenance(
+                    mode TEXT NOT NULL,
+                    upstream_revision TEXT,
+                    source_entry TEXT,
+                    source_sha256 TEXT,
+                    upstream_table_count INTEGER NOT NULL,
+                    upstream_row_count INTEGER NOT NULL
+                )
+                """
+            )
+            if self.seed_materialization is None:
+                connection.execute(
+                    """
+                    INSERT INTO benchmark_seed_provenance
+                    VALUES ('minimal_fixture', NULL, NULL, NULL, 0, 0)
+                    """
+                )
+            else:
+                connection.execute(
+                    """
+                    INSERT INTO benchmark_seed_provenance
+                    VALUES ('enterpriseops_full_seed', ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        ENTERPRISEOPS_REVISION,
+                        ITSM_SEED_ENTRY,
+                        ITSM_SEED_SHA256,
+                        self.seed_materialization.table_count,
+                        self.seed_materialization.row_count,
+                    ),
+                )
 
     def list_tools(self) -> tuple[str, ...]:
         return (
@@ -895,6 +943,9 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
 
     def snapshot(self) -> dict[str, Any]:
         return {
+            "seed_provenance": self._table(
+                "benchmark_seed_provenance", "mode"
+            ),
             "incident": self._table("incident", "incident_id"),
             "incident_affected_cis": self._table(
                 "incident_affected_cis", "incident_affected_cis_id"
@@ -914,10 +965,12 @@ class ITSMMajorIncidentEnv(RecordedEnvironment):
 
 def build_itsm_failure_state(
     variant: str,
+    *,
+    seed_archive: str | Path | None = None,
 ) -> tuple[ITSMMajorIncidentEnv, TransitionFaultProxy, dict[str, Any]]:
     if variant not in ITSM_VARIANTS:
         raise ValueError(f"unknown variant: {variant}")
-    environment = ITSMMajorIncidentEnv()
+    environment = ITSMMajorIncidentEnv(seed_archive=seed_archive)
     environment.invoke(
         "create_incident",
         incident_id=environment.INCIDENT_ID,
@@ -1107,4 +1160,135 @@ def evaluate_itsm(environment: ITSMMajorIncidentEnv) -> dict[str, bool]:
         "repair_completeness": repair_completeness,
         "preservation": preservation,
         "protocol_safety": protocol_safety,
+    }
+
+
+def verify_itsm_sql(environment: ITSMMajorIncidentEnv) -> dict[str, Any]:
+    """Run task-scoped deterministic SQL checks against the persistent state."""
+
+    incident_id = environment.INCIDENT_ID
+    checks = {
+        "parent_is_p1": (
+            """
+            SELECT COUNT(*) FROM incident
+            WHERE incident_id = ? AND impact = 1 AND urgency = 1 AND priority = 1
+            """,
+            (incident_id,),
+            1,
+        ),
+        "all_children_are_p1": (
+            """
+            SELECT COUNT(*) FROM child_incident c
+            JOIN incident i ON i.incident_id = c.child_incident
+            WHERE c.parent_incident = ?
+              AND (i.impact != 1 OR i.urgency != 1 OR i.priority != 1)
+            """,
+            (incident_id,),
+            0,
+        ),
+        "exactly_one_active_p1_sla": (
+            """
+            SELECT COUNT(*) FROM incident_sla
+            WHERE incident_id = ? AND sla_def_id = ? AND stage = 'active'
+            """,
+            (incident_id, environment.CRITICAL_SLA),
+            1,
+        ),
+        "former_p3_sla_is_cancelled": (
+            """
+            SELECT COUNT(*) FROM incident_sla
+            WHERE incident_id = ? AND sla_def_id = ? AND stage = 'cancelled'
+            """,
+            (incident_id, environment.STANDARD_SLA),
+            1,
+        ),
+        "no_other_active_sla": (
+            """
+            SELECT COUNT(*) FROM incident_sla
+            WHERE incident_id = ? AND stage = 'active' AND sla_def_id != ?
+            """,
+            (incident_id, environment.CRITICAL_SLA),
+            0,
+        ),
+        "manager_notified_once": (
+            """
+            SELECT COUNT(*) FROM notification
+            WHERE incident_id = ? AND type = 'major_incident' AND status = 'sent'
+            """,
+            (incident_id,),
+            1,
+        ),
+        "caller_notified_once": (
+            """
+            SELECT COUNT(*) FROM notification
+            WHERE incident_id = ? AND type = 'caller_update' AND status = 'sent'
+            """,
+            (incident_id,),
+            1,
+        ),
+        "recovery_audited_once": (
+            """
+            SELECT COUNT(*) FROM audit_event
+            WHERE incident_id = ? AND kind = 'escalation_reconciled'
+            """,
+            (incident_id,),
+            1,
+        ),
+        "review_closed": (
+            """
+            SELECT COUNT(*) FROM escalation_review
+            WHERE incident_id = ? AND status = 'closed'
+            """,
+            (incident_id,),
+            1,
+        ),
+        "affected_ci_preserved": (
+            """
+            SELECT COUNT(*) FROM incident_affected_cis
+            WHERE incident_id = ? AND configuration_item = ?
+            """,
+            (incident_id, environment.CI_ID),
+            1,
+        ),
+        "knowledge_link_preserved": (
+            """
+            SELECT COUNT(*) FROM incident_knowledge
+            WHERE incident_id = ? AND knowledge_id = 'kb-payment-major'
+            """,
+            (incident_id,),
+            1,
+        ),
+        "assignment_preserved": (
+            """
+            SELECT COUNT(*) FROM incident
+            WHERE incident_id = ? AND assigned_to = ? AND assignment_group = ?
+            """,
+            (incident_id, environment.AGENT_ID, environment.GROUP_ID),
+            1,
+        ),
+        "no_pending_async_job": (
+            """
+            SELECT COUNT(*) FROM escalation_job
+            WHERE incident_id = ? AND status != 'completed'
+            """,
+            (incident_id,),
+            0,
+        ),
+        "no_protocol_violation": (
+            "SELECT COUNT(*) FROM protocol_event",
+            (),
+            0,
+        ),
+    }
+    results: dict[str, dict[str, Any]] = {}
+    for name, (sql, parameters, expected) in checks.items():
+        observed = int(environment._one(sql, parameters)[0])
+        results[name] = {
+            "passed": observed == expected,
+            "observed": observed,
+            "expected": expected,
+        }
+    return {
+        "passed": all(item["passed"] for item in results.values()),
+        "checks": results,
     }
