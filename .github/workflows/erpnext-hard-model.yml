@@ -80,6 +80,13 @@ jobs:
             --output "$run_root/prefix.json"
           python scripts/manage_erpnext_stack.py snapshot \
             --snapshot "$run_root/prefix.sql"
+          if [ "${{ inputs.split }}" = "holdout" ]
+          then
+            python scripts/verify_native_freeze.py \
+              --freeze "data/scenarios/${SCENARIO_ID}/freeze.json" \
+              --scenario "$SCENARIO" \
+              --prefix "$run_root/prefix.json"
+          fi
           {
             echo "schema_version=0.1"
             echo "scenario_id=$SCENARIO_ID"
