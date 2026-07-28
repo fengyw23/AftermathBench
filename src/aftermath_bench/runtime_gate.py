@@ -69,6 +69,22 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
     execution_checks = {
         name: bool(execution.get(name)) for name in EXECUTION_REQUIREMENTS
     }
+    admission_evidence = raw.get("admission_evidence", {})
+    evidence_manifest = admission_evidence.get("evidence_manifest")
+    evidence_path = (
+        repository_root() / str(evidence_manifest)
+        if evidence_manifest
+        else None
+    )
+    execution_checks["admission_evidence_recorded"] = bool(
+        admission_evidence.get("validated_at")
+        and len(str(admission_evidence.get("head_sha", ""))) == 40
+        and str(admission_evidence.get("workflow_run", "")).startswith(
+            "https://github.com/"
+        )
+        and evidence_path is not None
+        and evidence_path.is_file()
+    )
     source_passed = all(source_checks.values())
     execution_admitted = source_passed and all(execution_checks.values())
 

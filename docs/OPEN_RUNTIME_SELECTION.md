@@ -97,8 +97,11 @@ experiments. Run:
 python -m aftermath_bench validate-runtimes
 ```
 
-ERPNext currently passes the source audit and deliberately remains pending at
-the execution gate. EnterpriseOps is explicitly rejected at the source gate.
+ERPNext passes both the source and execution gates. The native workflow
+successfully built the pinned source, restored a deterministic snapshot,
+replayed all four fault variants, and ran their terminal checks in
+[`30373948156`](https://github.com/fengyw23/AftermathBench/actions/runs/30373948156).
+EnterpriseOps is explicitly rejected at the source gate.
 
 ## First native task
 

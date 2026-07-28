@@ -1,9 +1,9 @@
 # ERPNext v15 runtime
 
 This directory contains the source-built runtime definition and control plane
-for the first native AftermathBench enterprise task. Component tests pass, but
-the task is intentionally not execution-admitted until a container run has
-replayed all four faults and terminal checks.
+for the first native AftermathBench enterprise task. The runtime passed source
+and execution admission on 2026-07-28 after a container run replayed all four
+faults and terminal checks.
 
 Pinned upstream revisions:
 
@@ -83,7 +83,10 @@ python scripts/run_erpnext_failure.py \
   --output runtimes/erpnext/.runtime/request_not_reached.json
 ```
 
-The failure runner refuses to emit a report unless the database, invoice,
-payment, queue, remittance, and gateway evidence match the requested variant.
+The failure runner always emits a diagnostic report after evidence collection
+and returns a nonzero status unless the database, invoice, payment, queue,
+remittance, and gateway evidence match the requested variant.
 The manual GitHub workflow `erpnext-native-runtime` performs the complete
-source build and all four replays.
+source build and all four replays. Admission run
+[`30373948156`](https://github.com/fengyw23/AftermathBench/actions/runs/30373948156)
+passed at commit `61d3726b7ec45897cf5a31c10a151b2d61aab54b`.

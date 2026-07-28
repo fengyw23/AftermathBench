@@ -59,8 +59,10 @@ The `v0.3` line introduced a machine-checked fully open runtime gate and pivoted
 the primary enterprise implementation to source-built ERPNext/Frappe. Its
 first procurement-to-payment task now has a digest-pinned service topology,
 public-API prefix builder, real HTTP/queue fault controllers, snapshot reset,
-and deterministic terminal evaluator. It is source-audited but remains outside
-the leaderboard until the native replay workflow succeeds. Forgejo is the
+and deterministic terminal evaluator. The pinned source build, reset, all four
+failure variants, and terminal checks passed the native replay workflow on
+2026-07-28, so ERPNext now passes both runtime gates. Restricted agent-facing
+repair tools and model experiments remain to be implemented. Forgejo is the
 selected coding/DevOps runtime candidate.
 
 ## Quick start

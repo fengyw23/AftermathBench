@@ -49,18 +49,27 @@ The repository now contains:
   outstanding, Payment Entry references, balanced GL, RQ jobs, and remittance;
 - a manual CI workflow that builds and replays all four variants.
 
-Component-level tests pass. Native execution admission is still pending because
-the current development machine has no Docker/Podman runtime. The manifest
-continues to report `built_from_source=false`,
-`deterministic_reset_verified=false`, `fault_variants_replayed=false`, and
-`terminal_checks_replayed=false` until the manual native workflow succeeds.
+Native execution admission passed on 2026-07-28 in GitHub Actions run
+[`30373948156`](https://github.com/fengyw23/AftermathBench/actions/runs/30373948156)
+at commit `61d3726b7ec45897cf5a31c10a151b2d61aab54b`. The workflow built the pinned
+Frappe and ERPNext revisions from source, replayed the seven-write prefix,
+restored the same SQL snapshot for each variant, and passed every native
+failure-boundary assertion. The sanitized evidence artifact contained all four
+reports and no API credentials.
+
+The four observed states were:
+
+- request not reached: no submitted payment and `$4,800` still outstanding;
+- committed response lost: one submitted payment, no outstanding balance, and
+  remittance delivered;
+- after-commit enqueue failed: payment committed, but no job or remittance;
+- async job pending: payment committed, one unfinished job, no remittance.
 
 ## Next enterprise implementation
 
-1. Run and debug the manual native workflow.
-2. Attach the four replay reports as admission evidence.
-3. Expose the restricted agent-facing investigation and repair tools.
-4. Run scripted recovery controls before evaluating language models.
+1. Expose the restricted agent-facing investigation and repair tools.
+2. Run scripted recovery controls for the three unrecovered boundaries.
+3. Evaluate language models on matched hidden states.
 
 ## Coding/DevOps candidate
 

@@ -44,12 +44,12 @@ class ERPNextScenarioSpecTest(unittest.TestCase):
         )
         self.assertNotIn("partial_commit", variant_ids)
 
-    def test_pending_scenario_cannot_be_mistaken_for_released_data(self) -> None:
+    def test_scenario_records_validated_boundaries_and_remaining_work(self) -> None:
         self.assertEqual(
             self.scenario["status"],
-            "design_validated_runtime_pending",
+            "native_failure_boundaries_validated",
         )
-        self.assertGreaterEqual(len(self.scenario["admission_blockers"]), 3)
+        self.assertGreaterEqual(len(self.scenario["remaining_work"]), 3)
 
 
 if __name__ == "__main__":
