@@ -66,6 +66,44 @@ class ERPNextStackTest(unittest.TestCase):
             "375f363a38dee36d85da50f28074820e62922163b99a1e61942d1c615fc2c5f0",
         )
 
+    def test_reset_retries_until_restarted_service_is_ready(self) -> None:
+        response = Mock()
+        response.status = 200
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        opener = Mock(side_effect=[ConnectionResetError(), response])
+        sleeper = Mock()
+
+        ERPNextStack._reset_http_service(
+            "http://127.0.0.1:9091/admin/reset",
+            attempts=2,
+            delay_seconds=0.01,
+            opener=opener,
+            sleeper=sleeper,
+        )
+
+        self.assertEqual(opener.call_count, 2)
+        sleeper.assert_called_once_with(0.01)
+
+    def test_reset_fails_after_bounded_readiness_attempts(self) -> None:
+        opener = Mock(side_effect=ConnectionRefusedError())
+        sleeper = Mock()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "did not become ready after 3 attempts",
+        ):
+            ERPNextStack._reset_http_service(
+                "http://127.0.0.1:9091/admin/reset",
+                attempts=3,
+                delay_seconds=0,
+                opener=opener,
+                sleeper=sleeper,
+            )
+
+        self.assertEqual(opener.call_count, 3)
+        self.assertEqual(sleeper.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

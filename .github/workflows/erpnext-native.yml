@@ -73,6 +73,10 @@ jobs:
             > runtimes/erpnext/.runtime/compose.log 2>&1 || true
           tail -n 500 runtimes/erpnext/.runtime/compose.log || true
 
+      - name: Remove ephemeral API credentials
+        if: always()
+        run: rm -f runtimes/erpnext/.runtime/credentials.json
+
       - name: Upload native-runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,7 +84,11 @@ jobs:
           name: erpnext-native-runtime-evidence
           include-hidden-files: true
           path: |
-            runtimes/erpnext/.runtime/*.json
+            runtimes/erpnext/.runtime/prefix.json
+            runtimes/erpnext/.runtime/request_not_reached.json
+            runtimes/erpnext/.runtime/database_committed_response_lost.json
+            runtimes/erpnext/.runtime/after_commit_enqueue_failed.json
+            runtimes/erpnext/.runtime/async_job_pending.json
             runtimes/erpnext/.runtime/*.txt
             runtimes/erpnext/.runtime/*.log
           if-no-files-found: warn

@@ -17,6 +17,18 @@ class ERPNextWorkflowSpecTest(unittest.TestCase):
             self.workflow,
         )
 
+    def test_ephemeral_credentials_are_removed_and_never_uploaded(self) -> None:
+        self.assertIn(
+            "rm -f runtimes/erpnext/.runtime/credentials.json",
+            self.workflow,
+        )
+        upload_section = self.workflow.split(
+            "- name: Upload native-runtime evidence",
+            maxsplit=1,
+        )[1]
+        self.assertNotIn("credentials.json", upload_section)
+        self.assertNotIn(".runtime/*.json", upload_section)
+
 
 if __name__ == "__main__":
     unittest.main()

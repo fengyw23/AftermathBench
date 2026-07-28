@@ -4,6 +4,7 @@ import ast
 import hashlib
 import json
 import subprocess
+import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -173,8 +174,37 @@ class ERPNextStack:
         self._reset_http_service("http://127.0.0.1:9092/admin/reset")
 
     @staticmethod
-    def _reset_http_service(url: str) -> None:
-        request = urllib.request.Request(url, method="DELETE")
-        with urllib.request.urlopen(request, timeout=30) as response:
-            if response.status != 200:
-                raise RuntimeError(f"reset endpoint returned {response.status}")
+    def _reset_http_service(
+        url: str,
+        *,
+        attempts: int = 30,
+        delay_seconds: float = 1.0,
+        opener: Callable[..., Any] = urllib.request.urlopen,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
+        """Reset a restarted fault service once its HTTP listener is ready.
+
+        Docker reports a container as started before the process inside it has
+        necessarily accepted its first request.  Snapshot restoration restarts
+        both fault services, so a bounded readiness retry is part of restoring a
+        deterministic failure boundary rather than a tolerance for test errors.
+        """
+        if attempts < 1:
+            raise ValueError("attempts must be at least one")
+        last_error: Exception | None = None
+        for attempt in range(attempts):
+            request = urllib.request.Request(url, method="DELETE")
+            try:
+                with opener(request, timeout=2) as response:
+                    if response.status == 200:
+                        return
+                    last_error = RuntimeError(
+                        f"reset endpoint returned {response.status}"
+                    )
+            except OSError as error:
+                last_error = error
+            if attempt + 1 < attempts:
+                sleeper(delay_seconds)
+        raise RuntimeError(
+            f"reset endpoint did not become ready after {attempts} attempts: {url}"
+        ) from last_error
