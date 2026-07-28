@@ -15,6 +15,9 @@ from aftermath_bench.integrations.erpnext_faults import (
 from aftermath_bench.integrations.erpnext_return_evidence import (
     ERPNextPartialReturnEvidenceCollector,
 )
+from aftermath_bench.integrations.erpnext_return_prefix import (
+    ensure_return_replacement_automation,
+)
 from aftermath_bench.integrations.erpnext_stack import ERPNextStack
 from aftermath_bench.integrations.frappe import (
     FrappeConfig,
@@ -73,15 +76,6 @@ def _validate_boundary(
         "downstream_debit_note_still_draft": (
             int(evidence["debit_note"].get("docstatus", 0)) == 0
         ),
-        "replacement_receipt_still_draft": (
-            int(
-                evidence["replacement_purchase_receipt"].get(
-                    "docstatus",
-                    0,
-                )
-            )
-            == 0
-        ),
     }
     if variant == "request_not_reached":
         checks.update(
@@ -90,6 +84,18 @@ def _validate_boundary(
                 "return_has_no_stock_effect": not stock_rows,
                 "pickup_not_delivered": delivery is None,
                 "pickup_not_queued": not jobs,
+                "replacement_receipt_still_draft": (
+                    int(
+                        evidence["replacement_purchase_receipt"].get(
+                            "docstatus",
+                            0,
+                        )
+                    )
+                    == 0
+                ),
+                "replacement_invoice_not_created": not evidence.get(
+                    "replacement_invoices"
+                ),
                 "request_never_reached_upstream": (
                     gateway.get("outcome") == "request_suppressed"
                     and gateway.get("upstream_status") is None
@@ -105,6 +111,25 @@ def _validate_boundary(
                     gateway.get("outcome")
                     == "upstream_completed_response_dropped"
                     and gateway.get("upstream_status") is not None
+                ),
+                "replacement_receipt_released": (
+                    int(
+                        evidence["replacement_purchase_receipt"].get(
+                            "docstatus",
+                            0,
+                        )
+                    )
+                    == 1
+                ),
+                "one_draft_replacement_invoice_created": (
+                    len(evidence.get("replacement_invoices", [])) == 1
+                    and int(
+                        evidence["replacement_invoices"][0].get(
+                            "docstatus",
+                            -1,
+                        )
+                    )
+                    == 0
                 ),
             }
         )
@@ -204,6 +229,12 @@ def main() -> int:
     finally:
         fault.disarm_transport_after_failure(args.variant)
 
+    post_submit_workflow = None
+    if args.variant != "request_not_reached":
+        post_submit_workflow = ensure_return_replacement_automation(
+            adapter,
+            prefix,
+        )
     collector = ERPNextPartialReturnEvidenceCollector(adapter)
     evidence = collector.collect(prefix)
     if args.variant == "database_committed_response_lost":
@@ -226,6 +257,7 @@ def main() -> int:
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
         "visible_failure": visible_failure,
+        "post_submit_workflow": post_submit_workflow,
         "failure_boundary_evidence": evidence,
         "gateway_audit": gateway_audit,
         "boundary_validation": boundary,

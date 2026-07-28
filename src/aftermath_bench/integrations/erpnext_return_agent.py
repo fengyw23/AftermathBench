@@ -9,7 +9,11 @@ from aftermath_bench.core import RecordedEnvironment
 
 from .erpnext_faults import ComposeWorkerControl
 from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
-from .erpnext_return_prefix import ERPNextPartialReturnPrefixBuilder, _payload
+from .erpnext_return_prefix import (
+    ERPNextPartialReturnPrefixBuilder,
+    _payload,
+    ensure_return_replacement_automation,
+)
 from .erpnext_stack import ERPNextStack
 from .frappe import FrappeHTTPAdapter
 
@@ -256,14 +260,27 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
 
     def _submit(self, doctype: str, name: str) -> dict[str, Any]:
         self._validate_doctype(doctype)
-        return {
+        document = _payload(
+            self.adapter.submit_document(doctype, name)
+        )
+        result = {
             "ok": True,
             "doctype": doctype,
             "name": name,
-            "document": _payload(
-                self.adapter.submit_document(doctype, name)
-            ),
+            "document": document,
         }
+        if (
+            doctype == "Purchase Receipt"
+            and name == self.prefix["purchase_return"]
+            and int(document.get("docstatus", 0)) == 1
+        ):
+            result["post_submit_workflow"] = (
+                ensure_return_replacement_automation(
+                    self.adapter,
+                    self.prefix,
+                )
+            )
+        return result
 
     def _cancel(self, doctype: str, name: str) -> dict[str, Any]:
         self._validate_doctype(doctype)
@@ -454,6 +471,11 @@ def reference_partial_return_recovery(
             doctype="Purchase Receipt",
             name=prefix["purchase_return"],
         )
+    replacement_receipt = call(
+        "get_document",
+        doctype="Purchase Receipt",
+        name=prefix["replacement_purchase_receipt"],
+    )["document"]
     if int(debit_note.get("docstatus", 0)) == 0:
         call(
             "submit_document",

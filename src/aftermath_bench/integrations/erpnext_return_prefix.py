@@ -21,6 +21,70 @@ def _money(value: Any) -> float:
     return float(Decimal(str(value)))
 
 
+def ensure_return_replacement_automation(
+    adapter: FrappeHTTPAdapter,
+    prefix: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply the configured idempotent post-return replacement workflow.
+
+    A committed supplier Return releases the already approved replacement
+    receipt and creates, but does not submit, its replacement invoice. The
+    workflow deliberately leaves approval and reconciliation to the recovery
+    agent. Re-running the workflow reuses the existing active invoice.
+    """
+    receipt_name = str(prefix["replacement_purchase_receipt"])
+    receipt = _payload(
+        adapter.get_resource("Purchase Receipt", receipt_name)
+    )
+    actions: list[str] = []
+    if int(receipt.get("docstatus", 0)) == 0:
+        receipt = _payload(
+            adapter.submit_document("Purchase Receipt", receipt_name)
+        )
+        actions.append("submit replacement Purchase Receipt")
+    invoice_summaries = adapter.list_resources(
+        "Purchase Invoice",
+        fields=["name"],
+        limit=500,
+    ).get("data", [])
+    replacement_invoices = []
+    for summary in invoice_summaries:
+        invoice = _payload(
+            adapter.get_resource("Purchase Invoice", summary["name"])
+        )
+        if int(invoice.get("docstatus", 0)) == 2:
+            continue
+        if any(
+            item.get("purchase_receipt") == receipt_name
+            for item in invoice.get("items", [])
+        ):
+            replacement_invoices.append(invoice)
+    if not replacement_invoices:
+        template = _payload(adapter.call_method(
+            "erpnext.stock.doctype.purchase_receipt.purchase_receipt.make_purchase_invoice",
+            {"source_name": receipt_name},
+        ))
+        replacement_invoice = _payload(
+            adapter.create_resource("Purchase Invoice", template)
+        )
+        actions.append("create draft replacement Purchase Invoice")
+    elif len(replacement_invoices) == 1:
+        replacement_invoice = replacement_invoices[0]
+    else:
+        raise RuntimeError(
+            "post-return workflow found duplicate replacement invoices"
+        )
+    return {
+        "ok": True,
+        "actions": actions,
+        "replacement_purchase_receipt": receipt["name"],
+        "replacement_invoice": replacement_invoice["name"],
+        "replacement_invoice_docstatus": int(
+            replacement_invoice.get("docstatus", 0)
+        ),
+    }
+
+
 @dataclass(frozen=True)
 class PartialReturnPrefix:
     scenario_id: str

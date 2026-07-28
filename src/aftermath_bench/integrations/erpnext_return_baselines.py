@@ -195,5 +195,5 @@ def run_fixed_return_baseline(
         )
         return tuple(trace)
     _resolve_boundary_only(environment, prefix, trace)
+    _complete_downstream(environment, prefix, trace)
     return tuple(trace)
-

@@ -121,14 +121,19 @@ def main() -> int:
         for step in trace
         if step["tool"] == "submit_document"
     }
+    replacement_invoice_submitted = any(
+        step["tool"] == "submit_document"
+        and step["arguments"].get("doctype") == "Purchase Invoice"
+        and step["arguments"].get("name") != prefix["debit_note"]
+        for step in trace
+    )
     repaired_groups = {
         "supplier_credit": (
             prefix["debit_note"] in submitted_names
             and "reconcile_supplier_documents" in mutation_tools
         ),
         "replacement_chain": (
-            prefix["replacement_purchase_receipt"] in submitted_names
-            and "create_purchase_invoice_from_receipt" in mutation_tools
+            replacement_invoice_submitted
             and "reconcile_supplier_documents" in mutation_tools
         ),
         "pickup_delivery": (

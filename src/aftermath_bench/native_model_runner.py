@@ -139,7 +139,11 @@ NATIVE_RETURN_TOOL_DEFINITIONS = (
     ),
     ToolDefinition(
         "submit_document",
-        "Submit one existing ERPNext draft document.",
+        (
+            "Submit one existing ERPNext draft document. Submission may run "
+            "configured workflows and hooks that change linked records or "
+            "enqueue jobs, so re-read affected records before later writes."
+        ),
         _object_schema({**_DOCTYPE, **_NAME}, ("doctype", "name")),
     ),
     ToolDefinition(

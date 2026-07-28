@@ -73,7 +73,7 @@ def test_blind_retry_only_completes_downstream_after_retry_succeeds():
     assert "reconcile_supplier_documents" in names
 
 
-def test_compact_tree_repairs_only_the_ambiguous_boundary():
+def test_compact_tree_uses_boundary_tree_then_fixed_downstream_sequence():
     environment = FakeEnvironment(return_docstatus=1)
     trace = run_fixed_return_baseline(
         "compact_boundary_tree",
@@ -81,10 +81,10 @@ def test_compact_tree_repairs_only_the_ambiguous_boundary():
         prefix=PREFIX,
     )
     names = [step["tool"] for step in trace]
-    assert names == [
+    assert names[:3] == [
         "get_document",
         "get_external_delivery",
         "find_background_jobs",
     ]
-    assert "reconcile_supplier_documents" not in names
-
+    assert "create_purchase_invoice_from_receipt" in names
+    assert "reconcile_supplier_documents" in names
