@@ -8,7 +8,7 @@ from .baselines import run_release_baselines
 from .evaluator import evaluate
 from .scenarios.enterprise_transfer import (
     VARIANTS,
-    EnterpriseTransferEnv,
+    build_enterprise_failure_state,
     reference_recovery,
 )
 from .scenarios.release_migration import (
@@ -40,16 +40,17 @@ def _validate() -> int:
 def _run_demo(variants: tuple[str, ...]) -> int:
     all_passed = True
     for variant in variants:
-        env = EnterpriseTransferEnv(variant)
+        env, _proxy, failure = build_enterprise_failure_state(variant)
         reference_recovery(env)
         result = evaluate(env.snapshot())
         all_passed = all_passed and result.passed
+        recovery_events = env.events_after("failure")
         print(json.dumps(
             {
                 "variant": variant,
+                "surface_failure": failure,
                 "passed": result.passed,
-                "queries": env.state["queries"],
-                "mutations": env.state["mutations"],
+                "recovery_tools": [event.tool for event in recovery_events],
                 "failures": result.failures,
             },
             indent=2,
@@ -72,7 +73,8 @@ def _run_release_demo(variants: tuple[str, ...]) -> int:
                     "passed": result["passed"],
                     "components": result,
                     "recovery_tools": [
-                        event.tool for event in environment.events[6:]
+                        event.tool
+                        for event in environment.events_after("failure")
                     ],
                 },
                 indent=2,

@@ -51,6 +51,7 @@ class RecordedEnvironment(ToolEnvironment):
 
     def __init__(self) -> None:
         self._events: list[ToolEvent] = []
+        self._boundaries: dict[str, int] = {}
 
     @property
     def events(self) -> tuple[ToolEvent, ...]:
@@ -58,6 +59,14 @@ class RecordedEnvironment(ToolEnvironment):
 
     def event_log(self) -> list[dict[str, Any]]:
         return [asdict(event) for event in self._events]
+
+    def mark_boundary(self, name: str) -> None:
+        self._boundaries[name] = len(self._events)
+
+    def events_after(self, name: str) -> tuple[ToolEvent, ...]:
+        if name not in self._boundaries:
+            raise KeyError(f"unknown event boundary: {name}")
+        return tuple(self._events[self._boundaries[name]:])
 
     def _recorded_call(
         self,
@@ -165,4 +174,3 @@ class TransitionFaultProxy(RecordedEnvironment):
             inject,
             injected_fault=self.plan.outcome.value,
         )
-

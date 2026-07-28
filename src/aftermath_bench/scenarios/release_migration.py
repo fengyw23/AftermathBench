@@ -625,6 +625,7 @@ def build_release_failure_state(
         enqueue_async=environment.inject_async_deploy,
     )
     failure = proxy.invoke("deploy_release", version=version)
+    environment.mark_boundary("failure")
     return environment, proxy, failure
 
 

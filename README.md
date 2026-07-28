@@ -91,4 +91,6 @@ python -m aftermath_bench baselines
 See [Benchmark Specification](docs/BENCHMARK_SPEC.md) and
 [Task Schema](docs/TASK_SCHEMA.md). The current upstream integration findings
 are documented in
-[EnterpriseOps-Gym Integration Audit](docs/ENTERPRISEOPS_AUDIT.md).
+[EnterpriseOps-Gym Integration Audit](docs/ENTERPRISEOPS_AUDIT.md). The
+implemented-versus-planned boundary is tracked explicitly in
+[Pilot Implementation Status](docs/PILOT_STATUS.md).
