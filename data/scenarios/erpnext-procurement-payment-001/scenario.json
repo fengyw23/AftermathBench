@@ -1,0 +1,103 @@
+{
+  "schema_version": "0.3",
+  "scenario_id": "erpnext-procurement-payment-001",
+  "status": "design_validated_runtime_pending",
+  "runtime_id": "erpnext-v15",
+  "title": "Recover an ambiguous supplier payment submission without damaging valid procurement history",
+  "user_instruction": "Complete and verify the supplier payment for the received laboratory workstation order. Preserve the approved purchase order, the accepted receipt, inventory and accounting history, and the valid supplier invoice. Ensure the invoice is paid exactly once, the payment ledger is balanced, the remittance webhook is delivered exactly once, and no duplicate Payment Entry remains active.",
+  "successful_prefix": [
+    {"step": 1, "operation": "create Purchase Order", "expected": "draft Purchase Order exists"},
+    {"step": 2, "operation": "submit Purchase Order", "expected": "approved procurement commitment exists"},
+    {"step": 3, "operation": "create Purchase Receipt from Purchase Order", "expected": "draft receipt references the order"},
+    {"step": 4, "operation": "submit Purchase Receipt", "expected": "accepted stock, Stock Ledger Entries, and GL Entries exist"},
+    {"step": 5, "operation": "create Purchase Invoice from Purchase Receipt", "expected": "draft payable references receipt and order"},
+    {"step": 6, "operation": "submit Purchase Invoice", "expected": "supplier payable and outstanding amount exist"},
+    {"step": 7, "operation": "create Payment Entry from Purchase Invoice", "expected": "one draft payment exists"}
+  ],
+  "ambiguous_operation": {
+    "operation": "submit Payment Entry",
+    "surface_result": "HTTP connection lost before a success response",
+    "native_effects": [
+      "Payment Entry document status",
+      "GL Entries",
+      "Purchase Invoice outstanding amount",
+      "Payment Request status when present",
+      "post-commit remittance webhook"
+    ]
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "injection": "reverse proxy suppresses the request before Frappe",
+      "authoritative_state": "Payment Entry remains draft and no payment GL exists"
+    },
+    {
+      "id": "database_committed_response_lost",
+      "injection": "proxy drops the HTTP response after Frappe commits",
+      "authoritative_state": "Payment Entry, GL, and invoice outstanding are committed"
+    },
+    {
+      "id": "after_commit_enqueue_failed",
+      "injection": "queue connection fails during the native after_commit webhook callback",
+      "authoritative_state": "core payment transaction is committed but no remittance job is queued"
+    },
+    {
+      "id": "async_job_pending",
+      "injection": "queue accepts the native webhook job while the worker is paused",
+      "authoritative_state": "core payment is committed and one remittance job is pending"
+    }
+  ],
+  "source_evidence": [
+    {
+      "repository": "frappe/erpnext",
+      "path": "erpnext/accounts/doctype/payment_entry/payment_entry.py",
+      "symbol": "PaymentEntry.on_submit",
+      "claims": ["creates GL entries", "updates outstanding amounts"]
+    },
+    {
+      "repository": "frappe/erpnext",
+      "path": "erpnext/stock/doctype/purchase_receipt/purchase_receipt.py",
+      "symbol": "PurchaseReceipt.on_submit",
+      "claims": ["updates previous document", "updates stock ledger", "creates GL entries"]
+    },
+    {
+      "repository": "frappe/erpnext",
+      "path": "erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py",
+      "symbol": "PurchaseInvoice.on_submit",
+      "claims": ["updates billing status", "optionally updates stock ledger", "creates GL entries"]
+    },
+    {
+      "repository": "frappe/frappe",
+      "path": "frappe/database/database.py",
+      "symbol": "Database.commit",
+      "claims": ["SQL commit precedes after_commit callbacks"]
+    },
+    {
+      "repository": "frappe/frappe",
+      "path": "frappe/integrations/doctype/webhook/__init__.py",
+      "symbol": "_add_webhook_to_queue",
+      "claims": ["webhook queue flushing is registered as an after_commit callback"]
+    }
+  ],
+  "authoritative_evidence_sources": [
+    "Purchase Order and item status",
+    "Purchase Receipt and item status",
+    "Stock Ledger Entry",
+    "Purchase Invoice outstanding amount",
+    "Payment Entry and references",
+    "GL Entry",
+    "RQ Job or benchmark remittance endpoint delivery log"
+  ],
+  "forbidden_shortcuts": [
+    "inventing a row-level partial commit inside one Frappe SQL transaction",
+    "reimplementing ERPNext accounting or stock rules in benchmark Python",
+    "telling the model which hidden variant occurred",
+    "accepting a reference tool sequence instead of checking terminal integrity"
+  ],
+  "admission_blockers": [
+    "pinned ERPNext/Frappe stack has not yet been built and started from source",
+    "four fault variants have not yet been replayed against the native runtime",
+    "deterministic reset and terminal SQL/API checks are not yet implemented"
+  ]
+}
+

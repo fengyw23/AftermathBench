@@ -30,6 +30,11 @@ from .scenarios.itsm_major_incident import (
     reference_itsm_recovery,
 )
 from .schema import load_task, task_paths
+from .runtime_gate import (
+    load_runtime_manifest,
+    runtime_manifest_paths,
+    validate_runtime_manifest,
+)
 
 
 def _validate() -> int:
@@ -47,6 +52,31 @@ def _validate() -> int:
             indent=2,
         ))
     return 0 if all_passed else 1
+
+
+def _validate_runtimes() -> int:
+    reports = [
+        validate_runtime_manifest(load_runtime_manifest(path))
+        for path in runtime_manifest_paths()
+    ]
+    for report in reports:
+        print(json.dumps(
+            {
+                "runtime_id": report.runtime_id,
+                "source_audit_passed": report.source_audit_passed,
+                "execution_admitted": report.execution_admitted,
+                "source_checks": report.source_checks,
+                "execution_checks": report.execution_checks,
+                "failures": report.failures,
+            },
+            indent=2,
+        ))
+    truthful = all(
+        "source_status_truthful" not in report.failures
+        and "execution_status_truthful" not in report.failures
+        for report in reports
+    )
+    return 0 if truthful else 1
 
 
 def _run_demo(variants: tuple[str, ...]) -> int:
@@ -133,6 +163,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aftermath-bench")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("validate", help="run hard-task admission checks")
+    subparsers.add_parser(
+        "validate-runtimes",
+        help="audit open-source and execution admission for every runtime",
+    )
     demo = subparsers.add_parser("demo", help="run reference recovery")
     demo.add_argument("--variant", choices=VARIANTS)
     demo.add_argument("--all", action="store_true")
@@ -206,6 +240,8 @@ def main() -> int:
     args = build_parser().parse_args()
     if args.command == "validate":
         return _validate()
+    if args.command == "validate-runtimes":
+        return _validate_runtimes()
     if args.command == "baselines":
         print(json.dumps(
             {

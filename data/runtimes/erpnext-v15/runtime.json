@@ -1,0 +1,62 @@
+{
+  "schema_version": "0.3",
+  "runtime_id": "erpnext-v15",
+  "role": "primary_enterprise_runtime_candidate",
+  "upstream_components": [
+    {
+      "repository": "https://github.com/frappe/frappe_docker",
+      "revision": "412de117d95b4a7f939993b70838c9d9463fa0cf",
+      "branch": "main",
+      "license": "MIT"
+    },
+    {
+      "repository": "https://github.com/frappe/erpnext",
+      "revision": "b9c9b76f5b043bd542b01dd4fefe913416a7bb53",
+      "branch": "version-15",
+      "license": "GPL-3.0"
+    },
+    {
+      "repository": "https://github.com/frappe/frappe",
+      "revision": "c1afa13e12834dcdc1d82c4ba8bb3e5652163656",
+      "branch": "version-15",
+      "license": "MIT"
+    }
+  ],
+  "open_runtime_evidence": {
+    "server_implementation_source": true,
+    "schema_migrations_source": true,
+    "transaction_logic_source": true,
+    "source_build_recipe": true,
+    "redistributable_inputs": true,
+    "fault_injection_without_business_logic_reimplementation": true
+  },
+  "fault_seams": [
+    {
+      "id": "frappe-http-commit-after-commit-callback",
+      "source_path": "frappe/database/database.py",
+      "symbol": "Database.commit",
+      "supporting_paths": [
+        "frappe/app.py:sync_database",
+        "frappe/integrations/doctype/webhook/__init__.py:_add_webhook_to_queue",
+        "frappe/utils/background_jobs.py"
+      ],
+      "observable_outcomes": [
+        "request_not_reached",
+        "database_committed_response_lost",
+        "database_committed_after_commit_enqueue_failed",
+        "database_committed_job_queued_worker_pending"
+      ],
+      "forbidden_injection": "Do not split one SQL transaction into invented row-level partial commits."
+    }
+  ],
+  "execution_validation": {
+    "built_from_source": false,
+    "deterministic_reset_verified": false,
+    "fault_variants_replayed": false,
+    "terminal_checks_replayed": false
+  },
+  "declared_status": {
+    "source_audit": "passed",
+    "execution": "pending_or_rejected"
+  }
+}
