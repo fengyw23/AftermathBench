@@ -32,6 +32,22 @@ class ERPNextComposeSpecTest(unittest.TestCase):
     def test_site_creation_does_not_depend_on_missing_wait_helper(self) -> None:
         self.assertNotIn("wait-for-it", self.compose)
 
+    def test_site_creation_is_one_atomic_shell_command(self) -> None:
+        command = next(
+            line.strip()
+            for line in self.compose.splitlines()
+            if line.strip().startswith("bench new-site aftermath.localhost")
+        )
+        for option in (
+            "--mariadb-user-host-login-scope='%'",
+            '--admin-password="$${AFTERMATH_ADMIN_PASSWORD}"',
+            "--db-root-username=root",
+            '--db-root-password="$${AFTERMATH_DB_ROOT_PASSWORD}"',
+            "--install-app erpnext",
+            "--set-default;",
+        ):
+            self.assertIn(option, command)
+
     def test_direct_runtime_images_are_digest_pinned(self) -> None:
         images = self.lock["infrastructure_images"]
         self.assertTrue(
