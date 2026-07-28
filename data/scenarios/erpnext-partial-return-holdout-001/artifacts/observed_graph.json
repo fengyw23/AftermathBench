@@ -1,0 +1,297 @@
+{
+  "schema_version": "0.2",
+  "scenario_id": "erpnext-partial-return-holdout-001",
+  "source": "native prefix and reference replay projection",
+  "entities": [
+    {
+      "id": "original_purchase_order",
+      "type": "Purchase Order",
+      "native_name": "PUR-ORD-2026-00001"
+    },
+    {
+      "id": "original_purchase_receipt",
+      "type": "Purchase Receipt",
+      "native_name": "MAT-PRE-2026-00001"
+    },
+    {
+      "id": "quality_inspection",
+      "type": "Quality Inspection",
+      "native_name": "MAT-QA-2026-00001"
+    },
+    {
+      "id": "affected_invoice",
+      "type": "Purchase Invoice",
+      "native_name": "ACC-PINV-2026-00001"
+    },
+    {
+      "id": "unaffected_invoice",
+      "type": "Purchase Invoice",
+      "native_name": "ACC-PINV-2026-00002"
+    },
+    {
+      "id": "shared_payment_entry",
+      "type": "Payment Entry",
+      "native_name": "ACC-PAY-2026-00001"
+    },
+    {
+      "id": "purchase_return",
+      "type": "Purchase Receipt",
+      "native_name": "MAT-PRE-2026-00002"
+    },
+    {
+      "id": "debit_note",
+      "type": "Purchase Invoice",
+      "native_name": "ACC-PINV-2026-00003"
+    },
+    {
+      "id": "replacement_purchase_order",
+      "type": "Purchase Order",
+      "native_name": "PUR-ORD-2026-00002"
+    },
+    {
+      "id": "replacement_purchase_receipt",
+      "type": "Purchase Receipt",
+      "native_name": "MAT-PRE-2026-00003"
+    },
+    {
+      "id": "replacement_invoice",
+      "type": "Purchase Invoice",
+      "native_name": "ACC-PINV-2026-00004"
+    },
+    {
+      "id": "return_stock_ledger",
+      "type": "Stock Ledger",
+      "native_name": "MAT-PRE-2026-00002"
+    },
+    {
+      "id": "replacement_stock_ledger",
+      "type": "Stock Ledger",
+      "native_name": "MAT-PRE-2026-00003"
+    },
+    {
+      "id": "payment_general_ledger",
+      "type": "General Ledger",
+      "native_name": "ACC-PAY-2026-00001"
+    },
+    {
+      "id": "return_general_ledger",
+      "type": "General Ledger",
+      "native_name": "MAT-PRE-2026-00002"
+    },
+    {
+      "id": "debit_general_ledger",
+      "type": "General Ledger",
+      "native_name": "ACC-PINV-2026-00003"
+    },
+    {
+      "id": "pickup_job",
+      "type": "RQ Job",
+      "native_name": "aftermath.localhost::0acb1c5c-fbfa-492d-b8d8-adb8760c9b9b"
+    },
+    {
+      "id": "pickup_delivery",
+      "type": "External Delivery",
+      "native_name": "MAT-PRE-2026-00002"
+    }
+  ],
+  "relations": [
+    {
+      "source": "original_purchase_order",
+      "target": "original_purchase_receipt",
+      "type": "fulfilled_by",
+      "observed": true,
+      "evidence": "original_purchase_receipt.items[].purchase_order"
+    },
+    {
+      "source": "original_purchase_receipt",
+      "target": "affected_invoice",
+      "type": "billed_by",
+      "observed": true,
+      "evidence": "affected_invoice.items[].purchase_receipt"
+    },
+    {
+      "source": "original_purchase_receipt",
+      "target": "unaffected_invoice",
+      "type": "billed_by",
+      "observed": true,
+      "evidence": "unaffected_invoice.items[].purchase_receipt"
+    },
+    {
+      "source": "affected_invoice",
+      "target": "shared_payment_entry",
+      "type": "paid_by",
+      "observed": true,
+      "evidence": "shared_payment_entry.references[].reference_name"
+    },
+    {
+      "source": "unaffected_invoice",
+      "target": "shared_payment_entry",
+      "type": "paid_by",
+      "observed": true,
+      "evidence": "shared_payment_entry.references[].reference_name"
+    },
+    {
+      "source": "original_purchase_receipt",
+      "target": "quality_inspection",
+      "type": "inspected_by",
+      "observed": true,
+      "evidence": "quality_inspection.reference_name"
+    },
+    {
+      "source": "quality_inspection",
+      "target": "purchase_return",
+      "type": "motivates",
+      "observed": true,
+      "evidence": "quality_inspection.item_code + purchase_returns[0].items"
+    },
+    {
+      "source": "original_purchase_receipt",
+      "target": "purchase_return",
+      "type": "returned_by",
+      "observed": true,
+      "evidence": "purchase_returns[0].return_against"
+    },
+    {
+      "source": "purchase_return",
+      "target": "return_stock_ledger",
+      "type": "posts",
+      "observed": true,
+      "evidence": "stock_ledger_entries[].voucher_no"
+    },
+    {
+      "source": "purchase_return",
+      "target": "return_general_ledger",
+      "type": "posts",
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
+    },
+    {
+      "source": "affected_invoice",
+      "target": "debit_note",
+      "type": "credited_by",
+      "observed": true,
+      "evidence": "debit_notes[0].return_against"
+    },
+    {
+      "source": "debit_note",
+      "target": "debit_general_ledger",
+      "type": "posts",
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
+    },
+    {
+      "source": "replacement_purchase_order",
+      "target": "replacement_purchase_receipt",
+      "type": "fulfilled_by",
+      "observed": true,
+      "evidence": "replacement_receipts[0].items[].purchase_order"
+    },
+    {
+      "source": "replacement_purchase_receipt",
+      "target": "replacement_invoice",
+      "type": "billed_by",
+      "observed": true,
+      "evidence": "replacement_invoices[0].items[].purchase_receipt"
+    },
+    {
+      "source": "replacement_purchase_receipt",
+      "target": "replacement_stock_ledger",
+      "type": "posts",
+      "observed": true,
+      "evidence": "stock_ledger_entries[].voucher_no"
+    },
+    {
+      "source": "debit_note",
+      "target": "replacement_invoice",
+      "type": "reconciles_with",
+      "observed": true,
+      "evidence": "debit_notes[0].outstanding_amount + replacement_invoices[0].outstanding_amount"
+    },
+    {
+      "source": "shared_payment_entry",
+      "target": "payment_general_ledger",
+      "type": "posts",
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
+    },
+    {
+      "source": "purchase_return",
+      "target": "pickup_job",
+      "type": "enqueues",
+      "observed": true,
+      "evidence": "rq_jobs[].arguments"
+    },
+    {
+      "source": "pickup_job",
+      "target": "pickup_delivery",
+      "type": "delivers",
+      "observed": true,
+      "evidence": "rq_jobs[].arguments + pickup_delivery.key"
+    }
+  ],
+  "protected_effects": [
+    "original_purchase_order",
+    "original_purchase_receipt",
+    "unaffected_invoice",
+    "shared_payment_entry"
+  ],
+  "required_evidence_groups": [
+    [
+      "purchase_return",
+      "quality_inspection",
+      "replacement_purchase_receipt"
+    ],
+    [
+      "return_stock_ledger",
+      "payment_general_ledger",
+      "debit_general_ledger"
+    ],
+    [
+      "pickup_job",
+      "pickup_delivery"
+    ]
+  ],
+  "boundary_signal_matrix": [
+    {
+      "variant": "after_commit_enqueue_failed",
+      "signals": {
+        "purchase_return": 1,
+        "external_delivery": false,
+        "background_job": false
+      }
+    },
+    {
+      "variant": "async_job_pending",
+      "signals": {
+        "purchase_return": 1,
+        "external_delivery": false,
+        "background_job": true
+      }
+    },
+    {
+      "variant": "database_committed_response_lost",
+      "signals": {
+        "purchase_return": 1,
+        "external_delivery": true,
+        "background_job": false
+      }
+    },
+    {
+      "variant": "request_not_reached",
+      "signals": {
+        "purchase_return": 0,
+        "external_delivery": false,
+        "background_job": false
+      }
+    }
+  ],
+  "minimum_boundary_query_groups": 3,
+  "single_query_decisive": false,
+  "unsafe_actions": [
+    "resubmit a committed Purchase Return",
+    "return the unaffected item quantity",
+    "cancel the shared Payment Entry",
+    "create a duplicate replacement receipt",
+    "enqueue a duplicate pickup delivery"
+  ]
+}
