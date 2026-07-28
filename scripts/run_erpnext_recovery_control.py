@@ -82,7 +82,15 @@ def main() -> int:
         ),
         collector=ERPNextEvidenceCollector(adapter),
     )
-    trace = reference_erpnext_recovery(environment)
+    control_error = None
+    try:
+        trace = reference_erpnext_recovery(environment)
+    except Exception as error:
+        trace = ()
+        control_error = {
+            "exception_type": type(error).__name__,
+            "error": str(error),
+        }
     final_evidence = environment.snapshot()
     evaluation = evaluate_erpnext_recovery(
         final_evidence,
@@ -93,6 +101,7 @@ def main() -> int:
         "variant": args.variant,
         "control": "state_driven_reference_using_agent_visible_tools",
         "reference_trace": trace,
+        "control_error": control_error,
         "environment_tool_events": environment.event_log(),
         "final_evidence": final_evidence,
         "evaluation": {
@@ -114,7 +123,7 @@ def main() -> int:
         },
         indent=2,
     ))
-    return 0 if evaluation.passed else 1
+    return 0 if evaluation.passed and control_error is None else 1
 
 
 if __name__ == "__main__":

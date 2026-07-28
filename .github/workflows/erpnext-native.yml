@@ -2,6 +2,18 @@ name: erpnext-native-runtime
 
 on:
   workflow_dispatch:
+    inputs:
+      variant:
+        description: Failure variant to replay, or all for formal validation
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - request_not_reached
+          - database_committed_response_lost
+          - after_commit_enqueue_failed
+          - async_job_pending
 
 jobs:
   native-runtime:
@@ -44,11 +56,16 @@ jobs:
       - name: Replay all four source-supported failure boundaries
         run: |
           replay_status=0
-          for variant in \
-            request_not_reached \
-            database_committed_response_lost \
-            after_commit_enqueue_failed \
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
             async_job_pending
+          )
+          if [ "${{ inputs.variant }}" != "all" ]; then
+            variants=("${{ inputs.variant }}")
+          fi
+          for variant in "${variants[@]}"
           do
             if python scripts/run_erpnext_failure.py \
                 --variant "$variant" \

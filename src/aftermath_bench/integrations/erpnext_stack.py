@@ -122,27 +122,41 @@ class ERPNextStack:
         payment_entry: str,
         webhook_name: str = "Aftermath Payment Remittance",
     ) -> dict[str, Any]:
-        result = self.run(
-            "exec",
-            "-T",
-            "backend",
-            "env",
-            "PYTHONPATH=/opt/aftermath-bridge",
-            "bench",
-            "--site",
-            "aftermath.localhost",
-            "execute",
-            "aftermath_frappe_bridge.requeue_payment_remittance",
-            "--kwargs",
-            json.dumps(
-                {
-                    "payment_entry": payment_entry,
-                    "webhook_name": webhook_name,
-                },
-                separators=(",", ":"),
-            ),
-            capture_output=True,
-        )
+        try:
+            result = self.run(
+                "exec",
+                "-T",
+                "backend",
+                "env",
+                "PYTHONPATH=/opt/aftermath-bridge",
+                "bench",
+                "--site",
+                "aftermath.localhost",
+                "execute",
+                "aftermath_frappe_bridge.requeue_payment_remittance",
+                "--kwargs",
+                json.dumps(
+                    {
+                        "payment_entry": payment_entry,
+                        "webhook_name": webhook_name,
+                    },
+                    separators=(",", ":"),
+                ),
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as error:
+            detail = "\n".join(
+                value.strip()
+                for value in (
+                    str(error.stdout or ""),
+                    str(error.stderr or ""),
+                )
+                if value and value.strip()
+            )
+            raise RuntimeError(
+                "native remittance requeue failed"
+                + (f": {detail}" if detail else "")
+            ) from error
         return _parse_mapping_output(result.stdout)
 
     def snapshot_database(self, destination: str | Path) -> str:

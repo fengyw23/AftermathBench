@@ -41,6 +41,7 @@ class ERPNextWorkflowSpecTest(unittest.TestCase):
             "python scripts/run_erpnext_recovery_control.py",
             replay_section,
         )
+        self.assertIn('if [ "${{ inputs.variant }}" != "all" ]', replay_section)
 
 
 if __name__ == "__main__":

@@ -75,6 +75,26 @@ class ERPNextStackTest(unittest.TestCase):
         self.assertEqual(kwargs["payment_entry"], "PAY-1")
         self.assertEqual(result["job_id"], "job-1")
 
+    def test_remittance_requeue_preserves_native_stderr(self) -> None:
+        runner = Mock(
+            side_effect=subprocess.CalledProcessError(
+                1,
+                ["docker", "compose"],
+                output="native stdout",
+                stderr="ModuleNotFoundError: bridge",
+            )
+        )
+        stack = ERPNextStack(
+            compose_file=Path("runtime/compose.yaml"),
+            runner=runner,
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "ModuleNotFoundError: bridge",
+        ):
+            stack.requeue_payment_remittance("PAY-1")
+
     def test_snapshot_writes_exact_dump_and_returns_digest(self) -> None:
         def runner(command, **kwargs):
             kwargs["stdout"].write(b"SQL-DUMP")
