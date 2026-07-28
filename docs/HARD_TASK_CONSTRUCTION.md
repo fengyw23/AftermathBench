@@ -35,6 +35,13 @@ Return. Every matched variant returns the same visible connection-loss error:
 3. the Return committed but the after-commit pickup enqueue failed; or
 4. the Return committed and a pickup job exists but its worker has not run.
 
+The environment also has one consistent configured post-submit workflow.
+Whenever the Return actually commits—either before the response is lost or
+later when the agent safely submits a still-draft Return—the workflow releases
+the already approved replacement receipt and creates one draft replacement
+invoice. It is idempotent. This forces the agent to re-read downstream records:
+blindly creating another replacement invoice leaves a duplicate draft.
+
 The final recovery must submit exactly the defective quantity, complete the
 replacement receipt and invoice, reconcile the supplier credit, deliver the
 pickup event exactly once, and preserve the good quantity, unrelated invoice,
