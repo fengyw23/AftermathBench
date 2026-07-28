@@ -30,6 +30,18 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
         )[1]
         self.assertNotIn("credentials.json", upload_section)
 
+    def test_hard_workflow_audits_the_control_condition(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "erpnext-hard-model.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            '--expected-execution-control "$EXECUTION_CONTROL"',
+            workflow,
+        )
+
     def test_summary_distinguishes_task_failure_from_run_error(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)

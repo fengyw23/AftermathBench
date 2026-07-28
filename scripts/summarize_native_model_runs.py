@@ -37,13 +37,29 @@ def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
     return reports, errors
 
 
-def summarize(root: Path) -> dict[str, Any]:
+def summarize(
+    root: Path,
+    *,
+    expected_execution_control: bool | None = None,
+) -> dict[str, Any]:
     reports, errors = _load_reports(root)
     by_group: dict[tuple[str, str], dict[str, bool]] = defaultdict(dict)
     component_totals: Counter[str] = Counter()
     failure_types: Counter[str] = Counter()
+    execution_control_counts: Counter[str] = Counter()
     passed = 0
     for report in reports:
+        observed_control = bool(report.get("execution_control", False))
+        execution_control_counts[str(observed_control).lower()] += 1
+        if (
+            expected_execution_control is not None
+            and observed_control is not expected_execution_control
+        ):
+            errors.append(
+                f"{report['_path']}: execution_control="
+                f"{str(observed_control).lower()} does not match expected "
+                f"{str(expected_execution_control).lower()}"
+            )
         evaluation = report["evaluation"]
         success = bool(evaluation.get("passed", False))
         passed += int(success)
@@ -91,6 +107,9 @@ def summarize(root: Path) -> dict[str, Any]:
             for component, count in sorted(component_totals.items())
         },
         "failure_type_counts": dict(sorted(failure_types.items())),
+        "execution_control_counts": dict(
+            sorted(execution_control_counts.items())
+        ),
         "reports": [
             {
                 "scenario_id": report["scenario_id"],
@@ -111,8 +130,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-directory", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--expected-execution-control",
+        choices=("true", "false"),
+    )
     args = parser.parse_args()
-    summary = summarize(args.run_directory)
+    expected_execution_control = (
+        args.expected_execution_control == "true"
+        if args.expected_execution_control is not None
+        else None
+    )
+    summary = summarize(
+        args.run_directory,
+        expected_execution_control=expected_execution_control,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
