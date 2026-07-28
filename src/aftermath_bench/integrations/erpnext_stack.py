@@ -157,6 +157,59 @@ class ERPNextStack:
             ) from error
         return _parse_mapping_output(result.stdout)
 
+    def enqueue_document_webhook(
+        self,
+        *,
+        doctype: str,
+        document_name: str,
+        webhook_name: str,
+    ) -> dict[str, Any]:
+        result = self.run(
+            "exec",
+            "-T",
+            "backend",
+            "bench",
+            "--site",
+            "aftermath.localhost",
+            "execute",
+            "frappe.aftermath_bridge.enqueue_document_webhook",
+            "--kwargs",
+            json.dumps(
+                {
+                    "doctype": doctype,
+                    "document_name": document_name,
+                    "webhook_name": webhook_name,
+                },
+                separators=(",", ":"),
+            ),
+            capture_output=True,
+        )
+        return _parse_mapping_output(result.stdout)
+
+    def reconcile_supplier_documents(
+        self,
+        *,
+        company: str,
+        supplier: str,
+    ) -> dict[str, Any]:
+        result = self.run(
+            "exec",
+            "-T",
+            "backend",
+            "bench",
+            "--site",
+            "aftermath.localhost",
+            "execute",
+            "frappe.aftermath_bridge.reconcile_supplier_documents",
+            "--kwargs",
+            json.dumps(
+                {"company": company, "supplier": supplier},
+                separators=(",", ":"),
+            ),
+            capture_output=True,
+        )
+        return _parse_mapping_output(result.stdout)
+
     def snapshot_database(self, destination: str | Path) -> str:
         path = Path(destination).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

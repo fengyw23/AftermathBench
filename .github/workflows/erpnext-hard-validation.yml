@@ -1,0 +1,130 @@
+name: erpnext-native-hard-validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - ".github/workflows/erpnext-hard-validation.yml"
+      - "data/scenarios/erpnext-partial-return-*/**"
+      - "runtimes/erpnext/**"
+      - "scripts/*erpnext*return*.py"
+      - "scripts/build_native_return_admission.py"
+      - "src/aftermath_bench/native_*.py"
+      - "src/aftermath_bench/integrations/erpnext_return_*.py"
+      - "src/aftermath_bench/integrations/erpnext_stack.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-hard-slice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate code before building ERPNext
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute
+
+      - name: Start native runtime and build development prefix
+        run: |
+          mkdir -p runtimes/erpnext/.runtime/hard-dev
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_return_prefix.py \
+            --scenario data/scenarios/erpnext-partial-return-dev-001/scenario.json \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --output runtimes/erpnext/.runtime/hard-dev/prefix.json
+          python scripts/manage_erpnext_stack.py snapshot \
+            --snapshot runtimes/erpnext/.runtime/hard-dev/prefix.sql
+
+      - name: Replay every hidden boundary and reference recovery
+        run: |
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/run_erpnext_return_failure.py \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix runtimes/erpnext/.runtime/hard-dev/prefix.json \
+              --snapshot runtimes/erpnext/.runtime/hard-dev/prefix.sql \
+              --output "runtimes/erpnext/.runtime/hard-dev/${variant}-failure.json"
+            python scripts/run_erpnext_return_control.py \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix runtimes/erpnext/.runtime/hard-dev/prefix.json \
+              --output "runtimes/erpnext/.runtime/hard-dev/${variant}-control.json"
+          done
+
+      - name: Build and audit replay-derived admission
+        run: |
+          artifact_dir=data/scenarios/erpnext-partial-return-dev-001/artifacts
+          mkdir -p "$artifact_dir"
+          cp runtimes/erpnext/.runtime/hard-dev/prefix.json "$artifact_dir/prefix.json"
+          python scripts/build_native_return_admission.py \
+            --prefix runtimes/erpnext/.runtime/hard-dev/prefix.json \
+            --control-directory runtimes/erpnext/.runtime/hard-dev \
+            --output-directory "$artifact_dir"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario data/scenarios/erpnext-partial-return-dev-001/scenario.json \
+            --execute
+
+      - name: Capture compose diagnostics
+        if: always()
+        run: |
+          mkdir -p runtimes/erpnext/.runtime
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all \
+            > runtimes/erpnext/.runtime/compose-ps.txt 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color \
+            > runtimes/erpnext/.runtime/compose.log 2>&1 || true
+
+      - name: Remove ephemeral credentials and database dump
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          rm -f runtimes/erpnext/.runtime/hard-dev/prefix.sql
+
+      - name: Upload native validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-native-hard-validation
+          include-hidden-files: true
+          path: |
+            runtimes/erpnext/.runtime/hard-dev/
+            runtimes/erpnext/.runtime/compose-ps.txt
+            runtimes/erpnext/.runtime/compose.log
+            data/scenarios/erpnext-partial-return-dev-001/artifacts/
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge

@@ -232,7 +232,10 @@ def make_handler(store: DeliveryStore) -> type[BaseHTTPRequestHandler]:
             _json_response(self, 404, {"error": "not_found"})
 
         def do_POST(self) -> None:
-            if urlparse(self.path).path != "/webhooks/remittance":
+            if urlparse(self.path).path not in {
+                "/webhooks/remittance",
+                "/webhooks/events",
+            }:
                 _json_response(self, 404, {"error": "not_found"})
                 return
             length = int(self.headers.get("Content-Length", "0"))

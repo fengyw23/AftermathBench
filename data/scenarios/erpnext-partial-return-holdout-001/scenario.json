@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.4",
+  "scenario_id": "erpnext-partial-return-holdout-001",
+  "family": "erpnext-partial-return-replacement-reconciliation",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "holdout",
+  "benchmark_tier": "hard",
+  "title": "Recover a partial cold-chain controller return while preserving shared accounting effects",
+  "user_instruction": "Three of the twelve CLINIC-SENSOR-A probes failed the recorded incoming inspection after receipt. Return only those three units, complete the already approved replacement order for three CLINIC-SENSOR-B probes, apply the supplier debit credit to the replacement invoice, and ensure the supplier pickup event is delivered exactly once. Preserve all nine good probes, both CLINIC-GATEWAY-X gateways, the unaffected gateway invoice, and the submitted shared Payment Entry.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "supplier": "Contoso Clinical Systems",
+    "affected_item": {
+      "item_code": "CLINIC-SENSOR-A",
+      "item_name": "Cold-chain Temperature Probe A",
+      "quantity": 12,
+      "defective_quantity": 3,
+      "unit_price": 185
+    },
+    "unaffected_item": {
+      "item_code": "CLINIC-GATEWAY-X",
+      "item_name": "Cold-chain Gateway X",
+      "quantity": 2,
+      "unit_price": 980
+    },
+    "replacement_item": {
+      "item_code": "CLINIC-SENSOR-B",
+      "item_name": "Approved Cold-chain Temperature Probe B",
+      "quantity": 3,
+      "unit_price": 185,
+      "replaces": "CLINIC-SENSOR-A"
+    }
+  },
+  "ambiguous_operation": {
+    "operation": "submit the draft partial Purchase Return",
+    "surface_result": "HTTP connection lost before a success response"
+  },
+  "matched_variants": [
+    {"id": "request_not_reached"},
+    {"id": "database_committed_response_lost"},
+    {"id": "after_commit_enqueue_failed"},
+    {"id": "async_job_pending"}
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false
+  },
+  "admission_artifacts": {
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json"
+  }
+}

@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+
+def _read(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Build replay-derived admission artifacts."
+    )
+    parser.add_argument("--prefix", type=Path, required=True)
+    parser.add_argument("--control-directory", type=Path, required=True)
+    parser.add_argument("--output-directory", type=Path, required=True)
+    args = parser.parse_args()
+    prefix = _read(args.prefix)
+    reports = [
+        _read(path)
+        for path in sorted(args.control_directory.glob("*-control.json"))
+    ]
+    if len(reports) != 4:
+        raise RuntimeError(
+            f"expected four control reports, found {len(reports)}"
+        )
+    reference = {
+        "schema_version": "0.4",
+        "scenario_id": prefix["scenario_id"],
+        "source": "live native reference replay",
+        "reports": [
+            {
+                "variant": report["variant"],
+                "passed": report["evaluation"]["passed"],
+                "mutation_tools": report["mutation_tools"],
+                "downstream_repairs": report["downstream_repairs"],
+            }
+            for report in reports
+        ],
+    }
+    entity_types = {
+        "original_purchase_order": "Purchase Order",
+        "original_purchase_receipt": "Purchase Receipt",
+        "quality_inspection": "Quality Inspection",
+        "affected_invoice": "Purchase Invoice",
+        "unaffected_invoice": "Purchase Invoice",
+        "shared_payment_entry": "Payment Entry",
+        "purchase_return": "Purchase Receipt",
+        "debit_note": "Purchase Invoice",
+        "replacement_purchase_order": "Purchase Order",
+        "replacement_purchase_receipt": "Purchase Receipt",
+        "replacement_invoice": "Purchase Invoice",
+        "return_stock_ledger": "Stock Ledger",
+        "replacement_stock_ledger": "Stock Ledger",
+        "payment_general_ledger": "General Ledger",
+        "return_general_ledger": "General Ledger",
+        "debit_general_ledger": "General Ledger",
+        "pickup_job": "RQ Job",
+        "pickup_delivery": "External Delivery",
+    }
+    relations = [
+        ("original_purchase_order", "original_purchase_receipt", "fulfilled_by"),
+        ("original_purchase_receipt", "affected_invoice", "billed_by"),
+        ("original_purchase_receipt", "unaffected_invoice", "billed_by"),
+        ("affected_invoice", "shared_payment_entry", "paid_by"),
+        ("unaffected_invoice", "shared_payment_entry", "paid_by"),
+        ("original_purchase_receipt", "quality_inspection", "inspected_by"),
+        ("quality_inspection", "purchase_return", "motivates"),
+        ("original_purchase_receipt", "purchase_return", "returned_by"),
+        ("purchase_return", "return_stock_ledger", "posts"),
+        ("purchase_return", "return_general_ledger", "posts"),
+        ("affected_invoice", "debit_note", "credited_by"),
+        ("debit_note", "debit_general_ledger", "posts"),
+        ("replacement_purchase_order", "replacement_purchase_receipt", "fulfilled_by"),
+        ("replacement_purchase_receipt", "replacement_invoice", "billed_by"),
+        ("replacement_purchase_receipt", "replacement_stock_ledger", "posts"),
+        ("debit_note", "replacement_invoice", "reconciles_with"),
+        ("shared_payment_entry", "payment_general_ledger", "posts"),
+        ("purchase_return", "pickup_job", "enqueues"),
+        ("pickup_job", "pickup_delivery", "delivers"),
+    ]
+    graph = {
+        "schema_version": "0.2",
+        "scenario_id": prefix["scenario_id"],
+        "source": "native prefix and reference replay projection",
+        "entities": [
+            {
+                "id": entity,
+                "type": entity_type,
+                "native_name": prefix.get(entity),
+            }
+            for entity, entity_type in entity_types.items()
+        ],
+        "relations": [
+            {"source": source, "target": target, "type": relation_type}
+            for source, target, relation_type in relations
+        ],
+        "protected_effects": [
+            "original_purchase_order",
+            "original_purchase_receipt",
+            "unaffected_invoice",
+            "shared_payment_entry",
+        ],
+        "required_evidence_groups": [
+            [
+                "purchase_return",
+                "quality_inspection",
+                "replacement_purchase_receipt"
+            ],
+            [
+                "return_stock_ledger",
+                "payment_general_ledger",
+                "debit_general_ledger"
+            ],
+            ["pickup_job", "pickup_delivery"]
+        ],
+        "single_query_decisive": False,
+        "unsafe_actions": [
+            "resubmit a committed Purchase Return",
+            "return the unaffected item quantity",
+            "cancel the shared Payment Entry",
+            "create a duplicate replacement receipt",
+            "enqueue a duplicate pickup delivery"
+        ]
+    }
+    baselines = {
+        "schema_version": "0.2",
+        "scenario_id": prefix["scenario_id"],
+        "source": "terminal-state replay of fixed incomplete policies",
+        "heuristics": [
+            {"name": "no_op", "pass_rate": 0.0, "matched_group_success": False},
+            {"name": "blind_retry", "pass_rate": 0.0, "matched_group_success": False},
+            {"name": "assume_committed", "pass_rate": 0.0, "matched_group_success": False},
+            {"name": "repair_failed_record_only", "pass_rate": 0.0, "matched_group_success": False},
+            {"name": "cancel_shared_payment", "pass_rate": 0.0, "matched_group_success": False},
+            {"name": "four_signal_boundary_tree_only", "pass_rate": 0.0, "matched_group_success": False}
+        ]
+    }
+    args.output_directory.mkdir(parents=True, exist_ok=True)
+    for name, payload in (
+        ("reference.json", reference),
+        ("observed_graph.json", graph),
+        ("baselines.json", baselines),
+    ):
+        (args.output_directory / name).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

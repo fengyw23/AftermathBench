@@ -14,6 +14,7 @@ from .model_runner import (
     run_itsm_suite,
 )
 from .native_admission import validate_native_scenario
+from .native_model_runner import run_live_native_agent
 from .native_scenario import load_native_scenario, native_scenario_paths
 from .scenarios.enterprise_transfer import (
     VARIANTS,
@@ -274,6 +275,36 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=("openai-compatible", "anthropic"),
     )
+    native_model_run = subparsers.add_parser(
+        "run-native-model",
+        help="run a model on a manifest-driven native recovery scenario",
+    )
+    native_model_run.add_argument(
+        "--provider",
+        required=True,
+        choices=("openai-compatible", "anthropic"),
+    )
+    native_model_run.add_argument("--model", required=True)
+    native_model_run.add_argument("--base-url")
+    native_model_run.add_argument(
+        "--api-key-env",
+        default="AFTERMATH_API_KEY",
+    )
+    native_model_run.add_argument("--scenario", required=True)
+    native_model_run.add_argument("--credentials", required=True)
+    native_model_run.add_argument("--prefix", required=True)
+    native_model_run.add_argument("--failure-report", required=True)
+    native_model_run.add_argument("--max-turns", type=int, default=15)
+    native_model_run.add_argument("--output", required=True)
+    native_model_run.add_argument(
+        "--erpnext-base-url",
+        default="http://127.0.0.1:8080",
+    )
+    native_model_run.add_argument(
+        "--container-cli",
+        choices=("docker", "podman"),
+        default="docker",
+    )
     erpnext_model_run.add_argument("--model", required=True)
     erpnext_model_run.add_argument("--base-url")
     erpnext_model_run.add_argument(
@@ -402,6 +433,37 @@ def main() -> int:
         report = run_live_erpnext_agent(
             client,
             variant=args.variant,
+            credentials_path=args.credentials,
+            prefix_path=args.prefix,
+            failure_report_path=args.failure_report,
+            max_turns=args.max_turns,
+            output_path=args.output,
+            erpnext_base_url=args.erpnext_base_url,
+            container_cli=args.container_cli,
+        )
+        print(json.dumps(
+            {
+                "run_id": report["run_id"],
+                "evaluation": report["evaluation"],
+                "trajectory_diagnostics": report[
+                    "trajectory_diagnostics"
+                ],
+                "stop_reason": report["stop_reason"],
+                "output": args.output,
+            },
+            indent=2,
+        ))
+        return 0 if report["evaluation"]["passed"] else 1
+    if args.command == "run-native-model":
+        client = client_from_environment(
+            provider=args.provider,
+            model=args.model,
+            base_url=args.base_url,
+            api_key_env=args.api_key_env,
+        )
+        report = run_live_native_agent(
+            client,
+            scenario_path=args.scenario,
             credentials_path=args.credentials,
             prefix_path=args.prefix,
             failure_report_path=args.failure_report,
