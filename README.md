@@ -61,9 +61,11 @@ first procurement-to-payment task now has a digest-pinned service topology,
 public-API prefix builder, real HTTP/queue fault controllers, snapshot reset,
 and deterministic terminal evaluator. The pinned source build, reset, all four
 failure variants, and terminal checks passed the native replay workflow on
-2026-07-28, so ERPNext now passes both runtime gates. Restricted agent-facing
-repair tools and model experiments remain to be implemented. Forgejo is the
-selected coding/DevOps runtime candidate.
+2026-07-28, so ERPNext now passes both runtime gates. Twelve restricted
+investigation and repair tools plus a state-driven reference control have also
+recovered all four hidden states without duplicate remittance attempts. Model
+loop integration and experiments remain. Forgejo is the selected coding/DevOps
+runtime candidate.
 
 ## Quick start
 

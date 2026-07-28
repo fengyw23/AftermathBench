@@ -90,3 +90,10 @@ The manual GitHub workflow `erpnext-native-runtime` performs the complete
 source build and all four replays. Admission run
 [`30373948156`](https://github.com/fengyw23/AftermathBench/actions/runs/30373948156)
 passed at commit `61d3726b7ec45897cf5a31c10a151b2d61aab54b`.
+
+The same workflow also runs a state-driven reference recovery through twelve
+restricted agent-facing tools. Formal recovery-control run
+[`30379601930`](https://github.com/fengyw23/AftermathBench/actions/runs/30379601930)
+passed all four variants at commit
+`f5c5dc0e2a21566efe5607c08f4baddcc9d8cbda`, with one remittance attempt and
+zero unfinished relevant jobs per variant.

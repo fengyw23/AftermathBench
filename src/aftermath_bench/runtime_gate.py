@@ -76,6 +76,14 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         if evidence_manifest
         else None
     )
+    recovery_manifest = admission_evidence.get(
+        "recovery_control_evidence_manifest"
+    )
+    recovery_evidence_path = (
+        repository_root() / str(recovery_manifest)
+        if recovery_manifest
+        else None
+    )
     execution_checks["admission_evidence_recorded"] = bool(
         admission_evidence.get("validated_at")
         and len(str(admission_evidence.get("head_sha", ""))) == 40
@@ -84,6 +92,10 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         )
         and evidence_path is not None
         and evidence_path.is_file()
+        and (
+            recovery_evidence_path is None
+            or recovery_evidence_path.is_file()
+        )
     )
     source_passed = all(source_checks.values())
     execution_admitted = source_passed and all(execution_checks.values())

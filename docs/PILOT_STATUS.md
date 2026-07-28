@@ -65,10 +65,32 @@ The four observed states were:
 - after-commit enqueue failed: payment committed, but no job or remittance;
 - async job pending: payment committed, one unfinished job, no remittance.
 
+## Native recovery-control validation
+
+GitHub Actions run
+[`30379601930`](https://github.com/fengyw23/AftermathBench/actions/runs/30379601930)
+validated one state-driven reference control against all four hidden states at
+commit `f5c5dc0e2a21566efe5607c08f4baddcc9d8cbda`. The control used only the same
+restricted order, receipt, invoice, payment, GL, RQ-job, remittance, submit,
+requeue, and worker tools intended for models. It did not read the variant
+label.
+
+The selected mutations were:
+
+- request not reached: submit the still-draft Payment Entry;
+- committed response lost: no write;
+- after-commit enqueue failed: requeue the native remittance webhook;
+- async job pending: resume the existing workers without requeueing.
+
+All four final states passed. Each produced exactly one remittance delivery
+attempt and zero unfinished relevant jobs.
+
 ## Next enterprise implementation
 
-1. Expose the restricted agent-facing investigation and repair tools.
-2. Run scripted recovery controls for the three unrecovered boundaries.
+1. Connect the restricted ERPNext environment to the provider-agnostic model
+   loop.
+2. Reduce tracing overhead by replacing per-tool full evidence scans with
+   incremental event fingerprints.
 3. Evaluate language models on matched hidden states.
 
 ## Coding/DevOps candidate

@@ -47,9 +47,43 @@ class ERPNextScenarioSpecTest(unittest.TestCase):
     def test_scenario_records_validated_boundaries_and_remaining_work(self) -> None:
         self.assertEqual(
             self.scenario["status"],
-            "native_failure_boundaries_validated",
+            "native_recovery_controls_validated",
         )
         self.assertGreaterEqual(len(self.scenario["remaining_work"]), 3)
+
+    def test_recovery_control_evidence_covers_distinct_safe_actions(self) -> None:
+        path = (
+            repository_root()
+            / "data"
+            / "evidence"
+            / "erpnext-recovery-20260728"
+            / "control.json"
+        )
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+        reports = {
+            report["variant"]: report
+            for report in evidence["reports"]
+        }
+        self.assertEqual(
+            {
+                variant: report["selected_mutation"]
+                for variant, report in reports.items()
+            },
+            {
+                "request_not_reached": "submit_payment_entry",
+                "database_committed_response_lost": None,
+                "after_commit_enqueue_failed": "requeue_payment_remittance",
+                "async_job_pending": "resume_remittance_workers",
+            },
+        )
+        self.assertTrue(all(report["passed"] for report in reports.values()))
+        self.assertTrue(
+            all(
+                report["remittance_attempt_count"] == 1
+                and report["unfinished_remittance_job_count"] == 0
+                for report in reports.values()
+            )
+        )
 
 
 if __name__ == "__main__":
