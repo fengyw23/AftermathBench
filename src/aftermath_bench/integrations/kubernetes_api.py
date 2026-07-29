@@ -175,3 +175,20 @@ class KubernetesApi:
         namespace: str,
     ) -> list[dict[str, Any]]:
         return self.list("events", namespace=namespace)
+
+    def taint_node(
+        self,
+        name: str,
+        taint: str,
+        *,
+        overwrite: bool = True,
+    ) -> str:
+        arguments = ["taint", "node", name, taint]
+        if overwrite:
+            arguments.append("--overwrite")
+        return self._run(arguments).stdout.strip()
+
+    def remove_node_taint(self, name: str, key: str) -> str:
+        return self._run(
+            ("taint", "node", name, f"{key}-")
+        ).stdout.strip()

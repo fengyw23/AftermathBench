@@ -65,6 +65,20 @@ jobs:
           python scripts/validate_kubernetes_runtime.py validate-reset \
             --output "$RUNNER_TEMP/kubernetes-reset-validation.json"
 
+      - name: Replay matched native rollout boundaries
+        run: |
+          mkdir -p "$RUNNER_TEMP/kubernetes-boundaries"
+          for variant in \
+            patch_request_not_reached \
+            deployment_spec_committed_response_lost \
+            deployment_spec_committed_reconcile_paused \
+            new_replicaset_created_rollout_pending
+          do
+            python scripts/run_kubernetes_rollout_boundary.py \
+              --variant "$variant" \
+              --output "$RUNNER_TEMP/kubernetes-boundaries/$variant.json"
+          done
+
       - name: Capture diagnostics
         if: always()
         run: |
@@ -88,6 +102,7 @@ jobs:
           path: |
             ${{ runner.temp }}/kubernetes-source-verification.json
             ${{ runner.temp }}/kubernetes-reset-validation.json
+            ${{ runner.temp }}/kubernetes-boundaries
             ${{ runner.temp }}/kubernetes-diagnostics
 
       - name: Purge native cluster

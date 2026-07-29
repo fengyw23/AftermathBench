@@ -48,6 +48,26 @@ class KubernetesApiTest(unittest.TestCase):
         self.assertIn("-f", runner.call_args.args[0])
         self.assertIn("release-config", runner.call_args.kwargs["input"])
 
+    @patch("subprocess.run")
+    def test_node_taints_use_native_kubectl_commands(self, runner) -> None:
+        runner.return_value.returncode = 0
+        runner.return_value.stdout = "node/node-1 tainted"
+        runner.return_value.stderr = ""
+        api = KubernetesApi()
+        api.taint_node(
+            "node-1",
+            "aftermath.dev/rollout-pending=true:NoSchedule",
+        )
+        taint_command = runner.call_args.args[0]
+        self.assertIn("taint", taint_command)
+        self.assertIn("node-1", taint_command)
+        self.assertIn("--overwrite", taint_command)
+        api.remove_node_taint(
+            "node-1", "aftermath.dev/rollout-pending"
+        )
+        remove_command = runner.call_args.args[0]
+        self.assertIn("aftermath.dev/rollout-pending-", remove_command)
+
 
 if __name__ == "__main__":
     unittest.main()

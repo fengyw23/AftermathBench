@@ -10,6 +10,30 @@ from .kubernetes_api import KubernetesApi
 NAMESPACE = "aftermath-rollout"
 PRIMARY_DEPLOYMENT = "checkout-api"
 PROTECTED_DEPLOYMENT = "billing-worker"
+ROLLOUT_TAINT_KEY = "aftermath.dev/rollout-pending"
+
+
+def target_deployment_patch() -> dict[str, Any]:
+    return {
+        "spec": {
+            "template": {
+                "metadata": {
+                    "labels": {"release": "v2"},
+                    "annotations": {
+                        "aftermath.dev/config-revision": "v2"
+                    },
+                }
+            }
+        }
+    }
+
+
+def clear_rollout_taint(api: KubernetesApi) -> None:
+    for node in api.list("nodes"):
+        name = str(node["metadata"]["name"])
+        taints = node.get("spec", {}).get("taints", [])
+        if any(taint.get("key") == ROLLOUT_TAINT_KEY for taint in taints):
+            api.remove_node_taint(name, ROLLOUT_TAINT_KEY)
 
 
 def prefix_manifests() -> tuple[dict[str, Any], ...]:
@@ -140,6 +164,7 @@ def prefix_manifests() -> tuple[dict[str, Any], ...]:
 
 
 def reset_prefix(api: KubernetesApi) -> dict[str, Any]:
+    clear_rollout_taint(api)
     deletion = api.delete("namespace", NAMESPACE)
     if deletion:
         api.wait_deleted("namespace", NAMESPACE)
@@ -266,18 +291,7 @@ def mutate_prefix(api: KubernetesApi) -> dict[str, Any]:
     deployment = api.patch(
         "deployment",
         PRIMARY_DEPLOYMENT,
-        {
-            "spec": {
-                "template": {
-                    "metadata": {
-                        "labels": {"release": "v2"},
-                        "annotations": {
-                            "aftermath.dev/config-revision": "v2"
-                        },
-                    }
-                }
-            }
-        },
+        target_deployment_patch(),
         namespace=NAMESPACE,
     )
     service = api.patch(
