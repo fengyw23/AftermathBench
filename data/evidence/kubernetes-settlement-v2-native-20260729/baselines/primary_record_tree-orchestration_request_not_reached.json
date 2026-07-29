@@ -1,0 +1,2139 @@
+{
+  "schema_version": "0.2",
+  "scenario_id": "k8s-settlement-orchestrated-dev-002",
+  "variant": "orchestration_request_not_reached",
+  "baseline": "primary_record_tree",
+  "trace": [
+    {
+      "tool": "list_objects",
+      "arguments": {
+        "resource": "jobs",
+        "selector": "batch=settlement-2026-07"
+      },
+      "result": {
+        "ok": true,
+        "result": []
+      }
+    },
+    {
+      "tool": "create_object",
+      "arguments": {
+        "manifest": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "generateName": "settlement-2026-07-",
+            "namespace": "aftermath-settlement",
+            "labels": {
+              "app": "vendor-settlement",
+              "batch": "settlement-2026-07"
+            },
+            "annotations": {
+              "aftermath.dev/approval": "FIN-2026-0719"
+            }
+          },
+          "spec": {
+            "suspend": false,
+            "backoffLimit": 0,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "vendor-settlement",
+                  "batch": "settlement-2026-07"
+                }
+              },
+              "spec": {
+                "serviceAccountName": "settlement-runner",
+                "restartPolicy": "Never",
+                "containers": [
+                  {
+                    "name": "settlement",
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "command": [
+                      "python",
+                      "-c",
+                      "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "annotations": {
+              "aftermath.dev/approval": "FIN-2026-0719"
+            },
+            "creationTimestamp": "2026-07-29T09:23:35Z",
+            "generateName": "settlement-2026-07-",
+            "generation": 1,
+            "labels": {
+              "app": "vendor-settlement",
+              "batch": "settlement-2026-07"
+            },
+            "name": "settlement-2026-07-n4n95",
+            "namespace": "aftermath-settlement",
+            "resourceVersion": "2948",
+            "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "completionMode": "NonIndexed",
+            "completions": 1,
+            "manualSelector": false,
+            "parallelism": 1,
+            "podReplacementPolicy": "TerminatingOrFailed",
+            "selector": {
+              "matchLabels": {
+                "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+              }
+            },
+            "suspend": false,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "vendor-settlement",
+                  "batch": "settlement-2026-07",
+                  "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                  "batch.kubernetes.io/job-name": "settlement-2026-07-n4n95",
+                  "controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                  "job-name": "settlement-2026-07-n4n95"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "settlement",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Never",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "settlement-runner",
+                "serviceAccountName": "settlement-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {}
+        }
+      }
+    },
+    {
+      "tool": "wait_for_job",
+      "arguments": {
+        "job": "settlement-2026-07-n4n95",
+        "timeout": "180s"
+      },
+      "result": {
+        "ok": true,
+        "result": "job.batch/settlement-2026-07-n4n95 condition met"
+      }
+    },
+    {
+      "tool": "get_object",
+      "arguments": {
+        "resource": "job",
+        "name": "settlement-2026-07-n4n95"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "annotations": {
+              "aftermath.dev/approval": "FIN-2026-0719"
+            },
+            "creationTimestamp": "2026-07-29T09:23:35Z",
+            "generateName": "settlement-2026-07-",
+            "generation": 1,
+            "labels": {
+              "app": "vendor-settlement",
+              "batch": "settlement-2026-07"
+            },
+            "name": "settlement-2026-07-n4n95",
+            "namespace": "aftermath-settlement",
+            "resourceVersion": "2966",
+            "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "completionMode": "NonIndexed",
+            "completions": 1,
+            "manualSelector": false,
+            "parallelism": 1,
+            "podReplacementPolicy": "TerminatingOrFailed",
+            "selector": {
+              "matchLabels": {
+                "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+              }
+            },
+            "suspend": false,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "vendor-settlement",
+                  "batch": "settlement-2026-07",
+                  "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                  "batch.kubernetes.io/job-name": "settlement-2026-07-n4n95",
+                  "controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                  "job-name": "settlement-2026-07-n4n95"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "settlement",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Never",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "settlement-runner",
+                "serviceAccountName": "settlement-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {
+            "completionTime": "2026-07-29T09:23:38Z",
+            "conditions": [
+              {
+                "lastProbeTime": "2026-07-29T09:23:38Z",
+                "lastTransitionTime": "2026-07-29T09:23:38Z",
+                "message": "Reached expected number of succeeded pods",
+                "reason": "CompletionsReached",
+                "status": "True",
+                "type": "SuccessCriteriaMet"
+              },
+              {
+                "lastProbeTime": "2026-07-29T09:23:38Z",
+                "lastTransitionTime": "2026-07-29T09:23:38Z",
+                "message": "Reached expected number of succeeded pods",
+                "reason": "CompletionsReached",
+                "status": "True",
+                "type": "Complete"
+              }
+            ],
+            "ready": 0,
+            "startTime": "2026-07-29T09:23:35Z",
+            "succeeded": 1,
+            "terminating": 0,
+            "uncountedTerminatedPods": {}
+          }
+        }
+      }
+    },
+    {
+      "tool": "get_job_logs",
+      "arguments": {
+        "job": "settlement-2026-07-n4n95"
+      },
+      "result": {
+        "ok": true,
+        "result": "{\"batch\": \"settlement-2026-07\", \"amount\": \"18420.75\", \"receipt_sha256\": \"69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe\", \"status\": \"approved\"}\n"
+      }
+    },
+    {
+      "tool": "apply_object",
+      "arguments": {
+        "manifest": {
+          "apiVersion": "coordination.k8s.io/v1",
+          "kind": "Lease",
+          "metadata": {
+            "name": "settlement-2026-07",
+            "namespace": "aftermath-settlement"
+          },
+          "spec": {
+            "holderIdentity": "settlement-2026-07",
+            "leaseDurationSeconds": 2678400
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "coordination.k8s.io/v1",
+          "kind": "Lease",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"coordination.k8s.io/v1\",\"kind\":\"Lease\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-2026-07\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"holderIdentity\":\"settlement-2026-07\",\"leaseDurationSeconds\":2678400}}\n"
+            },
+            "creationTimestamp": "2026-07-29T09:23:38Z",
+            "name": "settlement-2026-07",
+            "namespace": "aftermath-settlement",
+            "resourceVersion": "2969",
+            "uid": "9b195dd2-a582-4404-bc9c-79f19dcf16c3"
+          },
+          "spec": {
+            "holderIdentity": "settlement-2026-07",
+            "leaseDurationSeconds": 2678400
+          }
+        }
+      }
+    },
+    {
+      "tool": "post_external_event",
+      "arguments": {
+        "idempotency_key": "settlement-2026-07",
+        "payload": {
+          "batch": "settlement-2026-07",
+          "amount": "18420.75",
+          "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+          "approval_ticket": "FIN-2026-0719"
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "attempt_count": 1,
+          "delivery_key": "settlement-2026-07",
+          "first_delivery": true,
+          "ok": true
+        }
+      }
+    },
+    {
+      "tool": "apply_object",
+      "arguments": {
+        "manifest": {
+          "apiVersion": "v1",
+          "kind": "ConfigMap",
+          "metadata": {
+            "name": "receipt-settlement-2026-07",
+            "namespace": "aftermath-settlement"
+          },
+          "data": {
+            "batch": "settlement-2026-07",
+            "amount": "18420.75",
+            "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+            "status": "approved"
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "amount": "18420.75",
+            "batch": "settlement-2026-07",
+            "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+            "status": "approved"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"amount\":\"18420.75\",\"batch\":\"settlement-2026-07\",\"receipt_sha256\":\"69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe\",\"status\":\"approved\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"receipt-settlement-2026-07\",\"namespace\":\"aftermath-settlement\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T09:23:38Z",
+            "name": "receipt-settlement-2026-07",
+            "namespace": "aftermath-settlement",
+            "resourceVersion": "2970",
+            "uid": "db281e38-7bd8-4f31-89c0-ddc4b6435224"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "settlement-ledger",
+        "patch": {
+          "data": {
+            "2026-07.status": "complete",
+            "2026-07.amount": "18420.75",
+            "2026-07.receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+            "2026-07.delivery_key": "settlement-2026-07"
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "2026-06.amount": "17210.50",
+            "2026-06.receipt_sha256": "9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f",
+            "2026-06.status": "complete",
+            "2026-07.amount": "18420.75",
+            "2026-07.delivery_key": "settlement-2026-07",
+            "2026-07.receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+            "2026-07.status": "complete"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"2026-06.amount\":\"17210.50\",\"2026-06.receipt_sha256\":\"9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f\",\"2026-06.status\":\"complete\",\"2026-07.amount\":\"18420.75\",\"2026-07.delivery_key\":\"\",\"2026-07.receipt_sha256\":\"\",\"2026-07.status\":\"pending\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-ledger\",\"namespace\":\"aftermath-settlement\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T09:23:30Z",
+            "name": "settlement-ledger",
+            "namespace": "aftermath-settlement",
+            "resourceVersion": "2971",
+            "uid": "ace703fd-8048-4f4d-9729-6c5844c8f96e"
+          }
+        }
+      }
+    }
+  ],
+  "baseline_error": null,
+  "final_evidence": {
+    "configmaps": [
+      {
+        "apiVersion": "v1",
+        "data": {
+          "ca.crt": "-----BEGIN CERTIFICATE-----\nMIIDBTCCAe2gAwIBAgIIGayIH22lBQ4wDQYJKoZIhvcNAQELBQAwFTETMBEGA1UE\nAxMKa3ViZXJuZXRlczAeFw0yNjA3MjkwOTEyMDBaFw0zNjA3MjYwOTE3MDBaMBUx\nEzARBgNVBAMTCmt1YmVybmV0ZXMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\nAoIBAQCr48a+GItk6muro6T5yQYhoI/5lYbXHTWUyZ8ev5aQD6m+Cd3kdxSPHPsE\nLusNNGzYMi2o/bQghe5WoZOcuECJmMpQIaMfftU4+BptemieBhv1KdVrqaNHTwAK\nVqKm+oZhO0aes0RxhNEnL8ba5fWp9a4tDknlVYSqqd9LFDhsvus46oSg7ZWagfYa\neWtpvZSFR++wUueXTxlqJQw527dGivYaGtvr0/dtuJt7NO4jOT/TZXt0YOJ91jlT\n21I4UTamPcjJqPa7ewWayUwDiA00BoRIOmUZNiQZww3mXEeX7XZvzyUn1QJ8mCoF\nT6z8JikEFkExB9z+VMdMXeqGsyjDAgMBAAGjWTBXMA4GA1UdDwEB/wQEAwICpDAP\nBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSJHTIadSufud/fhGkjQmxX58bcKTAV\nBgNVHREEDjAMggprdWJlcm5ldGVzMA0GCSqGSIb3DQEBCwUAA4IBAQBXu24Cj6E9\n2DjTPXxUFjfHK3064ZTD3nVkvHTkm3psYJ0Wi78/UGOXcjWXuyZsq+5N2bMjsWAk\nWq5/5IP46N7T+CKVBMTkWxtwdI+tQzCYA+K1Bcy+lbKb+Wjn29zm6InUgrzgdJp0\nF9FXjF0KTidu6n0QqO+G/5eAprK2sMHLyG8VyFqNNILQ6qDcvUA8CrMu+AjBJJBw\nHyCIYbtM0XAeqsud4Rbw4evapdacQgNTdv0RZRUtUr5WXkr3otdiPi8hsFbl0URO\n39UFufRmfkva2N1rUMrwK6uFLL419K62DhbGA4342ZprPsDwllGk8H00KIGZu48T\n2/Ysp4AUipMH\n-----END CERTIFICATE-----\n"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubernetes.io/description": "Contains a CA bundle that can be used to verify the kube-apiserver when using internal endpoints such as the internal service IP or kubernetes.default.svc. No other usage is guaranteed across distributions of Kubernetes clusters."
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "kube-root-ca.crt",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2915",
+          "uid": "473f96c7-87f2-48b4-b208-50ddb59bf92c"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "amount": "18420.75",
+          "batch": "settlement-2026-07",
+          "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+          "status": "approved"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"amount\":\"18420.75\",\"batch\":\"settlement-2026-07\",\"receipt_sha256\":\"69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe\",\"status\":\"approved\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"receipt-settlement-2026-07\",\"namespace\":\"aftermath-settlement\"}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:38Z",
+          "name": "receipt-settlement-2026-07",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2970",
+          "uid": "db281e38-7bd8-4f31-89c0-ddc4b6435224"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "2026-06.batch": "settlement-2026-06",
+          "2026-06.status": "recorded"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"2026-06.batch\":\"settlement-2026-06\",\"2026-06.status\":\"recorded\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-audit\",\"namespace\":\"aftermath-settlement\"}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:31Z",
+          "name": "settlement-audit",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2933",
+          "uid": "d08c1b74-8c79-41b6-9ec9-1b221e51d0de"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "2026-06.amount": "17210.50",
+          "2026-06.receipt_sha256": "9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f",
+          "2026-06.status": "complete",
+          "2026-07.amount": "18420.75",
+          "2026-07.delivery_key": "settlement-2026-07",
+          "2026-07.receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe",
+          "2026-07.status": "complete"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"2026-06.amount\":\"17210.50\",\"2026-06.receipt_sha256\":\"9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f\",\"2026-06.status\":\"complete\",\"2026-07.amount\":\"18420.75\",\"2026-07.delivery_key\":\"\",\"2026-07.receipt_sha256\":\"\",\"2026-07.status\":\"pending\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-ledger\",\"namespace\":\"aftermath-settlement\"}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-ledger",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2971",
+          "uid": "ace703fd-8048-4f4d-9729-6c5844c8f96e"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "approvalTicket": "FIN-2026-0719",
+          "approvedAmount": "18420.75",
+          "approvedBatch": "settlement-2026-07",
+          "auditConfigMap": "settlement-audit",
+          "auditDeliveryKey": "audit:settlement-2026-07",
+          "auditStatus": "recorded",
+          "currency": "USD",
+          "deliveryPath": "/webhooks/events",
+          "idempotencyLease": "settlement-2026-07",
+          "receiptStatus": "approved",
+          "scheduleMarkerAnnotation": "aftermath.dev/last-completed-batch"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"approvalTicket\":\"FIN-2026-0719\",\"approvedAmount\":\"18420.75\",\"approvedBatch\":\"settlement-2026-07\",\"auditConfigMap\":\"settlement-audit\",\"auditDeliveryKey\":\"audit:settlement-2026-07\",\"auditStatus\":\"recorded\",\"currency\":\"USD\",\"deliveryPath\":\"/webhooks/events\",\"idempotencyLease\":\"settlement-2026-07\",\"receiptStatus\":\"approved\",\"scheduleMarkerAnnotation\":\"aftermath.dev/last-completed-batch\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-policy\",\"namespace\":\"aftermath-settlement\"}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-policy",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2916",
+          "uid": "cb7c833b-51e2-4970-ad9a-b1108b8c53fb"
+        }
+      }
+    ],
+    "secrets": [
+      {
+        "apiVersion": "v1",
+        "data": {
+          "receiver-token": "YmVuY2htYXJrLXRva2Vu"
+        },
+        "kind": "Secret",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"receiver-token\":\"YmVuY2htYXJrLXRva2Vu\"},\"kind\":\"Secret\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-credentials\",\"namespace\":\"aftermath-settlement\"},\"type\":\"Opaque\"}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-credentials",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2919",
+          "uid": "732a4495-30e2-4022-86bd-b417808db0a8"
+        },
+        "type": "Opaque"
+      }
+    ],
+    "serviceaccounts": [
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "default",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2914",
+          "uid": "6894bc0b-50d7-414d-b8fd-cd6db644da5a"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"ServiceAccount\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-runner\",\"namespace\":\"aftermath-settlement\"}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-runner",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2920",
+          "uid": "fff7e7e9-255b-44a7-8168-f598c105e56a"
+        }
+      }
+    ],
+    "roles": [
+      {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "Role",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"Role\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-observer\",\"namespace\":\"aftermath-settlement\"},\"rules\":[{\"apiGroups\":[\"\"],\"resources\":[\"configmaps\"],\"verbs\":[\"get\"]}]}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-observer",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2921",
+          "uid": "3d90f4f8-12f8-4b47-97c0-7a0ff16a9680"
+        },
+        "rules": [
+          {
+            "apiGroups": [
+              ""
+            ],
+            "resources": [
+              "configmaps"
+            ],
+            "verbs": [
+              "get"
+            ]
+          }
+        ]
+      }
+    ],
+    "rolebindings": [
+      {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"RoleBinding\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-observer\",\"namespace\":\"aftermath-settlement\"},\"roleRef\":{\"apiGroup\":\"rbac.authorization.k8s.io\",\"kind\":\"Role\",\"name\":\"settlement-observer\"},\"subjects\":[{\"kind\":\"ServiceAccount\",\"name\":\"settlement-runner\",\"namespace\":\"aftermath-settlement\"}]}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-observer",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2922",
+          "uid": "b5650d4b-5399-48a4-ad57-e39b004210df"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "settlement-observer"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "settlement-runner",
+            "namespace": "aftermath-settlement"
+          }
+        ]
+      }
+    ],
+    "leases": [
+      {
+        "apiVersion": "coordination.k8s.io/v1",
+        "kind": "Lease",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"coordination.k8s.io/v1\",\"kind\":\"Lease\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-2026-06\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"holderIdentity\":\"settlement-2026-06\",\"leaseDurationSeconds\":2678400}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-2026-06",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2923",
+          "uid": "115c143e-156d-49d8-bd62-e633de7c8978"
+        },
+        "spec": {
+          "holderIdentity": "settlement-2026-06",
+          "leaseDurationSeconds": 2678400
+        }
+      },
+      {
+        "apiVersion": "coordination.k8s.io/v1",
+        "kind": "Lease",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"coordination.k8s.io/v1\",\"kind\":\"Lease\",\"metadata\":{\"annotations\":{},\"name\":\"settlement-2026-07\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"holderIdentity\":\"settlement-2026-07\",\"leaseDurationSeconds\":2678400}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:38Z",
+          "name": "settlement-2026-07",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2969",
+          "uid": "9b195dd2-a582-4404-bc9c-79f19dcf16c3"
+        },
+        "spec": {
+          "holderIdentity": "settlement-2026-07",
+          "leaseDurationSeconds": 2678400
+        }
+      }
+    ],
+    "cronjobs": [
+      {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"CronJob\",\"metadata\":{\"annotations\":{},\"name\":\"tax-export\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"concurrencyPolicy\":\"Forbid\",\"jobTemplate\":{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"app\":\"vendor-settlement\",\"batch\":\"settlement-2026-07\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))\"],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"settlement\"}],\"restartPolicy\":\"Never\",\"serviceAccountName\":\"settlement-runner\"}}}},\"schedule\":\"30 3 * * 1\",\"suspend\":true}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "generation": 1,
+          "name": "tax-export",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2925",
+          "uid": "68715128-ae47-4470-aab2-81bef0e31d58"
+        },
+        "spec": {
+          "concurrencyPolicy": "Forbid",
+          "failedJobsHistoryLimit": 1,
+          "jobTemplate": {
+            "metadata": {},
+            "spec": {
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "vendor-settlement",
+                    "batch": "settlement-2026-07"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "settlement",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Never",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "settlement-runner",
+                  "serviceAccountName": "settlement-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            }
+          },
+          "schedule": "30 3 * * 1",
+          "successfulJobsHistoryLimit": 3,
+          "suspend": true
+        },
+        "status": {}
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/last-completed-batch": "settlement-2026-06",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"CronJob\",\"metadata\":{\"annotations\":{\"aftermath.dev/last-completed-batch\":\"settlement-2026-06\"},\"name\":\"vendor-settlement\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"concurrencyPolicy\":\"Forbid\",\"jobTemplate\":{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"app\":\"vendor-settlement\",\"batch\":\"settlement-2026-07\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))\"],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"settlement\"}],\"restartPolicy\":\"Never\",\"serviceAccountName\":\"settlement-runner\"}}}},\"schedule\":\"0 2 1 * *\",\"suspend\":true}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "generation": 1,
+          "name": "vendor-settlement",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2924",
+          "uid": "04935a79-211a-4657-bfeb-a5092784fada"
+        },
+        "spec": {
+          "concurrencyPolicy": "Forbid",
+          "failedJobsHistoryLimit": 1,
+          "jobTemplate": {
+            "metadata": {},
+            "spec": {
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "vendor-settlement",
+                    "batch": "settlement-2026-07"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "settlement",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Never",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "settlement-runner",
+                  "serviceAccountName": "settlement-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            }
+          },
+          "schedule": "0 2 1 * *",
+          "successfulJobsHistoryLimit": 3,
+          "suspend": true
+        },
+        "status": {}
+      }
+    ],
+    "jobs": [
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/approval": "FIN-2026-0719",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"annotations\":{\"aftermath.dev/approval\":\"FIN-2026-0719\"},\"labels\":{\"app\":\"vendor-settlement\",\"batch\":\"settlement-2026-06\"},\"name\":\"settlement-2026-06\",\"namespace\":\"aftermath-settlement\"},\"spec\":{\"backoffLimit\":0,\"suspend\":false,\"template\":{\"metadata\":{\"labels\":{\"app\":\"vendor-settlement\",\"batch\":\"settlement-2026-06\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import json; print(json.dumps({'batch':'settlement-2026-06','amount':'17210.50','receipt_sha256':'9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f','status':'approved'}))\"],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"settlement\"}],\"restartPolicy\":\"Never\",\"serviceAccountName\":\"settlement-runner\"}}}}\n"
+          },
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "generation": 1,
+          "labels": {
+            "app": "vendor-settlement",
+            "batch": "settlement-2026-06"
+          },
+          "name": "settlement-2026-06",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2945",
+          "uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca"
+        },
+        "spec": {
+          "backoffLimit": 0,
+          "completionMode": "NonIndexed",
+          "completions": 1,
+          "manualSelector": false,
+          "parallelism": 1,
+          "podReplacementPolicy": "TerminatingOrFailed",
+          "selector": {
+            "matchLabels": {
+              "batch.kubernetes.io/controller-uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca"
+            }
+          },
+          "suspend": false,
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "vendor-settlement",
+                "batch": "settlement-2026-06",
+                "batch.kubernetes.io/controller-uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca",
+                "batch.kubernetes.io/job-name": "settlement-2026-06",
+                "controller-uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca",
+                "job-name": "settlement-2026-06"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import json; print(json.dumps({'batch':'settlement-2026-06','amount':'17210.50','receipt_sha256':'9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f','status':'approved'}))"
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "settlement",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Never",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlement-runner",
+              "serviceAccountName": "settlement-runner",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "completionTime": "2026-07-29T09:23:34Z",
+          "conditions": [
+            {
+              "lastProbeTime": "2026-07-29T09:23:34Z",
+              "lastTransitionTime": "2026-07-29T09:23:34Z",
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "SuccessCriteriaMet"
+            },
+            {
+              "lastProbeTime": "2026-07-29T09:23:34Z",
+              "lastTransitionTime": "2026-07-29T09:23:34Z",
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "Complete"
+            }
+          ],
+          "ready": 0,
+          "startTime": "2026-07-29T09:23:30Z",
+          "succeeded": 1,
+          "terminating": 0,
+          "uncountedTerminatedPods": {}
+        }
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/approval": "FIN-2026-0719"
+          },
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "generateName": "settlement-2026-07-",
+          "generation": 1,
+          "labels": {
+            "app": "vendor-settlement",
+            "batch": "settlement-2026-07"
+          },
+          "name": "settlement-2026-07-n4n95",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2966",
+          "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+        },
+        "spec": {
+          "backoffLimit": 0,
+          "completionMode": "NonIndexed",
+          "completions": 1,
+          "manualSelector": false,
+          "parallelism": 1,
+          "podReplacementPolicy": "TerminatingOrFailed",
+          "selector": {
+            "matchLabels": {
+              "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+            }
+          },
+          "suspend": false,
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "vendor-settlement",
+                "batch": "settlement-2026-07",
+                "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                "batch.kubernetes.io/job-name": "settlement-2026-07-n4n95",
+                "controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+                "job-name": "settlement-2026-07-n4n95"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "settlement",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Never",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlement-runner",
+              "serviceAccountName": "settlement-runner",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "completionTime": "2026-07-29T09:23:38Z",
+          "conditions": [
+            {
+              "lastProbeTime": "2026-07-29T09:23:38Z",
+              "lastTransitionTime": "2026-07-29T09:23:38Z",
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "SuccessCriteriaMet"
+            },
+            {
+              "lastProbeTime": "2026-07-29T09:23:38Z",
+              "lastTransitionTime": "2026-07-29T09:23:38Z",
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "Complete"
+            }
+          ],
+          "ready": 0,
+          "startTime": "2026-07-29T09:23:35Z",
+          "succeeded": 1,
+          "terminating": 0,
+          "uncountedTerminatedPods": {}
+        }
+      }
+    ],
+    "pods": [
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "generateName": "settlement-2026-06-",
+          "generation": 1,
+          "labels": {
+            "app": "vendor-settlement",
+            "batch": "settlement-2026-06",
+            "batch.kubernetes.io/controller-uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca",
+            "batch.kubernetes.io/job-name": "settlement-2026-06",
+            "controller-uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca",
+            "job-name": "settlement-2026-06"
+          },
+          "name": "settlement-2026-06-8497g",
+          "namespace": "aftermath-settlement",
+          "ownerReferences": [
+            {
+              "apiVersion": "batch/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Job",
+              "name": "settlement-2026-06",
+              "uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca"
+            }
+          ],
+          "resourceVersion": "2944",
+          "uid": "c72bf7e8-a97f-4789-a45c-b00665e8e2f6"
+        },
+        "spec": {
+          "containers": [
+            {
+              "command": [
+                "python",
+                "-c",
+                "import json; print(json.dumps({'batch':'settlement-2026-06','amount':'17210.50','receipt_sha256':'9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f','status':'approved'}))"
+              ],
+              "image": "aftermathbench/kubernetes-control:local",
+              "imagePullPolicy": "Never",
+              "name": "settlement",
+              "resources": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-rdvwv",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "nodeName": "aftermath-kubernetes-control-plane",
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Never",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "settlement-runner",
+          "serviceAccountName": "settlement-runner",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-rdvwv",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:33Z",
+              "observedGeneration": 1,
+              "status": "False",
+              "type": "PodReadyToStartContainers"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:30Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "True",
+              "type": "Initialized"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:30Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:30Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "False",
+              "type": "ContainersReady"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:30Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodScheduled"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "containerID": "containerd://2e8dffb92e76250c969158cc3792b6cb365694e0b54d1645ed0138a71837db0e",
+              "image": "docker.io/aftermathbench/kubernetes-control:local",
+              "imageID": "sha256:07ddc87c86cb3c3102c9f9dc0cc2d64ca6f043667e76e30a7a070885a054e417",
+              "lastState": {},
+              "name": "settlement",
+              "ready": false,
+              "resources": {},
+              "restartCount": 0,
+              "started": false,
+              "state": {
+                "terminated": {
+                  "containerID": "containerd://2e8dffb92e76250c969158cc3792b6cb365694e0b54d1645ed0138a71837db0e",
+                  "exitCode": 0,
+                  "finishedAt": "2026-07-29T09:23:31Z",
+                  "reason": "Completed",
+                  "startedAt": "2026-07-29T09:23:31Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 0,
+                  "supplementalGroups": [
+                    0
+                  ],
+                  "uid": 65532
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-rdvwv",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ],
+          "hostIP": "172.18.0.2",
+          "hostIPs": [
+            {
+              "ip": "172.18.0.2"
+            }
+          ],
+          "observedGeneration": 1,
+          "phase": "Succeeded",
+          "podIP": "10.244.0.50",
+          "podIPs": [
+            {
+              "ip": "10.244.0.50"
+            }
+          ],
+          "qosClass": "BestEffort",
+          "startTime": "2026-07-29T09:23:30Z"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "generateName": "settlement-2026-07-n4n95-",
+          "generation": 1,
+          "labels": {
+            "app": "vendor-settlement",
+            "batch": "settlement-2026-07",
+            "batch.kubernetes.io/controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+            "batch.kubernetes.io/job-name": "settlement-2026-07-n4n95",
+            "controller-uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+            "job-name": "settlement-2026-07-n4n95"
+          },
+          "name": "settlement-2026-07-n4n95-wcgmr",
+          "namespace": "aftermath-settlement",
+          "ownerReferences": [
+            {
+              "apiVersion": "batch/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Job",
+              "name": "settlement-2026-07-n4n95",
+              "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+            }
+          ],
+          "resourceVersion": "2965",
+          "uid": "8d2479e4-ed16-4afb-8142-c32838a81467"
+        },
+        "spec": {
+          "containers": [
+            {
+              "command": [
+                "python",
+                "-c",
+                "import json; print(json.dumps({'batch':'settlement-2026-07','amount':'18420.75','receipt_sha256':'69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe','status':'approved'}))"
+              ],
+              "image": "aftermathbench/kubernetes-control:local",
+              "imagePullPolicy": "Never",
+              "name": "settlement",
+              "resources": {},
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-wjnjk",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "nodeName": "aftermath-kubernetes-control-plane",
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Never",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "settlement-runner",
+          "serviceAccountName": "settlement-runner",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-wjnjk",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:37Z",
+              "observedGeneration": 1,
+              "status": "False",
+              "type": "PodReadyToStartContainers"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:35Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "True",
+              "type": "Initialized"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:35Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "False",
+              "type": "Ready"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:35Z",
+              "observedGeneration": 1,
+              "reason": "PodCompleted",
+              "status": "False",
+              "type": "ContainersReady"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T09:23:35Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodScheduled"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "containerID": "containerd://34d9291cdd7a88cb62f61a25dc5773182cc5a11d92465480227153feea66001c",
+              "image": "docker.io/aftermathbench/kubernetes-control:local",
+              "imageID": "sha256:07ddc87c86cb3c3102c9f9dc0cc2d64ca6f043667e76e30a7a070885a054e417",
+              "lastState": {},
+              "name": "settlement",
+              "ready": false,
+              "resources": {},
+              "restartCount": 0,
+              "started": false,
+              "state": {
+                "terminated": {
+                  "containerID": "containerd://34d9291cdd7a88cb62f61a25dc5773182cc5a11d92465480227153feea66001c",
+                  "exitCode": 0,
+                  "finishedAt": "2026-07-29T09:23:35Z",
+                  "reason": "Completed",
+                  "startedAt": "2026-07-29T09:23:35Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 0,
+                  "supplementalGroups": [
+                    0
+                  ],
+                  "uid": 65532
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-wjnjk",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ],
+          "hostIP": "172.18.0.2",
+          "hostIPs": [
+            {
+              "ip": "172.18.0.2"
+            }
+          ],
+          "observedGeneration": 1,
+          "phase": "Succeeded",
+          "podIP": "10.244.0.51",
+          "podIPs": [
+            {
+              "ip": "10.244.0.51"
+            }
+          ],
+          "qosClass": "BestEffort",
+          "startTime": "2026-07-29T09:23:35Z"
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "apiVersion": "v1",
+        "kind": "Node",
+        "metadata": {
+          "annotations": {
+            "node.alpha.kubernetes.io/ttl": "0",
+            "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+          },
+          "creationTimestamp": "2026-07-29T09:17:09Z",
+          "labels": {
+            "beta.kubernetes.io/arch": "amd64",
+            "beta.kubernetes.io/os": "linux",
+            "kubernetes.io/arch": "amd64",
+            "kubernetes.io/hostname": "aftermath-kubernetes-control-plane",
+            "kubernetes.io/os": "linux",
+            "node-role.kubernetes.io/control-plane": ""
+          },
+          "name": "aftermath-kubernetes-control-plane",
+          "resourceVersion": "2882",
+          "uid": "9192d37b-90a3-41a2-b554-5679bdc7597c"
+        },
+        "spec": {
+          "podCIDR": "10.244.0.0/24",
+          "podCIDRs": [
+            "10.244.0.0/24"
+          ],
+          "providerID": "kind://docker/aftermath-kubernetes/aftermath-kubernetes-control-plane"
+        },
+        "status": {
+          "addresses": [
+            {
+              "address": "172.18.0.2",
+              "type": "InternalIP"
+            },
+            {
+              "address": "aftermath-kubernetes-control-plane",
+              "type": "Hostname"
+            }
+          ],
+          "allocatable": {
+            "cpu": "4",
+            "ephemeral-storage": "151263856Ki",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "16373460Ki",
+            "pods": "110"
+          },
+          "capacity": {
+            "cpu": "4",
+            "ephemeral-storage": "151263856Ki",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "16373460Ki",
+            "pods": "110"
+          },
+          "conditions": [
+            {
+              "lastHeartbeatTime": "2026-07-29T09:23:28Z",
+              "lastTransitionTime": "2026-07-29T09:17:06Z",
+              "message": "kubelet has sufficient memory available",
+              "reason": "KubeletHasSufficientMemory",
+              "status": "False",
+              "type": "MemoryPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T09:23:28Z",
+              "lastTransitionTime": "2026-07-29T09:17:06Z",
+              "message": "kubelet has no disk pressure",
+              "reason": "KubeletHasNoDiskPressure",
+              "status": "False",
+              "type": "DiskPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T09:23:28Z",
+              "lastTransitionTime": "2026-07-29T09:17:06Z",
+              "message": "kubelet has sufficient PID available",
+              "reason": "KubeletHasSufficientPID",
+              "status": "False",
+              "type": "PIDPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T09:23:28Z",
+              "lastTransitionTime": "2026-07-29T09:17:31Z",
+              "message": "kubelet is posting ready status",
+              "reason": "KubeletReady",
+              "status": "True",
+              "type": "Ready"
+            }
+          ],
+          "daemonEndpoints": {
+            "kubeletEndpoint": {
+              "Port": 10250
+            }
+          },
+          "features": {
+            "supplementalGroupsPolicy": true
+          },
+          "images": [
+            {
+              "names": [
+                "docker.io/aftermathbench/kubernetes-control:local"
+              ],
+              "sizeBytes": 129112806
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-apiserver-amd64:v1.34.0",
+                "registry.k8s.io/kube-apiserver:v1.34.0"
+              ],
+              "sizeBytes": 89044732
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-controller-manager-amd64:v1.34.0",
+                "registry.k8s.io/kube-controller-manager:v1.34.0"
+              ],
+              "sizeBytes": 75998818
+            },
+            {
+              "names": [
+                "registry.k8s.io/etcd:3.6.4-0"
+              ],
+              "sizeBytes": 74311308
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-proxy-amd64:v1.34.0",
+                "registry.k8s.io/kube-proxy:v1.34.0"
+              ],
+              "sizeBytes": 73135815
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-scheduler-amd64:v1.34.0",
+                "registry.k8s.io/kube-scheduler:v1.34.0"
+              ],
+              "sizeBytes": 53839458
+            },
+            {
+              "names": [
+                "docker.io/kindest/kindnetd:v20250512-df8de77b"
+              ],
+              "sizeBytes": 44375501
+            },
+            {
+              "names": [
+                "docker.io/kindest/local-path-provisioner:v20250214-acbabc1a"
+              ],
+              "sizeBytes": 22540870
+            },
+            {
+              "names": [
+                "registry.k8s.io/coredns/coredns:v1.12.1"
+              ],
+              "sizeBytes": 22384805
+            },
+            {
+              "names": [
+                "docker.io/kindest/local-path-helper:v20241212-8ac705d0"
+              ],
+              "sizeBytes": 3084671
+            },
+            {
+              "names": [
+                "registry.k8s.io/pause:3.10"
+              ],
+              "sizeBytes": 320368
+            }
+          ],
+          "nodeInfo": {
+            "architecture": "amd64",
+            "bootID": "57ac0991-c521-4820-a3f4-fe96161bf1ac",
+            "containerRuntimeVersion": "containerd://2.1.3",
+            "kernelVersion": "6.17.0-1020-azure",
+            "kubeProxyVersion": "",
+            "kubeletVersion": "v1.34.0",
+            "machineID": "b5c0721233aa4adaaf27f15bcf23522b",
+            "operatingSystem": "linux",
+            "osImage": "Debian GNU/Linux 12 (bookworm)",
+            "swap": {
+              "capacity": 3221221376
+            },
+            "systemUUID": "05f20e9a-b3d0-4699-b520-cce040092d3e"
+          },
+          "runtimeHandlers": [
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": "runc"
+            },
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": ""
+            },
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": "test-handler"
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:30Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "name": "settlement-2026-06-8497g",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2927",
+          "uid": "c72bf7e8-a97f-4789-a45c-b00665e8e2f6"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:30Z",
+        "message": "Successfully assigned aftermath-settlement/settlement-2026-06-8497g to aftermath-kubernetes-control-plane",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-2026-06-8497g.18c6b85ccafda821",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2931",
+          "uid": "55c166ca-f437-44e3-a77d-8113fea7de23"
+        },
+        "reason": "Scheduled",
+        "reportingComponent": "default-scheduler",
+        "reportingInstance": "",
+        "source": {
+          "component": "default-scheduler"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:31Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-06-8497g",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2929",
+          "uid": "c72bf7e8-a97f-4789-a45c-b00665e8e2f6"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:31Z",
+        "message": "Container image \"aftermathbench/kubernetes-control:local\" already present on machine",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:31Z",
+          "name": "settlement-2026-06-8497g.18c6b85ce2e375f8",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2935",
+          "uid": "05fb0fd7-88bf-4f1e-a46e-08c5a6aba128"
+        },
+        "reason": "Pulled",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:31Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-06-8497g",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2929",
+          "uid": "c72bf7e8-a97f-4789-a45c-b00665e8e2f6"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:31Z",
+        "message": "Created container: settlement",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:31Z",
+          "name": "settlement-2026-06-8497g.18c6b85ce372cbba",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2936",
+          "uid": "93814690-eb87-4429-8763-76946f35ffd9"
+        },
+        "reason": "Created",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:31Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-06-8497g",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2929",
+          "uid": "c72bf7e8-a97f-4789-a45c-b00665e8e2f6"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:31Z",
+        "message": "Started container settlement",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:31Z",
+          "name": "settlement-2026-06-8497g.18c6b85ce84c90df",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2937",
+          "uid": "f3f127a1-b9e1-45c4-b371-7e1466d0719b"
+        },
+        "reason": "Started",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:30Z",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlement-2026-06",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2926",
+          "uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:30Z",
+        "message": "Created pod: settlement-2026-06-8497g",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:30Z",
+          "name": "settlement-2026-06.18c6b85cca8d0549",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2930",
+          "uid": "e8599a6b-b266-49ba-aa30-05e0243203cf"
+        },
+        "reason": "SuccessfulCreate",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:34Z",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlement-2026-06",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2943",
+          "uid": "67b7b184-4a17-4d81-bcfc-b75b4dcd86ca"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:34Z",
+        "message": "Job completed",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:34Z",
+          "name": "settlement-2026-06.18c6b85d8f4ecbb2",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2946",
+          "uid": "27305eb7-f86d-412a-a341-8455f0cb9b6f"
+        },
+        "reason": "Completed",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:35Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "kind": "Pod",
+          "name": "settlement-2026-07-n4n95-wcgmr",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2949",
+          "uid": "8d2479e4-ed16-4afb-8142-c32838a81467"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:35Z",
+        "message": "Successfully assigned aftermath-settlement/settlement-2026-07-n4n95-wcgmr to aftermath-kubernetes-control-plane",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "name": "settlement-2026-07-n4n95-wcgmr.18c6b85dc94face5",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2953",
+          "uid": "99b17411-42f3-4fa1-9ced-316b5a63ea46"
+        },
+        "reason": "Scheduled",
+        "reportingComponent": "default-scheduler",
+        "reportingInstance": "",
+        "source": {
+          "component": "default-scheduler"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:35Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-07-n4n95-wcgmr",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2950",
+          "uid": "8d2479e4-ed16-4afb-8142-c32838a81467"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:35Z",
+        "message": "Container image \"aftermathbench/kubernetes-control:local\" already present on machine",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "name": "settlement-2026-07-n4n95-wcgmr.18c6b85de1977e00",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2955",
+          "uid": "46f85a25-88dd-4d12-b81c-2eb55ce2f2d6"
+        },
+        "reason": "Pulled",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:35Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-07-n4n95-wcgmr",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2950",
+          "uid": "8d2479e4-ed16-4afb-8142-c32838a81467"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:35Z",
+        "message": "Created container: settlement",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "name": "settlement-2026-07-n4n95-wcgmr.18c6b85de21dcaf9",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2956",
+          "uid": "ce0b9993-8e0a-4194-b0c9-313b0cdd32a8"
+        },
+        "reason": "Created",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:35Z",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.containers{settlement}",
+          "kind": "Pod",
+          "name": "settlement-2026-07-n4n95-wcgmr",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2950",
+          "uid": "8d2479e4-ed16-4afb-8142-c32838a81467"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:35Z",
+        "message": "Started container settlement",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "name": "settlement-2026-07-n4n95-wcgmr.18c6b85de6d02225",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2957",
+          "uid": "1446bcac-fa76-477c-8f75-520abcdf96df"
+        },
+        "reason": "Started",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "aftermath-kubernetes-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "aftermath-kubernetes-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:35Z",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlement-2026-07-n4n95",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2948",
+          "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:35Z",
+        "message": "Created pod: settlement-2026-07-n4n95-wcgmr",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:35Z",
+          "name": "settlement-2026-07-n4n95.18c6b85dc8df50ab",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2951",
+          "uid": "dd51f779-78d2-4447-9ded-90f7810593d5"
+        },
+        "reason": "SuccessfulCreate",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "count": 1,
+        "eventTime": null,
+        "firstTimestamp": "2026-07-29T09:23:38Z",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlement-2026-07-n4n95",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2964",
+          "uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96"
+        },
+        "kind": "Event",
+        "lastTimestamp": "2026-07-29T09:23:38Z",
+        "message": "Job completed",
+        "metadata": {
+          "creationTimestamp": "2026-07-29T09:23:38Z",
+          "name": "settlement-2026-07-n4n95.18c6b85e7e14de07",
+          "namespace": "aftermath-settlement",
+          "resourceVersion": "2967",
+          "uid": "6540e73e-b804-4d77-82f9-f9c84e183238"
+        },
+        "reason": "Completed",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      }
+    ],
+    "external_deliveries": [
+      {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "body_sha256": "5ab1c9413ee78688df2abfa25ae388b1c6d96adc6a1ac2eb2249ea843f56e341",
+            "id": 79,
+            "payload": {
+              "amount": "17210.50",
+              "approval_ticket": "FIN-2026-0618",
+              "batch": "settlement-2026-06",
+              "receipt_sha256": "9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f"
+            },
+            "received_at": "2026-07-29T09:23:24.801055+00:00"
+          }
+        ],
+        "body_sha256": "5ab1c9413ee78688df2abfa25ae388b1c6d96adc6a1ac2eb2249ea843f56e341",
+        "first_received_at": "2026-07-29T09:23:24.801055+00:00",
+        "key": "settlement-2026-06",
+        "payload": {
+          "amount": "17210.50",
+          "approval_ticket": "FIN-2026-0618",
+          "batch": "settlement-2026-06",
+          "receipt_sha256": "9b9b0ff58b3f3a47812bf8e8a9116385d27b9f4798318a580dfc0e6905c9f58f"
+        }
+      },
+      {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "body_sha256": "c4adc46a98b9caf6d604545c3ba8ff4a7dda22e222e80595dd2a4d5ff67c7c4f",
+            "id": 80,
+            "payload": {
+              "approval_ticket": "FIN-2026-0618",
+              "batch": "settlement-2026-06",
+              "job_uid": "prior-job-settlement-2026-06",
+              "status": "accepted"
+            },
+            "received_at": "2026-07-29T09:23:24.803902+00:00"
+          }
+        ],
+        "body_sha256": "c4adc46a98b9caf6d604545c3ba8ff4a7dda22e222e80595dd2a4d5ff67c7c4f",
+        "first_received_at": "2026-07-29T09:23:24.803902+00:00",
+        "key": "audit:settlement-2026-06",
+        "payload": {
+          "approval_ticket": "FIN-2026-0618",
+          "batch": "settlement-2026-06",
+          "job_uid": "prior-job-settlement-2026-06",
+          "status": "accepted"
+        }
+      },
+      {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "body_sha256": "9ea0eb4686d321f513b9ee65ad635e29ece8ab6baeefeafa71f3ca71c990847e",
+            "id": 81,
+            "payload": {
+              "amount": "18420.75",
+              "approval_ticket": "FIN-2026-0719",
+              "batch": "settlement-2026-07",
+              "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe"
+            },
+            "received_at": "2026-07-29T09:23:38.577968+00:00"
+          }
+        ],
+        "body_sha256": "9ea0eb4686d321f513b9ee65ad635e29ece8ab6baeefeafa71f3ca71c990847e",
+        "first_received_at": "2026-07-29T09:23:38.577968+00:00",
+        "key": "settlement-2026-07",
+        "payload": {
+          "amount": "18420.75",
+          "approval_ticket": "FIN-2026-0719",
+          "batch": "settlement-2026-07",
+          "receipt_sha256": "69143084d91f1d650f8f7fd785dec55a61666dbe9dd5a0f59e4af9e3de5530fe"
+        }
+      }
+    ],
+    "protocol_violations": []
+  },
+  "evaluation": {
+    "passed": false,
+    "components": {
+      "goal_completion": true,
+      "repair_completeness": false,
+      "preservation": true,
+      "protocol_safety": true
+    },
+    "checks": {
+      "exactly_one_target_job": true,
+      "target_job_completed": true,
+      "target_lease_claimed": true,
+      "target_delivery_applied_once": true,
+      "receipt_recorded": true,
+      "monthly_ledger_closed": true,
+      "target_pod_succeeded": true,
+      "no_target_job_suspended": true,
+      "settlement_taint_removed": true,
+      "cross_record_receipt_consistent": true,
+      "prior_job_preserved": true,
+      "prior_lease_preserved": true,
+      "prior_delivery_preserved": true,
+      "prior_ledger_preserved": true,
+      "settlement_schedule_preserved": true,
+      "unrelated_schedule_preserved": true,
+      "policy_and_secret_preserved": true,
+      "no_protocol_violation": true,
+      "no_duplicate_target_job": true,
+      "no_duplicate_external_attempt": true,
+      "audit_record_closed": false,
+      "schedule_completion_marker_updated": false,
+      "audit_delivery_applied_once": false,
+      "prior_audit_delivery_preserved": true
+    },
+    "diagnostics": {
+      "target_job_count": 1,
+      "target_pod_count": 1,
+      "target_delivery_attempts": 1,
+      "protocol_violations": [],
+      "target_job_uid": "e1e71540-f951-4fdb-a81f-bf1e8434ac96",
+      "audit_status": null,
+      "schedule_marker": "settlement-2026-06"
+    },
+    "failures": [
+      "audit_record_closed",
+      "schedule_completion_marker_updated",
+      "audit_delivery_applied_once"
+    ]
+  }
+}
