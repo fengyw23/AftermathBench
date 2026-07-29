@@ -34,6 +34,7 @@ from .native_family import (
 )
 from .native_forgejo_family import FORGEJO_RELEASE_FAMILY
 from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
+from .native_kubernetes_interaction_family import KUBERNETES_INTERACTION_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
 from .native_kubernetes_migration_family import KUBERNETES_MIGRATION_FAMILY
 from .native_kubernetes_settlement_family import (
@@ -692,6 +693,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         KUBERNETES_SETTLEMENT_V2_FAMILY,
         KUBERNETES_MIGRATION_FAMILY,
         KUBERNETES_CONSTRAINT_FAMILY,
+        KUBERNETES_INTERACTION_FAMILY,
     )
 )
 
