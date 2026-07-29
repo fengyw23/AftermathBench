@@ -35,7 +35,25 @@ model turns.
 
 
 KUBERNETES_MIGRATION_TOOL_DEFINITIONS = (
-    *KUBERNETES_SETTLEMENT_TOOL_DEFINITIONS,
+    *(
+        tool
+        for tool in KUBERNETES_SETTLEMENT_TOOL_DEFINITIONS
+        if tool.name not in {"remove_node_taint", "post_external_event"}
+    ),
+    ToolDefinition(
+        "post_external_event",
+        (
+            "Send one explicit event to the external release registry using "
+            "an idempotency key; duplicate attempts remain auditable."
+        ),
+        _schema(
+            {
+                "idempotency_key": {"type": "string"},
+                "payload": {"type": "object", "additionalProperties": True},
+            },
+            ("idempotency_key", "payload"),
+        ),
+    ),
     ToolDefinition(
         "wait_for_deployment",
         "Wait for one named Kubernetes Deployment to become Available.",

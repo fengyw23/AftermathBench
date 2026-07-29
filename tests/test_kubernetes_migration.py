@@ -60,6 +60,16 @@ class KubernetesMigrationBlueprintTest(unittest.TestCase):
             "wait_for_deployment",
             {tool.name for tool in family.tool_definitions},
         )
+        self.assertNotIn(
+            "remove_node_taint",
+            {tool.name for tool in family.tool_definitions},
+        )
+        external = next(
+            tool
+            for tool in family.tool_definitions
+            if tool.name == "post_external_event"
+        )
+        self.assertIn("release registry", external.description)
 
     def test_workflows_cover_boundaries_controls_and_secret_model_access(self) -> None:
         root = repository_root() / ".github" / "workflows"

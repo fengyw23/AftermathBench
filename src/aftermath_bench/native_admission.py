@@ -84,9 +84,7 @@ def _shared_dependency_count(
 
 
 def _recovery_signature(report: dict[str, Any]) -> tuple[tuple[str, int], ...]:
-    return tuple(
-        sorted(Counter(map(str, report.get("mutation_tools", ()))).items())
-    )
+    return tuple(sorted(Counter(map(str, report.get("mutation_tools", ()))).items()))
 
 
 def _varying_action_branch_count(
@@ -101,11 +99,7 @@ def _varying_action_branch_count(
     varying = 0
     for tools in branch_tools.values():
         counts = {
-            sum(
-                1
-                for tool in report.get("mutation_tools", ())
-                if str(tool) in tools
-            )
+            sum(1 for tool in report.get("mutation_tools", ()) if str(tool) in tools)
             for report in reports
         }
         if len(counts) > 1:
@@ -114,29 +108,43 @@ def _varying_action_branch_count(
 
 
 def _reference_evidence_groups(
-    query_tools: set[str],
+    query_source: set[str] | dict[str, Any],
     graph: dict[str, Any],
 ) -> dict[str, bool]:
+    if isinstance(query_source, dict):
+        query_tools = set(map(str, query_source.get("query_tools", ())))
+        query_events = tuple(query_source.get("query_events", ()))
+    else:
+        query_tools = query_source
+        query_events = ()
     configured = graph.get("evidence_tool_groups")
     if configured:
-        return {
-            str(group["id"]): bool(
-                query_tools & set(map(str, group.get("tools", ())))
-            )
-            for group in configured
-        }
+        results: dict[str, bool] = {}
+        for group in configured:
+            call_specs = tuple(group.get("calls", ()))
+            if call_specs:
+                results[str(group["id"])] = any(
+                    str(event.get("tool")) == str(spec.get("tool"))
+                    and all(
+                        event.get("arguments", {}).get(key) == value
+                        for key, value in spec.get("arguments", {}).items()
+                    )
+                    for event in query_events
+                    for spec in call_specs
+                )
+            else:
+                results[str(group["id"])] = bool(
+                    query_tools & set(map(str, group.get("tools", ())))
+                )
+        return results
     return {
         "documents": bool(query_tools & {"get_document", "list_documents"}),
-        "ledgers": bool(
-            query_tools & {"get_stock_ledger", "get_general_ledger"}
-        ),
+        "ledgers": bool(query_tools & {"get_stock_ledger", "get_general_ledger"}),
         "async": bool(
-            query_tools
-            & {"find_background_jobs", "wait_for_external_delivery"}
+            query_tools & {"find_background_jobs", "wait_for_external_delivery"}
         ),
         "external": bool(
-            query_tools
-            & {"get_external_delivery", "wait_for_external_delivery"}
+            query_tools & {"get_external_delivery", "wait_for_external_delivery"}
         ),
     }
 
@@ -184,8 +192,7 @@ def validate_native_scenario(
     successful_prefix_writes = sum(
         1
         for event in trace
-        if event.get("kind") == "write"
-        and event.get("status", "success") == "success"
+        if event.get("kind") == "write" and event.get("status", "success") == "success"
     )
     protected_effects = graph.get("protected_effects", ())
     entities = graph.get("entities", ())
@@ -196,25 +203,20 @@ def validate_native_scenario(
     variant_ids = {str(report["variant"]) for report in variants}
     expected_variants = set(scenario.variants)
     mutation_counts = [
-        len(report.get("mutation_tools", ()))
-        if "mutation_tools" in report
-        else int(report.get("selected_mutation") is not None)
+        (
+            len(report.get("mutation_tools", ()))
+            if "mutation_tools" in report
+            else int(report.get("selected_mutation") is not None)
+        )
         for report in variants
     ]
     downstream_repairs = [
         int(report.get("downstream_repairs", 0)) for report in variants
     ]
-    passed_references = [
-        bool(report.get("passed", False)) for report in variants
-    ]
+    passed_references = [bool(report.get("passed", False)) for report in variants]
     reference_query_groups = []
     for report in variants:
-        reference_query_groups.append(
-            _reference_evidence_groups(
-                set(map(str, report.get("query_tools", ()))),
-                graph,
-            )
-        )
+        reference_query_groups.append(_reference_evidence_groups(report, graph))
     minimum_reference_evidence_groups = min(
         (
             sum(bool(value) for value in groups.values())
@@ -223,8 +225,7 @@ def validate_native_scenario(
         default=0,
     )
     heuristic_rates = [
-        float(item.get("pass_rate", 1.0))
-        for item in baselines.get("heuristics", ())
+        float(item.get("pass_rate", 1.0)) for item in baselines.get("heuristics", ())
     ]
     matched_heuristic_successes = [
         bool(item.get("matched_group_success", True))
@@ -237,28 +238,20 @@ def validate_native_scenario(
     depth = _dependency_depth(entity_ids, relations)
     evidence_groups = graph.get("required_evidence_groups", ())
     single_query_decisive = bool(graph.get("single_query_decisive", True))
-    minimum_boundary_query_groups = int(
-        graph.get("minimum_boundary_query_groups", 0)
-    )
+    minimum_boundary_query_groups = int(graph.get("minimum_boundary_query_groups", 0))
     replay_results = (
-        replay_graph(graph, replay_evidence)
-        if replay_evidence is not None
-        else ()
+        replay_graph(graph, replay_evidence) if replay_evidence is not None else ()
     )
     relations_observed = bool(replay_results) and all(
         result.passed for result in replay_results
     )
-    replayed_relation_count = sum(
-        1 for result in replay_results if result.passed
-    )
+    replayed_relation_count = sum(1 for result in replay_results if result.passed)
     unsafe_actions = graph.get("unsafe_actions", ())
     shared_dependencies = _shared_dependency_count(
         protected_effects,
         relations,
     )
-    recovery_signatures = {
-        _recovery_signature(report) for report in variants
-    }
+    recovery_signatures = {_recovery_signature(report) for report in variants}
     semantic_directions = {
         str(report["semantic_recovery_direction"])
         for report in variants
@@ -281,9 +274,7 @@ def validate_native_scenario(
         "relation_type_count": len(relation_types),
         "dependency_depth": depth,
         "evidence_group_count": len(evidence_groups),
-        "minimum_reference_evidence_groups": (
-            minimum_reference_evidence_groups
-        ),
+        "minimum_reference_evidence_groups": (minimum_reference_evidence_groups),
         "single_query_decisive": single_query_decisive,
         "minimum_boundary_query_groups": minimum_boundary_query_groups,
         "all_relations_observed": relations_observed,
@@ -295,17 +286,14 @@ def validate_native_scenario(
         "shared_dependency_count": shared_dependencies,
         "distinct_recovery_signature_count": len(recovery_signatures),
         "semantic_recovery_direction_count": len(semantic_directions),
-        "required_semantic_recovery_direction_count": (
-            required_semantic_directions
-        ),
+        "required_semantic_recovery_direction_count": (required_semantic_directions),
         "varying_action_branch_count": varying_branches,
         "maximum_heuristic_pass_rate": maximum_heuristic_pass_rate,
     }
     checks = {
         "variant_coverage_complete": variant_ids == expected_variants,
         "reference_recovery_passes": (
-            len(passed_references) == len(expected_variants)
-            and all(passed_references)
+            len(passed_references) == len(expected_variants) and all(passed_references)
         ),
         "prefix_writes>=8": successful_prefix_writes >= 8,
         "protected_effects>=3": len(protected_effects) >= 3,
@@ -313,13 +301,9 @@ def validate_native_scenario(
         "dependency_depth>=5": depth >= 5,
         "relation_types>=8": len(relation_types) >= 8,
         "evidence_groups>=4": len(evidence_groups) >= 4,
-        "reference_uses_four_evidence_groups": (
-            minimum_reference_evidence_groups >= 4
-        ),
+        "reference_uses_four_evidence_groups": (minimum_reference_evidence_groups >= 4),
         "no_single_query_is_decisive": not single_query_decisive,
-        "minimum_boundary_query_groups>=2": (
-            minimum_boundary_query_groups >= 2
-        ),
+        "minimum_boundary_query_groups>=2": (minimum_boundary_query_groups >= 2),
         "all_relations_have_replay_evidence": relations_observed,
         "minimum_mutations>=4": minimum_mutations >= 4,
         "downstream_repairs>=2": minimum_downstream_repairs >= 2,
@@ -333,23 +317,16 @@ def validate_native_scenario(
         ),
         "varying_action_branches>=2": varying_branches >= 2,
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
-        "heuristic_matched_group_zero": not any(
-            matched_heuristic_successes
-        ),
+        "heuristic_matched_group_zero": not any(matched_heuristic_successes),
     }
     hard_passed = all(checks.values())
     requested_tier = scenario.tier
-    candidate_passed = all(
-        value
-        for name, value in checks.items()
-        if name != "minimum_mutations>=4"
-    ) and minimum_mutations >= 3
+    candidate_passed = (
+        all(value for name, value in checks.items() if name != "minimum_mutations>=4")
+        and minimum_mutations >= 3
+    )
     admitted_tier = (
-        "hard"
-        if hard_passed
-        else "candidate"
-        if candidate_passed
-        else "easy"
+        "hard" if hard_passed else "candidate" if candidate_passed else "easy"
     )
     if requested_tier == "hard":
         tier_consistent = hard_passed
@@ -367,7 +344,5 @@ def validate_native_scenario(
         passed=tier_consistent,
         checks=checks,
         observed=observed,
-        artifact_sha256={
-            name: _sha256(path) for name, path in paths.items()
-        },
+        artifact_sha256={name: _sha256(path) for name, path in paths.items()},
     )

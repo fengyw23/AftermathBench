@@ -42,14 +42,48 @@ class NativeAdmissionTest(unittest.TestCase):
             }
             for count in (1, 2, 3, 4)
         ]
-        directions = {
-            report["semantic_recovery_direction"] for report in reports
-        }
-        signatures = {
-            tuple(report["mutation_tools"]) for report in reports
-        }
+        directions = {report["semantic_recovery_direction"] for report in reports}
+        signatures = {tuple(report["mutation_tools"]) for report in reports}
         self.assertEqual(len(signatures), 4)
         self.assertEqual(len(directions), 1)
+
+    def test_argument_scoped_query_groups_require_distinct_native_reads(self) -> None:
+        graph = {
+            "evidence_tool_groups": [
+                {
+                    "id": "catalog",
+                    "calls": [
+                        {
+                            "tool": "get_object",
+                            "arguments": {"name": "database-catalog"},
+                        }
+                    ],
+                },
+                {
+                    "id": "routing",
+                    "calls": [
+                        {
+                            "tool": "list_objects",
+                            "arguments": {"resource": "services"},
+                        }
+                    ],
+                },
+            ]
+        }
+        groups = _reference_evidence_groups(
+            {
+                "query_tools": ["get_object"],
+                "query_events": [
+                    {
+                        "tool": "get_object",
+                        "arguments": {"name": "database-catalog"},
+                    }
+                ],
+            },
+            graph,
+        )
+        self.assertTrue(groups["catalog"])
+        self.assertFalse(groups["routing"])
 
     def test_payment_pilot_is_truthfully_classified_easy(self) -> None:
         path = next(
