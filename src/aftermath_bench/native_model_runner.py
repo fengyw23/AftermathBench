@@ -33,14 +33,15 @@ from .native_family import (
     NativeRuntimeContext,
 )
 from .native_forgejo_family import FORGEJO_RELEASE_FAMILY
+from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
+from .native_kubernetes_migration_family import KUBERNETES_MIGRATION_FAMILY
 from .native_kubernetes_settlement_family import (
     KUBERNETES_SETTLEMENT_FAMILY,
 )
 from .native_kubernetes_settlement_v2_family import (
     KUBERNETES_SETTLEMENT_V2_FAMILY,
 )
-from .native_kubernetes_migration_family import KUBERNETES_MIGRATION_FAMILY
 from .native_sales_family import SALES_RETURN_FAMILY
 from .native_scenario import NativeScenario, load_native_scenario
 from .schema import repository_root
@@ -395,12 +396,8 @@ def _diagnose(
 ) -> dict[str, Any]:
     calls = [call for turn in turns for call in turn["tool_calls"]]
     names = [call["name"] for call in calls]
-    query_names = [
-        name for name in names if name not in NATIVE_RETURN_MUTATIONS
-    ]
-    mutation_names = [
-        name for name in names if name in NATIVE_RETURN_MUTATIONS
-    ]
+    query_names = [name for name in names if name not in NATIVE_RETURN_MUTATIONS]
+    mutation_names = [name for name in names if name in NATIVE_RETURN_MUTATIONS]
     boundary_return = failure_report.get(
         "failure_boundary_evidence",
         {},
@@ -426,9 +423,7 @@ def _diagnose(
         == prefix.get("replacement_purchase_receipt")
     ]
     first_create_invoice_position = (
-        min(create_invoice_positions)
-        if create_invoice_positions
-        else None
+        min(create_invoice_positions) if create_invoice_positions else None
     )
     calls_before_invoice_create = (
         calls[:first_create_invoice_position]
@@ -442,18 +437,15 @@ def _diagnose(
         )
         or (
             call["name"] == "list_related_documents"
-            and call["arguments"].get("source_doctype")
-            == "Purchase Receipt"
+            and call["arguments"].get("source_doctype") == "Purchase Receipt"
             and call["arguments"].get("source_name")
             == prefix.get("replacement_purchase_receipt")
-            and call["arguments"].get("target_doctype")
-            == "Purchase Invoice"
+            and call["arguments"].get("target_doctype") == "Purchase Invoice"
         )
         or (
             call["name"] == "get_document"
             and call["arguments"].get("doctype") == "Purchase Invoice"
-            and str(call["arguments"].get("name"))
-            in existing_replacement_invoice_names
+            and str(call["arguments"].get("name")) in existing_replacement_invoice_names
         )
         for call in calls_before_invoice_create
     )
@@ -462,13 +454,10 @@ def _diagnose(
         and create_invoice_positions
         and not queried_linked_invoices
     )
-    unsafe_retry = (
-        int(boundary_return.get("docstatus", 0)) == 1
-        and any(
-            call["name"] == "submit_document"
-            and call["arguments"].get("name") == prefix["purchase_return"]
-            for call in calls
-        )
+    unsafe_retry = int(boundary_return.get("docstatus", 0)) == 1 and any(
+        call["name"] == "submit_document"
+        and call["arguments"].get("name") == prefix["purchase_return"]
+        for call in calls
     )
     evidence_groups = {
         "documents": (
@@ -477,8 +466,7 @@ def _diagnose(
             or "list_related_documents" in query_names
         ),
         "ledger": (
-            "get_stock_ledger" in query_names
-            or "get_general_ledger" in query_names
+            "get_stock_ledger" in query_names or "get_general_ledger" in query_names
         ),
         "async": (
             "find_background_jobs" in query_names
@@ -498,17 +486,18 @@ def _diagnose(
     elif unsafe_retry:
         primary_error = "state_inference_failure"
     elif created_without_linked_invoice_investigation or not (
-        evidence_groups["documents"]
-        and evidence_groups["async"]
+        evidence_groups["documents"] and evidence_groups["async"]
     ):
         primary_error = "investigation_failure"
-    elif not evaluation.components["preservation"] or not evaluation.components[
-        "protocol_safety"
-    ]:
+    elif (
+        not evaluation.components["preservation"]
+        or not evaluation.components["protocol_safety"]
+    ):
         primary_error = "scope_failure"
-    elif not evaluation.components["goal_completion"] or not evaluation.components[
-        "repair_completeness"
-    ]:
+    elif (
+        not evaluation.components["goal_completion"]
+        or not evaluation.components["repair_completeness"]
+    ):
         primary_error = "execution_failure"
     elif not evaluation.passed:
         primary_error = "verification_failure"
@@ -527,12 +516,8 @@ def _diagnose(
         "mutation_tool_count": len(mutation_names),
         "selected_mutations": mutation_names,
         "unsafe_return_resubmit": unsafe_retry,
-        "boundary_active_replacement_invoice_count": len(
-            boundary_replacement_invoices
-        ),
-        "queried_linked_invoices_before_create": (
-            queried_linked_invoices
-        ),
+        "boundary_active_replacement_invoice_count": len(boundary_replacement_invoices),
+        "queried_linked_invoices_before_create": (queried_linked_invoices),
         "created_invoice_without_linked_invoice_investigation": (
             created_without_linked_invoice_investigation
         ),
@@ -706,6 +691,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         KUBERNETES_SETTLEMENT_FAMILY,
         KUBERNETES_SETTLEMENT_V2_FAMILY,
         KUBERNETES_MIGRATION_FAMILY,
+        KUBERNETES_CONSTRAINT_FAMILY,
     )
 )
 
@@ -751,13 +737,9 @@ def run_live_native_agent(
     root = repository_root()
     scenario = load_native_scenario(scenario_path)
     family = NATIVE_FAMILY_REGISTRY.get(str(scenario.raw.get("family", "")))
-    credentials = json.loads(
-        Path(credentials_path).read_text(encoding="utf-8")
-    )
+    credentials = json.loads(Path(credentials_path).read_text(encoding="utf-8"))
     prefix = json.loads(Path(prefix_path).read_text(encoding="utf-8"))
-    failure_report = json.loads(
-        Path(failure_report_path).read_text(encoding="utf-8")
-    )
+    failure_report = json.loads(Path(failure_report_path).read_text(encoding="utf-8"))
     if failure_report["scenario_id"] != scenario.scenario_id:
         raise ValueError("failure report and scenario do not match")
     environment = family.build_environment(
