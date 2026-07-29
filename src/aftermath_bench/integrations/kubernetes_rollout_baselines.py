@@ -48,6 +48,8 @@ def _target_service_patch() -> dict[str, Any]:
 def _complete_fixed_downstream(
     environment: KubernetesRolloutEnvironment,
     trace: list[dict[str, Any]],
+    *,
+    rollout_timeout: str,
 ) -> None:
     _call(
         environment,
@@ -55,7 +57,7 @@ def _complete_fixed_downstream(
         "wait_for_rollout",
         deployment=PRIMARY_DEPLOYMENT,
         namespace=NAMESPACE,
-        timeout="180s",
+        timeout=rollout_timeout,
     )
     _call(
         environment,
@@ -106,7 +108,13 @@ def run_fixed_kubernetes_baseline(
         )
         return tuple(trace)
     if name == "assume_committed":
-        _complete_fixed_downstream(environment, trace)
+        # This policy deliberately assumes convergence.  Bound the doomed
+        # wait so a negative control does not consume the runtime budget.
+        _complete_fixed_downstream(
+            environment,
+            trace,
+            rollout_timeout="5s",
+        )
         return tuple(trace)
     if name == "repair_failed_record_only":
         deployment = _call(
@@ -217,5 +225,9 @@ def run_fixed_kubernetes_baseline(
                 node=str(node["metadata"]["name"]),
                 key=ROLLOUT_TAINT_KEY,
             )
-    _complete_fixed_downstream(environment, trace)
+    _complete_fixed_downstream(
+        environment,
+        trace,
+        rollout_timeout="180s",
+    )
     return tuple(trace)

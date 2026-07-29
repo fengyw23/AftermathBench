@@ -90,6 +90,41 @@ jobs:
               --output "$runtime_root/validation/$variant-reference.json"
           done
 
+      - name: Execute fixed recovery policies
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          mkdir -p "$runtime_root/baselines"
+          for baseline in \
+            no_op \
+            blind_retry \
+            assume_committed \
+            repair_failed_record_only \
+            publish_release_only \
+            replay_any_failed_delivery \
+            compact_state_tree
+          do
+            for variant in \
+              merge_request_not_reached \
+              merge_committed_delivery_succeeded \
+              merge_committed_receiver_accepted_response_lost \
+              merge_committed_delivery_request_not_reached
+            do
+              python scripts/manage_forgejo_stack.py restore \
+                --snapshot "$runtime_root/release-prefix.tar.gz"
+              python scripts/run_forgejo_merge_boundary.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$runtime_root/validation/release-prefix.json" \
+                --variant "$variant" \
+                --output "$runtime_root/baselines/$baseline-$variant-boundary.json"
+              python scripts/run_forgejo_release_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$runtime_root/validation/release-prefix.json" \
+                --output "$runtime_root/baselines/$baseline-$variant.json"
+            done
+          done
+
       - name: Capture native runtime diagnostics
         if: always()
         run: |
@@ -120,6 +155,7 @@ jobs:
           path: |
             ${{ runner.temp }}/forgejo-source-verification.json
             runtimes/forgejo/.runtime/validation/
+            runtimes/forgejo/.runtime/baselines/
           if-no-files-found: error
 
       - name: Tear down native services
