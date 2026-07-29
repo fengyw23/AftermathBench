@@ -298,7 +298,7 @@ def build_parser() -> argparse.ArgumentParser:
     native_model_run.add_argument(
         "--model-timeout-seconds",
         type=int,
-        default=300,
+        default=600,
         help="per-response provider timeout; native reasoning calls may be long",
     )
     native_model_run.add_argument(

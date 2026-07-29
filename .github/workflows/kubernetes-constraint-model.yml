@@ -117,6 +117,9 @@ jobs:
               fi
               model_completed=false
               for attempt in 1 2; do
+                # A timed-out trajectory may already have executed tools. Rebuild
+                # the authoritative boundary before every provider retry so the
+                # accepted trajectory contains every effect that it is scored on.
                 rm -f "$run_dir/${variant}.json"
                 python scripts/run_kubernetes_constraint_boundary.py \
                   --variant "$variant" \
@@ -130,7 +133,7 @@ jobs:
                     --credentials "$run_root/credentials.json" \
                     --prefix "$run_root/prefix.json" \
                     --failure-report "$run_dir/${variant}-failure.json" \
-                    --model-timeout-seconds 300 \
+                    --model-timeout-seconds 600 \
                     --max-turns 25 "${control_flag[@]}" \
                     --output "$run_dir/${variant}.json"; then
                   model_completed=true

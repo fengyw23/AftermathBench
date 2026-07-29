@@ -179,7 +179,15 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         self.assertNotIn("sk-", workflow)
         self.assertIn("for attempt in 1 2", workflow)
         self.assertIn("--execution-control", workflow)
-        self.assertIn("--model-timeout-seconds 300", workflow)
+        self.assertIn("--model-timeout-seconds 600", workflow)
+        retry_loop = workflow.index("for attempt in 1 2")
+        boundary_reset = workflow.index(
+            "run_kubernetes_constraint_boundary.py",
+            retry_loop,
+        )
+        model_call = workflow.index("run-native-model", boundary_reset)
+        self.assertLess(retry_loop, boundary_reset)
+        self.assertLess(boundary_reset, model_call)
         self.assertIn('rm -f "$run_root/credentials.json"', workflow)
 
 
