@@ -118,3 +118,11 @@ policy make iteration 003 too easy for the final hard split. It is retained as
 an easy directional pilot and execution-validity control. The next iteration
 must expose independent safety and consistency constraints from which the
 scope is derived, rather than naming the four recovery branches directly.
+
+Two corrected execution-control attempts each completed and passed three
+trajectories, but the fourth produced no trajectory after two provider read
+timeouts. The matched-group control score is therefore not reported. This does
+not block the pilot validity conclusion because the strictly harder ordinary
+condition completed and passed all four states, including the missing control
+variant. The next design is specified in
+`docs/KUBERNETES_CONSTRAINT_SCOPE_ITERATION_004.md`.
