@@ -133,6 +133,24 @@ class KubernetesApi:
             arguments.append("--ignore-not-found=true")
         return self._run(arguments).stdout.strip()
 
+    def wait_deleted(
+        self,
+        resource: str,
+        name: str,
+        *,
+        namespace: str | None = None,
+        timeout: str = "120s",
+    ) -> str:
+        arguments = [
+            "wait",
+            "--for=delete",
+            f"{resource}/{name}",
+            f"--timeout={timeout}",
+        ]
+        if namespace:
+            arguments.extend(("-n", namespace))
+        return self._run(arguments).stdout.strip()
+
     def wait_rollout(
         self,
         deployment: str,

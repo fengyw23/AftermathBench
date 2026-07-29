@@ -1,0 +1,95 @@
+name: kubernetes-runtime
+
+on:
+  push:
+    branches:
+      - kubernetes-runtime-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-native-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Run repository tests and runtime gates
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned kind from source
+        run: |
+          git clone --no-checkout \
+            https://github.com/kubernetes-sigs/kind.git \
+            "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
+            9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          python scripts/verify_kubernetes_sources.py \
+            --kind-source "$RUNNER_TEMP/kind" \
+            --output "$RUNNER_TEMP/kubernetes-source-verification.json"
+          mkdir -p "$RUNNER_TEMP/bin"
+          (
+            cd "$RUNNER_TEMP/kind"
+            go build -trimpath -o "$RUNNER_TEMP/bin/kind" .
+          )
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned kubectl
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" \
+            | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+
+      - name: Validate deterministic native reset
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          python scripts/validate_kubernetes_runtime.py validate-reset \
+            --output "$RUNNER_TEMP/kubernetes-reset-validation.json"
+
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/kubernetes-diagnostics"
+          kind export logs "$RUNNER_TEMP/kubernetes-diagnostics" \
+            --name aftermath-kubernetes || true
+          kubectl --context kind-aftermath-kubernetes get all \
+            --all-namespaces -o wide \
+            > "$RUNNER_TEMP/kubernetes-diagnostics/all-resources.txt" \
+            2>&1 || true
+          kubectl --context kind-aftermath-kubernetes get events \
+            --all-namespaces \
+            > "$RUNNER_TEMP/kubernetes-diagnostics/events.txt" \
+            2>&1 || true
+
+      - name: Upload native runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-runtime-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kubernetes-source-verification.json
+            ${{ runner.temp }}/kubernetes-reset-validation.json
+            ${{ runner.temp }}/kubernetes-diagnostics
+
+      - name: Purge native cluster
+        if: always()
+        run: python scripts/manage_kubernetes_stack.py down || true
