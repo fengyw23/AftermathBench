@@ -30,7 +30,7 @@ class ForgejoSourceAuditTest(unittest.TestCase):
         self.assertTrue(audit["verification"]["passed"])
         self.assertEqual(
             audit["verification"]["workflow_run_id"],
-            30426124296,
+            30428615076,
         )
         self.assertTrue(
             all(
