@@ -217,6 +217,8 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         self.assertLess(boundary_reset, model_call)
         self.assertIn("constraint-model-eval-retry", workflow)
         self.assertIn("--expected-variant", workflow)
+        self.assertIn("VARIANT_SUBSET", workflow)
+        self.assertIn("Optional comma-separated subset", workflow)
         self.assertIn('rm -f "$run_root/credentials.json"', workflow)
 
 

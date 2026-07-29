@@ -25,6 +25,11 @@ on:
         required: true
         default: false
         type: boolean
+      variants:
+        description: Optional comma-separated subset for infrastructure retries
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -53,6 +58,7 @@ jobs:
           requested_model="${{ inputs.model }}"
           requested_repetitions="${{ inputs.repetitions }}"
           requested_control="${{ inputs.execution_control }}"
+          requested_variants="${{ inputs.variants }}"
           test -n "$requested_model" || requested_model=glm-5.2
           test -n "$requested_repetitions" || requested_repetitions=1
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
@@ -61,11 +67,18 @@ jobs:
             else
               requested_control=false
             fi
+            # This legacy retry branch reconstructs the two states missing from
+            # run 30464383237. New retries should use workflow_dispatch and the
+            # variants input so the requested subset is explicit in run metadata.
+            if [ "$GITHUB_REF_NAME" = "constraint-model-eval-retry" ]; then
+              requested_variants="failed_migration_without_preparation,committed_cutover_without_publication"
+            fi
           fi
           test -n "$requested_control" || requested_control=false
           echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
           echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
           echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
+          echo "VARIANT_SUBSET=$requested_variants" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -v
 
       - name: Build kind and install kubectl
@@ -108,11 +121,15 @@ jobs:
             committed_cutover_without_publication
             committed_cutover_with_publication
           )
-          if [ "$GITHUB_REF_NAME" = "constraint-model-eval-retry" ]; then
-            variants=(
-              failed_migration_without_preparation
-              committed_cutover_without_publication
-            )
+          if [ -n "$VARIANT_SUBSET" ]; then
+            IFS=',' read -r -a variants <<< "$VARIANT_SUBSET"
+            allowed=" failed_migration_without_preparation failed_migration_with_preparation committed_cutover_without_publication committed_cutover_with_publication "
+            for variant in "${variants[@]}"; do
+              if [[ "$allowed" != *" $variant "* ]]; then
+                echo "unknown variant in retry subset: $variant" >&2
+                exit 2
+              fi
+            done
           fi
           for repetition in $(seq 1 "$REPETITIONS"); do
             run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
@@ -157,11 +174,11 @@ jobs:
             done
           done
           summary_scope=(--scenario "$SCENARIO")
-          if [ "$GITHUB_REF_NAME" = "constraint-model-eval-retry" ]; then
-            summary_scope=(
-              --expected-variant failed_migration_without_preparation
-              --expected-variant committed_cutover_without_publication
-            )
+          if [ -n "$VARIANT_SUBSET" ]; then
+            summary_scope=()
+            for variant in "${variants[@]}"; do
+              summary_scope+=(--expected-variant "$variant")
+            done
           fi
           python scripts/summarize_native_model_runs.py \
             --run-directory "$run_root/model-runs" \
