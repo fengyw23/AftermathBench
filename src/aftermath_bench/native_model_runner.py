@@ -32,6 +32,7 @@ from .native_family import (
     NativeFamilyRegistry,
     NativeRuntimeContext,
 )
+from .native_sales_family import SALES_RETURN_FAMILY
 from .native_scenario import NativeScenario, load_native_scenario
 from .schema import repository_root
 
@@ -687,7 +688,9 @@ PARTIAL_RETURN_FAMILY = NativeFamilyDefinition(
 )
 
 
-NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry((PARTIAL_RETURN_FAMILY,))
+NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
+    (PARTIAL_RETURN_FAMILY, SALES_RETURN_FAMILY)
+)
 
 
 def run_native_return_agent(

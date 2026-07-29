@@ -48,6 +48,28 @@ jobs:
             --credentials runtimes/erpnext/.runtime/credentials.json \
             --prefix "$run_root/prefix.json" \
             --output "$run_root/prefix-validation.json"
+          python scripts/manage_erpnext_stack.py snapshot \
+            --snapshot "$run_root/prefix.sql"
+
+      - name: Replay all four native failure boundaries
+        run: |
+          run_root="runtimes/erpnext/.runtime/sales-return"
+          mkdir -p "$run_root/failures"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/run_erpnext_sales_return_failure.py \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix "$run_root/prefix.json" \
+              --snapshot "$run_root/prefix.sql" \
+              --output "$run_root/failures/${variant}.json"
+          done
 
       - name: Remove credentials
         if: always()
@@ -62,6 +84,7 @@ jobs:
           path: |
             runtimes/erpnext/.runtime/sales-return/prefix.json
             runtimes/erpnext/.runtime/sales-return/prefix-validation.json
+            runtimes/erpnext/.runtime/sales-return/failures/
           if-no-files-found: warn
 
       - name: Tear down services
