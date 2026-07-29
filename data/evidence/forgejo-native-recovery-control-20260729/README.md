@@ -18,7 +18,11 @@ The evaluator checked the merged branch and linked issue, exactly one target
 release, exactly one external applied effect, and preservation of the unrelated
 Pull Request, issue, earlier release, webhook, and branch-protection rule.
 
-The prefix contains 15 successful native writes.  These artifacts establish
-that the runtime and four recovery boundaries are executable.  They do not by
-themselves establish hard-task admission; replayed fixed-policy results remain
-required for that claim.
+The prefix contains 15 successful native writes. Fixed policies were replayed
+in successful run
+[`30433322008`](https://github.com/fengyw23/AftermathBench/actions/runs/30433322008).
+The compact state tree passed `4/4`, so the maximum fixed-policy pass rate and
+matched-group success were both `100%`; `baselines/summary.json` therefore
+rejects this family from the hard split. GLM-5.2 independently passed `4/4`.
+The task remains an executable native easy/candidate control and a regression
+fixture for the harder Forgejo families, not a formal hard benchmark case.

@@ -1,0 +1,4065 @@
+{
+  "schema_version": "0.1",
+  "scenario_id": "k8s-deployment-rollout-dev-001",
+  "variant": "new_replicaset_created_rollout_pending",
+  "surface_result": "HTTP connection lost before a success response",
+  "visible_failure": {
+    "ok": false,
+    "error": "HTTP connection lost before a success response"
+  },
+  "prefix_fingerprint": "bbbe6be81ee60afc736302a7ec97fa8b7731c39dd2e3c06de441c94a49518ba5",
+  "prefix_trace": [
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "Namespace",
+        "name": "aftermath-rollout",
+        "namespace": null
+      },
+      "result": {
+        "kind": "Namespace",
+        "name": "aftermath-rollout",
+        "namespace": null,
+        "generation": null
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "ConfigMap",
+        "name": "checkout-release",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "ConfigMap",
+        "name": "checkout-release",
+        "namespace": "aftermath-rollout",
+        "generation": null
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "Service",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "Service",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "generation": null
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "generation": 1
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "HorizontalPodAutoscaler",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "HorizontalPodAutoscaler",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "generation": null
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "PodDisruptionBudget",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "PodDisruptionBudget",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "generation": 1
+      }
+    },
+    {
+      "tool": "apply",
+      "arguments": {
+        "kind": "Deployment",
+        "name": "billing-worker",
+        "namespace": "aftermath-rollout"
+      },
+      "result": {
+        "kind": "Deployment",
+        "name": "billing-worker",
+        "namespace": "aftermath-rollout",
+        "generation": 1
+      }
+    }
+  ],
+  "observed": {
+    "release": "v2",
+    "paused": false,
+    "v2_replicaset": true,
+    "v2_ready_replicas": 0,
+    "node_tainted": true
+  },
+  "deployment": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "annotations": {
+        "deployment.kubernetes.io/revision": "2",
+        "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"name\":\"checkout-api\",\"namespace\":\"aftermath-rollout\"},\"spec\":{\"replicas\":3,\"revisionHistoryLimit\":4,\"selector\":{\"matchLabels\":{\"app\":\"checkout-api\",\"track\":\"stable\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":1,\"maxUnavailable\":1},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"annotations\":{\"aftermath.dev/change-ticket\":\"CHG-2026-1042\",\"aftermath.dev/config-revision\":\"v1\"},\"labels\":{\"app\":\"checkout-api\",\"release\":\"v1\",\"track\":\"stable\"}},\"spec\":{\"containers\":[{\"image\":\"registry.k8s.io/pause:3.10\",\"name\":\"checkout\",\"resources\":{\"requests\":{\"cpu\":\"10m\",\"memory\":\"8Mi\"}}}]}}}}\n"
+      },
+      "creationTimestamp": "2026-07-29T08:11:58Z",
+      "generation": 2,
+      "name": "checkout-api",
+      "namespace": "aftermath-rollout",
+      "resourceVersion": "7265",
+      "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+    },
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 3,
+      "revisionHistoryLimit": 4,
+      "selector": {
+        "matchLabels": {
+          "app": "checkout-api",
+          "track": "stable"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": 1,
+          "maxUnavailable": 1
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v2"
+          },
+          "labels": {
+            "app": "checkout-api",
+            "release": "v2",
+            "track": "stable"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File"
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "terminationGracePeriodSeconds": 30
+        }
+      }
+    },
+    "status": {
+      "availableReplicas": 2,
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-07-29T08:12:00Z",
+          "lastUpdateTime": "2026-07-29T08:12:00Z",
+          "message": "Deployment has minimum availability.",
+          "reason": "MinimumReplicasAvailable",
+          "status": "True",
+          "type": "Available"
+        },
+        {
+          "lastTransitionTime": "2026-07-29T08:11:58Z",
+          "lastUpdateTime": "2026-07-29T08:12:00Z",
+          "message": "ReplicaSet \"checkout-api-7dcbc7c579\" is progressing.",
+          "reason": "ReplicaSetUpdated",
+          "status": "True",
+          "type": "Progressing"
+        }
+      ],
+      "observedGeneration": 2,
+      "readyReplicas": 2,
+      "replicas": 4,
+      "unavailableReplicas": 2,
+      "updatedReplicas": 2
+    }
+  },
+  "replicasets": [
+    {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "metadata": {
+        "annotations": {
+          "deployment.kubernetes.io/desired-replicas": "3",
+          "deployment.kubernetes.io/max-replicas": "4",
+          "deployment.kubernetes.io/revision": "1"
+        },
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "generation": 2,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "6c75686cd7",
+          "release": "v1",
+          "track": "stable"
+        },
+        "name": "checkout-api-6c75686cd7",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Deployment",
+            "name": "checkout-api",
+            "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+          }
+        ],
+        "resourceVersion": "7254",
+        "uid": "93253674-d98f-455a-a709-61349321e90a"
+      },
+      "spec": {
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app": "checkout-api",
+            "pod-template-hash": "6c75686cd7",
+            "track": "stable"
+          }
+        },
+        "template": {
+          "metadata": {
+            "annotations": {
+              "aftermath.dev/change-ticket": "CHG-2026-1042",
+              "aftermath.dev/config-revision": "v1"
+            },
+            "labels": {
+              "app": "checkout-api",
+              "pod-template-hash": "6c75686cd7",
+              "release": "v1",
+              "track": "stable"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "image": "registry.k8s.io/pause:3.10",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "checkout",
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "8Mi"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {},
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 2,
+        "fullyLabeledReplicas": 2,
+        "observedGeneration": 2,
+        "readyReplicas": 2,
+        "replicas": 2
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "ReplicaSet",
+      "metadata": {
+        "annotations": {
+          "deployment.kubernetes.io/desired-replicas": "3",
+          "deployment.kubernetes.io/max-replicas": "4",
+          "deployment.kubernetes.io/revision": "2"
+        },
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "generation": 2,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "7dcbc7c579",
+          "release": "v2",
+          "track": "stable"
+        },
+        "name": "checkout-api-7dcbc7c579",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Deployment",
+            "name": "checkout-api",
+            "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+          }
+        ],
+        "resourceVersion": "7264",
+        "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+      },
+      "spec": {
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app": "checkout-api",
+            "pod-template-hash": "7dcbc7c579",
+            "track": "stable"
+          }
+        },
+        "template": {
+          "metadata": {
+            "annotations": {
+              "aftermath.dev/change-ticket": "CHG-2026-1042",
+              "aftermath.dev/config-revision": "v2"
+            },
+            "labels": {
+              "app": "checkout-api",
+              "pod-template-hash": "7dcbc7c579",
+              "release": "v2",
+              "track": "stable"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "image": "registry.k8s.io/pause:3.10",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "checkout",
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "8Mi"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {},
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      },
+      "status": {
+        "fullyLabeledReplicas": 2,
+        "observedGeneration": 2,
+        "replicas": 2
+      }
+    }
+  ],
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "aftermath.dev/change-ticket": "CHG-2026-1042",
+          "aftermath.dev/config-revision": "v1"
+        },
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "generateName": "checkout-api-6c75686cd7-",
+        "generation": 1,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "6c75686cd7",
+          "release": "v1",
+          "track": "stable"
+        },
+        "name": "checkout-api-6c75686cd7-cclt8",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "checkout-api-6c75686cd7",
+            "uid": "93253674-d98f-455a-a709-61349321e90a"
+          }
+        ],
+        "resourceVersion": "7222",
+        "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.k8s.io/pause:3.10",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "checkout",
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-fsqvr",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "aftermath-kubernetes-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-fsqvr",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "10m",
+              "memory": "8Mi"
+            },
+            "containerID": "containerd://860b42c696837fd2a65501af4cf908a8711618d4a0af40ad56f3e8f860023056",
+            "image": "registry.k8s.io/pause:3.10",
+            "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+            "lastState": {},
+            "name": "checkout",
+            "ready": true,
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-07-29T08:11:59Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 65535
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-fsqvr",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.18.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.18.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.0.145",
+        "podIPs": [
+          {
+            "ip": "10.244.0.145"
+          }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-07-29T08:11:58Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "aftermath.dev/change-ticket": "CHG-2026-1042",
+          "aftermath.dev/config-revision": "v1"
+        },
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "generateName": "checkout-api-6c75686cd7-",
+        "generation": 1,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "6c75686cd7",
+          "release": "v1",
+          "track": "stable"
+        },
+        "name": "checkout-api-6c75686cd7-jvkql",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "checkout-api-6c75686cd7",
+            "uid": "93253674-d98f-455a-a709-61349321e90a"
+          }
+        ],
+        "resourceVersion": "7212",
+        "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.k8s.io/pause:3.10",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "checkout",
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-7kvw5",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "aftermath-kubernetes-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-7kvw5",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "10m",
+              "memory": "8Mi"
+            },
+            "containerID": "containerd://a331f9c581ab2b1c999cc9e6d5f5933ab9a884a6c37add77df6eb03a2e035823",
+            "image": "registry.k8s.io/pause:3.10",
+            "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+            "lastState": {},
+            "name": "checkout",
+            "ready": true,
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-07-29T08:11:59Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 65535
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-7kvw5",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.18.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.18.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.0.146",
+        "podIPs": [
+          {
+            "ip": "10.244.0.146"
+          }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-07-29T08:11:58Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "aftermath.dev/change-ticket": "CHG-2026-1042",
+          "aftermath.dev/config-revision": "v1"
+        },
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "deletionGracePeriodSeconds": 30,
+        "deletionTimestamp": "2026-07-29T08:12:30Z",
+        "generateName": "checkout-api-6c75686cd7-",
+        "generation": 2,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "6c75686cd7",
+          "release": "v1",
+          "track": "stable"
+        },
+        "name": "checkout-api-6c75686cd7-mqcq2",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "checkout-api-6c75686cd7",
+            "uid": "93253674-d98f-455a-a709-61349321e90a"
+          }
+        ],
+        "resourceVersion": "7245",
+        "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.k8s.io/pause:3.10",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "checkout",
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-qn6cb",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "aftermath-kubernetes-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-qn6cb",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:59Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "10m",
+              "memory": "8Mi"
+            },
+            "containerID": "containerd://4245ff65e731c7827466974ecc0ff870e2c40309e42c0866d229cb762c8850a9",
+            "image": "registry.k8s.io/pause:3.10",
+            "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+            "lastState": {},
+            "name": "checkout",
+            "ready": true,
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-07-29T08:11:59Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 65535
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-qn6cb",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.18.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.18.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.0.144",
+        "podIPs": [
+          {
+            "ip": "10.244.0.144"
+          }
+        ],
+        "qosClass": "Burstable",
+        "startTime": "2026-07-29T08:11:58Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "aftermath.dev/change-ticket": "CHG-2026-1042",
+          "aftermath.dev/config-revision": "v2"
+        },
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "generateName": "checkout-api-7dcbc7c579-",
+        "generation": 1,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "7dcbc7c579",
+          "release": "v2",
+          "track": "stable"
+        },
+        "name": "checkout-api-7dcbc7c579-mpzr9",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "checkout-api-7dcbc7c579",
+            "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+          }
+        ],
+        "resourceVersion": "7261",
+        "uid": "a6d52172-34dd-49c1-930d-eed4042c8ca3"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.k8s.io/pause:3.10",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "checkout",
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-dr2r7",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-dr2r7",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:12:00Z",
+            "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+            "observedGeneration": 1,
+            "reason": "Unschedulable",
+            "status": "False",
+            "type": "PodScheduled"
+          }
+        ],
+        "phase": "Pending",
+        "qosClass": "Burstable"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "aftermath.dev/change-ticket": "CHG-2026-1042",
+          "aftermath.dev/config-revision": "v2"
+        },
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "generateName": "checkout-api-7dcbc7c579-",
+        "generation": 1,
+        "labels": {
+          "app": "checkout-api",
+          "pod-template-hash": "7dcbc7c579",
+          "release": "v2",
+          "track": "stable"
+        },
+        "name": "checkout-api-7dcbc7c579-pxr6q",
+        "namespace": "aftermath-rollout",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "checkout-api-7dcbc7c579",
+            "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+          }
+        ],
+        "resourceVersion": "7244",
+        "uid": "c481970a-bbae-4ded-b753-071fd3a54d64"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "registry.k8s.io/pause:3.10",
+            "imagePullPolicy": "IfNotPresent",
+            "name": "checkout",
+            "resources": {
+              "requests": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-4mkgb",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-4mkgb",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-07-29T08:12:00Z",
+            "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+            "observedGeneration": 1,
+            "reason": "Unschedulable",
+            "status": "False",
+            "type": "PodScheduled"
+          }
+        ],
+        "phase": "Pending",
+        "qosClass": "Burstable"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "apiVersion": "v1",
+      "kind": "Node",
+      "metadata": {
+        "annotations": {
+          "node.alpha.kubernetes.io/ttl": "0",
+          "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+        },
+        "creationTimestamp": "2026-07-29T08:05:14Z",
+        "labels": {
+          "beta.kubernetes.io/arch": "amd64",
+          "beta.kubernetes.io/os": "linux",
+          "kubernetes.io/arch": "amd64",
+          "kubernetes.io/hostname": "aftermath-kubernetes-control-plane",
+          "kubernetes.io/os": "linux",
+          "node-role.kubernetes.io/control-plane": ""
+        },
+        "name": "aftermath-kubernetes-control-plane",
+        "resourceVersion": "7233",
+        "uid": "232a5162-d97f-4967-b446-3c0187081d36"
+      },
+      "spec": {
+        "podCIDR": "10.244.0.0/24",
+        "podCIDRs": [
+          "10.244.0.0/24"
+        ],
+        "providerID": "kind://docker/aftermath-kubernetes/aftermath-kubernetes-control-plane",
+        "taints": [
+          {
+            "effect": "NoSchedule",
+            "key": "aftermath.dev/rollout-pending",
+            "value": "true"
+          }
+        ]
+      },
+      "status": {
+        "addresses": [
+          {
+            "address": "172.18.0.2",
+            "type": "InternalIP"
+          },
+          {
+            "address": "aftermath-kubernetes-control-plane",
+            "type": "Hostname"
+          }
+        ],
+        "allocatable": {
+          "cpu": "4",
+          "ephemeral-storage": "151263856Ki",
+          "hugepages-1Gi": "0",
+          "hugepages-2Mi": "0",
+          "memory": "16373460Ki",
+          "pods": "110"
+        },
+        "capacity": {
+          "cpu": "4",
+          "ephemeral-storage": "151263856Ki",
+          "hugepages-1Gi": "0",
+          "hugepages-2Mi": "0",
+          "memory": "16373460Ki",
+          "pods": "110"
+        },
+        "conditions": [
+          {
+            "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+            "lastTransitionTime": "2026-07-29T08:05:12Z",
+            "message": "kubelet has sufficient memory available",
+            "reason": "KubeletHasSufficientMemory",
+            "status": "False",
+            "type": "MemoryPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+            "lastTransitionTime": "2026-07-29T08:05:12Z",
+            "message": "kubelet has no disk pressure",
+            "reason": "KubeletHasNoDiskPressure",
+            "status": "False",
+            "type": "DiskPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+            "lastTransitionTime": "2026-07-29T08:05:12Z",
+            "message": "kubelet has sufficient PID available",
+            "reason": "KubeletHasSufficientPID",
+            "status": "False",
+            "type": "PIDPressure"
+          },
+          {
+            "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+            "lastTransitionTime": "2026-07-29T08:05:36Z",
+            "message": "kubelet is posting ready status",
+            "reason": "KubeletReady",
+            "status": "True",
+            "type": "Ready"
+          }
+        ],
+        "daemonEndpoints": {
+          "kubeletEndpoint": {
+            "Port": 10250
+          }
+        },
+        "features": {
+          "supplementalGroupsPolicy": true
+        },
+        "images": [
+          {
+            "names": [
+              "registry.k8s.io/kube-apiserver-amd64:v1.34.0",
+              "registry.k8s.io/kube-apiserver:v1.34.0"
+            ],
+            "sizeBytes": 89044732
+          },
+          {
+            "names": [
+              "registry.k8s.io/kube-controller-manager-amd64:v1.34.0",
+              "registry.k8s.io/kube-controller-manager:v1.34.0"
+            ],
+            "sizeBytes": 75998818
+          },
+          {
+            "names": [
+              "registry.k8s.io/etcd:3.6.4-0"
+            ],
+            "sizeBytes": 74311308
+          },
+          {
+            "names": [
+              "registry.k8s.io/kube-proxy-amd64:v1.34.0",
+              "registry.k8s.io/kube-proxy:v1.34.0"
+            ],
+            "sizeBytes": 73135815
+          },
+          {
+            "names": [
+              "registry.k8s.io/kube-scheduler-amd64:v1.34.0",
+              "registry.k8s.io/kube-scheduler:v1.34.0"
+            ],
+            "sizeBytes": 53839458
+          },
+          {
+            "names": [
+              "docker.io/kindest/kindnetd:v20250512-df8de77b"
+            ],
+            "sizeBytes": 44375501
+          },
+          {
+            "names": [
+              "docker.io/kindest/local-path-provisioner:v20250214-acbabc1a"
+            ],
+            "sizeBytes": 22540870
+          },
+          {
+            "names": [
+              "registry.k8s.io/coredns/coredns:v1.12.1"
+            ],
+            "sizeBytes": 22384805
+          },
+          {
+            "names": [
+              "docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+              "docker.io/library/nginx:1.27.5-alpine"
+            ],
+            "sizeBytes": 20984244
+          },
+          {
+            "names": [
+              "docker.io/kindest/local-path-helper:v20241212-8ac705d0"
+            ],
+            "sizeBytes": 3084671
+          },
+          {
+            "names": [
+              "registry.k8s.io/pause:3.10"
+            ],
+            "sizeBytes": 320368
+          }
+        ],
+        "nodeInfo": {
+          "architecture": "amd64",
+          "bootID": "0bbae987-ddc3-4670-b4c4-883a6773bc9d",
+          "containerRuntimeVersion": "containerd://2.1.3",
+          "kernelVersion": "6.17.0-1020-azure",
+          "kubeProxyVersion": "",
+          "kubeletVersion": "v1.34.0",
+          "machineID": "83f6776c1d4b4e6ea8f83cb59dbf3b70",
+          "operatingSystem": "linux",
+          "osImage": "Debian GNU/Linux 12 (bookworm)",
+          "swap": {
+            "capacity": 3221221376
+          },
+          "systemUUID": "717263ad-2fcb-44d2-b990-28ff99c64752"
+        },
+        "runtimeHandlers": [
+          {
+            "features": {
+              "recursiveReadOnlyMounts": true,
+              "userNamespaces": true
+            },
+            "name": "runc"
+          },
+          {
+            "features": {
+              "recursiveReadOnlyMounts": true,
+              "userNamespaces": true
+            },
+            "name": ""
+          },
+          {
+            "features": {
+              "recursiveReadOnlyMounts": true,
+              "userNamespaces": true
+            },
+            "name": "test-handler"
+          }
+        ]
+      }
+    }
+  ],
+  "service": {
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+      "annotations": {
+        "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"name\":\"checkout-api\",\"namespace\":\"aftermath-rollout\"},\"spec\":{\"ports\":[{\"name\":\"app\",\"port\":8080,\"targetPort\":8080}],\"selector\":{\"app\":\"checkout-api\",\"track\":\"stable\"}}}\n"
+      },
+      "creationTimestamp": "2026-07-29T08:11:58Z",
+      "name": "checkout-api",
+      "namespace": "aftermath-rollout",
+      "resourceVersion": "7156",
+      "uid": "92bcfdac-4996-4354-84ff-5f46a5fcdd1a"
+    },
+    "spec": {
+      "clusterIP": "10.96.67.7",
+      "clusterIPs": [
+        "10.96.67.7"
+      ],
+      "internalTrafficPolicy": "Cluster",
+      "ipFamilies": [
+        "IPv4"
+      ],
+      "ipFamilyPolicy": "SingleStack",
+      "ports": [
+        {
+          "name": "app",
+          "port": 8080,
+          "protocol": "TCP",
+          "targetPort": 8080
+        }
+      ],
+      "selector": {
+        "app": "checkout-api",
+        "track": "stable"
+      },
+      "sessionAffinity": "None",
+      "type": "ClusterIP"
+    },
+    "status": {
+      "loadBalancer": {}
+    }
+  },
+  "protected_deployment": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "annotations": {
+        "deployment.kubernetes.io/revision": "1",
+        "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"name\":\"billing-worker\",\"namespace\":\"aftermath-rollout\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"billing-worker\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"billing-worker\",\"release\":\"v7\"}},\"spec\":{\"containers\":[{\"image\":\"registry.k8s.io/pause:3.10\",\"name\":\"billing\",\"resources\":{\"requests\":{\"cpu\":\"10m\",\"memory\":\"8Mi\"}}}]}}}}\n"
+      },
+      "creationTimestamp": "2026-07-29T08:11:58Z",
+      "generation": 1,
+      "name": "billing-worker",
+      "namespace": "aftermath-rollout",
+      "resourceVersion": "7232",
+      "uid": "700e373c-5b73-470a-b60e-d3b48b5dbec3"
+    },
+    "spec": {
+      "progressDeadlineSeconds": 600,
+      "replicas": 1,
+      "revisionHistoryLimit": 10,
+      "selector": {
+        "matchLabels": {
+          "app": "billing-worker"
+        }
+      },
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app": "billing-worker",
+            "release": "v7"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "billing",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File"
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "terminationGracePeriodSeconds": 30
+        }
+      }
+    },
+    "status": {
+      "availableReplicas": 1,
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-07-29T08:12:00Z",
+          "lastUpdateTime": "2026-07-29T08:12:00Z",
+          "message": "Deployment has minimum availability.",
+          "reason": "MinimumReplicasAvailable",
+          "status": "True",
+          "type": "Available"
+        },
+        {
+          "lastTransitionTime": "2026-07-29T08:11:58Z",
+          "lastUpdateTime": "2026-07-29T08:12:00Z",
+          "message": "ReplicaSet \"billing-worker-d74c59ccc\" has successfully progressed.",
+          "reason": "NewReplicaSetAvailable",
+          "status": "True",
+          "type": "Progressing"
+        }
+      ],
+      "observedGeneration": 1,
+      "readyReplicas": 1,
+      "replicas": 1,
+      "updatedReplicas": 1
+    }
+  },
+  "events": [
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "billing-worker-d74c59ccc-s96zl",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7188",
+        "uid": "c5b05241-fb13-44db-a19c-96cce019e62a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Successfully assigned aftermath-rollout/billing-worker-d74c59ccc-s96zl to aftermath-kubernetes-control-plane",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "billing-worker-d74c59ccc-s96zl.18c6b47577e510bb",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7194",
+        "uid": "748aa0fb-63d0-4f80-b4a6-8597a6f07647"
+      },
+      "reason": "Scheduled",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{billing}",
+        "kind": "Pod",
+        "name": "billing-worker-d74c59ccc-s96zl",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7191",
+        "uid": "c5b05241-fb13-44db-a19c-96cce019e62a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Container image \"registry.k8s.io/pause:3.10\" already present on machine",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "billing-worker-d74c59ccc-s96zl.18c6b47591b84498",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7208",
+        "uid": "d070e41e-30a8-439c-9e17-e58e7adea554"
+      },
+      "reason": "Pulled",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{billing}",
+        "kind": "Pod",
+        "name": "billing-worker-d74c59ccc-s96zl",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7191",
+        "uid": "c5b05241-fb13-44db-a19c-96cce019e62a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Created container: billing",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "billing-worker-d74c59ccc-s96zl.18c6b47592363bf8",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7209",
+        "uid": "208dab55-ac7b-44a7-9d4e-6b6eb0dcad10"
+      },
+      "reason": "Created",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{billing}",
+        "kind": "Pod",
+        "name": "billing-worker-d74c59ccc-s96zl",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7191",
+        "uid": "c5b05241-fb13-44db-a19c-96cce019e62a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Started container billing",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "billing-worker-d74c59ccc-s96zl.18c6b47596a4ff53",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7210",
+        "uid": "a240e03a-57e9-41dd-ae23-a8309782097b"
+      },
+      "reason": "Started",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "billing-worker-d74c59ccc",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7187",
+        "uid": "017b9779-f3b1-4b96-9f45-d3e179b2db2f"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Created pod: billing-worker-d74c59ccc-s96zl",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "billing-worker-d74c59ccc.18c6b4757774cd01",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7192",
+        "uid": "ad6db2e5-bc35-4519-b7e5-360751f48a19"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "billing-worker",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7186",
+        "uid": "700e373c-5b73-470a-b60e-d3b48b5dbec3"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Scaled up replica set billing-worker-d74c59ccc from 0 to 1",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "billing-worker.18c6b47576ae68b0",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7189",
+        "uid": "a40803cc-889b-408b-a136-568793523d87"
+      },
+      "reason": "ScalingReplicaSet",
+      "reportingComponent": "deployment-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "deployment-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-cclt8",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7167",
+        "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Successfully assigned aftermath-rollout/checkout-api-6c75686cd7-cclt8 to aftermath-kubernetes-control-plane",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7-cclt8.18c6b4756b86a625",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7175",
+        "uid": "c90b9d26-3cfe-488e-8021-e1e4706e11a1"
+      },
+      "reason": "Scheduled",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-cclt8",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7169",
+        "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Container image \"registry.k8s.io/pause:3.10\" already present on machine",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-cclt8.18c6b47586e76080",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7200",
+        "uid": "b7eebc8c-0097-47bd-9dc4-02070fb8186f"
+      },
+      "reason": "Pulled",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-cclt8",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7169",
+        "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Created container: checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-cclt8.18c6b475886b4dfd",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7204",
+        "uid": "14a47e9c-2acb-449f-b5d1-81ea3a04ce23"
+      },
+      "reason": "Created",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-cclt8",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7169",
+        "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Started container checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-cclt8.18c6b47590cc3c93",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7207",
+        "uid": "6fd85615-ff19-4b04-bdad-889b44ae2869"
+      },
+      "reason": "Started",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-jvkql",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7165",
+        "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Successfully assigned aftermath-rollout/checkout-api-6c75686cd7-jvkql to aftermath-kubernetes-control-plane",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7-jvkql.18c6b4756bd00459",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7179",
+        "uid": "664d24fd-6383-4d86-8f62-13e8342a2576"
+      },
+      "reason": "Scheduled",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-jvkql",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7174",
+        "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Container image \"registry.k8s.io/pause:3.10\" already present on machine",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-jvkql.18c6b47586e78264",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7201",
+        "uid": "d5961bb1-722e-45c3-84d9-f29f74cfce5d"
+      },
+      "reason": "Pulled",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-jvkql",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7174",
+        "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Created container: checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-jvkql.18c6b475886a7c10",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7203",
+        "uid": "4cbf78b4-77f1-4e4b-bcdb-93f0680702cc"
+      },
+      "reason": "Created",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-jvkql",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7174",
+        "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Started container checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-jvkql.18c6b4758fd6869b",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7206",
+        "uid": "b823bc93-f62a-4a0b-ac5b-c31677999330"
+      },
+      "reason": "Started",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-mqcq2",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7162",
+        "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Successfully assigned aftermath-rollout/checkout-api-6c75686cd7-mqcq2 to aftermath-kubernetes-control-plane",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7-mqcq2.18c6b4756a416e4b",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7168",
+        "uid": "2b4c4615-ea5f-4135-9ed5-9a824d970fa8"
+      },
+      "reason": "Scheduled",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-mqcq2",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7164",
+        "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Container image \"registry.k8s.io/pause:3.10\" already present on machine",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-mqcq2.18c6b47585f33965",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7199",
+        "uid": "2512f1cd-82ab-4ecb-843e-0f069590a1db"
+      },
+      "reason": "Pulled",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-mqcq2",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7164",
+        "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Created container: checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-mqcq2.18c6b47586eb1b57",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7202",
+        "uid": "a8dcdd6f-190a-494a-ba52-809ea8957ef7"
+      },
+      "reason": "Created",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:59Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "fieldPath": "spec.containers{checkout}",
+        "kind": "Pod",
+        "name": "checkout-api-6c75686cd7-mqcq2",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7164",
+        "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:59Z",
+      "message": "Started container checkout",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:59Z",
+        "name": "checkout-api-6c75686cd7-mqcq2.18c6b4758e8da911",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7205",
+        "uid": "598fafe0-f73e-4469-8b8c-9794da26260f"
+      },
+      "reason": "Started",
+      "reportingComponent": "kubelet",
+      "reportingInstance": "aftermath-kubernetes-control-plane",
+      "source": {
+        "component": "kubelet",
+        "host": "aftermath-kubernetes-control-plane"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-6c75686cd7",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7160",
+        "uid": "93253674-d98f-455a-a709-61349321e90a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Created pod: checkout-api-6c75686cd7-mqcq2",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7.18c6b47569c1ec83",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7166",
+        "uid": "b7926906-5c63-4268-a15f-3a79efcde0c7"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-6c75686cd7",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7160",
+        "uid": "93253674-d98f-455a-a709-61349321e90a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Created pod: checkout-api-6c75686cd7-jvkql",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7.18c6b4756a778864",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7171",
+        "uid": "a6079426-dee1-44cb-bc56-c8abb4f2556b"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-6c75686cd7",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7160",
+        "uid": "93253674-d98f-455a-a709-61349321e90a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Created pod: checkout-api-6c75686cd7-cclt8",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api-6c75686cd7.18c6b4756a868eca",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7176",
+        "uid": "4bd1e232-741e-4c04-a719-e0965f68388e"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-6c75686cd7",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7239",
+        "uid": "93253674-d98f-455a-a709-61349321e90a"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Deleted pod: checkout-api-6c75686cd7-mqcq2",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api-6c75686cd7.18c6b475dca39405",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7250",
+        "uid": "3ec8c4ba-f587-4c52-b5dc-85017208a93b"
+      },
+      "reason": "SuccessfulDelete",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "checkout-api-7dcbc7c579-mpzr9",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7255",
+        "uid": "a6d52172-34dd-49c1-930d-eed4042c8ca3"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api-7dcbc7c579-mpzr9.18c6b475de06d87e",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7260",
+        "uid": "de6b44fc-efea-48b4-9c6b-1ebb4c606691"
+      },
+      "reason": "FailedScheduling",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Warning"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "name": "checkout-api-7dcbc7c579-pxr6q",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7238",
+        "uid": "c481970a-bbae-4ded-b753-071fd3a54d64"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api-7dcbc7c579-pxr6q.18c6b475db8a4640",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7243",
+        "uid": "099940aa-ca1d-4a1f-bade-23376e45c1ca"
+      },
+      "reason": "FailedScheduling",
+      "reportingComponent": "default-scheduler",
+      "reportingInstance": "",
+      "source": {
+        "component": "default-scheduler"
+      },
+      "type": "Warning"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-7dcbc7c579",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7235",
+        "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Created pod: checkout-api-7dcbc7c579-pxr6q",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api-7dcbc7c579.18c6b475db8d699e",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7241",
+        "uid": "7522310e-904d-4fc7-989c-26289615e58c"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "name": "checkout-api-7dcbc7c579",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7253",
+        "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Created pod: checkout-api-7dcbc7c579-mpzr9",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api-7dcbc7c579.18c6b475de0d8227",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7259",
+        "uid": "b135f9c1-6471-41f9-aae2-7e74dcc74a78"
+      },
+      "reason": "SuccessfulCreate",
+      "reportingComponent": "replicaset-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "replicaset-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:11:58Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7159",
+        "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:11:58Z",
+      "message": "Scaled up replica set checkout-api-6c75686cd7 from 0 to 3",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "name": "checkout-api.18c6b47569587b2d",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7161",
+        "uid": "dc06ffbe-8bec-4bd2-9387-2e11dcd33bea"
+      },
+      "reason": "ScalingReplicaSet",
+      "reportingComponent": "deployment-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "deployment-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7234",
+        "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Scaled up replica set checkout-api-7dcbc7c579 from 0 to 1",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api.18c6b475db06a192",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7236",
+        "uid": "ffffebad-d67c-465d-9fe8-f6aed48f9138"
+      },
+      "reason": "ScalingReplicaSet",
+      "reportingComponent": "deployment-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "deployment-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7234",
+        "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Scaled down replica set checkout-api-6c75686cd7 from 3 to 2",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api.18c6b475dc1fcd78",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7246",
+        "uid": "c1438b36-7b94-4d1d-9dc9-6f913fff93a4"
+      },
+      "reason": "ScalingReplicaSet",
+      "reportingComponent": "deployment-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "deployment-controller"
+      },
+      "type": "Normal"
+    },
+    {
+      "apiVersion": "v1",
+      "count": 1,
+      "eventTime": null,
+      "firstTimestamp": "2026-07-29T08:12:00Z",
+      "involvedObject": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7237",
+        "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+      },
+      "kind": "Event",
+      "lastTimestamp": "2026-07-29T08:12:00Z",
+      "message": "Scaled up replica set checkout-api-7dcbc7c579 from 1 to 2",
+      "metadata": {
+        "creationTimestamp": "2026-07-29T08:12:00Z",
+        "name": "checkout-api.18c6b475dda786c2",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7257",
+        "uid": "4d3c2813-0f16-4698-9713-b07471f8a89c"
+      },
+      "reason": "ScalingReplicaSet",
+      "reportingComponent": "deployment-controller",
+      "reportingInstance": "",
+      "source": {
+        "component": "deployment-controller"
+      },
+      "type": "Normal"
+    }
+  ],
+  "failure_boundary_evidence": {
+    "deployment": {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "annotations": {
+          "deployment.kubernetes.io/revision": "2",
+          "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"name\":\"checkout-api\",\"namespace\":\"aftermath-rollout\"},\"spec\":{\"replicas\":3,\"revisionHistoryLimit\":4,\"selector\":{\"matchLabels\":{\"app\":\"checkout-api\",\"track\":\"stable\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":1,\"maxUnavailable\":1},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"annotations\":{\"aftermath.dev/change-ticket\":\"CHG-2026-1042\",\"aftermath.dev/config-revision\":\"v1\"},\"labels\":{\"app\":\"checkout-api\",\"release\":\"v1\",\"track\":\"stable\"}},\"spec\":{\"containers\":[{\"image\":\"registry.k8s.io/pause:3.10\",\"name\":\"checkout\",\"resources\":{\"requests\":{\"cpu\":\"10m\",\"memory\":\"8Mi\"}}}]}}}}\n"
+        },
+        "creationTimestamp": "2026-07-29T08:11:58Z",
+        "generation": 2,
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "resourceVersion": "7265",
+        "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+      },
+      "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 3,
+        "revisionHistoryLimit": 4,
+        "selector": {
+          "matchLabels": {
+            "app": "checkout-api",
+            "track": "stable"
+          }
+        },
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 1
+          },
+          "type": "RollingUpdate"
+        },
+        "template": {
+          "metadata": {
+            "annotations": {
+              "aftermath.dev/change-ticket": "CHG-2026-1042",
+              "aftermath.dev/config-revision": "v2"
+            },
+            "labels": {
+              "app": "checkout-api",
+              "release": "v2",
+              "track": "stable"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "image": "registry.k8s.io/pause:3.10",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "checkout",
+                "resources": {
+                  "requests": {
+                    "cpu": "10m",
+                    "memory": "8Mi"
+                  }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+              }
+            ],
+            "dnsPolicy": "ClusterFirst",
+            "restartPolicy": "Always",
+            "schedulerName": "default-scheduler",
+            "securityContext": {},
+            "terminationGracePeriodSeconds": 30
+          }
+        }
+      },
+      "status": {
+        "availableReplicas": 2,
+        "conditions": [
+          {
+            "lastTransitionTime": "2026-07-29T08:12:00Z",
+            "lastUpdateTime": "2026-07-29T08:12:00Z",
+            "message": "Deployment has minimum availability.",
+            "reason": "MinimumReplicasAvailable",
+            "status": "True",
+            "type": "Available"
+          },
+          {
+            "lastTransitionTime": "2026-07-29T08:11:58Z",
+            "lastUpdateTime": "2026-07-29T08:12:00Z",
+            "message": "ReplicaSet \"checkout-api-7dcbc7c579\" is progressing.",
+            "reason": "ReplicaSetUpdated",
+            "status": "True",
+            "type": "Progressing"
+          }
+        ],
+        "observedGeneration": 2,
+        "readyReplicas": 2,
+        "replicas": 4,
+        "unavailableReplicas": 2,
+        "updatedReplicas": 2
+      }
+    },
+    "replicasets": [
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/desired-replicas": "3",
+            "deployment.kubernetes.io/max-replicas": "4",
+            "deployment.kubernetes.io/revision": "1"
+          },
+          "creationTimestamp": "2026-07-29T08:11:58Z",
+          "generation": 2,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "6c75686cd7",
+            "release": "v1",
+            "track": "stable"
+          },
+          "name": "checkout-api-6c75686cd7",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Deployment",
+              "name": "checkout-api",
+              "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+            }
+          ],
+          "resourceVersion": "7254",
+          "uid": "93253674-d98f-455a-a709-61349321e90a"
+        },
+        "spec": {
+          "replicas": 2,
+          "selector": {
+            "matchLabels": {
+              "app": "checkout-api",
+              "pod-template-hash": "6c75686cd7",
+              "track": "stable"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "aftermath.dev/change-ticket": "CHG-2026-1042",
+                "aftermath.dev/config-revision": "v1"
+              },
+              "labels": {
+                "app": "checkout-api",
+                "pod-template-hash": "6c75686cd7",
+                "release": "v1",
+                "track": "stable"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "image": "registry.k8s.io/pause:3.10",
+                  "imagePullPolicy": "IfNotPresent",
+                  "name": "checkout",
+                  "resources": {
+                    "requests": {
+                      "cpu": "10m",
+                      "memory": "8Mi"
+                    }
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 2,
+          "fullyLabeledReplicas": 2,
+          "observedGeneration": 2,
+          "readyReplicas": 2,
+          "replicas": 2
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/desired-replicas": "3",
+            "deployment.kubernetes.io/max-replicas": "4",
+            "deployment.kubernetes.io/revision": "2"
+          },
+          "creationTimestamp": "2026-07-29T08:12:00Z",
+          "generation": 2,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "7dcbc7c579",
+            "release": "v2",
+            "track": "stable"
+          },
+          "name": "checkout-api-7dcbc7c579",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "Deployment",
+              "name": "checkout-api",
+              "uid": "eb1332d9-1449-4be9-9772-b9a43368d649"
+            }
+          ],
+          "resourceVersion": "7264",
+          "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+        },
+        "spec": {
+          "replicas": 2,
+          "selector": {
+            "matchLabels": {
+              "app": "checkout-api",
+              "pod-template-hash": "7dcbc7c579",
+              "track": "stable"
+            }
+          },
+          "template": {
+            "metadata": {
+              "annotations": {
+                "aftermath.dev/change-ticket": "CHG-2026-1042",
+                "aftermath.dev/config-revision": "v2"
+              },
+              "labels": {
+                "app": "checkout-api",
+                "pod-template-hash": "7dcbc7c579",
+                "release": "v2",
+                "track": "stable"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "image": "registry.k8s.io/pause:3.10",
+                  "imagePullPolicy": "IfNotPresent",
+                  "name": "checkout",
+                  "resources": {
+                    "requests": {
+                      "cpu": "10m",
+                      "memory": "8Mi"
+                    }
+                  },
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "fullyLabeledReplicas": 2,
+          "observedGeneration": 2,
+          "replicas": 2
+        }
+      }
+    ],
+    "pods": [
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v1"
+          },
+          "creationTimestamp": "2026-07-29T08:11:58Z",
+          "generateName": "checkout-api-6c75686cd7-",
+          "generation": 1,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "6c75686cd7",
+            "release": "v1",
+            "track": "stable"
+          },
+          "name": "checkout-api-6c75686cd7-cclt8",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "ReplicaSet",
+              "name": "checkout-api-6c75686cd7",
+              "uid": "93253674-d98f-455a-a709-61349321e90a"
+            }
+          ],
+          "resourceVersion": "7222",
+          "uid": "082c0358-fb5c-4b70-8248-6adc71daf168"
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-fsqvr",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "nodeName": "aftermath-kubernetes-control-plane",
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "default",
+          "serviceAccountName": "default",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-fsqvr",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodReadyToStartContainers"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Initialized"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Ready"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "ContainersReady"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodScheduled"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "allocatedResources": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              },
+              "containerID": "containerd://860b42c696837fd2a65501af4cf908a8711618d4a0af40ad56f3e8f860023056",
+              "image": "registry.k8s.io/pause:3.10",
+              "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+              "lastState": {},
+              "name": "checkout",
+              "ready": true,
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "restartCount": 0,
+              "started": true,
+              "state": {
+                "running": {
+                  "startedAt": "2026-07-29T08:11:59Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 0,
+                  "supplementalGroups": [
+                    0
+                  ],
+                  "uid": 65535
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-fsqvr",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ],
+          "hostIP": "172.18.0.2",
+          "hostIPs": [
+            {
+              "ip": "172.18.0.2"
+            }
+          ],
+          "observedGeneration": 1,
+          "phase": "Running",
+          "podIP": "10.244.0.145",
+          "podIPs": [
+            {
+              "ip": "10.244.0.145"
+            }
+          ],
+          "qosClass": "Burstable",
+          "startTime": "2026-07-29T08:11:58Z"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v1"
+          },
+          "creationTimestamp": "2026-07-29T08:11:58Z",
+          "generateName": "checkout-api-6c75686cd7-",
+          "generation": 1,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "6c75686cd7",
+            "release": "v1",
+            "track": "stable"
+          },
+          "name": "checkout-api-6c75686cd7-jvkql",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "ReplicaSet",
+              "name": "checkout-api-6c75686cd7",
+              "uid": "93253674-d98f-455a-a709-61349321e90a"
+            }
+          ],
+          "resourceVersion": "7212",
+          "uid": "693c2a1b-3c1d-4660-8952-27faec4c08aa"
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-7kvw5",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "nodeName": "aftermath-kubernetes-control-plane",
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "default",
+          "serviceAccountName": "default",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-7kvw5",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodReadyToStartContainers"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Initialized"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Ready"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "ContainersReady"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodScheduled"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "allocatedResources": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              },
+              "containerID": "containerd://a331f9c581ab2b1c999cc9e6d5f5933ab9a884a6c37add77df6eb03a2e035823",
+              "image": "registry.k8s.io/pause:3.10",
+              "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+              "lastState": {},
+              "name": "checkout",
+              "ready": true,
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "restartCount": 0,
+              "started": true,
+              "state": {
+                "running": {
+                  "startedAt": "2026-07-29T08:11:59Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 0,
+                  "supplementalGroups": [
+                    0
+                  ],
+                  "uid": 65535
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-7kvw5",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ],
+          "hostIP": "172.18.0.2",
+          "hostIPs": [
+            {
+              "ip": "172.18.0.2"
+            }
+          ],
+          "observedGeneration": 1,
+          "phase": "Running",
+          "podIP": "10.244.0.146",
+          "podIPs": [
+            {
+              "ip": "10.244.0.146"
+            }
+          ],
+          "qosClass": "Burstable",
+          "startTime": "2026-07-29T08:11:58Z"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v1"
+          },
+          "creationTimestamp": "2026-07-29T08:11:58Z",
+          "deletionGracePeriodSeconds": 30,
+          "deletionTimestamp": "2026-07-29T08:12:30Z",
+          "generateName": "checkout-api-6c75686cd7-",
+          "generation": 2,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "6c75686cd7",
+            "release": "v1",
+            "track": "stable"
+          },
+          "name": "checkout-api-6c75686cd7-mqcq2",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "ReplicaSet",
+              "name": "checkout-api-6c75686cd7",
+              "uid": "93253674-d98f-455a-a709-61349321e90a"
+            }
+          ],
+          "resourceVersion": "7245",
+          "uid": "d8fd4db6-1163-4688-a3fb-4230a2c8457f"
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-qn6cb",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "nodeName": "aftermath-kubernetes-control-plane",
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "default",
+          "serviceAccountName": "default",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-qn6cb",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodReadyToStartContainers"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Initialized"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "Ready"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:59Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "ContainersReady"
+            },
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:11:58Z",
+              "observedGeneration": 1,
+              "status": "True",
+              "type": "PodScheduled"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "allocatedResources": {
+                "cpu": "10m",
+                "memory": "8Mi"
+              },
+              "containerID": "containerd://4245ff65e731c7827466974ecc0ff870e2c40309e42c0866d229cb762c8850a9",
+              "image": "registry.k8s.io/pause:3.10",
+              "imageID": "sha256:873ed75102791e5b0b8a7fcd41606c92fcec98d56d05ead4ac5131650004c136",
+              "lastState": {},
+              "name": "checkout",
+              "ready": true,
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "restartCount": 0,
+              "started": true,
+              "state": {
+                "running": {
+                  "startedAt": "2026-07-29T08:11:59Z"
+                }
+              },
+              "user": {
+                "linux": {
+                  "gid": 0,
+                  "supplementalGroups": [
+                    0
+                  ],
+                  "uid": 65535
+                }
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-qn6cb",
+                  "readOnly": true,
+                  "recursiveReadOnly": "Disabled"
+                }
+              ]
+            }
+          ],
+          "hostIP": "172.18.0.2",
+          "hostIPs": [
+            {
+              "ip": "172.18.0.2"
+            }
+          ],
+          "observedGeneration": 1,
+          "phase": "Running",
+          "podIP": "10.244.0.144",
+          "podIPs": [
+            {
+              "ip": "10.244.0.144"
+            }
+          ],
+          "qosClass": "Burstable",
+          "startTime": "2026-07-29T08:11:58Z"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v2"
+          },
+          "creationTimestamp": "2026-07-29T08:12:00Z",
+          "generateName": "checkout-api-7dcbc7c579-",
+          "generation": 1,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "7dcbc7c579",
+            "release": "v2",
+            "track": "stable"
+          },
+          "name": "checkout-api-7dcbc7c579-mpzr9",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "ReplicaSet",
+              "name": "checkout-api-7dcbc7c579",
+              "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+            }
+          ],
+          "resourceVersion": "7261",
+          "uid": "a6d52172-34dd-49c1-930d-eed4042c8ca3"
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-dr2r7",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "default",
+          "serviceAccountName": "default",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-dr2r7",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:12:00Z",
+              "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+              "observedGeneration": 1,
+              "reason": "Unschedulable",
+              "status": "False",
+              "type": "PodScheduled"
+            }
+          ],
+          "phase": "Pending",
+          "qosClass": "Burstable"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "annotations": {
+            "aftermath.dev/change-ticket": "CHG-2026-1042",
+            "aftermath.dev/config-revision": "v2"
+          },
+          "creationTimestamp": "2026-07-29T08:12:00Z",
+          "generateName": "checkout-api-7dcbc7c579-",
+          "generation": 1,
+          "labels": {
+            "app": "checkout-api",
+            "pod-template-hash": "7dcbc7c579",
+            "release": "v2",
+            "track": "stable"
+          },
+          "name": "checkout-api-7dcbc7c579-pxr6q",
+          "namespace": "aftermath-rollout",
+          "ownerReferences": [
+            {
+              "apiVersion": "apps/v1",
+              "blockOwnerDeletion": true,
+              "controller": true,
+              "kind": "ReplicaSet",
+              "name": "checkout-api-7dcbc7c579",
+              "uid": "6863e9d6-41f4-485c-a5e3-a0a8abd25869"
+            }
+          ],
+          "resourceVersion": "7244",
+          "uid": "c481970a-bbae-4ded-b753-071fd3a54d64"
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "registry.k8s.io/pause:3.10",
+              "imagePullPolicy": "IfNotPresent",
+              "name": "checkout",
+              "resources": {
+                "requests": {
+                  "cpu": "10m",
+                  "memory": "8Mi"
+                }
+              },
+              "terminationMessagePath": "/dev/termination-log",
+              "terminationMessagePolicy": "File",
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                  "name": "kube-api-access-4mkgb",
+                  "readOnly": true
+                }
+              ]
+            }
+          ],
+          "dnsPolicy": "ClusterFirst",
+          "enableServiceLinks": true,
+          "preemptionPolicy": "PreemptLowerPriority",
+          "priority": 0,
+          "restartPolicy": "Always",
+          "schedulerName": "default-scheduler",
+          "securityContext": {},
+          "serviceAccount": "default",
+          "serviceAccountName": "default",
+          "terminationGracePeriodSeconds": 30,
+          "tolerations": [
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/not-ready",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            },
+            {
+              "effect": "NoExecute",
+              "key": "node.kubernetes.io/unreachable",
+              "operator": "Exists",
+              "tolerationSeconds": 300
+            }
+          ],
+          "volumes": [
+            {
+              "name": "kube-api-access-4mkgb",
+              "projected": {
+                "defaultMode": 420,
+                "sources": [
+                  {
+                    "serviceAccountToken": {
+                      "expirationSeconds": 3607,
+                      "path": "token"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "items": [
+                        {
+                          "key": "ca.crt",
+                          "path": "ca.crt"
+                        }
+                      ],
+                      "name": "kube-root-ca.crt"
+                    }
+                  },
+                  {
+                    "downwardAPI": {
+                      "items": [
+                        {
+                          "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "metadata.namespace"
+                          },
+                          "path": "namespace"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "status": {
+          "conditions": [
+            {
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-07-29T08:12:00Z",
+              "message": "0/1 nodes are available: 1 node(s) had untolerated taint {aftermath.dev/rollout-pending: true}. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+              "observedGeneration": 1,
+              "reason": "Unschedulable",
+              "status": "False",
+              "type": "PodScheduled"
+            }
+          ],
+          "phase": "Pending",
+          "qosClass": "Burstable"
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "apiVersion": "v1",
+        "kind": "Node",
+        "metadata": {
+          "annotations": {
+            "node.alpha.kubernetes.io/ttl": "0",
+            "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+          },
+          "creationTimestamp": "2026-07-29T08:05:14Z",
+          "labels": {
+            "beta.kubernetes.io/arch": "amd64",
+            "beta.kubernetes.io/os": "linux",
+            "kubernetes.io/arch": "amd64",
+            "kubernetes.io/hostname": "aftermath-kubernetes-control-plane",
+            "kubernetes.io/os": "linux",
+            "node-role.kubernetes.io/control-plane": ""
+          },
+          "name": "aftermath-kubernetes-control-plane",
+          "resourceVersion": "7233",
+          "uid": "232a5162-d97f-4967-b446-3c0187081d36"
+        },
+        "spec": {
+          "podCIDR": "10.244.0.0/24",
+          "podCIDRs": [
+            "10.244.0.0/24"
+          ],
+          "providerID": "kind://docker/aftermath-kubernetes/aftermath-kubernetes-control-plane",
+          "taints": [
+            {
+              "effect": "NoSchedule",
+              "key": "aftermath.dev/rollout-pending",
+              "value": "true"
+            }
+          ]
+        },
+        "status": {
+          "addresses": [
+            {
+              "address": "172.18.0.2",
+              "type": "InternalIP"
+            },
+            {
+              "address": "aftermath-kubernetes-control-plane",
+              "type": "Hostname"
+            }
+          ],
+          "allocatable": {
+            "cpu": "4",
+            "ephemeral-storage": "151263856Ki",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "16373460Ki",
+            "pods": "110"
+          },
+          "capacity": {
+            "cpu": "4",
+            "ephemeral-storage": "151263856Ki",
+            "hugepages-1Gi": "0",
+            "hugepages-2Mi": "0",
+            "memory": "16373460Ki",
+            "pods": "110"
+          },
+          "conditions": [
+            {
+              "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+              "lastTransitionTime": "2026-07-29T08:05:12Z",
+              "message": "kubelet has sufficient memory available",
+              "reason": "KubeletHasSufficientMemory",
+              "status": "False",
+              "type": "MemoryPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+              "lastTransitionTime": "2026-07-29T08:05:12Z",
+              "message": "kubelet has no disk pressure",
+              "reason": "KubeletHasNoDiskPressure",
+              "status": "False",
+              "type": "DiskPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+              "lastTransitionTime": "2026-07-29T08:05:12Z",
+              "message": "kubelet has sufficient PID available",
+              "reason": "KubeletHasSufficientPID",
+              "status": "False",
+              "type": "PIDPressure"
+            },
+            {
+              "lastHeartbeatTime": "2026-07-29T08:11:55Z",
+              "lastTransitionTime": "2026-07-29T08:05:36Z",
+              "message": "kubelet is posting ready status",
+              "reason": "KubeletReady",
+              "status": "True",
+              "type": "Ready"
+            }
+          ],
+          "daemonEndpoints": {
+            "kubeletEndpoint": {
+              "Port": 10250
+            }
+          },
+          "features": {
+            "supplementalGroupsPolicy": true
+          },
+          "images": [
+            {
+              "names": [
+                "registry.k8s.io/kube-apiserver-amd64:v1.34.0",
+                "registry.k8s.io/kube-apiserver:v1.34.0"
+              ],
+              "sizeBytes": 89044732
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-controller-manager-amd64:v1.34.0",
+                "registry.k8s.io/kube-controller-manager:v1.34.0"
+              ],
+              "sizeBytes": 75998818
+            },
+            {
+              "names": [
+                "registry.k8s.io/etcd:3.6.4-0"
+              ],
+              "sizeBytes": 74311308
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-proxy-amd64:v1.34.0",
+                "registry.k8s.io/kube-proxy:v1.34.0"
+              ],
+              "sizeBytes": 73135815
+            },
+            {
+              "names": [
+                "registry.k8s.io/kube-scheduler-amd64:v1.34.0",
+                "registry.k8s.io/kube-scheduler:v1.34.0"
+              ],
+              "sizeBytes": 53839458
+            },
+            {
+              "names": [
+                "docker.io/kindest/kindnetd:v20250512-df8de77b"
+              ],
+              "sizeBytes": 44375501
+            },
+            {
+              "names": [
+                "docker.io/kindest/local-path-provisioner:v20250214-acbabc1a"
+              ],
+              "sizeBytes": 22540870
+            },
+            {
+              "names": [
+                "registry.k8s.io/coredns/coredns:v1.12.1"
+              ],
+              "sizeBytes": 22384805
+            },
+            {
+              "names": [
+                "docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+                "docker.io/library/nginx:1.27.5-alpine"
+              ],
+              "sizeBytes": 20984244
+            },
+            {
+              "names": [
+                "docker.io/kindest/local-path-helper:v20241212-8ac705d0"
+              ],
+              "sizeBytes": 3084671
+            },
+            {
+              "names": [
+                "registry.k8s.io/pause:3.10"
+              ],
+              "sizeBytes": 320368
+            }
+          ],
+          "nodeInfo": {
+            "architecture": "amd64",
+            "bootID": "0bbae987-ddc3-4670-b4c4-883a6773bc9d",
+            "containerRuntimeVersion": "containerd://2.1.3",
+            "kernelVersion": "6.17.0-1020-azure",
+            "kubeProxyVersion": "",
+            "kubeletVersion": "v1.34.0",
+            "machineID": "83f6776c1d4b4e6ea8f83cb59dbf3b70",
+            "operatingSystem": "linux",
+            "osImage": "Debian GNU/Linux 12 (bookworm)",
+            "swap": {
+              "capacity": 3221221376
+            },
+            "systemUUID": "717263ad-2fcb-44d2-b990-28ff99c64752"
+          },
+          "runtimeHandlers": [
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": "runc"
+            },
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": ""
+            },
+            {
+              "features": {
+                "recursiveReadOnlyMounts": true,
+                "userNamespaces": true
+              },
+              "name": "test-handler"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "checks": {
+    "same_surface_error": true,
+    "release_matches_variant": true,
+    "paused_matches_variant": true,
+    "replicaset_presence_matches_variant": true,
+    "taint_matches_variant": true,
+    "pending_variant_has_no_ready_v2_replicas": true
+  },
+  "passed": true
+}

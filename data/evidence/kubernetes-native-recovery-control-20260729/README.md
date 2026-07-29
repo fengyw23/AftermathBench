@@ -18,6 +18,12 @@ The reference issued 15 read/wait calls per variant and verified Deployment,
 ReplicaSets, Pods, Events, Nodes, EndpointSlices, HPA, PDB and the protected
 `billing-worker`.
 
-This is not yet a hard-admission claim. The next gates are executed fixed
-baselines, a replay-derived dependency graph and model experiments. The
-archive contains no kubeconfig, cluster credential or runtime log.
+The fixed policies were subsequently replayed in successful run
+[`30434024218`](https://github.com/fengyw23/AftermathBench/actions/runs/30434024218).
+The compact boundary tree passed `4/4`, giving a maximum fixed-policy pass
+rate and matched-group success of `100%`. The formal fixed-policy hard gate
+therefore failed. Together with GLM-5.2's `4/4` result, this classifies the
+family as a useful native easy/candidate control rather than a hard task.
+`baselines/summary.json` records the deterministic rejection.
+
+The archive contains no kubeconfig, cluster credential or runtime log.

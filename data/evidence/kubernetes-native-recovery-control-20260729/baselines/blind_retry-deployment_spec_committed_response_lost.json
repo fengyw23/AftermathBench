@@ -1,0 +1,164 @@
+{
+  "schema_version": "0.1",
+  "scenario_id": "k8s-deployment-rollout-dev-001",
+  "variant": "deployment_spec_committed_response_lost",
+  "baseline": "blind_retry",
+  "source": "executed against the native failure state",
+  "trace": [
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "deployment",
+        "name": "checkout-api",
+        "namespace": "aftermath-rollout",
+        "patch": {
+          "spec": {
+            "template": {
+              "metadata": {
+                "labels": {
+                  "release": "v2"
+                },
+                "annotations": {
+                  "aftermath.dev/config-revision": "v2"
+                }
+              }
+            }
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "annotations": {
+              "deployment.kubernetes.io/revision": "2",
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"name\":\"checkout-api\",\"namespace\":\"aftermath-rollout\"},\"spec\":{\"replicas\":3,\"revisionHistoryLimit\":4,\"selector\":{\"matchLabels\":{\"app\":\"checkout-api\",\"track\":\"stable\"}},\"strategy\":{\"rollingUpdate\":{\"maxSurge\":1,\"maxUnavailable\":1},\"type\":\"RollingUpdate\"},\"template\":{\"metadata\":{\"annotations\":{\"aftermath.dev/change-ticket\":\"CHG-2026-1042\",\"aftermath.dev/config-revision\":\"v1\"},\"labels\":{\"app\":\"checkout-api\",\"release\":\"v1\",\"track\":\"stable\"}},\"spec\":{\"containers\":[{\"image\":\"registry.k8s.io/pause:3.10\",\"name\":\"checkout\",\"resources\":{\"requests\":{\"cpu\":\"10m\",\"memory\":\"8Mi\"}}}]}}}}\n"
+            },
+            "creationTimestamp": "2026-07-29T08:08:23Z",
+            "generation": 2,
+            "name": "checkout-api",
+            "namespace": "aftermath-rollout",
+            "resourceVersion": "3644",
+            "uid": "15fda7ec-5ed5-484d-a790-77d31cc730e1"
+          },
+          "spec": {
+            "progressDeadlineSeconds": 600,
+            "replicas": 3,
+            "revisionHistoryLimit": 4,
+            "selector": {
+              "matchLabels": {
+                "app": "checkout-api",
+                "track": "stable"
+              }
+            },
+            "strategy": {
+              "rollingUpdate": {
+                "maxSurge": 1,
+                "maxUnavailable": 1
+              },
+              "type": "RollingUpdate"
+            },
+            "template": {
+              "metadata": {
+                "annotations": {
+                  "aftermath.dev/change-ticket": "CHG-2026-1042",
+                  "aftermath.dev/config-revision": "v2"
+                },
+                "labels": {
+                  "app": "checkout-api",
+                  "release": "v2",
+                  "track": "stable"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "registry.k8s.io/pause:3.10",
+                    "imagePullPolicy": "IfNotPresent",
+                    "name": "checkout",
+                    "resources": {
+                      "requests": {
+                        "cpu": "10m",
+                        "memory": "8Mi"
+                      }
+                    },
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {
+            "availableReplicas": 3,
+            "conditions": [
+              {
+                "lastTransitionTime": "2026-07-29T08:08:25Z",
+                "lastUpdateTime": "2026-07-29T08:08:25Z",
+                "message": "Deployment has minimum availability.",
+                "reason": "MinimumReplicasAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2026-07-29T08:08:23Z",
+                "lastUpdateTime": "2026-07-29T08:08:28Z",
+                "message": "ReplicaSet \"checkout-api-7dcbc7c579\" has successfully progressed.",
+                "reason": "NewReplicaSetAvailable",
+                "status": "True",
+                "type": "Progressing"
+              }
+            ],
+            "observedGeneration": 2,
+            "readyReplicas": 3,
+            "replicas": 3,
+            "updatedReplicas": 3
+          }
+        }
+      }
+    }
+  ],
+  "evaluation": {
+    "passed": false,
+    "components": {
+      "goal_completion": false,
+      "preservation": true,
+      "protocol_safety": true
+    },
+    "checks": {
+      "deployment_is_approved_v2": true,
+      "deployment_has_three_ready_replicas": true,
+      "deployment_controller_converged": true,
+      "exactly_one_v2_replicaset": true,
+      "three_v2_pods_ready": true,
+      "service_selects_only_v2": false,
+      "service_has_three_ready_endpoints": true,
+      "release_record_updated": false,
+      "v1_replicaset_preserved": true,
+      "autoscaler_preserved": true,
+      "disruption_budget_preserved": true,
+      "billing_worker_preserved": true,
+      "rollout_taint_removed": true,
+      "no_duplicate_v2_replicaset": true,
+      "no_traffic_switch_before_v2_ready": true
+    },
+    "diagnostics": {
+      "v1_replicaset_count": 1,
+      "v2_replicaset_count": 1,
+      "v2_pod_count": 3,
+      "ready_v2_pod_count": 3,
+      "ready_endpoint_count": 3
+    },
+    "failures": [
+      "service_selects_only_v2",
+      "release_record_updated"
+    ]
+  }
+}
