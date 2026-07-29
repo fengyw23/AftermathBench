@@ -35,3 +35,19 @@ control run must pass before the ordinary condition is launched.
 
 Raw evidence is under
 `data/evidence/kubernetes-constraint-model-control-invalid-20260729/`.
+
+## Corrected but incomplete control run 30458491945
+
+After the contract correction, every completed GLM-5.2 control trajectory
+passed: 3/3 tasks and all four evaluation components. The remaining matched
+state, `committed_cutover_without_publication`, produced no trajectory after
+two provider read timeouts. This yields 100% conditional success but only 75%
+matched-state coverage, below the predeclared 80% control threshold; ordinary
+results therefore remain blocked.
+
+The workflow already rebuilt the native failure boundary inside every retry,
+so the completed trajectories do not inherit unrecorded effects from a prior
+attempt. Commit `1d6e705` changes only provider robustness: it raises the
+per-response limit from 300 to 600 seconds. It does not change the task,
+contracts, target state or evaluator. Raw evidence is under
+`data/evidence/kubernetes-constraint-model-control-incomplete-20260729/`.
