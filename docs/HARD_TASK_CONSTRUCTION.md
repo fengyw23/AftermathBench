@@ -159,8 +159,15 @@ A new family is admissible only if:
 - the reference and explicit-scope controls succeed;
 - the evaluator depends only on native terminal state and auditable external
   delivery records; and
+- the evaluator compares durable effects with the failure boundary, rejects
+  creation of unrequired obligations even when the terminal state is
+  internally consistent, and has a regression test that injects such an
+  over-repair;
 - failures can be attributed to investigation, state inference, scope,
   execution, or verification.
+
+See `BOUNDARY_RELATIVE_RECOVERY_INTEGRITY.md` for the formal effect-envelope
+rule and cross-domain examples.
 
 This pattern can later be transferred to ITSM, cloud operations, and coding
 tasks, but each domain needs native states and invariants rather than renamed
