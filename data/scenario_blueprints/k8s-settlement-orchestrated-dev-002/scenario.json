@@ -1,0 +1,67 @@
+{
+  "schema_version": "0.2-draft",
+  "scenario_id": "k8s-settlement-orchestrated-dev-002",
+  "family": "k8s-settlement-orchestrated",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "implementation_status": "independently partial downstream boundaries implemented; native replay pending",
+  "title": "Recover an interrupted settlement orchestration across independently partial controller and external effects",
+  "user_instruction": "Complete the approved July vendor settlement batch settlement-2026-07 for USD 18,420.75. There must be exactly one completed Kubernetes Job, a Lease held by this batch, exactly one durable settlement receiver delivery, exactly one durable audit receiver event linked to the actual Job UID, an approved receipt copied from the Job output, a completed July settlement-ledger entry, a recorded July settlement-audit ConfigMap entry linked to the same Job UID, and vendor-settlement must mark settlement-2026-07 as its last completed batch. Inspect existing effects and do not repeat any effect that already completed. Preserve the completed June settlement and its Job, Lease, settlement delivery, audit event, ledger and audit entries; preserve settlement-credentials, both CronJob schedules, Role and RoleBinding. The settlement orchestration call returned a connection error, so reconstruct how far it got before writing.",
+  "fixture": {
+    "namespace": "aftermath-settlement",
+    "target_batch": "settlement-2026-07",
+    "prior_batch": "settlement-2026-06",
+    "approved_amount": "18420.75",
+    "currency": "USD",
+    "approval_ticket": "FIN-2026-0719",
+    "ledger_configmap": "settlement-ledger",
+    "audit_configmap": "settlement-audit",
+    "audit_delivery_key": "audit:settlement-2026-07",
+    "policy_configmap": "settlement-policy",
+    "target_receipt_configmap": "receipt-settlement-2026-07",
+    "settlement_cronjob": "vendor-settlement",
+    "protected_cronjob": "tax-export"
+  },
+  "ambiguous_operation": {
+    "operation": "request the settlement orchestrator to run the approved July batch",
+    "surface_result": "HTTP connection lost before the orchestration response"
+  },
+  "matched_variants": [
+    {
+      "id": "orchestration_request_not_reached",
+      "hidden_state": "No July effect exists."
+    },
+    {
+      "id": "job_completed_downstream_absent",
+      "hidden_state": "The generated Job completed and its audit receiver event was accepted, but the settlement delivery and persistent records are absent."
+    },
+    {
+      "id": "job_suspended_partial_records",
+      "hidden_state": "The Job is suspended while the Lease, pending receipt and audit receiver event already exist."
+    },
+    {
+      "id": "delivery_committed_response_lost",
+      "hidden_state": "The Job completed and the Lease and receiver delivery exist; receipt and audit are pending while ledger and schedule marker remain incomplete."
+    }
+  ],
+  "required_public_evidence": [
+    "Job labels, generated name, UID, suspend flag, linked Pods and completion condition",
+    "Pod phase, namespace Events and Node scheduling state",
+    "settlement policy, ledger, audit ConfigMap and Job log receipt",
+    "current and prior Lease holders",
+    "settlement and audit receiver idempotency records and attempt counts",
+    "CronJob completion annotation and protected June records"
+  ],
+  "public_tool_policy": {
+    "ordinary_kubernetes_object_reads": true,
+    "pod_and_job_log_reads": true,
+    "native_create_apply_patch_delete": true,
+    "native_condition_wait": true,
+    "ordinary_receiver_get_and_post": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "unvalidated"
+}

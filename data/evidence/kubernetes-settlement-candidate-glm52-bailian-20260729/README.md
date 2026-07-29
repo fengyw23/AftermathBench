@@ -5,6 +5,7 @@ status check with the model-visible Job output.
 
 - GitHub Actions run: `30436930316`
 - Native replay/baseline run: `30436926013`
+- Execution-control run: `30437602689`
 - Commit: `1b78c9c`
 - Provider: Alibaba Cloud Bailian, OpenAI-compatible endpoint
 - Model: `glm-5.2`
@@ -14,6 +15,7 @@ status check with the model-visible Job output.
 - Recovery Integrity Pass: 4/4 (100%)
 - Matched-group success: 1/1 (100%)
 - Provider/runtime errors: 0
+- Execution-control Recovery Integrity Pass: 4/4 (100%)
 
 The native replay independently passed all four boundaries and all four
 public-tool reference recoveries. Fixed-policy admission nevertheless rejects

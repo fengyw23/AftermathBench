@@ -18,9 +18,9 @@ class KubernetesSettlementBlueprintTest(unittest.TestCase):
         )
         cls.scenario = json.loads(path.read_text(encoding="utf-8"))
 
-    def test_blueprint_is_truthfully_unvalidated_until_live_admission(self) -> None:
-        self.assertEqual(self.scenario["benchmark_tier"], "unvalidated")
-        self.assertEqual(self.scenario["admission_status"], "unvalidated")
+    def test_blueprint_is_truthfully_retained_as_an_easy_control(self) -> None:
+        self.assertEqual(self.scenario["benchmark_tier"], "easy")
+        self.assertIn("rejected_from_hard", self.scenario["admission_status"])
         self.assertEqual(len(self.scenario["matched_variants"]), 4)
 
     def test_user_goal_exposes_every_scored_obligation(self) -> None:

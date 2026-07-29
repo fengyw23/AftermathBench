@@ -37,6 +37,9 @@ from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
 from .native_kubernetes_settlement_family import (
     KUBERNETES_SETTLEMENT_FAMILY,
 )
+from .native_kubernetes_settlement_v2_family import (
+    KUBERNETES_SETTLEMENT_V2_FAMILY,
+)
 from .native_sales_family import SALES_RETURN_FAMILY
 from .native_scenario import NativeScenario, load_native_scenario
 from .schema import repository_root
@@ -700,6 +703,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         FORGEJO_RELEASE_FAMILY,
         KUBERNETES_ROLLOUT_FAMILY,
         KUBERNETES_SETTLEMENT_FAMILY,
+        KUBERNETES_SETTLEMENT_V2_FAMILY,
     )
 )
 
