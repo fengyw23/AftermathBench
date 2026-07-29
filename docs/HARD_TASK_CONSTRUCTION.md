@@ -163,6 +163,10 @@ A new family is admissible only if:
   creation of unrequired obligations even when the terminal state is
   internally consistent, and has a regression test that injects such an
   over-repair;
+- sentinel values such as `none`, `unknown`, and `not-applicable` have a
+  model-visible rule stating the exact object-existence condition that selects
+  them; failed, cancelled, or pending objects are not silently treated as
+  absent;
 - failures can be attributed to investigation, state inference, scope,
   execution, or verification.
 

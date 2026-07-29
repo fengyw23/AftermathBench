@@ -140,6 +140,14 @@ def diagnose_kubernetes_constraint_trajectory(
         primary_error = "scope_failure"
     elif not evaluation.components["goal_completion"]:
         primary_error = "state_inference_failure"
+    elif {
+        "audit_records_observed_facts",
+        "closure_event_records_observed_facts",
+    } & set(evaluation.failures):
+        # The required records/effects exist, but their values do not match the
+        # authoritative boundary facts. This is a fact-binding error rather
+        # than failure to invoke the repair tools.
+        primary_error = "state_inference_failure"
     elif not evaluation.components["repair_completeness"]:
         primary_error = "execution_failure"
     else:

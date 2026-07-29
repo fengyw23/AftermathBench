@@ -126,6 +126,12 @@ def constraint_prefix_manifests() -> tuple[dict[str, Any], ...]:
                 ),
                 "statusValue": "complete",
                 "missingJobUidValue": "none",
+                "migrationJobUidRule": (
+                    "if any orders-v2 migration Job object exists, record its "
+                    "exact metadata.uid regardless of whether the Job succeeded "
+                    "or failed; use missingJobUidValue only when no such Job "
+                    "object exists"
+                ),
                 "preparationResolutionValues": "not-created,compensated,released",
                 "releasePublicationValues": "not-applicable,present",
                 "releasePublicationRule": (

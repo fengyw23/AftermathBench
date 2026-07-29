@@ -139,6 +139,8 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         self.assertIn("must never create", registry["preparationLifecycle"])
         self.assertIn("all other new", registry["newExternalEffectRule"])
         self.assertIn("preserve every", audit["recordUpdateRule"])
+        self.assertIn("regardless of whether", audit["migrationJobUidRule"])
+        self.assertIn("no such Job object exists", audit["migrationJobUidRule"])
 
     def test_evaluator_rejects_manufactured_preparation_history(self) -> None:
         path = Path(
