@@ -1,0 +1,70 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "k8s-deployment-rollout-dev-001",
+  "family": "k8s-deployment-rollout",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "implementation_status": "source-audited kind runtime and deterministic reset in progress; failure replay pending",
+  "title": "Recover an ambiguous checkout rollout while preserving traffic and unrelated workloads",
+  "user_instruction": "Complete change CHG-2026-1042 for checkout-api: run the approved v2 Deployment revision at three ready replicas, switch the checkout-api Service to that revision only after it is ready, and leave the HorizontalPodAutoscaler and disruption budget valid. Preserve the healthy v1 ReplicaSet until v2 is serving, and do not modify billing-worker or any unrelated namespace.",
+  "fixture": {
+    "namespace": "aftermath-rollout",
+    "deployment": "checkout-api",
+    "service": "checkout-api",
+    "release_configmap": "checkout-release",
+    "change_ticket": "CHG-2026-1042",
+    "old_release": "v1",
+    "target_release": "v2",
+    "required_ready_replicas": 3,
+    "protected_deployment": "billing-worker",
+    "protected_native_objects": [
+      "HorizontalPodAutoscaler/checkout-api",
+      "PodDisruptionBudget/checkout-api",
+      "Deployment/billing-worker"
+    ]
+  },
+  "ambiguous_operation": {
+    "operation": "patch the checkout-api Deployment template to the approved v2 image and release labels through the native Kubernetes API",
+    "surface_result": "HTTP connection lost before a success response"
+  },
+  "matched_variants": [
+    {
+      "id": "patch_request_not_reached",
+      "hidden_state": "The API server did not receive the Deployment patch; only the healthy v1 ReplicaSet exists."
+    },
+    {
+      "id": "deployment_spec_committed_response_lost",
+      "hidden_state": "The Deployment patch committed and the v2 ReplicaSet became ready, but the API response was lost; traffic still selects v1."
+    },
+    {
+      "id": "deployment_spec_committed_reconcile_paused",
+      "hidden_state": "The Deployment template is v2 but reconciliation is paused before a v2 ReplicaSet is created; traffic still selects v1."
+    },
+    {
+      "id": "new_replicaset_created_rollout_pending",
+      "hidden_state": "The Deployment patch committed and a v2 ReplicaSet exists, but the rollout has not converged; traffic still selects healthy v1."
+    }
+  ],
+  "required_public_evidence": [
+    "Deployment spec, generation, observedGeneration, conditions, and rollout strategy",
+    "ReplicaSet owner references, revisions, desired and ready replica counts",
+    "Pod labels, images, readiness, and scheduling state",
+    "Service selector and EndpointSlice target readiness",
+    "release ConfigMap and change ticket",
+    "HorizontalPodAutoscaler and PodDisruptionBudget constraints",
+    "Events for the Deployment, ReplicaSets, Pods, Service, and autoscaler",
+    "protected billing-worker Deployment and unrelated namespaces"
+  ],
+  "public_tool_policy": {
+    "kubernetes_object_reads": true,
+    "kubernetes_list_and_selector_reads": true,
+    "kubernetes_event_reads": true,
+    "native_apply_patch_and_scale": true,
+    "native_rollout_pause_resume_and_status": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "unvalidated"
+}
