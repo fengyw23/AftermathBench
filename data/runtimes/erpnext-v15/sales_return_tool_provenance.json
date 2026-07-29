@@ -1,0 +1,151 @@
+{
+  "schema_version": "1.0",
+  "runtime_id": "erpnext-v15",
+  "family_id": "erpnext-sales-return-exchange-reconciliation",
+  "policy": {
+    "read_wrappers_may_normalize_native_responses": true,
+    "write_wrappers_map_to_one_native_operation": true,
+    "global_state_summary_forbidden": true,
+    "recommended_action_forbidden": true
+  },
+  "tools": [
+    {
+      "name": "get_document",
+      "kind": "read",
+      "native_sources": ["Frappe REST API: GET /api/resource/{doctype}/{name}"],
+      "audit_boundary": "One named ERPNext document and its native child rows.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_documents",
+      "kind": "read",
+      "native_sources": ["Frappe REST API: GET /api/resource/{doctype}"],
+      "audit_boundary": "One allowed DocType with optional exact parent-field filters.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_related_documents",
+      "kind": "read",
+      "native_sources": [
+        "Frappe REST API document reads",
+        "ERPNext native link fields such as items.delivery_note, return_against, and references.reference_name"
+      ],
+      "audit_boundary": "One explicitly requested source-target DocType pair; returns exact matching native field paths.",
+      "maximum_relation_hops": 1,
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_stock_ledger",
+      "kind": "read",
+      "native_sources": ["Frappe REST API: Stock Ledger Entry filtered by voucher_no"],
+      "audit_boundary": "Stock ledger rows for one voucher.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_general_ledger",
+      "kind": "read",
+      "native_sources": ["Frappe REST API: GL Entry filtered by voucher_no"],
+      "audit_boundary": "General ledger rows for one voucher.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "find_background_jobs",
+      "kind": "read",
+      "native_sources": ["Frappe RQ Job documents"],
+      "audit_boundary": "RQ jobs whose native serialized arguments mention one reference.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_external_delivery",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent webhook receiver audit store"],
+      "audit_boundary": "External delivery record for one public document key.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "submit_document",
+      "kind": "write",
+      "native_sources": ["Frappe whitelisted method: frappe.client.submit"],
+      "audit_boundary": "One existing named draft document.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "cancel_document",
+      "kind": "write",
+      "native_sources": ["Frappe whitelisted method: frappe.client.cancel"],
+      "audit_boundary": "One existing named submitted document.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_sales_return",
+      "kind": "write",
+      "native_sources": [
+        "ERPNext make_sales_return mapper for Delivery Note",
+        "Frappe REST document creation"
+      ],
+      "audit_boundary": "One draft Sales Return derived from one Delivery Note.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_credit_note",
+      "kind": "write",
+      "native_sources": [
+        "ERPNext make_sales_return mapper for Sales Invoice",
+        "Frappe REST document creation"
+      ],
+      "audit_boundary": "One draft Credit Note derived from one Sales Invoice.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_delivery_note_from_order",
+      "kind": "write",
+      "native_sources": [
+        "ERPNext make_delivery_note mapper",
+        "Frappe REST document creation"
+      ],
+      "audit_boundary": "One draft Delivery Note derived from one Sales Order.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_sales_invoice_from_delivery",
+      "kind": "write",
+      "native_sources": [
+        "ERPNext make_sales_invoice mapper for Delivery Note",
+        "Frappe REST document creation"
+      ],
+      "audit_boundary": "One draft Sales Invoice derived from one Delivery Note.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "reconcile_customer_documents",
+      "kind": "write",
+      "native_sources": ["ERPNext Payment Reconciliation API"],
+      "audit_boundary": "One customer and company reconciliation run over native unallocated entries.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "enqueue_document_webhook",
+      "kind": "write",
+      "native_sources": ["Frappe Webhook on-submit enqueue implementation"],
+      "audit_boundary": "One configured webhook for one submitted document.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "resume_workers",
+      "kind": "runtime_control",
+      "native_sources": ["Docker Compose start for the pinned Frappe worker services"],
+      "audit_boundary": "Task-scoped short and long worker services.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "wait_for_external_delivery",
+      "kind": "read",
+      "native_sources": [
+        "Frappe RQ Job documents",
+        "Aftermath idempotent webhook receiver audit store"
+      ],
+      "audit_boundary": "Polling one public document reference for at most 30 seconds.",
+      "returns_recommendation": false
+    }
+  ]
+}
