@@ -34,8 +34,41 @@ jobs:
             --build \
             --report "$RUNNER_TEMP/forgejo-source-verification.json"
 
+      - name: Validate deterministic native reset
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          mkdir -p "$runtime_root/validation"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup
+          python scripts/validate_forgejo_runtime.py seed \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$runtime_root/validation/seed.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/prefix.tar.gz"
+          python scripts/validate_forgejo_runtime.py mutate \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$runtime_root/validation/mutated.json"
+          python scripts/manage_forgejo_stack.py restore \
+            --snapshot "$runtime_root/prefix.tar.gz"
+          python scripts/validate_forgejo_runtime.py verify-restored \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$runtime_root/validation/restored.json"
+
+      - name: Remove runtime secrets and snapshot
+        if: always()
+        run: |
+          rm -f runtimes/forgejo/.runtime/credentials.json
+          rm -f runtimes/forgejo/.runtime/prefix.tar.gz
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: forgejo-source-verification-${{ github.run_id }}
-          path: ${{ runner.temp }}/forgejo-source-verification.json
+          path: |
+            ${{ runner.temp }}/forgejo-source-verification.json
+            runtimes/forgejo/.runtime/validation/
           if-no-files-found: error
+
+      - name: Tear down native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge
