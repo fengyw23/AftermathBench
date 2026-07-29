@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-schema-rollout-dev-003",
+  "family": "k8s-schema-rollout-recovery",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "implementation_status": "native replay admitted",
+  "title": "Recover an interrupted schema migration and application rollout in the safe direction",
+  "user_instruction": "Recover the interrupted orders-v2 production change according to recovery-policy. First reconstruct the actual schema epoch, migration Job, Service traffic, Deployments, Secrets and external registry events. If schema epoch 1 remains and no preparation event escaped, abort the closed change window and restore the stable v1 path. If an external preparation event escaped before the migration failed, preserve that evidence and issue its single compensating event while restoring v1. If schema epoch 2 committed, do not attempt a down migration: make v2 available, move traffic to v2, retire v1 capacity and complete the release records. If v2 traffic and the release publication already completed, do not repeat them; repair only the missing downstream records. Preserve the completed backup, immutable migration evidence, stable v1 history, prior registry events, policy, RBAC and unrelated nightly-report schedule. Every external event must have exactly one attempt.",
+  "fixture": {
+    "namespace": "aftermath-migration",
+    "application": "orders",
+    "stable_version": "v1",
+    "candidate_version": "v2",
+    "target_schema_epoch": "2",
+    "policy_configmap": "recovery-policy",
+    "catalog_configmap": "database-catalog",
+    "ledger_configmap": "release-ledger",
+    "audit_configmap": "recovery-audit",
+    "service": "orders",
+    "stable_deployment": "orders-v1",
+    "candidate_deployment": "orders-v2",
+    "backup_job": "orders-backup-epoch1",
+    "registry_release_key": "release:orders-v2",
+    "registry_prepare_key": "prepare:orders-v2",
+    "registry_compensation_key": "compensate:prepare:orders-v2"
+  },
+  "ambiguous_operation": {
+    "operation": "execute the approved orders-v2 migration-and-rollout orchestration",
+    "surface_result": "HTTP connection lost before the change orchestration response"
+  },
+  "matched_variants": [
+    {
+      "id": "change_request_not_reached"
+    },
+    {
+      "id": "preparation_escaped_migration_failed"
+    },
+    {
+      "id": "schema_committed_cutover_pending"
+    },
+    {
+      "id": "cutover_and_publication_committed"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "rollback_to_stable",
+    "compensate_external_effect",
+    "forward_complete",
+    "repair_downstream_only"
+  ],
+  "public_tool_policy": {
+    "ordinary_kubernetes_object_reads": true,
+    "pod_and_job_log_reads": true,
+    "native_create_apply_patch_delete": true,
+    "ordinary_registry_get_and_post": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}

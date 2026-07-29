@@ -64,11 +64,18 @@ Evidence groups can also be scoped by tool arguments. Reading
 reference investigated Deployments, Services and Jobs just because all reads
 share the same generic tool name.
 
-The replay graph currently contains 22 relevant entities, 26 executable
-relations, 25 relation types, dependency depth 11 and four required semantic
-directions. These numbers are derived by the admission code and remain
-provisional until the full native replay, fixed policies and replay assertions
-all pass in one frozen GitHub Actions run.
+The replay graph contains 22 relevant entities, 26 executable relations, 25
+relation types, dependency depth 11 and four required semantic directions.
+GitHub Actions run `30443406478` replayed the complete native experiment at
+commit `cf2e649`: all four references passed, the semantic prefix had one
+stable hash, the maximum fixed-policy pass rate was 25%, no fixed policy solved
+the matched group, and replay-derived hard admission passed every check.
+
+The admitted artifact additionally records 16 successful prefix writes, four
+protected effects, six evidence groups in every reference trajectory, at least
+four boundary query groups, at least four repair mutations, at least three
+downstream repairs and three varying action branches. These are observed replay
+properties, not author-entered difficulty labels.
 
 ## Validity order
 
