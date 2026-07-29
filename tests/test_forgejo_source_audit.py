@@ -27,11 +27,43 @@ class ForgejoSourceAuditTest(unittest.TestCase):
             "source-audited-execution-pending",
         )
         self.assertGreaterEqual(len(audit["audited_paths"]), 7)
+        self.assertTrue(audit["verification"]["passed"])
+        self.assertEqual(
+            audit["verification"]["workflow_run_id"],
+            30425862228,
+        )
         self.assertTrue(
             all(
                 len(item["sha256"]) == 64
                 for item in audit["audited_paths"]
             )
+        )
+
+    def test_archived_ci_verification_matches_the_audit(self) -> None:
+        root = (
+            repository_root()
+            / "data"
+            / "runtimes"
+            / "forgejo-main"
+        )
+        audit = json.loads(
+            (root / "source_audit.json").read_text(encoding="utf-8")
+        )
+        verification = json.loads(
+            (root / "source_verification.json").read_text(encoding="utf-8")
+        )
+        self.assertTrue(verification["source_verification"]["passed"])
+        self.assertEqual(
+            verification["source_verification"]["revision"],
+            audit["revision"],
+        )
+        expected = {
+            item["path"]: item["sha256"]
+            for item in audit["audited_paths"]
+        }
+        self.assertEqual(
+            verification["source_verification"]["actual_hashes"],
+            expected,
         )
 
 
