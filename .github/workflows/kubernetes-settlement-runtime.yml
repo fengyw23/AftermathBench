@@ -72,12 +72,14 @@ jobs:
           docker run --detach --rm \
             --name aftermath-settlement-sink \
             --publish 127.0.0.1:9092:8080 \
-            --volume "$RUNNER_TEMP/settlement-sink:/data" \
             aftermathbench/kubernetes-control:local \
             python -m runtime_services.webhook_sink
           for attempt in $(seq 1 30); do
             curl --fail --silent http://127.0.0.1:9092/health && break
-            if [ "$attempt" = 30 ]; then exit 1; fi
+            if [ "$attempt" = 30 ]; then
+              docker logs aftermath-settlement-sink || true
+              exit 1
+            fi
             sleep 1
           done
 
