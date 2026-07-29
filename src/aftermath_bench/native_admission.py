@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from .evidence_replay import replay_graph
 from .native_scenario import NativeScenario
 
 
@@ -69,6 +71,58 @@ def _dependency_depth(
     return max(depth.values(), default=0)
 
 
+def _shared_dependency_count(
+    protected_effects: Iterable[str],
+    relations: Iterable[dict[str, Any]],
+) -> int:
+    protected = set(protected_effects)
+    degree: Counter[str] = Counter()
+    for relation in relations:
+        degree[str(relation["source"])] += 1
+        degree[str(relation["target"])] += 1
+    return sum(1 for node in protected if degree[node] >= 3)
+
+
+def _recovery_signature(report: dict[str, Any]) -> tuple[tuple[str, int], ...]:
+    return tuple(
+        sorted(Counter(map(str, report.get("mutation_tools", ()))).items())
+    )
+
+
+def _varying_action_branch_count(
+    reports: Iterable[dict[str, Any]],
+) -> int:
+    branch_tools = {
+        "document_state": {
+            "submit_document",
+            "cancel_document",
+            "create_purchase_return",
+            "create_debit_note",
+            "create_purchase_receipt_from_order",
+            "create_purchase_invoice_from_receipt",
+        },
+        "financial_reconciliation": {"reconcile_supplier_documents"},
+        "asynchronous_effect": {
+            "enqueue_document_webhook",
+            "resume_workers",
+        },
+    }
+    reports = tuple(reports)
+    varying = 0
+    for tools in branch_tools.values():
+        counts = {
+            sum(
+                1
+                for tool in report.get("mutation_tools", ())
+                if str(tool) in tools
+            )
+            for report in reports
+        }
+        if len(counts) > 1:
+            varying += 1
+    return varying
+
+
 def validate_native_scenario(
     scenario: NativeScenario,
 ) -> NativeAdmissionReport:
@@ -76,12 +130,19 @@ def validate_native_scenario(
     reference_path = scenario.resolve_artifact("reference")
     graph_path = scenario.resolve_artifact("observed_graph")
     baseline_path = scenario.resolve_artifact("baselines")
+    replay_path = (
+        scenario.resolve_artifact("replay_evidence")
+        if "replay_evidence" in scenario.raw.get("admission_artifacts", {})
+        else None
+    )
     paths = {
         "prefix": prefix_path,
         "reference": reference_path,
         "observed_graph": graph_path,
         "baselines": baseline_path,
     }
+    if replay_path is not None:
+        paths["replay_evidence"] = replay_path
     missing = [name for name, path in paths.items() if not path.is_file()]
     if missing:
         checks = {f"artifact_exists:{name}": False for name in missing}
@@ -99,6 +160,7 @@ def validate_native_scenario(
     reference = _load_json(reference_path)
     graph = _load_json(graph_path)
     baselines = _load_json(baseline_path)
+    replay_evidence = _load_json(replay_path) if replay_path else None
 
     trace = prefix.get("trace", ())
     successful_prefix_writes = sum(
@@ -143,6 +205,12 @@ def validate_native_scenario(
                     query_tools
                     & {
                         "find_background_jobs",
+                        "wait_for_external_delivery",
+                    }
+                ),
+                "external": bool(
+                    query_tools
+                    & {
                         "get_external_delivery",
                         "wait_for_external_delivery",
                     }
@@ -174,11 +242,26 @@ def validate_native_scenario(
     minimum_boundary_query_groups = int(
         graph.get("minimum_boundary_query_groups", 0)
     )
-    relations_observed = all(
-        bool(relation.get("observed", False))
-        for relation in relations
+    replay_results = (
+        replay_graph(graph, replay_evidence)
+        if replay_evidence is not None
+        else ()
+    )
+    relations_observed = bool(replay_results) and all(
+        result.passed for result in replay_results
+    )
+    replayed_relation_count = sum(
+        1 for result in replay_results if result.passed
     )
     unsafe_actions = graph.get("unsafe_actions", ())
+    shared_dependencies = _shared_dependency_count(
+        protected_effects,
+        relations,
+    )
+    recovery_signatures = {
+        _recovery_signature(report) for report in variants
+    }
+    varying_branches = _varying_action_branch_count(variants)
 
     observed: dict[str, int | float | bool] = {
         "successful_prefix_writes": successful_prefix_writes,
@@ -194,9 +277,13 @@ def validate_native_scenario(
         "single_query_decisive": single_query_decisive,
         "minimum_boundary_query_groups": minimum_boundary_query_groups,
         "all_relations_observed": relations_observed,
+        "replayed_relation_count": replayed_relation_count,
         "minimum_repair_mutations": minimum_mutations,
         "minimum_downstream_repairs": minimum_downstream_repairs,
         "unsafe_action_count": len(unsafe_actions),
+        "shared_dependency_count": shared_dependencies,
+        "distinct_recovery_signature_count": len(recovery_signatures),
+        "varying_action_branch_count": varying_branches,
         "maximum_heuristic_pass_rate": maximum_heuristic_pass_rate,
     }
     checks = {
@@ -205,34 +292,51 @@ def validate_native_scenario(
             len(passed_references) == len(expected_variants)
             and all(passed_references)
         ),
-        "prefix_writes>=6": successful_prefix_writes >= 6,
+        "prefix_writes>=8": successful_prefix_writes >= 8,
         "protected_effects>=3": len(protected_effects) >= 3,
-        "dependency_depth>=4": depth >= 4,
-        "relation_types>=4": len(relation_types) >= 4,
-        "evidence_groups>=3": len(evidence_groups) >= 3,
-        "reference_uses_three_evidence_groups": (
-            minimum_reference_evidence_groups >= 3
+        "relevant_entities>=20": len(entity_ids) >= 20,
+        "dependency_depth>=5": depth >= 5,
+        "relation_types>=8": len(relation_types) >= 8,
+        "evidence_groups>=4": len(evidence_groups) >= 4,
+        "reference_uses_four_evidence_groups": (
+            minimum_reference_evidence_groups >= 4
         ),
         "no_single_query_is_decisive": not single_query_decisive,
         "minimum_boundary_query_groups>=2": (
             minimum_boundary_query_groups >= 2
         ),
         "all_relations_have_replay_evidence": relations_observed,
-        "minimum_mutations>=3": minimum_mutations >= 3,
+        "minimum_mutations>=4": minimum_mutations >= 4,
         "downstream_repairs>=2": minimum_downstream_repairs >= 2,
-        "unsafe_actions>=2": len(unsafe_actions) >= 2,
+        "shared_dependencies>=2": shared_dependencies >= 2,
+        "unsafe_actions>=3": len(unsafe_actions) >= 3,
+        "recovery_signatures>=3": len(recovery_signatures) >= 3,
+        "varying_action_branches>=2": varying_branches >= 2,
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
         "heuristic_matched_group_zero": not any(
             matched_heuristic_successes
         ),
     }
-    passed = all(checks.values())
+    hard_passed = all(checks.values())
     requested_tier = scenario.tier
-    admitted_tier = "hard" if passed else "easy"
+    candidate_passed = all(
+        value
+        for name, value in checks.items()
+        if name != "minimum_mutations>=4"
+    ) and minimum_mutations >= 3
+    admitted_tier = (
+        "hard"
+        if hard_passed
+        else "candidate"
+        if candidate_passed
+        else "easy"
+    )
     if requested_tier == "hard":
-        tier_consistent = passed
+        tier_consistent = hard_passed
+    elif requested_tier == "candidate":
+        tier_consistent = admitted_tier == "candidate"
     elif requested_tier == "easy":
-        tier_consistent = not passed
+        tier_consistent = admitted_tier == "easy"
     else:
         tier_consistent = False
     checks["declared_tier_is_truthful"] = tier_consistent

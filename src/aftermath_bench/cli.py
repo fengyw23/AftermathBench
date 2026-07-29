@@ -329,7 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
     erpnext_model_run.add_argument("--credentials", required=True)
     erpnext_model_run.add_argument("--prefix", required=True)
     erpnext_model_run.add_argument("--failure-report", required=True)
-    erpnext_model_run.add_argument("--max-turns", type=int, default=15)
+    erpnext_model_run.add_argument("--max-turns", type=int, default=25)
     erpnext_model_run.add_argument("--output", required=True)
     erpnext_model_run.add_argument(
         "--erpnext-base-url",

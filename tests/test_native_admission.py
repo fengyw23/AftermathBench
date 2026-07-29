@@ -18,7 +18,7 @@ class NativeAdmissionTest(unittest.TestCase):
         self.assertTrue(report.passed, report.failures)
         self.assertEqual(report.requested_tier, "easy")
         self.assertEqual(report.admitted_tier, "easy")
-        self.assertFalse(report.checks["minimum_mutations>=3"])
+        self.assertFalse(report.checks["minimum_mutations>=4"])
         self.assertFalse(report.checks["no_single_query_is_decisive"])
         self.assertFalse(report.checks["heuristic_pass_rate<0.5"])
 

@@ -8,6 +8,7 @@ from typing import Any, Callable
 from aftermath_bench.core import RecordedEnvironment
 
 from .erpnext_faults import ComposeWorkerControl
+from .erpnext_relations import find_related_documents
 from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
 from .erpnext_return_prefix import (
     ERPNextPartialReturnPrefixBuilder,
@@ -33,6 +34,7 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
     TOOL_NAMES = (
         "get_document",
         "list_documents",
+        "list_related_documents",
         "get_stock_ledger",
         "get_general_ledger",
         "find_background_jobs",
@@ -113,6 +115,16 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
             "list_documents": lambda: self._list_documents(
                 str(kwargs["doctype"]),
                 kwargs.get("filters"),
+            ),
+            "list_related_documents": lambda: self._list_related_documents(
+                str(kwargs["source_doctype"]),
+                str(kwargs["source_name"]),
+                str(kwargs["target_doctype"]),
+                (
+                    str(kwargs["relation_type"])
+                    if kwargs.get("relation_type") is not None
+                    else None
+                ),
             ),
             "get_stock_ledger": lambda: self._ledger(
                 "Stock Ledger Entry",
@@ -196,6 +208,39 @@ class ERPNextPartialReturnEnvironment(RecordedEnvironment):
             "documents": self.collector.full_documents(
                 doctype,
                 filters=filters,
+            ),
+        }
+
+    def _list_related_documents(
+        self,
+        source_doctype: str,
+        source_name: str,
+        target_doctype: str,
+        relation_type: str | None,
+    ) -> dict[str, Any]:
+        self._validate_doctype(source_doctype)
+        self._validate_doctype(target_doctype)
+        # Reading the source first makes nonexistent identifiers fail
+        # explicitly instead of silently producing an empty relation set.
+        self.collector.get_document(source_doctype, source_name)
+        documents = self.collector.full_documents(
+            target_doctype,
+            filters=None,
+        )
+        return {
+            "ok": True,
+            "source": {
+                "doctype": source_doctype,
+                "name": source_name,
+            },
+            "target_doctype": target_doctype,
+            "relation_type": relation_type,
+            "related": find_related_documents(
+                source_doctype=source_doctype,
+                source_name=source_name,
+                target_doctype=target_doctype,
+                documents=documents,
+                relation_type=relation_type,
             ),
         }
 

@@ -46,6 +46,7 @@ class NativeModelRunnerTest(unittest.TestCase):
     def test_tools_are_generic_and_schemas_are_closed(self) -> None:
         names = {tool.name for tool in NATIVE_RETURN_TOOL_DEFINITIONS}
         self.assertIn("get_document", names)
+        self.assertIn("list_related_documents", names)
         self.assertIn("submit_document", names)
         self.assertNotIn("repair_purchase_return", names)
         self.assertNotIn("get_recommended_action", names)
@@ -202,6 +203,58 @@ class NativeModelRunnerTest(unittest.TestCase):
                 "purchase_return": "PR-RETURN",
                 "replacement_purchase_receipt": "PR-REPLACEMENT",
             },
+        )
+        self.assertEqual(diagnostics["primary_error"], "scope_failure")
+
+    def test_one_hop_invoice_query_counts_as_linked_investigation(self) -> None:
+        diagnostics = _diagnose(
+            turns=[
+                {
+                    "tool_calls": [
+                        {
+                            "name": "list_related_documents",
+                            "arguments": {
+                                "source_doctype": "Purchase Receipt",
+                                "source_name": "PR-REPLACEMENT",
+                                "target_doctype": "Purchase Invoice",
+                            },
+                        },
+                        {
+                            "name": "find_background_jobs",
+                            "arguments": {"reference": "PR-RETURN"},
+                        },
+                        {
+                            "name": "get_external_delivery",
+                            "arguments": {"reference": "PR-RETURN"},
+                        },
+                        {
+                            "name": "create_purchase_invoice_from_receipt",
+                            "arguments": {
+                                "purchase_receipt": "PR-REPLACEMENT"
+                            },
+                        },
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=self._failed_protocol_evaluation(),
+            failure_report={
+                "failure_boundary_evidence": {
+                    "purchase_return": {"docstatus": 1},
+                    "replacement_invoices": [
+                        {"name": "PINV-EXISTING", "docstatus": 0}
+                    ],
+                }
+            },
+            prefix={
+                "purchase_return": "PR-RETURN",
+                "replacement_purchase_receipt": "PR-REPLACEMENT",
+            },
+        )
+        self.assertFalse(
+            diagnostics[
+                "created_invoice_without_linked_invoice_investigation"
+            ]
         )
         self.assertEqual(diagnostics["primary_error"], "scope_failure")
 

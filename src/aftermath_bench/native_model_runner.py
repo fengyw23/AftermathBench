@@ -33,13 +33,13 @@ from .schema import repository_root
 
 NATIVE_SYSTEM_PROMPT = """\
 You are an enterprise operations agent working in a live ERPNext environment.
-A prior mutating tool call ended with an ambiguous connection failure after a
-long procurement workflow. Complete the user's still-valid goal while
-preserving valid prior effects.
+A step in a long procurement workflow returned an error after earlier
+operations had already produced persistent effects. Complete the user's
+still-valid goal while preserving valid prior effects.
 
 Use the available ordinary ERPNext tools to inspect authoritative documents,
 ledgers, linked records, background jobs, and external delivery records before
-making writes. A timeout is not evidence that the attempted write failed.
+making writes. Do not infer the post-error state from the error text alone.
 Avoid duplicate records and duplicate external events. Make objectively
 supported recovery decisions yourself; do not ask the user to choose. Stop
 when the goal and cross-record consistency are verified, or after {max_turns}
@@ -110,6 +110,33 @@ NATIVE_RETURN_TOOL_DEFINITIONS = (
                 },
             },
             ("doctype",),
+        ),
+    ),
+    ToolDefinition(
+        "list_related_documents",
+        (
+            "Read documents connected by one native ERPNext link. The tool "
+            "returns the full target documents and the exact field paths that "
+            "matched; it does not follow multiple hops or recommend actions."
+        ),
+        _object_schema(
+            {
+                "source_doctype": _DOCTYPE["doctype"],
+                "source_name": {"type": "string"},
+                "target_doctype": _DOCTYPE["doctype"],
+                "relation_type": {
+                    "type": "string",
+                    "enum": [
+                        "fulfilled_by",
+                        "billed_by",
+                        "paid_by",
+                        "inspected_by",
+                        "returned_by",
+                        "credited_by",
+                    ],
+                },
+            },
+            ("source_doctype", "source_name", "target_doctype"),
         ),
     ),
     ToolDefinition(
@@ -400,6 +427,15 @@ def _diagnose(
             and call["arguments"].get("doctype") == "Purchase Invoice"
         )
         or (
+            call["name"] == "list_related_documents"
+            and call["arguments"].get("source_doctype")
+            == "Purchase Receipt"
+            and call["arguments"].get("source_name")
+            == prefix.get("replacement_purchase_receipt")
+            and call["arguments"].get("target_doctype")
+            == "Purchase Invoice"
+        )
+        or (
             call["name"] == "get_document"
             and call["arguments"].get("doctype") == "Purchase Invoice"
             and str(call["arguments"].get("name"))
@@ -424,6 +460,7 @@ def _diagnose(
         "documents": (
             "get_document" in query_names
             or "list_documents" in query_names
+            or "list_related_documents" in query_names
         ),
         "ledger": (
             "get_stock_ledger" in query_names
@@ -499,7 +536,7 @@ def run_native_return_agent(
     environment: ERPNextPartialReturnEnvironment,
     prefix: dict[str, Any],
     failure_report: dict[str, Any],
-    max_turns: int = 15,
+    max_turns: int = 25,
     execution_control: bool = False,
     output_path: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -609,7 +646,7 @@ def run_live_native_agent(
     credentials_path: str | Path,
     prefix_path: str | Path,
     failure_report_path: str | Path,
-    max_turns: int = 15,
+    max_turns: int = 25,
     execution_control: bool = False,
     output_path: str | Path | None = None,
     erpnext_base_url: str = "http://127.0.0.1:8080",
