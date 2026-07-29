@@ -65,3 +65,20 @@ The ordinary run uses the same source commit `1d6e705`, snapshots, tools,
 condition change is removal of the supplied target recovery scope. Complete
 control trajectories are archived under
 `data/evidence/kubernetes-constraint-model-control-final-20260729/`.
+
+## Incomplete ordinary run 30464383237
+
+The first ordinary run produced two complete trajectories and both passed, but
+the other two states produced no trajectory after provider retries. The 2/2
+conditional pass is not reported as task pass or matched-group success because
+half the group is missing. The missing states are
+`failed_migration_without_preparation` and
+`committed_cutover_without_publication`.
+
+Commit `1ac26da` adds an infrastructure-retry subset mode. It reruns only the
+missing states, still rebuilding the authoritative failure boundary before
+every attempt and using the same task, model, tools, 25-turn limit and
+evaluator. After the subset completes, the first valid trajectory for each of
+the four states is assembled into one directory and the standard full-scenario
+summarizer is rerun. Raw incomplete evidence is under
+`data/evidence/kubernetes-constraint-model-ordinary-incomplete-20260729/`.
