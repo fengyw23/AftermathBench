@@ -66,6 +66,14 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
         self.assertIn("verify_native_freeze.py", workflow)
         self.assertIn("summarize_final_experiment.py", workflow)
         self.assertIn("test \"$requested_repetitions\" -eq 5", workflow)
+        self.assertIn("provider_profile:", workflow)
+        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("secrets.PARATERA_API_KEY", workflow)
+        self.assertIn("https://llmapi.paratera.com/v1", workflow)
+        self.assertIn(
+            "AFTERMATH_API_KEY=$selected_api_key",
+            workflow,
+        )
         self.assertIn("for attempt in 1 2", workflow)
         self.assertIn("sleep 30", workflow)
         self.assertIn(

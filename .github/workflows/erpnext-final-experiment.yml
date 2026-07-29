@@ -6,6 +6,14 @@ on:
       - native-hard-final-experiment
   workflow_dispatch:
     inputs:
+      provider_profile:
+        description: Configured OpenAI-compatible provider profile
+        required: true
+        default: zhipu
+        type: choice
+        options:
+          - zhipu
+          - paratera
       model:
         description: OpenAI-compatible model identifier
         required: true
@@ -28,8 +36,8 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
-      AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
-      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      AFTERMATH_ZHIPU_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      AFTERMATH_PARATERA_API_KEY: ${{ secrets.PARATERA_API_KEY }}
       HOLDOUT_SCENARIO: data/scenarios/erpnext-partial-return-holdout-001/scenario.json
       HOLDOUT_FREEZE: data/scenarios/erpnext-partial-return-holdout-001/freeze.json
     steps:
@@ -40,9 +48,13 @@ jobs:
 
       - name: Resolve immutable experiment configuration
         run: |
-          test -n "$AFTERMATH_API_KEY"
+          requested_provider="${{ inputs.provider_profile }}"
           requested_model="${{ inputs.model }}"
           requested_repetitions="${{ inputs.repetitions }}"
+          if [ -z "$requested_provider" ]
+          then
+            requested_provider=zhipu
+          fi
           if [ -z "$requested_model" ]
           then
             requested_model=glm-5.2
@@ -51,7 +63,26 @@ jobs:
           then
             requested_repetitions=5
           fi
+          case "$requested_provider" in
+            zhipu)
+              selected_api_key="$AFTERMATH_ZHIPU_API_KEY"
+              selected_base_url="https://open.bigmodel.cn/api/coding/paas/v4"
+              ;;
+            paratera)
+              selected_api_key="$AFTERMATH_PARATERA_API_KEY"
+              selected_base_url="https://llmapi.paratera.com/v1"
+              ;;
+            *)
+              echo "Unknown provider profile: $requested_provider" >&2
+              exit 2
+              ;;
+          esac
+          test -n "$selected_api_key"
           test "$requested_repetitions" -eq 5
+          echo "::add-mask::$selected_api_key"
+          echo "AFTERMATH_API_KEY=$selected_api_key" >> "$GITHUB_ENV"
+          echo "AFTERMATH_MODEL_BASE_URL=$selected_base_url" >> "$GITHUB_ENV"
+          echo "PROVIDER_PROFILE=$requested_provider" >> "$GITHUB_ENV"
           echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
           echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -v
@@ -77,6 +108,8 @@ jobs:
           {
             echo "schema_version=0.1"
             echo "split=easy"
+            echo "provider_profile=$PROVIDER_PROFILE"
+            echo "base_url=$AFTERMATH_MODEL_BASE_URL"
             echo "model=$MODEL_ID"
             echo "repetitions=$REPETITIONS"
             echo "commit=$GITHUB_SHA"
@@ -173,6 +206,8 @@ jobs:
             echo "scenario_sha256=$(sha256sum "$HOLDOUT_SCENARIO" | cut -d' ' -f1)"
             echo "prefix_sha256=$(sha256sum "$hard_root/prefix.json" | cut -d' ' -f1)"
             echo "snapshot_sha256=$(sha256sum "$hard_root/prefix.sql" | cut -d' ' -f1)"
+            echo "provider_profile=$PROVIDER_PROFILE"
+            echo "base_url=$AFTERMATH_MODEL_BASE_URL"
             echo "model=$MODEL_ID"
             echo "repetitions=$REPETITIONS"
             echo "execution_control=false"
@@ -277,7 +312,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: erpnext-glm52-easy-vs-frozen-holdout
+          name: erpnext-${{ env.PROVIDER_PROFILE }}-easy-vs-frozen-holdout
           include-hidden-files: true
           path: |
             runtimes/erpnext/.runtime/final/
