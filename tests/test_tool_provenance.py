@@ -11,6 +11,9 @@ from aftermath_bench.native_forgejo_family import (
 from aftermath_bench.native_kubernetes_family import (
     KUBERNETES_TOOL_DEFINITIONS,
 )
+from aftermath_bench.native_kubernetes_settlement_family import (
+    KUBERNETES_SETTLEMENT_TOOL_DEFINITIONS,
+)
 from aftermath_bench.native_sales_family import SALES_RETURN_TOOL_DEFINITIONS
 from aftermath_bench.schema import repository_root
 from aftermath_bench.tool_provenance import (
@@ -73,6 +76,20 @@ class ToolProvenanceTest(unittest.TestCase):
         report = validate_tool_provenance(
             load_tool_provenance(path),
             KUBERNETES_TOOL_DEFINITIONS,
+        )
+        self.assertTrue(report.passed, report.failures)
+
+    def test_kubernetes_settlement_manifest_covers_every_tool(self) -> None:
+        path = (
+            repository_root()
+            / "data"
+            / "runtimes"
+            / "kubernetes-v1.34"
+            / "settlement_tool_provenance.json"
+        )
+        report = validate_tool_provenance(
+            load_tool_provenance(path),
+            KUBERNETES_SETTLEMENT_TOOL_DEFINITIONS,
         )
         self.assertTrue(report.passed, report.failures)
 

@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "runtime_id": "kubernetes-v1.34",
+  "family_id": "k8s-cronjob-exactly-once",
+  "policy": {
+    "read_wrappers_may_normalize_native_responses": true,
+    "write_wrappers_map_to_one_native_or_receiver_operation": true,
+    "global_state_summary_forbidden": true,
+    "recommended_action_forbidden": true
+  },
+  "tools": [
+    {
+      "name": "get_object",
+      "kind": "read",
+      "native_sources": ["kubectl get {resource} {name} -o json"],
+      "audit_boundary": "One named Kubernetes object.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_objects",
+      "kind": "read",
+      "native_sources": ["kubectl get {resource} -o json with optional namespace and label selector"],
+      "audit_boundary": "One Kubernetes resource kind and optional selector.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_events",
+      "kind": "read",
+      "native_sources": ["Kubernetes Events API through kubectl get events"],
+      "audit_boundary": "Native Events in one namespace.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_job_logs",
+      "kind": "read",
+      "native_sources": ["kubectl logs job/{name}"],
+      "audit_boundary": "Native stdout for one named Job.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_object",
+      "kind": "write",
+      "native_sources": ["kubectl create -f - using the explicit manifest"],
+      "audit_boundary": "One native create request; generateName may allocate a new identity.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "apply_object",
+      "kind": "write",
+      "native_sources": ["kubectl apply -f - using the explicit manifest"],
+      "audit_boundary": "One declarative write for one named object.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "patch_object",
+      "kind": "write",
+      "native_sources": ["kubectl patch with native merge, strategic or JSON patch"],
+      "audit_boundary": "One named object and explicit patch body.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "delete_object",
+      "kind": "write",
+      "native_sources": ["kubectl delete {resource} {name}"],
+      "audit_boundary": "One named Kubernetes object.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "remove_node_taint",
+      "kind": "write",
+      "native_sources": ["kubectl taint node {name} {key}-"],
+      "audit_boundary": "One visible taint on one Node.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "wait_for_job",
+      "kind": "read",
+      "native_sources": ["kubectl wait --for=condition=complete job/{name}"],
+      "audit_boundary": "Native Job Complete condition with a bounded timeout.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_external_deliveries",
+      "kind": "read",
+      "native_sources": ["GET /deliveries on the open-source receiver ledger"],
+      "audit_boundary": "Durable receiver keys and attempt counts.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_external_delivery",
+      "kind": "read",
+      "native_sources": ["GET /deliveries/{idempotency-key} on the open-source receiver ledger"],
+      "audit_boundary": "One durable receiver record and its attempts.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "post_external_event",
+      "kind": "write",
+      "native_sources": ["POST /webhooks/events with the explicit X-Idempotency-Key and payload"],
+      "audit_boundary": "One real receiver attempt; duplicate attempts remain auditable.",
+      "returns_recommendation": false
+    }
+  ]
+}
