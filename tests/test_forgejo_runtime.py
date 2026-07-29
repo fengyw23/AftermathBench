@@ -36,6 +36,16 @@ class ForgejoRuntimeTest(unittest.TestCase):
         )
         self.assertIn(plan.revision, plan.fetch_commands[2])
         self.assertIn(str(plan.pinned_containerfile), plan.build_command)
+        release_argument = next(
+            argument
+            for argument in plan.build_command
+            if argument.startswith("RELEASE_VERSION=")
+        )
+        self.assertEqual(
+            release_argument,
+            "RELEASE_VERSION=17.0.0-aftermath.fbafae6c",
+        )
+        self.assertNotIn("+", release_argument)
 
     def test_checkout_rejects_nonempty_directory(self) -> None:
         with TemporaryDirectory() as directory:
