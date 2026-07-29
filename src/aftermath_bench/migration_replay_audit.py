@@ -10,7 +10,6 @@ from .integrations.kubernetes_migration_faults import (
 )
 from .integrations.kubernetes_migration_prefix import SCENARIO_ID
 
-
 EXPECTED_DIRECTIONS = {
     "change_request_not_reached": "rollback_to_stable",
     "preparation_escaped_migration_failed": "compensate_external_effect",

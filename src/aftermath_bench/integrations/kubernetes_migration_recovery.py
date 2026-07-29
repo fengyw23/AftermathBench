@@ -21,7 +21,6 @@ from .kubernetes_migration_prefix import (
 )
 from .kubernetes_settlement_recovery import _complete, _find, _json_request
 
-
 DIRECTIONS = (
     "rollback_to_stable",
     "compensate_external_effect",

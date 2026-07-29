@@ -15,7 +15,6 @@ from .kubernetes_migration_prefix import (
 )
 from .kubernetes_settlement_recovery import _json_request
 
-
 KUBERNETES_MIGRATION_VARIANTS = (
     "change_request_not_reached",
     "preparation_escaped_migration_failed",

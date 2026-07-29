@@ -14,7 +14,6 @@ from .kubernetes_migration_prefix import (
 )
 from .kubernetes_migration_recovery import KubernetesMigrationEnvironment
 
-
 MIGRATION_BASELINES = (
     "no_op",
     "blind_retry",

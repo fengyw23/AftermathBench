@@ -15,11 +15,11 @@ from aftermath_bench.integrations.kubernetes_migration_prefix import (
 from aftermath_bench.integrations.kubernetes_migration_recovery import (
     derive_recovery_direction,
 )
-from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
 from aftermath_bench.native_admission import (
     _dependency_depth,
     _shared_dependency_count,
 )
+from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
 from aftermath_bench.schema import repository_root
 from scripts.build_kubernetes_migration_admission import _observed_graph
 

@@ -7,7 +7,6 @@ from typing import Any
 from .kubernetes_api import KubernetesApi
 from .kubernetes_settlement_prefix import WORKER_IMAGE, _stable_object
 
-
 SCENARIO_ID = "k8s-schema-rollout-dev-003"
 NAMESPACE = "aftermath-migration"
 STABLE_DEPLOYMENT = "orders-v1"
