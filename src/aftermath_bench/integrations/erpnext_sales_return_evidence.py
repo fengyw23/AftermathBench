@@ -65,8 +65,8 @@ class ERPNextSalesReturnEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             for document in all_invoices
             if self._references_item_field(
                 document,
-                "delivery_note",
-                str(prefix["replacement_delivery_note"]),
+                "sales_order",
+                str(prefix["replacement_sales_order"]),
             )
         ]
         voucher_names = {

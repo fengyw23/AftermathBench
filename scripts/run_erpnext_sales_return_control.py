@@ -31,7 +31,7 @@ MUTATION_TOOLS = {
     "create_sales_return",
     "create_credit_note",
     "create_delivery_note_from_order",
-    "create_sales_invoice_from_delivery",
+    "create_sales_invoice_from_order",
     "reconcile_customer_documents",
     "enqueue_document_webhook",
     "resume_workers",

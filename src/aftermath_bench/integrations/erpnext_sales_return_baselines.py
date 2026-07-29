@@ -52,8 +52,8 @@ def _complete_downstream_naively(
     invoice = _call(
         environment,
         trace,
-        "create_sales_invoice_from_delivery",
-        delivery_note=prefix["replacement_delivery_note"],
+        "create_sales_invoice_from_order",
+        sales_order=prefix["replacement_sales_order"],
     )
     document = invoice.get("document")
     if invoice.get("ok") and isinstance(document, dict):

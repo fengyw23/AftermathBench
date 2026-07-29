@@ -11,6 +11,7 @@ PREFIX = {
     "sales_return": "DN-RETURN",
     "credit_note": "SINV-CREDIT",
     "replacement_delivery_note": "DN-EXCHANGE",
+    "replacement_sales_order": "SO-EXCHANGE",
     "shared_payment_entry": "PAY-1",
     "unaffected_invoice": "SINV-U",
     "affected_invoice": "SINV-A",
@@ -42,7 +43,7 @@ class FakeEnvironment:
             return {"ok": True, "delivered": True}
         if tool == "find_background_jobs":
             return {"ok": True, "jobs": []}
-        if tool == "create_sales_invoice_from_delivery":
+        if tool == "create_sales_invoice_from_order":
             return {
                 "ok": True,
                 "document": {"name": "SINV-EXCHANGE"},
@@ -69,7 +70,7 @@ class SalesReturnBaselineTest(unittest.TestCase):
         )
         names = [step["tool"] for step in trace]
         self.assertNotIn("get_document", names)
-        self.assertIn("create_sales_invoice_from_delivery", names)
+        self.assertIn("create_sales_invoice_from_order", names)
 
     def test_compact_tree_queries_boundary_then_runs_fixed_sequence(
         self,
@@ -89,7 +90,7 @@ class SalesReturnBaselineTest(unittest.TestCase):
                 "find_background_jobs",
             ],
         )
-        self.assertIn("create_sales_invoice_from_delivery", names)
+        self.assertIn("create_sales_invoice_from_order", names)
 
 
 if __name__ == "__main__":

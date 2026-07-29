@@ -11,7 +11,7 @@ def _committed_evidence() -> dict:
     return {
         "sales_return": {"docstatus": 1},
         "credit_note": {"docstatus": 0},
-        "replacement_delivery_note": {"docstatus": 1},
+        "replacement_delivery_note": {"docstatus": 0},
         "replacement_invoices": [{"docstatus": 0}],
         "stock_ledger_entries": [
             {

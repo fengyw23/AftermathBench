@@ -125,13 +125,13 @@ def validate_sales_return_boundary(
                     == "upstream_completed_response_dropped"
                     and gateway.get("upstream_status") is not None
                 ),
-                "replacement_delivery_released": int(
+                "replacement_delivery_remains_draft": int(
                     evidence["replacement_delivery_note"].get(
                         "docstatus",
                         0,
                     )
                 )
-                == 1,
+                == 0,
                 "one_draft_replacement_invoice_created": (
                     len(evidence.get("replacement_invoices", [])) == 1
                     and int(

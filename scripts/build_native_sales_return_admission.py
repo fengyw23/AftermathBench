@@ -329,14 +329,14 @@ def _build_graph(
             ),
         ),
         _relation(
-            "replacement_delivery_note",
+            "replacement_sales_order",
             "replacement_invoice",
             "billed_by",
-            "replacement_invoices[].items[].delivery_note",
+            "replacement_invoices[].items[].sales_order",
             _clause(
-                "replacement_invoices.*.items.*.delivery_note",
+                "replacement_invoices.*.items.*.sales_order",
                 "any_equals",
-                expected_entity="replacement_delivery_note",
+                expected_entity="replacement_sales_order",
             ),
         ),
         _relation(
@@ -509,7 +509,7 @@ def _build_graph(
                     "create_sales_return",
                     "create_credit_note",
                     "create_delivery_note_from_order",
-                    "create_sales_invoice_from_delivery",
+                    "create_sales_invoice_from_order",
                 ],
             },
             {

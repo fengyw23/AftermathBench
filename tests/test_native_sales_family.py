@@ -31,6 +31,8 @@ class NativeSalesFamilyTest(unittest.TestCase):
         names = {tool.name for tool in SALES_RETURN_TOOL_DEFINITIONS}
         self.assertIn("list_related_documents", names)
         self.assertIn("create_sales_return", names)
+        self.assertIn("create_sales_invoice_from_order", names)
+        self.assertNotIn("create_sales_invoice_from_delivery", names)
         self.assertNotIn("repair_sales_return", names)
         for tool in SALES_RETURN_TOOL_DEFINITIONS:
             self.assertFalse(tool.input_schema["additionalProperties"])

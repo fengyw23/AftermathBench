@@ -535,13 +535,9 @@ def ensure_sales_exchange_automation(
     adapter: FrappeHTTPAdapter,
     prefix: dict[str, Any],
 ) -> dict[str, Any]:
-    """Release the approved exchange and reuse any existing active invoice."""
-    delivery_name = str(prefix["replacement_delivery_note"])
-    delivery = _payload(adapter.get_resource("Delivery Note", delivery_name))
+    """Create or reuse the draft invoice for the approved exchange order."""
+    order_name = str(prefix["replacement_sales_order"])
     actions: list[str] = []
-    if int(delivery.get("docstatus", 0)) == 0:
-        delivery = _payload(adapter.submit_document("Delivery Note", delivery_name))
-        actions.append("submit replacement Delivery Note")
     invoices: list[dict[str, Any]] = []
     for summary in adapter.list_resources(
         "Sales Invoice",
@@ -552,15 +548,15 @@ def ensure_sales_exchange_automation(
         if int(invoice.get("docstatus", 0)) == 2:
             continue
         if any(
-            item.get("delivery_note") == delivery_name
+            item.get("sales_order") == order_name
             for item in invoice.get("items", [])
         ):
             invoices.append(invoice)
     if not invoices:
         template = _payload(
             adapter.call_method(
-                "erpnext.stock.doctype.delivery_note.delivery_note.make_sales_invoice",
-                {"source_name": delivery_name},
+                "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
+                {"source_name": order_name},
             )
         )
         invoice = _payload(adapter.create_resource("Sales Invoice", template))
@@ -572,7 +568,7 @@ def ensure_sales_exchange_automation(
     return {
         "ok": True,
         "actions": actions,
-        "replacement_delivery_note": delivery["name"],
+        "replacement_sales_order": order_name,
         "replacement_invoice": invoice["name"],
         "replacement_invoice_docstatus": int(invoice.get("docstatus", 0)),
     }

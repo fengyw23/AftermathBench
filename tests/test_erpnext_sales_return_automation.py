@@ -40,7 +40,7 @@ class FakeAdapter:
         return {
             "message": {
                 "doctype": "Sales Invoice",
-                "items": [{"delivery_note": arguments["source_name"]}],
+                "items": [{"sales_order": arguments["source_name"]}],
             }
         }
 
@@ -54,7 +54,10 @@ class FakeAdapter:
         return {"data": self.invoice}
 
 
-PREFIX = {"replacement_delivery_note": "DN-EXCHANGE"}
+PREFIX = {
+    "replacement_sales_order": "SO-EXCHANGE",
+    "replacement_delivery_note": "DN-EXCHANGE",
+}
 
 
 class SalesExchangeAutomationTest(unittest.TestCase):
@@ -66,10 +69,10 @@ class SalesExchangeAutomationTest(unittest.TestCase):
         )
         self.assertEqual(
             result["actions"],
-            [
-                "submit replacement Delivery Note",
-                "create draft replacement Sales Invoice",
-            ],
+            ["create draft replacement Sales Invoice"],
+        )
+        self.assertFalse(
+            any(call[0] == "submit_document" for call in adapter.calls)
         )
 
     def test_reuses_existing_exchange_invoice(self) -> None:
@@ -78,7 +81,7 @@ class SalesExchangeAutomationTest(unittest.TestCase):
             invoice={
                 "name": "SINV-EXISTING",
                 "docstatus": 0,
-                "items": [{"delivery_note": "DN-EXCHANGE"}],
+                "items": [{"sales_order": "SO-EXCHANGE"}],
             },
         )
         result = ensure_sales_exchange_automation(

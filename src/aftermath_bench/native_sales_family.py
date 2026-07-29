@@ -208,11 +208,11 @@ SALES_RETURN_TOOL_DEFINITIONS = (
         ),
     ),
     ToolDefinition(
-        "create_sales_invoice_from_delivery",
-        "Create a draft Sales Invoice from a submitted Delivery Note.",
+        "create_sales_invoice_from_order",
+        "Create a draft Sales Invoice from a submitted Sales Order.",
         _object_schema(
-            {"delivery_note": {"type": "string"}},
-            ("delivery_note",),
+            {"sales_order": {"type": "string"}},
+            ("sales_order",),
         ),
     ),
     ToolDefinition(
@@ -274,7 +274,7 @@ SALES_RETURN_MUTATIONS = frozenset(
         "create_sales_return",
         "create_credit_note",
         "create_delivery_note_from_order",
-        "create_sales_invoice_from_delivery",
+        "create_sales_invoice_from_order",
         "reconcile_customer_documents",
         "enqueue_document_webhook",
         "resume_workers",
@@ -331,8 +331,9 @@ def sales_initial_message(
             "Payment Entry. Ensure exactly the existing partial Sales Return "
             "and Credit Note are submitted, submit the existing replacement "
             "Delivery Note, and ensure exactly one active replacement Sales "
-            "Invoice linked to it. Search linked Sales Invoices before any "
-            "creation; reuse an existing draft and never create a second. "
+            "Invoice linked to the replacement Sales Order. Search linked "
+            "Sales Invoices before any creation; reuse an existing draft "
+            "and never create a second. "
             "Reconcile the customer credit to the replacement invoice and "
             "ensure the pickup event is delivered exactly once. Inspect "
             "current document, job, delivery, and linked-invoice state first."
@@ -359,9 +360,9 @@ def diagnose_sales_trajectory(
     create_positions = [
         index
         for index, call in enumerate(calls)
-        if call["name"] == "create_sales_invoice_from_delivery"
-        and call["arguments"].get("delivery_note")
-        == prefix.get("replacement_delivery_note")
+        if call["name"] == "create_sales_invoice_from_order"
+        and call["arguments"].get("sales_order")
+        == prefix.get("replacement_sales_order")
     ]
     before_create = (
         calls[: min(create_positions)] if create_positions else calls
@@ -373,9 +374,9 @@ def diagnose_sales_trajectory(
         )
         or (
             call["name"] == "list_related_documents"
-            and call["arguments"].get("source_doctype") == "Delivery Note"
+            and call["arguments"].get("source_doctype") == "Sales Order"
             and call["arguments"].get("source_name")
-            == prefix.get("replacement_delivery_note")
+            == prefix.get("replacement_sales_order")
             and call["arguments"].get("target_doctype") == "Sales Invoice"
         )
         for call in before_create

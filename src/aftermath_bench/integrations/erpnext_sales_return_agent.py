@@ -33,7 +33,7 @@ class ERPNextSalesReturnEnvironment(ERPNextPartialReturnEnvironment):
         "create_sales_return",
         "create_credit_note",
         "create_delivery_note_from_order",
-        "create_sales_invoice_from_delivery",
+        "create_sales_invoice_from_order",
         "reconcile_customer_documents",
         "enqueue_document_webhook",
         "resume_workers",
@@ -122,8 +122,8 @@ class ERPNextSalesReturnEnvironment(ERPNextPartialReturnEnvironment):
             "create_delivery_note_from_order": lambda: (
                 self._create_delivery(str(kwargs["sales_order"]))
             ),
-            "create_sales_invoice_from_delivery": lambda: (
-                self._create_invoice(str(kwargs["delivery_note"]))
+            "create_sales_invoice_from_order": lambda: (
+                self._create_invoice(str(kwargs["sales_order"]))
             ),
             "reconcile_customer_documents": lambda: (
                 self._reconcile_customer(
@@ -244,11 +244,11 @@ class ERPNextSalesReturnEnvironment(ERPNextPartialReturnEnvironment):
         )
         return {"ok": True, "document": document}
 
-    def _create_invoice(self, delivery_note: str) -> dict[str, Any]:
+    def _create_invoice(self, sales_order: str) -> dict[str, Any]:
         template = _payload(
             self.adapter.call_method(
-                "erpnext.stock.doctype.delivery_note.delivery_note.make_sales_invoice",
-                {"source_name": delivery_note},
+                "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
+                {"source_name": sales_order},
             )
         )
         document = _payload(
@@ -336,8 +336,8 @@ def reference_sales_return_recovery(
 
     related = call(
         "list_related_documents",
-        source_doctype="Delivery Note",
-        source_name=prefix["replacement_delivery_note"],
+        source_doctype="Sales Order",
+        source_name=prefix["replacement_sales_order"],
         target_doctype="Sales Invoice",
         relation_type="billed_by",
     )["related"]
@@ -348,8 +348,8 @@ def reference_sales_return_recovery(
     ]
     if not replacement_invoices:
         replacement_invoice = call(
-            "create_sales_invoice_from_delivery",
-            delivery_note=prefix["replacement_delivery_note"],
+            "create_sales_invoice_from_order",
+            sales_order=prefix["replacement_sales_order"],
         )["document"]
     elif len(replacement_invoices) == 1:
         replacement_invoice = replacement_invoices[0]

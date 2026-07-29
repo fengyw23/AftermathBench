@@ -19,6 +19,7 @@ class _ReferenceFixture:
             "sales_return": "DN-RETURN",
             "credit_note": "SINV-CREDIT",
             "replacement_delivery_note": "DN-EXCHANGE",
+            "replacement_sales_order": "SO-EXCHANGE",
             "shared_payment_entry": "PAY-1",
             "quality_inspection": "QI-1",
             "company": "Aftermath Laboratories LLC",
@@ -27,7 +28,7 @@ class _ReferenceFixture:
         self.return_docstatus = return_docstatus
         self.credit_docstatus = 0
         self.replacement_delivery_docstatus = (
-            1 if return_docstatus == 1 else 0
+            0
         )
         self.replacement_invoice = (
             {"name": "SINV-EXCHANGE", "docstatus": 0}
@@ -58,7 +59,6 @@ class _ReferenceFixture:
             name = kwargs["name"]
             if name == "DN-RETURN":
                 self.return_docstatus = 1
-                self.replacement_delivery_docstatus = 1
                 self.replacement_invoice = {
                     "name": "SINV-EXCHANGE",
                     "docstatus": 0,
@@ -66,6 +66,8 @@ class _ReferenceFixture:
                 self.delivered = True
             elif name == "SINV-CREDIT":
                 self.credit_docstatus = 1
+            elif name == "DN-EXCHANGE":
+                self.replacement_delivery_docstatus = 1
             elif name == "SINV-EXCHANGE":
                 assert self.replacement_invoice is not None
                 self.replacement_invoice["docstatus"] = 1
@@ -77,7 +79,7 @@ class _ReferenceFixture:
                 else [{"document": dict(self.replacement_invoice)}]
             )
             return {"ok": True, "related": related}
-        if tool == "create_sales_invoice_from_delivery":
+        if tool == "create_sales_invoice_from_order":
             self.replacement_invoice = {
                 "name": "SINV-EXCHANGE",
                 "docstatus": 0,
@@ -134,10 +136,11 @@ class ERPNextSalesReturnReferenceTest(unittest.TestCase):
                 "submit_document",
                 "submit_document",
                 "submit_document",
+                "submit_document",
                 "reconcile_customer_documents",
             ],
         )
-        self.assertNotIn("create_sales_invoice_from_delivery", mutations)
+        self.assertNotIn("create_sales_invoice_from_order", mutations)
 
     def test_committed_and_delivered_does_not_retry_return(self) -> None:
         fixture = _ReferenceFixture(
@@ -148,6 +151,7 @@ class ERPNextSalesReturnReferenceTest(unittest.TestCase):
         self.assertEqual(
             self._mutations(fixture),
             [
+                "submit_document",
                 "submit_document",
                 "submit_document",
                 "reconcile_customer_documents",
