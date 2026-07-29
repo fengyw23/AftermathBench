@@ -156,7 +156,7 @@ def reset_prefix(api: KubernetesApi) -> dict[str, Any]:
 
 def _project_object(document: dict[str, Any]) -> dict[str, Any]:
     metadata = document["metadata"]
-    return {
+    projected = {
         "apiVersion": document["apiVersion"],
         "kind": document["kind"],
         "metadata": {
@@ -165,9 +165,68 @@ def _project_object(document: dict[str, Any]) -> dict[str, Any]:
             "labels": metadata.get("labels", {}),
             "annotations": metadata.get("annotations", {}),
         },
-        "spec": document.get("spec"),
         "data": document.get("data"),
     }
+    spec = document.get("spec", {})
+    if document["kind"] == "Service":
+        projected["spec"] = {
+            "selector": spec.get("selector", {}),
+            "ports": [
+                {
+                    key: port[key]
+                    for key in ("name", "port", "protocol", "targetPort")
+                    if key in port
+                }
+                for port in spec.get("ports", [])
+            ],
+            "type": spec.get("type"),
+        }
+    elif document["kind"] == "Deployment":
+        template = spec.get("template", {})
+        pod_spec = template.get("spec", {})
+        projected["spec"] = {
+            "replicas": spec.get("replicas"),
+            "revisionHistoryLimit": spec.get("revisionHistoryLimit"),
+            "strategy": spec.get("strategy"),
+            "selector": spec.get("selector"),
+            "template": {
+                "metadata": {
+                    "labels": template.get("metadata", {}).get("labels", {}),
+                    "annotations": template.get("metadata", {}).get(
+                        "annotations", {}
+                    ),
+                },
+                "containers": [
+                    {
+                        "name": container["name"],
+                        "image": container["image"],
+                        "resources": container.get("resources", {}),
+                    }
+                    for container in pod_spec.get("containers", [])
+                ],
+            },
+        }
+    elif document["kind"] == "HorizontalPodAutoscaler":
+        projected["spec"] = {
+            key: spec.get(key)
+            for key in (
+                "scaleTargetRef",
+                "minReplicas",
+                "maxReplicas",
+                "metrics",
+                "behavior",
+            )
+            if key in spec
+        }
+    elif document["kind"] == "PodDisruptionBudget":
+        projected["spec"] = {
+            key: spec.get(key)
+            for key in ("minAvailable", "maxUnavailable", "selector")
+            if key in spec
+        }
+    else:
+        projected["spec"] = spec
+    return projected
 
 
 def capture_prefix(api: KubernetesApi) -> dict[str, Any]:

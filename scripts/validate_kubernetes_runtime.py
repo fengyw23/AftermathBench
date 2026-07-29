@@ -47,9 +47,19 @@ def main() -> int:
                 and first["fingerprint"] != mutated_fingerprint
             ),
         }
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
         if not payload["passed"]:
-            raise RuntimeError("Kubernetes native reset is not deterministic")
-    if args.output:
+            raise RuntimeError(
+                "Kubernetes native reset is not deterministic: "
+                f"{payload['first_fingerprint']} != "
+                f"{payload['second_fingerprint']}"
+            )
+    if args.output and args.action != "validate-reset":
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",

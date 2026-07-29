@@ -4,6 +4,7 @@ import unittest
 
 from aftermath_bench.integrations.kubernetes_rollout_prefix import (
     NAMESPACE,
+    _project_object,
     prefix_fingerprint,
     prefix_manifests,
 )
@@ -34,6 +35,37 @@ class KubernetesRolloutPrefixTest(unittest.TestCase):
         rendered = str(prefix_manifests()).lower()
         self.assertNotIn("repair_", rendered)
         self.assertNotIn("recommended", rendered)
+
+    def test_service_projection_excludes_generated_cluster_ip(self) -> None:
+        projected = _project_object(
+            {
+                "apiVersion": "v1",
+                "kind": "Service",
+                "metadata": {
+                    "name": "checkout-api",
+                    "namespace": NAMESPACE,
+                },
+                "spec": {
+                    "clusterIP": "10.96.1.25",
+                    "clusterIPs": ["10.96.1.25"],
+                    "selector": {"app": "checkout-api"},
+                    "ports": [
+                        {
+                            "name": "app",
+                            "port": 8080,
+                            "protocol": "TCP",
+                            "targetPort": 8080,
+                        }
+                    ],
+                    "type": "ClusterIP",
+                },
+            }
+        )
+        self.assertNotIn("clusterIP", projected["spec"])
+        self.assertEqual(
+            projected["spec"]["selector"],
+            {"app": "checkout-api"},
+        )
 
 
 if __name__ == "__main__":
