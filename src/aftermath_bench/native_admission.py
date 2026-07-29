@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .evidence_replay import replay_graph
 from .native_scenario import NativeScenario
@@ -87,6 +90,128 @@ def _recovery_signature(report: dict[str, Any]) -> tuple[tuple[str, int], ...]:
     return tuple(sorted(Counter(map(str, report.get("mutation_tools", ()))).items()))
 
 
+def _normalise_prompt_text(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.lower())).strip()
+
+
+def _constraint_prompt_admission(
+    audit: dict[str, Any],
+    *,
+    minimum_counterfactual_flips: int,
+    expected_variants: set[str],
+) -> tuple[dict[str, bool], dict[str, int | float | bool]]:
+    surfaces = tuple(audit.get("visible_surfaces", ()))
+    surface_ids = [str(item.get("id", "")) for item in surfaces]
+    required_surface_ids = set(map(str, audit.get("required_surface_ids", ())))
+    nonempty_surfaces = [item for item in surfaces if str(item.get("text", "")).strip()]
+    surface_hashes_match = all(
+        str(item.get("sha256", ""))
+        == hashlib.sha256(str(item.get("text", "")).encode("utf-8")).hexdigest()
+        for item in surfaces
+    )
+    labels = {
+        _normalise_prompt_text(str(label))
+        for label in audit.get("forbidden_direction_labels", ())
+        if _normalise_prompt_text(str(label))
+    }
+    normalised_surfaces = {
+        str(item.get("id", "")): _normalise_prompt_text(str(item.get("text", "")))
+        for item in surfaces
+    }
+    leaked_pairs = {
+        (surface_id, label)
+        for surface_id, text in normalised_surfaces.items()
+        for label in labels
+        if label in text
+    }
+
+    groups = {
+        str(group["id"]): set(map(str, group.get("surface_ids", ())))
+        for group in audit.get("constraint_evidence_groups", ())
+    }
+    group_sources_valid = bool(groups) and all(
+        sources and sources <= set(surface_ids) for sources in groups.values()
+    )
+    constraints = {
+        str(item["id"]): set(map(str, item.get("surface_ids", ())))
+        for item in audit.get("constraints", ())
+    }
+    constraint_sources_valid = bool(constraints) and all(
+        sources and sources <= set(surface_ids) for sources in constraints.values()
+    )
+    derivations = tuple(audit.get("variant_derivations", ()))
+    derivation_ids = {str(item.get("variant", "")) for item in derivations}
+    derivation_group_counts = [
+        len(set(map(str, item.get("evidence_groups", ())))) for item in derivations
+    ]
+    derivation_constraint_counts = [
+        len(set(map(str, item.get("constraint_ids", ())))) for item in derivations
+    ]
+    decisive_surface_counts = [
+        len(set(map(str, item.get("decisive_surface_ids", ())))) for item in derivations
+    ]
+    derivations_reference_known_groups = bool(derivations) and all(
+        set(map(str, item.get("evidence_groups", ()))) <= set(groups)
+        for item in derivations
+    )
+    derivations_reference_known_constraints = bool(derivations) and all(
+        set(map(str, item.get("constraint_ids", ()))) <= set(constraints)
+        for item in derivations
+    )
+    derivation_surfaces_visible = bool(derivations) and all(
+        set(map(str, item.get("decisive_surface_ids", ()))) <= set(surface_ids)
+        for item in derivations
+    )
+    flips = tuple(audit.get("counterfactual_pairs", ()))
+    valid_flips = sum(
+        1
+        for item in flips
+        if int(item.get("changed_fact_count", 0)) == 1
+        and bool(item.get("direction_flipped", False))
+    )
+
+    minimum_groups = min(derivation_group_counts, default=0)
+    minimum_constraints = min(derivation_constraint_counts, default=0)
+    minimum_decisive_surfaces = min(decisive_surface_counts, default=0)
+    observed: dict[str, int | float | bool] = {
+        "ordinary_visible_surface_count": len(surfaces),
+        "ordinary_required_surface_count": len(required_surface_ids),
+        "ordinary_direction_label_leak_count": len(leaked_pairs),
+        "constraint_evidence_group_count": len(groups),
+        "visible_constraint_count": len(constraints),
+        "minimum_derivation_evidence_groups": minimum_groups,
+        "minimum_derivation_constraints": minimum_constraints,
+        "minimum_decisive_surfaces": minimum_decisive_surfaces,
+        "single_fact_direction_flip_count": valid_flips,
+    }
+    checks = {
+        "ordinary_prompt_surfaces_complete": (
+            bool(surfaces)
+            and len(surface_ids) == len(set(surface_ids))
+            and required_surface_ids <= set(surface_ids)
+            and len(nonempty_surfaces) == len(surfaces)
+        ),
+        "ordinary_prompt_surface_hashes_match": surface_hashes_match,
+        "ordinary_direction_labels_not_leaked": not leaked_pairs,
+        "constraint_evidence_groups>=4": len(groups) >= 4,
+        "constraint_group_sources_are_visible": group_sources_valid,
+        "constraint_sources_are_visible": constraint_sources_valid,
+        "variant_derivations_cover_all_variants": derivation_ids == expected_variants,
+        "derivations_reference_known_groups": derivations_reference_known_groups,
+        "derivations_reference_known_constraints": (
+            derivations_reference_known_constraints
+        ),
+        "derivation_surfaces_are_visible": derivation_surfaces_visible,
+        "each_scope_uses_three_evidence_groups": minimum_groups >= 3,
+        "each_scope_uses_two_constraints": minimum_constraints >= 2,
+        "no_single_visible_surface_is_decisive": minimum_decisive_surfaces >= 3,
+        "single_fact_counterfactual_flips_meet_profile": (
+            valid_flips >= minimum_counterfactual_flips
+        ),
+    }
+    return checks, observed
+
+
 def _varying_action_branch_count(
     reports: Iterable[dict[str, Any]],
     action_branches: Iterable[dict[str, Any]],
@@ -167,6 +292,11 @@ def validate_native_scenario(
         "observed_graph": graph_path,
         "baselines": baseline_path,
     }
+    constraint_profile = scenario.raw.get("admission_profile", {}).get(
+        "constraint_derived_scope", {}
+    )
+    if constraint_profile:
+        paths["prompt_audit"] = scenario.resolve_artifact("prompt_audit")
     if replay_path is not None:
         paths["replay_evidence"] = replay_path
     missing = [name for name, path in paths.items() if not path.is_file()]
@@ -187,6 +317,9 @@ def validate_native_scenario(
     graph = _load_json(graph_path)
     baselines = _load_json(baseline_path)
     replay_evidence = _load_json(replay_path) if replay_path else None
+    prompt_audit = (
+        _load_json(paths["prompt_audit"]) if "prompt_audit" in paths else None
+    )
 
     trace = prefix.get("trace", ())
     successful_prefix_writes = sum(
@@ -319,6 +452,16 @@ def validate_native_scenario(
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
         "heuristic_matched_group_zero": not any(matched_heuristic_successes),
     }
+    if prompt_audit is not None:
+        prompt_checks, prompt_observed = _constraint_prompt_admission(
+            prompt_audit,
+            minimum_counterfactual_flips=int(
+                constraint_profile.get("minimum_counterfactual_flips", 2)
+            ),
+            expected_variants=set(scenario.variants),
+        )
+        checks.update(prompt_checks)
+        observed.update(prompt_observed)
     hard_passed = all(checks.values())
     requested_tier = scenario.tier
     candidate_passed = (
