@@ -18,6 +18,7 @@ class KubernetesBoundaryWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(variant, workflow)
         self.assertIn("run_kubernetes_rollout_boundary.py", workflow)
+        self.assertIn("run_kubernetes_rollout_control.py", workflow)
         self.assertIn("${{ runner.temp }}/kubernetes-boundaries", workflow)
 
 

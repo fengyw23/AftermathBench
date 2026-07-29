@@ -40,7 +40,11 @@ def _wait_for_history(
             prefix["repository"],
             int(prefix["webhook_id"]),
         )
-        if history or not required:
+        if not required:
+            break
+        if history and all(
+            delivery.status != "pending" for delivery in history
+        ):
             break
         time.sleep(0.5)
     return [

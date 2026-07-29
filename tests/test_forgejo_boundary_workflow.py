@@ -21,6 +21,14 @@ class ForgejoBoundaryWorkflowTest(unittest.TestCase):
             self.assertIn(variant, workflow)
         self.assertIn("release-prefix.tar.gz", workflow)
 
+    def test_boundary_waits_for_native_delivery_to_leave_pending(self) -> None:
+        script = (
+            repository_root()
+            / "scripts"
+            / "run_forgejo_merge_boundary.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('delivery.status != "pending"', script)
+
 
 if __name__ == "__main__":
     unittest.main()
