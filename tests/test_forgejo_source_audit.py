@@ -30,7 +30,7 @@ class ForgejoSourceAuditTest(unittest.TestCase):
         self.assertTrue(audit["verification"]["passed"])
         self.assertEqual(
             audit["verification"]["workflow_run_id"],
-            30425862228,
+            30426124296,
         )
         self.assertTrue(
             all(
@@ -64,6 +64,17 @@ class ForgejoSourceAuditTest(unittest.TestCase):
         self.assertEqual(
             verification["source_verification"]["actual_hashes"],
             expected,
+        )
+        self.assertTrue(
+            verification["source_verification"]
+            ["pinned_containerfile"]["all_digests_pinned"]
+        )
+        self.assertEqual(
+            verification["image_build"]["built_from_verified_revision"],
+            audit["revision"],
+        )
+        self.assertTrue(
+            verification["image_build"]["image_id"].startswith("sha256:")
         )
 
 
