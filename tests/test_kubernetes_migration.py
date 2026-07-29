@@ -209,6 +209,8 @@ class KubernetesMigrationBlueprintTest(unittest.TestCase):
         self.assertNotIn("sk-", model)
         self.assertIn("for attempt in 1 2", model)
         self.assertIn("run_kubernetes_migration_boundary.py", model)
+        self.assertIn('if [ -s "$run_dir/${variant}.json" ]', model)
+        self.assertIn("model trajectory completed with a scored failure", model)
 
     def test_execution_control_names_oracle_scope_only_in_control(self) -> None:
         scenario = load_native_scenario(
