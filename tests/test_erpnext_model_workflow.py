@@ -42,6 +42,33 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             workflow,
         )
 
+    def test_sales_return_workflow_uses_native_family_runner(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "erpnext-sales-return-model.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("run_erpnext_sales_return_failure.py", workflow)
+        self.assertIn("run-native-model", workflow)
+        self.assertIn(
+            '--expected-execution-control "$EXECUTION_CONTROL"',
+            workflow,
+        )
+        for variant in (
+            "request_not_reached",
+            "database_committed_response_lost",
+            "after_commit_enqueue_failed",
+            "async_job_pending",
+        ):
+            self.assertIn(variant, workflow)
+        upload_section = workflow.split(
+            "- name: Upload sanitized trajectories",
+            1,
+        )[1]
+        self.assertNotIn("credentials.json", upload_section)
+
     def test_final_experiment_is_one_job_with_frozen_holdout(self) -> None:
         workflow = (
             repository_root()

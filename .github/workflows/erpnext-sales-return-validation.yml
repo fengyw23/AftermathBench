@@ -61,8 +61,32 @@ jobs:
             after_commit_enqueue_failed
             async_job_pending
           )
+          baselines=(
+            no_op
+            blind_retry
+            assume_committed
+            repair_failed_record_only
+            all_rollback
+            cancel_shared_payment
+            compact_boundary_tree
+          )
           for variant in "${variants[@]}"
           do
+            for baseline in "${baselines[@]}"
+            do
+              python scripts/run_erpnext_sales_return_failure.py \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix "$run_root/prefix.json" \
+                --snapshot "$run_root/prefix.sql" \
+                --output "$run_root/failures/${variant}-baseline-${baseline}-failure.json"
+              python scripts/run_erpnext_sales_return_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix "$run_root/prefix.json" \
+                --output "$run_root/failures/${variant}-baseline-${baseline}.json"
+            done
             python scripts/run_erpnext_sales_return_failure.py \
               --variant "$variant" \
               --credentials runtimes/erpnext/.runtime/credentials.json \
@@ -75,6 +99,22 @@ jobs:
               --prefix "$run_root/prefix.json" \
               --output "$run_root/failures/${variant}-reference.json"
           done
+
+      - name: Build and audit replay-derived admission
+        run: |
+          run_root="runtimes/erpnext/.runtime/sales-return"
+          scenario="data/scenarios/erpnext-sales-return-dev-001/scenario.json"
+          artifact_dir="data/scenarios/erpnext-sales-return-dev-001/artifacts"
+          mkdir -p "$artifact_dir"
+          cp "$run_root/prefix.json" "$artifact_dir/prefix.json"
+          python scripts/build_native_sales_return_admission.py \
+            --prefix "$run_root/prefix.json" \
+            --control-directory "$run_root/failures" \
+            --output-directory "$artifact_dir"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$scenario" \
+            --execute \
+            > "$run_root/admission.json"
 
       - name: Remove credentials
         if: always()
@@ -90,6 +130,8 @@ jobs:
             runtimes/erpnext/.runtime/sales-return/prefix.json
             runtimes/erpnext/.runtime/sales-return/prefix-validation.json
             runtimes/erpnext/.runtime/sales-return/failures/
+            runtimes/erpnext/.runtime/sales-return/admission.json
+            data/scenarios/erpnext-sales-return-dev-001/artifacts/
           if-no-files-found: warn
 
       - name: Tear down services

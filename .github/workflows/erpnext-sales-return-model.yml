@@ -1,0 +1,197 @@
+name: erpnext-sales-return-model
+
+on:
+  push:
+    branches:
+      - native-sales-return-model-dev
+      - native-sales-return-control-dev
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Repetitions for each matched hidden state
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the correct recovery scope to isolate execution
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run-sales-return-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      SCENARIO: data/scenario_blueprints/erpnext-sales-return-dev-001/scenario.json
+      SCENARIO_ID: erpnext-sales-return-dev-001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Select experiment condition
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          if [ "$GITHUB_REF_NAME" = "native-sales-return-control-dev" ]
+          then
+            requested_control=true
+          elif [ "$GITHUB_REF_NAME" = "native-sales-return-model-dev" ]
+          then
+            requested_control=false
+          fi
+          if [ -z "$requested_model" ]
+          then
+            requested_model=glm-5.2
+          fi
+          if [ -z "$requested_repetitions" ]
+          then
+            requested_repetitions=1
+          fi
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute
+
+      - name: Build and freeze the native prefix
+        run: |
+          run_root="runtimes/erpnext/.runtime/sales-return-model"
+          mkdir -p "$run_root/model-runs"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_sales_return_prefix.py \
+            --scenario "$SCENARIO" \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --output "$run_root/prefix.json"
+          python scripts/manage_erpnext_stack.py snapshot \
+            --snapshot "$run_root/prefix.sql"
+          {
+            echo "schema_version=0.1"
+            echo "scenario_id=$SCENARIO_ID"
+            echo "scenario_sha256=$(sha256sum "$SCENARIO" | cut -d' ' -f1)"
+            echo "prefix_sha256=$(sha256sum "$run_root/prefix.json" | cut -d' ' -f1)"
+            echo "snapshot_sha256=$(sha256sum "$run_root/prefix.sql" | cut -d' ' -f1)"
+            echo "model=$MODEL_ID"
+            echo "repetitions=$REPETITIONS"
+            echo "execution_control=$EXECUTION_CONTROL"
+            echo "commit=$GITHUB_SHA"
+          } > "$run_root/model-runs/manifest.txt"
+
+      - name: Run the model on all matched hidden states
+        run: |
+          run_status=0
+          run_root="runtimes/erpnext/.runtime/sales-return-model"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              failure_report="$run_dir/${variant}-failure.json"
+              trajectory="$run_dir/${variant}.json"
+              if python scripts/run_erpnext_sales_return_failure.py \
+                  --variant "$variant" \
+                  --credentials runtimes/erpnext/.runtime/credentials.json \
+                  --prefix "$run_root/prefix.json" \
+                  --snapshot "$run_root/prefix.sql" \
+                  --output "$failure_report"
+              then
+                control_flag=()
+                if [ "$EXECUTION_CONTROL" = "true" ]
+                then
+                  control_flag=(--execution-control)
+                fi
+                if python -m aftermath_bench run-native-model \
+                    --provider openai-compatible \
+                    --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                    --model "$MODEL_ID" \
+                    --scenario "$SCENARIO" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$run_root/prefix.json" \
+                    --failure-report "$failure_report" \
+                    --max-turns 25 \
+                    "${control_flag[@]}" \
+                    --output "$trajectory"
+                then
+                  true
+                elif [ ! -s "$trajectory" ]
+                then
+                  run_status=1
+                fi
+              else
+                run_status=1
+              fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/model-runs" \
+            --output "$run_root/model-runs/summary.json" \
+            --expected-execution-control "$EXECUTION_CONTROL" \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Capture compose diagnostics
+        if: always()
+        run: |
+          run_root="runtimes/erpnext/.runtime/sales-return-model"
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all > "$run_root/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color > "$run_root/compose.log" 2>&1 || true
+
+      - name: Remove credentials and database dump
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          rm -f runtimes/erpnext/.runtime/sales-return-model/prefix.sql
+
+      - name: Upload sanitized trajectories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-sales-return-model-output
+          include-hidden-files: true
+          path: |
+            runtimes/erpnext/.runtime/sales-return-model/model-runs/
+            runtimes/erpnext/.runtime/sales-return-model/prefix.json
+            runtimes/erpnext/.runtime/sales-return-model/compose-ps.txt
+            runtimes/erpnext/.runtime/sales-return-model/compose.log
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge
