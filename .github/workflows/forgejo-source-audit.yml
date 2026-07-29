@@ -64,6 +64,26 @@ jobs:
             --credentials "$runtime_root/credentials.json" \
             --prefix "$runtime_root/validation/release-prefix.json" \
             --output "$runtime_root/validation/webhook-history.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/release-prefix.tar.gz"
+
+      - name: Replay matched merge boundaries
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          for variant in \
+            merge_request_not_reached \
+            merge_committed_delivery_succeeded \
+            merge_committed_receiver_accepted_response_lost \
+            merge_committed_delivery_request_not_reached
+          do
+            python scripts/manage_forgejo_stack.py restore \
+              --snapshot "$runtime_root/release-prefix.tar.gz"
+            python scripts/run_forgejo_merge_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$runtime_root/validation/release-prefix.json" \
+              --variant "$variant" \
+              --output "$runtime_root/validation/$variant.json"
+          done
 
       - name: Capture native runtime diagnostics
         if: always()
@@ -86,6 +106,7 @@ jobs:
         run: |
           rm -f runtimes/forgejo/.runtime/credentials.json
           rm -f runtimes/forgejo/.runtime/prefix.tar.gz
+          rm -f runtimes/forgejo/.runtime/release-prefix.tar.gz
 
       - uses: actions/upload-artifact@v4
         if: always()
