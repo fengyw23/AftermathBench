@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "evidence_group_count": 3,
+  "projection_witness_count": 3,
+  "all_declared_groups_have_witnesses": true,
+  "witnesses": {
+    "native_commit_cluster": {
+      "left_variant": "committed_cutover_without_publication",
+      "right_variant": "failed_migration_without_preparation",
+      "left_scope": "publish_committed_cutover",
+      "right_scope": "discard_uncommitted_candidate",
+      "removed_fact_keys": [
+        "migration_job_complete",
+        "migration_job_failed",
+        "schema_epoch",
+        "service_version"
+      ],
+      "retained_projection": [
+        [
+          "migration_job_count",
+          1
+        ],
+        [
+          "preparation",
+          false
+        ],
+        [
+          "publication",
+          false
+        ]
+      ]
+    },
+    "external_preparation": {
+      "left_variant": "failed_migration_with_preparation",
+      "right_variant": "failed_migration_without_preparation",
+      "left_scope": "compensate_then_discard_candidate",
+      "right_scope": "discard_uncommitted_candidate",
+      "removed_fact_keys": [
+        "preparation"
+      ],
+      "retained_projection": [
+        [
+          "migration_job_complete",
+          false
+        ],
+        [
+          "migration_job_count",
+          1
+        ],
+        [
+          "migration_job_failed",
+          true
+        ],
+        [
+          "publication",
+          false
+        ],
+        [
+          "schema_epoch",
+          "1"
+        ],
+        [
+          "service_version",
+          "v1"
+        ]
+      ]
+    },
+    "external_publication": {
+      "left_variant": "committed_cutover_with_publication",
+      "right_variant": "committed_cutover_without_publication",
+      "left_scope": "close_already_published_cutover",
+      "right_scope": "publish_committed_cutover",
+      "removed_fact_keys": [
+        "publication"
+      ],
+      "retained_projection": [
+        [
+          "migration_job_complete",
+          true
+        ],
+        [
+          "migration_job_count",
+          1
+        ],
+        [
+          "migration_job_failed",
+          false
+        ],
+        [
+          "preparation",
+          false
+        ],
+        [
+          "schema_epoch",
+          "2"
+        ],
+        [
+          "service_version",
+          "v2"
+        ]
+      ]
+    }
+  },
+  "source": "replayed Kubernetes failure boundaries and references",
+  "runtime_directory": "data\\evidence\\kubernetes-job-uid-contract-admission-final-20260730\\runtime"
+}

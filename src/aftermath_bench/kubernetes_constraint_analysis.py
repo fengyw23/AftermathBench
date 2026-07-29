@@ -65,6 +65,9 @@ def _query_facets(calls: Iterable[dict[str, Any]]) -> dict[str, bool]:
         "deployments": (
             "deployment" in listed_resources or "deployment" in fetched_resources
         ),
+        "candidate_secret": (
+            "secret" in listed_resources or "secret" in fetched_resources
+        ),
         "service": "service" in listed_resources or "service" in fetched_resources,
         "external_registry": any(
             call.get("name") == "list_external_deliveries" for call in calls
@@ -137,8 +140,20 @@ def analyze_kubernetes_constraint_report(report: dict[str, Any]) -> dict[str, An
         if not value
     }
     components = evaluation.get("components", {})
+    candidate_scope_failed = "candidate_lifecycle_matches_commit_state" in failed_checks
     if evaluation.get("passed", False):
         refined_failure_type = None
+    elif (
+        candidate_scope_failed
+        and before_facets["all_contracts"]
+        and before_facets["deployments"]
+    ):
+        # The agent has enough evidence to know whether the candidate is still
+        # useful and the visible serving contract says what to do with unused
+        # candidate resources. Leaving or removing the wrong candidate is a
+        # repair-scope omission, even if a missing Secret query is an
+        # additional investigation gap.
+        refined_failure_type = "scope_failure"
     elif not all(before_facets.values()):
         refined_failure_type = "investigation_failure"
     elif not components.get("preservation", True) or not components.get(
@@ -155,12 +170,19 @@ def analyze_kubernetes_constraint_report(report: dict[str, Any]) -> dict[str, An
     else:
         refined_failure_type = "verification_failure"
     failure_chain = [refined_failure_type] if refined_failure_type else []
+    if (
+        refined_failure_type == "scope_failure"
+        and candidate_scope_failed
+        and not before_facets["candidate_secret"]
+    ):
+        failure_chain.insert(0, "investigation_failure")
     post_verification = all(
         after_facets[key]
         for key in (
             "catalog",
             "migration_jobs",
             "deployments",
+            "candidate_secret",
             "service",
             "external_registry",
             "closure_records",

@@ -12,6 +12,52 @@ def _call(tool_name: str, **arguments: str) -> dict[str, object]:
 
 
 class KubernetesConstraintAnalysisTest(unittest.TestCase):
+    def test_candidate_cleanup_omission_is_scope_failure_with_investigation_gap(self) -> None:
+        report = {
+            "variant": "failed_migration_without_preparation",
+            "turns": [
+                {
+                    "tool_calls": [
+                        _call("list_objects", resource="configmaps"),
+                        _call("list_objects", resource="jobs"),
+                        _call("list_objects", resource="deployments"),
+                        _call("list_objects", resource="services"),
+                        _call("list_external_deliveries"),
+                    ]
+                },
+                {
+                    "tool_calls": [
+                        _call("patch_object", resource="configmaps", name="release-ledger")
+                    ]
+                },
+            ],
+            "final_evidence": {
+                "boundary_facts": {"external_keys": ["release:orders-v1"]},
+                "external_deliveries": [{"key": "release:orders-v1"}],
+            },
+            "evaluation": {
+                "passed": False,
+                "components": {
+                    "goal_completion": False,
+                    "repair_completeness": True,
+                    "preservation": True,
+                    "protocol_safety": True,
+                },
+                "checks": {"candidate_lifecycle_matches_commit_state": False},
+                "diagnostics": {
+                    "semantic_recovery_direction": "discard_uncommitted_candidate"
+                },
+            },
+            "trajectory_diagnostics": {"primary_error": "state_inference_failure"},
+        }
+        row = analyze_kubernetes_constraint_report(report)
+        self.assertEqual(row["refined_failure_type"], "scope_failure")
+        self.assertEqual(
+            row["failure_chain"],
+            ["investigation_failure", "scope_failure"],
+        )
+        self.assertFalse(row["pre_mutation_facets"]["candidate_secret"])
+
     def test_reads_batched_with_first_write_do_not_count_as_prior_evidence(self) -> None:
         report = {
             "variant": "committed_cutover_without_publication",
@@ -81,6 +127,7 @@ class KubernetesConstraintAnalysisTest(unittest.TestCase):
                         _call("list_objects", resource="configmaps"),
                         _call("list_objects", resource="jobs"),
                         _call("list_objects", resource="deployments"),
+                        _call("list_objects", resource="secrets"),
                         _call("list_objects", resource="services"),
                         _call("list_external_deliveries"),
                     ]

@@ -170,6 +170,15 @@ A new family is admissible only if:
 - failures can be attributed to investigation, state inference, scope,
   execution, or verification.
 
+For matched counterfactual groups, provenance counts alone are insufficient.
+Each declared decision-relevant evidence group must have a **projection
+witness**: two replayed boundaries require different recovery scopes, but
+become indistinguishable after only that group's fact keys are removed. This
+rejects impressive-looking yet redundant evidence sources. The reusable
+implementation is `aftermath_bench.evidence_projection`; the Kubernetes
+iteration-004 audit demonstrates witnesses for commit state, escaped
+preparation and release publication.
+
 See `BOUNDARY_RELATIVE_RECOVERY_INTEGRITY.md` for the formal effect-envelope
 rule and cross-domain examples.
 

@@ -131,3 +131,26 @@ If GLM-5.2 fails iteration 004 after the execution control passes, the failure
 can be attributed to evidence composition, state inference or recovery-scope
 selection. A low score caused by an unknown payload field, provider timeout,
 ambiguous ledger meaning or terminal protocol remains invalid.
+
+## Final result
+
+Iteration 004 is now a valid, fully revalidated development result rather than
+an unresolved diagnostic. The final admission, execution control and ordinary
+condition all use source commit `5cceace` and complete all four matched states
+without provider/runtime failures.
+
+GLM-5.2 passes the supplied-scope execution control 4/4, but the ordinary
+condition only 3/4 and fails the matched group. In the failed-clean boundary it
+reconstructs the failed migration, catalog, serving state and external-event
+absence, yet omits deletion of the unused candidate Deployment and Secret.
+The task therefore separates knowing the broad recovery direction from
+selecting every object that belongs in the repair scope.
+
+Post-hoc evidence projection over replayed boundary facts supplies a witness
+for each declared decision group: removing the native commit cluster,
+preparation state, or publication state makes at least one pair of
+different-scope variants indistinguishable. The report is archived as
+`projection-witnesses.json` with the final admission evidence. Iteration 005
+must move this projection-witness test into construction-time admission and
+apply it to a larger interaction graph rather than relying on the four-state
+pilot structure.

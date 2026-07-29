@@ -1,8 +1,9 @@
 # AftermathBench
 
-> Current status: one native ERPNext recovery family is implemented as a
-> `candidate`; the strict 144-case cross-domain release is under construction.
-> See [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
+> Current status: one native ERPNext hard family and one hard-admitted
+> Kubernetes development family are executable; Forgejo remains a native
+> pilot. The strict 144-case cross-domain release is under construction. See
+> [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
 persistent environment after a tool call returns an ambiguous failure.
@@ -43,10 +44,13 @@ labels the ITSM implementation as a **legacy concept prototype**, not a formal
 native-runtime task. The release task remains useful as a local design probe,
 but is not part of the current primary result.
 
-The formal implementation uses source-built, version-pinned ERPNext/Frappe.
-It provides a digest-pinned service topology, native public-API writes, real
-HTTP and queue fault boundaries, full database/queue reset, ordinary domain
-tools, and deterministic terminal evaluation.
+The formal implementation begins with source-built, version-pinned
+ERPNext/Frappe. It provides a digest-pinned service topology, native public-API
+writes, real HTTP and queue fault boundaries, full database/queue reset,
+ordinary domain tools, and deterministic terminal evaluation. Source-built
+Forgejo and Kubernetes/kind runtimes are also executable development
+substrates; they are admitted independently rather than counted merely because
+their services run.
 
 Two native task levels are retained:
 
@@ -59,8 +63,22 @@ The hard family has four matched hidden transition states behind the same
 connection-loss observation. Its complexity is derived from replay artifacts,
 its reference recovery passes all variants, seven fixed heuristics have zero
 matched-group success, and the holdout scenario and prefix were frozen before
-any model access. The repository still contains only one formal native hard
-family, so it does not yet claim broad benchmark coverage.
+any model access.
+
+The Kubernetes constraint-derived development family also passes replayed hard
+admission: four matched failure boundaries, four state-driven references, 26
+replayed semantic relations, zero fixed-policy matched-group solvers, and a
+zero-leak audit over the complete ordinary input. It remains a development
+family, not evidence of broad benchmark coverage. At the fully revalidated
+Job-identity contract revision, GLM-5.2 passes its supplied-scope control 4/4
+but the ordinary condition 3/4: it closes the failed migration correctly while
+leaving an unused candidate Deployment and Secret, so the matched group fails.
+
+The Forgejo release family has a real source-built runtime, native reset,
+fault boundaries and terminal checks, but a compact state tree solves its
+matched group. It is therefore retained as a pilot and is not counted as a
+hard family. AftermathBench does not yet claim a complete multi-domain
+benchmark release.
 
 ## Cross-model native results
 

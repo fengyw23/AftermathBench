@@ -158,3 +158,38 @@ exact UID whenever any matching Job object exists, regardless of succeeded or
 failed status, and use `none` only when no such object exists. Because this
 changes a scored input surface, native admission, execution control and the
 ordinary condition must all be rerun.
+
+## Final Job-identity-contract revalidation
+
+All three conditions were rerun from source commit
+`5cceacec02f33d24df4f0665da1bb6eeac7f3051`, where the visible audit contract
+unambiguously defines the identity of failed as well as successful migration
+Jobs.
+
+- Native admission run `30474538358` passed hard admission, all 4 references,
+  all 26 replayed relations, the zero-leak audit and the fixed-policy gate.
+- Execution-control run `30476627530` passed 4/4 states and the matched group;
+  every evaluation component was 100% and no provider/runtime error occurred.
+- Ordinary run `30478083808` completed all four states without infrastructure
+  errors and passed 3/4; matched-group success was 0/1.
+
+The sole ordinary failure was
+`failed_migration_without_preparation`. GLM correctly found the failed Job,
+recorded its exact UID, kept the epoch-1 catalog and v1 service, and closed the
+ledger and exactly-once audit event. It nevertheless kept the unused
+`orders-v2` Deployment and `orders-db-v2` Secret. This violates the visible
+serving contract's candidate-cleanup rule and fails only
+`candidate_lifecycle_matches_commit_state`.
+
+This is not a hidden-field or tool-execution failure: the explicit-scope
+control deleted both objects successfully, while the ordinary model explicitly
+read the cleanup contract and current candidate Deployment before deciding
+that no candidate action was needed. The refined diagnosis is therefore a
+repair-scope omission. It also contains a narrower investigation gap: the
+ordinary trajectory did not query the candidate Secret before mutation.
+
+The immutable ordinary trajectories, runner summary and reproducible refined
+analysis are under
+`data/evidence/kubernetes-job-uid-contract-ordinary-final-20260730/`.
+The matching admission and control archives use the same prefix
+`kubernetes-job-uid-contract-*`.

@@ -127,10 +127,23 @@ def diagnose_kubernetes_constraint_trajectory(
             in {"deployment", "service"}
             for call in calls
         ),
+        "candidate_secret": any(
+            call["name"] in {"get_object", "list_objects"}
+            and str(call["arguments"].get("resource", "")).lower().rstrip("s")
+            == "secret"
+            for call in calls
+        ),
         "external_registry": "list_external_deliveries" in names,
     }
+    failed_checks = set(evaluation.failures)
     if evaluation.passed:
         primary_error = None
+    elif (
+        "candidate_lifecycle_matches_commit_state" in failed_checks
+        and queried["constraints"]
+        and queried["serving"]
+    ):
+        primary_error = "scope_failure"
     elif not all(queried.values()):
         primary_error = "investigation_failure"
     elif (
@@ -143,7 +156,7 @@ def diagnose_kubernetes_constraint_trajectory(
     elif {
         "audit_records_observed_facts",
         "closure_event_records_observed_facts",
-    } & set(evaluation.failures):
+    } & failed_checks:
         # The required records/effects exist, but their values do not match the
         # authoritative boundary facts. This is a fact-binding error rather
         # than failure to invoke the repair tools.
