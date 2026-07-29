@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-constraint-scope-dev-004",
+  "family": "k8s-constraint-scope-recovery",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "implementation_status": "native replay admitted",
+  "title": "Recover an interrupted schema rollout by composing native constraints",
+  "user_instruction": "Recover the interrupted orders-v2 production change and leave the application, database catalog, release records and external registry in one valid closed state. Reconstruct what actually happened from authoritative Kubernetes objects, controller evidence and registry records. Apply the visible change authorization, schema compatibility, serving, registry and audit contracts together. Preserve valid prior effects and immutable evidence, avoid duplicate external events, and verify the resulting cross-system state.",
+  "fixture": {
+    "namespace": "aftermath-migration",
+    "application": "orders",
+    "change": "orders-v2",
+    "catalog_configmap": "database-catalog",
+    "authorization_configmap": "recovery-policy",
+    "schema_contract_configmap": "schema-contract",
+    "serving_contract_configmap": "serving-contract",
+    "registry_contract_configmap": "registry-contract",
+    "audit_contract_configmap": "audit-contract",
+    "change_record_configmap": "change-record",
+    "ledger_configmap": "release-ledger",
+    "audit_configmap": "recovery-audit",
+    "service": "orders",
+    "stable_deployment": "orders-v1",
+    "candidate_deployment": "orders-v2",
+    "backup_job": "orders-backup-epoch1"
+  },
+  "ambiguous_operation": {
+    "operation": "execute the approved orders-v2 migration-and-rollout orchestration",
+    "surface_result": "HTTP connection lost before the change orchestration response"
+  },
+  "matched_variants": [
+    {
+      "id": "failed_migration_without_preparation"
+    },
+    {
+      "id": "failed_migration_with_preparation"
+    },
+    {
+      "id": "committed_cutover_without_publication"
+    },
+    {
+      "id": "committed_cutover_with_publication"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "discard_uncommitted_candidate",
+    "compensate_then_discard_candidate",
+    "publish_committed_cutover",
+    "close_already_published_cutover"
+  ],
+  "public_tool_policy": {
+    "ordinary_kubernetes_object_reads": true,
+    "pod_and_job_log_reads": true,
+    "native_create_apply_patch_delete": true,
+    "ordinary_registry_get_and_post": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_profile": {
+    "constraint_derived_scope": {
+      "minimum_counterfactual_flips": 2
+    }
+  },
+  "admission_status": "validated",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json",
+    "prompt_audit": "artifacts/prompt_audit.json"
+  }
+}

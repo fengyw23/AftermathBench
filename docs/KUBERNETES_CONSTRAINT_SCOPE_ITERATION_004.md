@@ -86,9 +86,24 @@ required before this mechanism is treated as a frozen benchmark template.
 The repository now contains the native prefix, four fault injectors,
 constraint-only model interface, deterministic evaluator, public-tool
 reference recovery, six fixed policies, replay graph, prompt audit and GitHub
-Actions workflows for native replay and model experiments. Admission remains
-pending until the real-cluster workflow passes; an authored `hard` label alone
-does not admit the scenario.
+Actions workflows for native replay and model experiments.
+
+The final native replay (GitHub Actions run `30455470248`, source commit
+`4613d1207d196fa877efb543c0274ac8bdd102cf`) admitted the scenario as `hard`:
+
+- all four public-tool reference recoveries passed;
+- all 26 semantic relations were observed by real-cluster replay;
+- the six fixed policies achieved at most 25% per-state success and none solved
+  the four-state matched group;
+- the complete ordinary input audit covered 13 rendered surfaces and found no
+  recovery-direction label leak;
+- the replay-derived graph contains 26 relevant entities, 26 edges, 25
+  relation types and dependency depth 6.
+
+The immutable evidence is archived under
+`data/evidence/kubernetes-constraint-native-final-20260729/`. This admission
+establishes task validity; model difficulty is reported separately and cannot
+be inferred from admission alone.
 
 ## Interpretation target
 
