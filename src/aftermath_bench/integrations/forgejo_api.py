@@ -93,6 +93,20 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no repository document")
         return result
 
+    def edit_repository(
+        self,
+        owner: str,
+        repository: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = self.patch(
+            f"/repos/{owner}/{repository}",
+            payload,
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no repository document")
+        return result
+
     def create_issue(
         self,
         owner: str,
@@ -100,10 +114,14 @@ class ForgejoAPI:
         *,
         title: str,
         body: str,
+        milestone: int | None = None,
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"title": title, "body": body}
+        if milestone is not None:
+            payload["milestone"] = milestone
         result = self.post(
             f"/repos/{owner}/{repository}/issues",
-            {"title": title, "body": body},
+            payload,
         )
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no issue document")
@@ -230,6 +248,40 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no webhook document")
         return result
 
+    def create_branch_protection(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        rule: str,
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/branch_protections",
+            {
+                "rule_name": rule,
+                "enable_push": False,
+                "required_approvals": 0,
+                "block_on_rejected_reviews": True,
+                "dismiss_stale_approvals": True,
+                "apply_to_admins": False,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no branch-protection document")
+        return result
+
+    def list_branch_protections(
+        self,
+        owner: str,
+        repository: str,
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/branch_protections"
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no branch-protection list")
+        return [item for item in result if isinstance(item, dict)]
+
     def list_hooks(
         self,
         owner: str,
@@ -293,3 +345,23 @@ class ForgejoAPI:
         if not isinstance(result, list):
             raise TypeError("Forgejo returned no issue list")
         return [item for item in result if isinstance(item, dict)]
+
+    def create_milestone(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        title: str,
+        description: str,
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/milestones",
+            {
+                "title": title,
+                "description": description,
+                "state": "open",
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no milestone document")
+        return result
