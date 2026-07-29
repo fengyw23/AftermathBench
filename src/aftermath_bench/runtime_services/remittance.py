@@ -6,7 +6,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -14,7 +14,7 @@ from urllib.parse import unquote, urlparse
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _canonical_json(value: Any) -> str:
@@ -26,8 +26,14 @@ def extract_delivery_key(
     headers: dict[str, str] | None = None,
 ) -> str:
     normalized_headers = {k.lower(): v for k, v in (headers or {}).items()}
-    if value := normalized_headers.get("x-idempotency-key"):
-        return value
+    for key in (
+        "x-idempotency-key",
+        "x-forgejo-delivery",
+        "x-gitea-delivery",
+        "x-github-delivery",
+    ):
+        if value := normalized_headers.get(key):
+            return value
     if isinstance(payload, dict):
         for key in ("idempotency_key", "payment_entry", "name"):
             if value := payload.get(key):
@@ -190,6 +196,35 @@ class DeliveryStore:
             )
         return {"unique_deliveries": deliveries, "attempts": attempts}
 
+    def list_deliveries(self) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    d.delivery_key,
+                    d.first_received_at,
+                    d.body_sha256,
+                    COUNT(a.id) AS attempt_count
+                FROM deliveries AS d
+                JOIN delivery_attempts AS a
+                  ON a.delivery_key = d.delivery_key
+                GROUP BY
+                    d.delivery_key,
+                    d.first_received_at,
+                    d.body_sha256
+                ORDER BY d.first_received_at, d.delivery_key
+                """
+            ).fetchall()
+        return [
+            {
+                "key": row["delivery_key"],
+                "first_received_at": row["first_received_at"],
+                "body_sha256": row["body_sha256"],
+                "attempt_count": int(row["attempt_count"]),
+            }
+            for row in rows
+        ]
+
     def reset(self) -> None:
         with self._connection() as connection:
             connection.execute("DELETE FROM deliveries")
@@ -218,6 +253,16 @@ def make_handler(store: DeliveryStore) -> type[BaseHTTPRequestHandler]:
             parsed = urlparse(self.path)
             if parsed.path == "/health":
                 _json_response(self, 200, {"ok": True, **store.counts()})
+                return
+            if parsed.path == "/deliveries":
+                _json_response(
+                    self,
+                    200,
+                    {
+                        "deliveries": store.list_deliveries(),
+                        **store.counts(),
+                    },
+                )
                 return
             prefix = "/deliveries/"
             if parsed.path.startswith(prefix):

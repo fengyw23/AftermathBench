@@ -1,0 +1,74 @@
+x-forgejo-image: &forgejo_image
+  image: ${AFTERMATH_FORGEJO_IMAGE:-aftermathbench/forgejo:fbafae6c}
+  pull_policy: never
+
+x-control-image: &control_image
+  build:
+    context: ../..
+    dockerfile: runtimes/forgejo/control/Containerfile
+
+services:
+  forgejo:
+    <<: *forgejo_image
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__database__PATH: /data/gitea/forgejo.db
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__server__DOMAIN: forgejo
+      FORGEJO__server__HTTP_PORT: "3000"
+      FORGEJO__server__ROOT_URL: http://127.0.0.1:8080/
+      FORGEJO__webhook__ALLOWED_HOST_LIST: "*"
+    volumes:
+      - forgejo-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:3000/api/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  api-fault-gateway:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.gateway"]
+    environment:
+      AFTERMATH_GATEWAY_UPSTREAM: http://forgejo:3000
+      AFTERMATH_GATEWAY_DB: /data/gateway.sqlite3
+    volumes:
+      - api-gateway-audit:/data
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9091:8081"
+    depends_on:
+      forgejo:
+        condition: service_healthy
+
+  webhook-sink:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.webhook_sink"]
+    environment:
+      AFTERMATH_WEBHOOK_SINK_DB: /data/webhook-sink.sqlite3
+    volumes:
+      - webhook-sink-audit:/data
+    ports:
+      - "127.0.0.1:9092:8080"
+
+  webhook-fault-gateway:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.gateway"]
+    environment:
+      AFTERMATH_GATEWAY_UPSTREAM: http://webhook-sink:8080
+      AFTERMATH_GATEWAY_DB: /data/gateway.sqlite3
+    volumes:
+      - webhook-gateway-audit:/data
+    ports:
+      - "127.0.0.1:9093:8081"
+    depends_on:
+      - webhook-sink
+
+volumes:
+  forgejo-data:
+  api-gateway-audit:
+  webhook-sink-audit:
+  webhook-gateway-audit:

@@ -43,6 +43,31 @@ class RemittanceServiceTest(unittest.TestCase):
             "ACC-PAY-9",
         )
 
+    def test_forgejo_delivery_header_is_the_exactly_once_key(self) -> None:
+        self.assertEqual(
+            extract_delivery_key(
+                {"action": "closed"},
+                {"X-Forgejo-Delivery": "delivery-uuid-1"},
+            ),
+            "delivery-uuid-1",
+        )
+
+    def test_deliveries_can_be_listed_without_guessing_the_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DeliveryStore(Path(directory) / "delivery.sqlite3")
+            store.record(
+                {"action": "closed"},
+                {"X-Forgejo-Delivery": "delivery-uuid-1"},
+            )
+            store.record(
+                {"action": "closed"},
+                {"X-Forgejo-Delivery": "delivery-uuid-1"},
+            )
+            deliveries = store.list_deliveries()
+        self.assertEqual(len(deliveries), 1)
+        self.assertEqual(deliveries[0]["key"], "delivery-uuid-1")
+        self.assertEqual(deliveries[0]["attempt_count"], 2)
+
 
 class _UpstreamHandler(BaseHTTPRequestHandler):
     calls = 0
