@@ -129,7 +129,12 @@ def main() -> int:
         "scenario_id": "k8s-deployment-rollout-dev-001",
         "variant": args.variant,
         "surface_result": SURFACE_ERROR,
+        "visible_failure": {
+            "ok": False,
+            "error": SURFACE_ERROR,
+        },
         "prefix_fingerprint": prefix["fingerprint"],
+        "prefix_trace": prefix["trace"],
         "observed": observed,
         "deployment": deployment,
         "replicasets": replica_sets,
@@ -142,6 +147,12 @@ def main() -> int:
             "deployment", PROTECTED_DEPLOYMENT, namespace=NAMESPACE
         ),
         "events": api.events(namespace=NAMESPACE),
+        "failure_boundary_evidence": {
+            "deployment": deployment,
+            "replicasets": replica_sets,
+            "pods": pods,
+            "nodes": nodes,
+        },
         "checks": checks,
         "passed": all(checks.values()),
     }

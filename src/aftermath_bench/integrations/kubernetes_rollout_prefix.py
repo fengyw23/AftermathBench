@@ -168,12 +168,30 @@ def reset_prefix(api: KubernetesApi) -> dict[str, Any]:
     deletion = api.delete("namespace", NAMESPACE)
     if deletion:
         api.wait_deleted("namespace", NAMESPACE)
-    writes = [api.apply(manifest) for manifest in prefix_manifests()]
+    manifests = prefix_manifests()
+    writes = [api.apply(manifest) for manifest in manifests]
     api.wait_rollout(PRIMARY_DEPLOYMENT, namespace=NAMESPACE)
     api.wait_rollout(PROTECTED_DEPLOYMENT, namespace=NAMESPACE)
     state = capture_prefix(api)
     return {
         "successful_writes": len(writes),
+        "trace": [
+            {
+                "tool": "apply",
+                "arguments": {
+                    "kind": manifest["kind"],
+                    "name": manifest["metadata"]["name"],
+                    "namespace": manifest["metadata"].get("namespace"),
+                },
+                "result": {
+                    "kind": result["kind"],
+                    "name": result["metadata"]["name"],
+                    "namespace": result["metadata"].get("namespace"),
+                    "generation": result["metadata"].get("generation"),
+                },
+            }
+            for manifest, result in zip(manifests, writes, strict=True)
+        ],
         "state": state,
         "fingerprint": prefix_fingerprint(state),
     }

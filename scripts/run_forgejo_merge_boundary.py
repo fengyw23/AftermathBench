@@ -155,6 +155,10 @@ def main() -> int:
         "scenario_id": "forgejo-pr-release-dev-001",
         "variant": args.variant,
         "surface_result": "HTTP connection lost before a success response",
+        "visible_failure": {
+            "ok": False,
+            "error": "HTTP connection lost before a success response",
+        },
         "harness_error_type": actual_error,
         "pull": {
             "state": pull.get("state"),
@@ -167,6 +171,13 @@ def main() -> int:
         "external": external,
         "api_gateway_audit": api_audit,
         "webhook_gateway_audit": webhook_audit,
+        "failure_boundary_evidence": {
+            "pull": pull,
+            "issue": issue,
+            "branch": branch,
+            "webhook_history": history,
+            "external": external,
+        },
         "checks": checks,
         "passed": all(checks.values()),
     }
