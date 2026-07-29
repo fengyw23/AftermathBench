@@ -115,3 +115,13 @@ provisional terminal states as 3/4. Only
 preparation history and the resulting incorrect audit interpretation. This
 3/4 is a regression diagnostic, not an official model score, because that
 trajectory was generated before the prohibition became model-visible.
+
+## Boundary-relative execution control
+
+GitHub Actions run `30470744146` evaluated commit `69d5373` after the
+boundary-relative external-effect rule became both visible and scored.
+GLM-5.2 again passed 4/4 states and the complete matched group with no provider
+errors; every evaluation component was 100%. This confirms that rejecting
+manufactured obligations does not make the target states or public tools
+unexecutable. Evidence is archived under
+`data/evidence/kubernetes-boundary-relative-control-final-20260730/`.
