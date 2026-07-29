@@ -105,6 +105,21 @@ def _evidence():
 
 
 class KubernetesRecoveryEvaluatorTests(unittest.TestCase):
+    def test_null_endpoint_list_is_a_goal_failure_not_a_crash(self):
+        evidence = _evidence()
+        evidence["endpoint_slices"] = [
+            {
+                "metadata": {"name": "checkout-api-empty"},
+                "endpoints": None,
+            }
+        ]
+
+        result = evaluate_kubernetes_rollout_recovery(evidence)
+
+        self.assertFalse(result.passed)
+        self.assertFalse(result.checks["service_has_three_ready_endpoints"])
+        self.assertEqual(result.diagnostics["ready_endpoint_count"], 0)
+
     def test_accepts_converged_native_rollout(self):
         result = evaluate_kubernetes_rollout_recovery(_evidence())
         self.assertTrue(result.passed)

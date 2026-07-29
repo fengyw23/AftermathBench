@@ -71,7 +71,10 @@ def evaluate_kubernetes_rollout_recovery(
     ready_endpoints = [
         endpoint
         for endpoint_slice in endpoint_slices
-        for endpoint in endpoint_slice.get("endpoints", [])
+        # Kubernetes serializes an EndpointSlice with no matching backends as
+        # either an omitted field or JSON null depending on the controller
+        # path.  Both mean an empty endpoint set, not an evaluator error.
+        for endpoint in (endpoint_slice.get("endpoints") or [])
         if endpoint.get("conditions", {}).get("ready") is True
     ]
     metadata = deployment.get("metadata", {})
