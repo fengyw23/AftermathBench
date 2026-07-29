@@ -177,10 +177,10 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
             self.assertIn(variant, workflow)
         self.assertIn("secrets.BAILIAN_API_KEY", workflow)
         self.assertNotIn("sk-", workflow)
-        self.assertIn("for attempt in 1 2", workflow)
+        self.assertIn("for attempt in 1 2 3", workflow)
         self.assertIn("--execution-control", workflow)
         self.assertIn("--model-timeout-seconds 600", workflow)
-        retry_loop = workflow.index("for attempt in 1 2")
+        retry_loop = workflow.index("for attempt in 1 2 3")
         boundary_reset = workflow.index(
             "run_kubernetes_constraint_boundary.py",
             retry_loop,
@@ -188,6 +188,8 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         model_call = workflow.index("run-native-model", boundary_reset)
         self.assertLess(retry_loop, boundary_reset)
         self.assertLess(boundary_reset, model_call)
+        self.assertIn("constraint-model-eval-retry", workflow)
+        self.assertIn("--expected-variant", workflow)
         self.assertIn('rm -f "$run_root/credentials.json"', workflow)
 
 

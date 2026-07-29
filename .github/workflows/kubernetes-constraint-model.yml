@@ -7,6 +7,7 @@ on:
     branches:
       - constraint-model-control
       - constraint-model-eval
+      - constraint-model-eval-retry
   workflow_dispatch:
     inputs:
       model:
@@ -107,6 +108,12 @@ jobs:
             committed_cutover_without_publication
             committed_cutover_with_publication
           )
+          if [ "$GITHUB_REF_NAME" = "constraint-model-eval-retry" ]; then
+            variants=(
+              failed_migration_without_preparation
+              committed_cutover_without_publication
+            )
+          fi
           for repetition in $(seq 1 "$REPETITIONS"); do
             run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
             mkdir -p "$run_dir"
@@ -116,7 +123,7 @@ jobs:
                 control_flag=(--execution-control)
               fi
               model_completed=false
-              for attempt in 1 2; do
+              for attempt in 1 2 3; do
                 # A timed-out trajectory may already have executed tools. Rebuild
                 # the authoritative boundary before every provider retry so the
                 # accepted trajectory contains every effect that it is scored on.
@@ -149,9 +156,16 @@ jobs:
               if [ "$model_completed" != "true" ]; then run_status=1; fi
             done
           done
+          summary_scope=(--scenario "$SCENARIO")
+          if [ "$GITHUB_REF_NAME" = "constraint-model-eval-retry" ]; then
+            summary_scope=(
+              --expected-variant failed_migration_without_preparation
+              --expected-variant committed_cutover_without_publication
+            )
+          fi
           python scripts/summarize_native_model_runs.py \
             --run-directory "$run_root/model-runs" \
-            --scenario "$SCENARIO" \
+            "${summary_scope[@]}" \
             --output "$run_root/model-runs/summary.json" \
             --expected-execution-control "$EXECUTION_CONTROL" || run_status=1
           rm -f "$run_root/credentials.json"

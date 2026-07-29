@@ -160,13 +160,21 @@ def main() -> int:
         type=Path,
         help="derive the expected matched variants from a scenario manifest",
     )
+    parser.add_argument(
+        "--expected-variant",
+        action="append",
+        default=[],
+        help="expected variant for an infrastructure-retry subset; repeat as needed",
+    )
     args = parser.parse_args()
     expected_execution_control = (
         args.expected_execution_control == "true"
         if args.expected_execution_control is not None
         else None
     )
-    expected_variants = None
+    expected_variants = set(args.expected_variant) or None
+    if args.scenario is not None and expected_variants is not None:
+        parser.error("--scenario and --expected-variant cannot be combined")
     if args.scenario is not None:
         scenario = json.loads(args.scenario.read_text(encoding="utf-8"))
         expected_variants = {
