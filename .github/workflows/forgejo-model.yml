@@ -1,0 +1,169 @@
+name: forgejo-native-model
+
+on:
+  push:
+    branches:
+      - forgejo-model-dev
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Repetitions for each matched hidden state
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the correct recovery scope to isolate execution
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run-forgejo-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      SCENARIO: data/scenario_blueprints/forgejo-pr-release-dev-001/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Select experiment condition
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          test -n "$requested_model" || requested_model=glm-5.2
+          test -n "$requested_repetitions" || requested_repetitions=1
+          test -n "$requested_control" || requested_control=false
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests -v
+
+      - name: Build pinned Forgejo from source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUNNER_TEMP/forgejo-source-verification.json"
+
+      - name: Build and freeze the native release prefix
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-model"
+          mkdir -p "$runtime_root" "$run_root/model-runs"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup
+          python scripts/build_forgejo_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$run_root/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/release-prefix.tar.gz"
+          {
+            echo "schema_version=0.1"
+            echo "scenario_sha256=$(sha256sum "$SCENARIO" | cut -d' ' -f1)"
+            echo "model=$MODEL_ID"
+            echo "repetitions=$REPETITIONS"
+            echo "execution_control=$EXECUTION_CONTROL"
+            echo "commit=$GITHUB_SHA"
+          } > "$run_root/model-runs/manifest.txt"
+
+      - name: Run model on matched merge boundaries
+        run: |
+          run_status=0
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-model"
+          variants=(
+            merge_request_not_reached
+            merge_committed_delivery_succeeded
+            merge_committed_receiver_accepted_response_lost
+            merge_committed_delivery_request_not_reached
+          )
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              failure_report="$run_dir/${variant}-failure.json"
+              trajectory="$run_dir/${variant}.json"
+              python scripts/manage_forgejo_stack.py restore \
+                --snapshot "$runtime_root/release-prefix.tar.gz"
+              python scripts/run_forgejo_merge_boundary.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/prefix.json" \
+                --variant "$variant" \
+                --output "$failure_report"
+              control_flag=()
+              if [ "$EXECUTION_CONTROL" = "true" ]
+              then
+                control_flag=(--execution-control)
+              fi
+              if python -m aftermath_bench run-native-model \
+                  --provider openai-compatible \
+                  --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                  --model "$MODEL_ID" \
+                  --scenario "$SCENARIO" \
+                  --credentials "$runtime_root/credentials.json" \
+                  --prefix "$run_root/prefix.json" \
+                  --failure-report "$failure_report" \
+                  --max-turns 20 \
+                  "${control_flag[@]}" \
+                  --output "$trajectory"
+              then
+                true
+              elif [ ! -s "$trajectory" ]
+              then
+                run_status=1
+              fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/model-runs" \
+            --scenario "$SCENARIO" \
+            --output "$run_root/model-runs/summary.json" \
+            --expected-execution-control "$EXECUTION_CONTROL" \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Remove runtime credentials and capture diagnostics
+        if: always()
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-model"
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$run_root/compose-ps.txt" 2>&1 || true
+          rm -f "$runtime_root/credentials.json"
+          rm -f "$runtime_root/release-prefix.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: forgejo-model-output
+          path: |
+            ${{ runner.temp }}/forgejo-model/model-runs/
+            ${{ runner.temp }}/forgejo-model/prefix.json
+            ${{ runner.temp }}/forgejo-model/compose-ps.txt
+            ${{ runner.temp }}/forgejo-source-verification.json
+          if-no-files-found: warn
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true
