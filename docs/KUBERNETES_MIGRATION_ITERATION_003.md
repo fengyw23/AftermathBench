@@ -91,3 +91,21 @@ The experiment order is intentionally strict:
 
 Model scores are not interpreted until stages 1–5 pass. A low score caused by
 an invisible convention, nonfunctional tool or unstable controller is invalid.
+
+## First model audit and validity repair
+
+The first GLM-5.2 control and ordinary runs (`30445306355` and `30445349006`)
+are retained as invalid diagnostic evidence, not benchmark scores. They showed
+that the evaluator expected exact audit and external-event payload fields that
+were absent from every model-visible source. The diagnosis code also ignored
+targeted `get_object` reads when deciding whether controller and routing state
+had been investigated. One ordinary trajectory additionally ended in a
+provider read timeout without a clean-state retry.
+
+The repaired task now exposes the scored closure schema in the native recovery
+policy and pre-existing audit record, accepts both targeted and collection
+reads as investigation evidence, supplies the exact semantic scope only in the
+execution-control condition, and retries one provider/runtime failure after
+reconstructing the failure boundary. The invalid raw trajectories remain under
+`data/evidence/kubernetes-migration-glm52-*-invalid-20260729/` so the correction
+is auditable.

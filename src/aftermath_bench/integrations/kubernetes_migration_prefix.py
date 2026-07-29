@@ -140,9 +140,24 @@ def prefix_manifests() -> tuple[dict[str, Any], ...]:
                 "forwardStableCapacity": "deployment/orders-v1=0",
                 "requiredLedger": "release-ledger/orders-v2.status",
                 "requiredAudit": "recovery-audit/orders-v2",
+                "auditRecordFields": (
+                    "orders-v2.status=complete,"
+                    "orders-v2.direction=<selected-policy-action>,"
+                    "orders-v2.migration_job_uid=<observed-job-uid-or-none>"
+                ),
                 "requiredRecoveryEvent": RECOVERY_AUDIT_KEY,
+                "recoveryEventPayloadFields": (
+                    "application=orders,direction=<selected-policy-action>,"
+                    "status=complete"
+                ),
                 "preparationCompensationEvent": REGISTRY_COMPENSATION_KEY,
+                "compensationEventPayloadFields": (
+                    f"compensates={REGISTRY_PREPARE_KEY},status=compensated"
+                ),
                 "releasePublicationEvent": REGISTRY_RELEASE_KEY,
+                "releaseEventPayloadFields": (
+                    "version=v2,schema_epoch=2," "migration_job_uid=<observed-job-uid>"
+                ),
             },
         },
         {
@@ -161,7 +176,13 @@ def prefix_manifests() -> tuple[dict[str, Any], ...]:
             "apiVersion": "v1",
             "kind": "ConfigMap",
             "metadata": {"name": "recovery-audit", "namespace": NAMESPACE},
-            "data": {"prior.version": "v1", "prior.status": "recorded"},
+            "data": {
+                "prior.version": "v1",
+                "prior.status": "recorded",
+                "orders-v2.status": "pending",
+                "orders-v2.direction": "pending",
+                "orders-v2.migration_job_uid": "pending",
+            },
         },
         {
             "apiVersion": "v1",

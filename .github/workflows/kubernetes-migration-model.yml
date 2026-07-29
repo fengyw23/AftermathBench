@@ -105,24 +105,31 @@ jobs:
             run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
             mkdir -p "$run_dir"
             for variant in "${variants[@]}"; do
-              python scripts/run_kubernetes_migration_boundary.py \
-                --variant "$variant" \
-                --prefix-output "$run_root/prefix.json" \
-                --output "$run_dir/${variant}-failure.json"
               control_flag=()
               if [ "$EXECUTION_CONTROL" = "true" ]; then control_flag=(--execution-control); fi
-              if python -m aftermath_bench run-native-model \
-                  --provider openai-compatible \
-                  --base-url "$AFTERMATH_MODEL_BASE_URL" \
-                  --model "$MODEL_ID" \
-                  --scenario "$SCENARIO" \
-                  --credentials "$run_root/credentials.json" \
-                  --prefix "$run_root/prefix.json" \
-                  --failure-report "$run_dir/${variant}-failure.json" \
-                  --max-turns 25 "${control_flag[@]}" \
-                  --output "$run_dir/${variant}.json"; then
-                true
-              elif [ ! -s "$run_dir/${variant}.json" ]; then
+              model_completed=false
+              for attempt in 1 2; do
+                rm -f "$run_dir/${variant}.json"
+                python scripts/run_kubernetes_migration_boundary.py \
+                  --variant "$variant" \
+                  --prefix-output "$run_root/prefix.json" \
+                  --output "$run_dir/${variant}-failure.json"
+                if python -m aftermath_bench run-native-model \
+                    --provider openai-compatible \
+                    --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                    --model "$MODEL_ID" \
+                    --scenario "$SCENARIO" \
+                    --credentials "$run_root/credentials.json" \
+                    --prefix "$run_root/prefix.json" \
+                    --failure-report "$run_dir/${variant}-failure.json" \
+                    --max-turns 25 "${control_flag[@]}" \
+                    --output "$run_dir/${variant}.json"; then
+                  model_completed=true
+                  break
+                fi
+                echo "provider/runtime attempt $attempt failed for $variant"
+              done
+              if [ "$model_completed" != "true" ]; then
                 run_status=1
               fi
             done

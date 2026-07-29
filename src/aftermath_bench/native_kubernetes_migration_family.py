@@ -68,6 +68,33 @@ KUBERNETES_MIGRATION_TOOL_DEFINITIONS = (
 )
 
 
+_EXECUTION_CONTROL_SCOPES = {
+    "change_request_not_reached": (
+        "rollback_to_stable: keep schema epoch 1 and the v1 serving path; "
+        "remove only the candidate Deployment and Secret; mark orders-v2 "
+        "aborted; close the recovery audit and its one external event."
+    ),
+    "preparation_escaped_migration_failed": (
+        "compensate_external_effect: preserve the failed migration Job and "
+        "the escaped preparation event; send its one compensation; restore "
+        "the v1 path, remove both candidate resources, mark orders-v2 "
+        "compensated, and close the recovery audit and event."
+    ),
+    "schema_committed_cutover_pending": (
+        "forward_complete: preserve the committed migration Job and candidate "
+        "resources; make v2 available, route the Service to v2, scale v1 to "
+        "zero, publish the one missing release event, mark orders-v2 active, "
+        "and close the recovery audit and event."
+    ),
+    "cutover_and_publication_committed": (
+        "repair_downstream_only: preserve the completed v2 serving state and "
+        "existing release event; do not repeat the cutover or publication; "
+        "repair only the ledger, recovery audit and one missing recovery "
+        "event."
+    ),
+}
+
+
 def kubernetes_migration_initial_message(
     *,
     scenario: NativeScenario,
@@ -89,8 +116,10 @@ def kubernetes_migration_initial_message(
         "Continue from the current authoritative cluster and registry state."
     )
     if execution_control:
+        scope = _EXECUTION_CONTROL_SCOPES[str(failure_report["variant"])]
         message += (
-            "\n\nExecution-control condition: query recovery-policy, database-"
+            "\n\nExecution-control condition (oracle scope supplied): "
+            f"{scope} Query recovery-policy, database-"
             "catalog, the migration Job, Service selector, both Deployments, "
             "Secrets and registry records. Apply exactly the policy branch "
             "selected by those facts. Preserve migration and backup evidence; "
@@ -117,8 +146,9 @@ def diagnose_kubernetes_migration_trajectory(
             for call in calls
         ),
         "controller_and_routing": any(
-            call["name"] == "list_objects"
-            and call["arguments"].get("resource") in {"jobs", "deployments", "services"}
+            call["name"] in {"get_object", "list_objects"}
+            and str(call["arguments"].get("resource", "")).lower().rstrip("s")
+            in {"job", "deployment", "service"}
             for call in calls
         ),
         "external_registry": "list_external_deliveries" in names,
