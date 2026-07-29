@@ -31,6 +31,30 @@ PROTECTED_FIELDS = {
         "currency",
         "grand_total",
     ),
+    "sales_order": (
+        "name",
+        "docstatus",
+        "company",
+        "customer",
+        "currency",
+        "grand_total",
+    ),
+    "delivery_note": (
+        "name",
+        "docstatus",
+        "company",
+        "customer",
+        "currency",
+        "grand_total",
+    ),
+    "sales_invoice": (
+        "name",
+        "docstatus",
+        "company",
+        "customer",
+        "currency",
+        "grand_total",
+    ),
 }
 
 

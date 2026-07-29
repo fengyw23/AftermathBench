@@ -1,0 +1,70 @@
+name: erpnext-sales-return-native-validation
+
+on:
+  push:
+    branches:
+      - native-sales-return-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-native-prefix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate code and pinned runtime metadata
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute
+
+      - name: Build and validate the sales-return prefix
+        run: |
+          run_root="runtimes/erpnext/.runtime/sales-return"
+          mkdir -p "$run_root"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_sales_return_prefix.py \
+            --scenario data/scenario_blueprints/erpnext-sales-return-dev-001/scenario.json \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --output "$run_root/prefix.json"
+          python scripts/validate_erpnext_sales_return_prefix.py \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --prefix "$run_root/prefix.json" \
+            --output "$run_root/prefix-validation.json"
+
+      - name: Remove credentials
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+
+      - name: Upload native prefix evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-sales-return-prefix-${{ github.run_id }}
+          path: |
+            runtimes/erpnext/.runtime/sales-return/prefix.json
+            runtimes/erpnext/.runtime/sales-return/prefix-validation.json
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: |
+          python scripts/manage_erpnext_stack.py down || true
