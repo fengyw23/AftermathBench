@@ -27,9 +27,13 @@ from .model_runner import (
     _assistant_message,
     _without_private_reasoning,
 )
+from .native_family import (
+    NativeFamilyDefinition,
+    NativeFamilyRegistry,
+    NativeRuntimeContext,
+)
 from .native_scenario import NativeScenario, load_native_scenario
 from .schema import repository_root
-
 
 NATIVE_SYSTEM_PROMPT = """\
 You are an enterprise operations agent working in a live ERPNext environment.
@@ -356,7 +360,7 @@ def native_initial_message(
 
 
 def _invoke_tool(
-    environment: ERPNextPartialReturnEnvironment,
+    environment: Any,
     allowed_tools: set[str],
     call: ToolCall,
 ) -> dict[str, Any]:
@@ -483,9 +487,7 @@ def _diagnose(
         primary_error = None
     elif unsafe_retry:
         primary_error = "state_inference_failure"
-    elif created_without_linked_invoice_investigation:
-        primary_error = "investigation_failure"
-    elif not (
+    elif created_without_linked_invoice_investigation or not (
         evidence_groups["documents"]
         and evidence_groups["async"]
     ):
@@ -529,19 +531,20 @@ def _diagnose(
     }
 
 
-def run_native_return_agent(
+def run_native_family_agent(
     client: ChatClient,
     *,
+    family: NativeFamilyDefinition,
     scenario: NativeScenario,
-    environment: ERPNextPartialReturnEnvironment,
+    environment: Any,
     prefix: dict[str, Any],
     failure_report: dict[str, Any],
     max_turns: int = 25,
     execution_control: bool = False,
     output_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    system = NATIVE_SYSTEM_PROMPT.format(max_turns=max_turns)
-    initial = native_initial_message(
+    system = family.system_prompt.format(max_turns=max_turns)
+    initial = family.build_initial_message(
         scenario=scenario,
         prefix=prefix,
         failure_report=failure_report,
@@ -550,14 +553,12 @@ def run_native_return_agent(
     messages: list[dict[str, Any]] = [{"role": "user", "content": initial}]
     turns: list[dict[str, Any]] = []
     stop_reason = "turn_limit"
-    allowed_tools = {
-        definition.name for definition in NATIVE_RETURN_TOOL_DEFINITIONS
-    }
+    allowed_tools = {definition.name for definition in family.tool_definitions}
     for turn_index in range(1, max_turns + 1):
         turn = client.complete(
             system=system,
             messages=messages,
-            tools=NATIVE_RETURN_TOOL_DEFINITIONS,
+            tools=family.tool_definitions,
         )
         messages.append(_assistant_message(turn))
         record = {
@@ -591,17 +592,16 @@ def run_native_return_agent(
                 }
             )
     final_state = environment.snapshot()
-    evaluation = evaluate_partial_return_recovery(
-        final_state,
-        prefix=prefix,
-    )
+    evaluation = family.evaluate(final_state, prefix)
     report = {
-        "schema_version": "0.5",
+        "schema_version": "0.6",
         "run_id": (
             f"{scenario.scenario_id}--{failure_report['variant']}--"
             f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
         ),
         "scenario_id": scenario.scenario_id,
+        "family": family.family_id,
+        "domain": family.domain,
         "variant": failure_report["variant"],
         "provider": client.provider,
         "model": client.model,
@@ -622,7 +622,7 @@ def run_native_return_agent(
             "diagnostics": evaluation.diagnostics,
             "failures": evaluation.failures,
         },
-        "trajectory_diagnostics": _diagnose(
+        "trajectory_diagnostics": family.diagnose(
             turns=turns,
             evaluation=evaluation,
             failure_report=failure_report,
@@ -637,6 +637,82 @@ def run_native_return_agent(
             encoding="utf-8",
         )
     return report
+
+
+def _build_partial_return_environment(
+    context: NativeRuntimeContext,
+) -> ERPNextPartialReturnEnvironment:
+    adapter = FrappeHTTPAdapter(
+        FrappeConfig(
+            base_url=context.base_url,
+            api_key=context.credentials["api_key"],
+            api_secret=context.credentials["api_secret"],
+        )
+    )
+    stack = ERPNextStack(
+        compose_file=(
+            context.repository_root / "runtimes" / "erpnext" / "compose.yaml"
+        ),
+        container_cli=context.container_cli,
+        db_root_password=os.environ.get(
+            "AFTERMATH_DB_ROOT_PASSWORD",
+            "aftermath-root",
+        ),
+    )
+    return ERPNextPartialReturnEnvironment(
+        adapter=adapter,
+        prefix=context.prefix,
+        stack=stack,
+        worker_control=default_worker_control(
+            context.repository_root,
+            container_cli=context.container_cli,
+        ),
+        collector=ERPNextPartialReturnEvidenceCollector(adapter),
+    )
+
+
+PARTIAL_RETURN_FAMILY = NativeFamilyDefinition(
+    family_id="erpnext-partial-return-replacement-reconciliation",
+    domain="erpnext",
+    system_prompt=NATIVE_SYSTEM_PROMPT,
+    tool_definitions=NATIVE_RETURN_TOOL_DEFINITIONS,
+    mutation_tools=frozenset(NATIVE_RETURN_MUTATIONS),
+    build_environment=_build_partial_return_environment,
+    build_initial_message=native_initial_message,
+    evaluate=lambda final_state, prefix: evaluate_partial_return_recovery(
+        final_state,
+        prefix=prefix,
+    ),
+    diagnose=_diagnose,
+)
+
+
+NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry((PARTIAL_RETURN_FAMILY,))
+
+
+def run_native_return_agent(
+    client: ChatClient,
+    *,
+    scenario: NativeScenario,
+    environment: ERPNextPartialReturnEnvironment,
+    prefix: dict[str, Any],
+    failure_report: dict[str, Any],
+    max_turns: int = 25,
+    execution_control: bool = False,
+    output_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Backward-compatible entry point for the first native family."""
+    return run_native_family_agent(
+        client,
+        family=PARTIAL_RETURN_FAMILY,
+        scenario=scenario,
+        environment=environment,
+        prefix=prefix,
+        failure_report=failure_report,
+        max_turns=max_turns,
+        execution_control=execution_control,
+        output_path=output_path,
+    )
 
 
 def run_live_native_agent(
@@ -654,12 +730,7 @@ def run_live_native_agent(
 ) -> dict[str, Any]:
     root = repository_root()
     scenario = load_native_scenario(scenario_path)
-    if scenario.raw.get("family") != (
-        "erpnext-partial-return-replacement-reconciliation"
-    ):
-        raise ValueError(
-            "run-native-model currently supports the partial-return family"
-        )
+    family = NATIVE_FAMILY_REGISTRY.get(str(scenario.raw.get("family", "")))
     credentials = json.loads(
         Path(credentials_path).read_text(encoding="utf-8")
     )
@@ -669,33 +740,20 @@ def run_live_native_agent(
     )
     if failure_report["scenario_id"] != scenario.scenario_id:
         raise ValueError("failure report and scenario do not match")
-    adapter = FrappeHTTPAdapter(
-        FrappeConfig(
+    environment = family.build_environment(
+        NativeRuntimeContext(
+            scenario=scenario,
+            credentials=credentials,
+            prefix=prefix,
+            failure_report=failure_report,
+            repository_root=root,
             base_url=erpnext_base_url,
-            api_key=credentials["api_key"],
-            api_secret=credentials["api_secret"],
+            container_cli=container_cli,
         )
     )
-    stack = ERPNextStack(
-        compose_file=root / "runtimes" / "erpnext" / "compose.yaml",
-        container_cli=container_cli,
-        db_root_password=os.environ.get(
-            "AFTERMATH_DB_ROOT_PASSWORD",
-            "aftermath-root",
-        ),
-    )
-    environment = ERPNextPartialReturnEnvironment(
-        adapter=adapter,
-        prefix=prefix,
-        stack=stack,
-        worker_control=default_worker_control(
-            root,
-            container_cli=container_cli,
-        ),
-        collector=ERPNextPartialReturnEvidenceCollector(adapter),
-    )
-    return run_native_return_agent(
+    return run_native_family_agent(
         client,
+        family=family,
         scenario=scenario,
         environment=environment,
         prefix=prefix,

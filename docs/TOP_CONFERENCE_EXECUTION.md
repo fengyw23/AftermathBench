@@ -16,9 +16,12 @@ pending.
 ## What is executable today
 
 The repository currently contains one ERPNext purchase-return family with a
-public development instance and a frozen historical holdout instance. Both
+public development instance and a consumed historical holdout instance. Both
 instances have four matched post-error states and deterministic terminal-state
-evaluation.
+evaluation. The historical holdout still anchors the already published
+experiments, but it is now explicitly classified as a development regression
+instance: its model failures informed a later relation-query improvement, so
+it cannot support a new unseen-test claim.
 
 The family now has:
 
@@ -88,6 +91,11 @@ one-branch tasks from being counted toward the release target.
 5. Implement Forgejo and Kubernetes runtimes against their public APIs and
    native audit records.
 6. Freeze private test instances before any main-model evaluation.
+
+Any scenario used for hidden-test reporting must declare `hidden_test`,
+`hard`, and `hidden_test_eligible: true`, and must have an active freeze.
+Workflows reject historical, consumed, or development instances before the
+expensive runtime build.
 
 The release target remains 144 cases, but a family enters the formal score
 only after its reference program, execution control, evidence replay, reset,

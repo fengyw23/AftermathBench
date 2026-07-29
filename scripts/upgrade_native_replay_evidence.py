@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from aftermath_bench.evidence_replay import (
+    project_evidence,
+    replay_selectors,
+)
+
 
 def _read(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -202,6 +207,7 @@ def main() -> int:
     for relation in graph["relations"]:
         relation.pop("observed", None)
         relation["replay"] = _replay_clauses(relation)
+    selectors = replay_selectors(graph)
     replay = {
         "schema_version": "1.0",
         "scenario_id": scenario["scenario_id"],
@@ -213,7 +219,14 @@ def main() -> int:
                 "source_evaluation_passed": bool(
                     report.get("evaluation", {}).get("passed", False)
                 ),
-                "evidence": report["final_evidence"],
+                "evidence_projection": {
+                    "selectors": list(selectors),
+                    "source": "model-run final evidence",
+                },
+                "evidence": project_evidence(
+                    report["final_evidence"],
+                    selectors,
+                ),
             }
             for path, report in zip(args.source_report, reports)
         ],

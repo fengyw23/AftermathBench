@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from aftermath_bench.native_model_runner import (
+    NATIVE_FAMILY_REGISTRY,
     NATIVE_RETURN_TOOL_DEFINITIONS,
     _diagnose,
     native_initial_message,
@@ -62,6 +63,16 @@ class NativeModelRunnerTest(unittest.TestCase):
         for tool in NATIVE_RETURN_TOOL_DEFINITIONS:
             self.assertFalse(tool.input_schema["additionalProperties"])
             self.assertNotIn("hidden", json.dumps(tool.input_schema).lower())
+
+    def test_native_family_is_selected_from_registry(self) -> None:
+        family = NATIVE_FAMILY_REGISTRY.get(self.scenario.raw["family"])
+        self.assertEqual(family.domain, "erpnext")
+        self.assertEqual(
+            family.tool_definitions,
+            NATIVE_RETURN_TOOL_DEFINITIONS,
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported native family"):
+            NATIVE_FAMILY_REGISTRY.get("nonexistent-family")
 
     def test_execution_control_supplies_scope_but_not_hidden_state(self) -> None:
         message = native_initial_message(

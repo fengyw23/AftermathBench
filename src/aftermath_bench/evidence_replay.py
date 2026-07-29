@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,64 @@ def select_values(value: Any, selector: str) -> list[Any]:
     return values
 
 
+def _project_selector(value: Any, segments: tuple[str, ...]) -> Any:
+    if not segments:
+        return value
+    head, *tail = segments
+    remaining = tuple(tail)
+    if head == "*":
+        if not isinstance(value, list):
+            return []
+        return [_project_selector(item, remaining) for item in value]
+    if not isinstance(value, dict) or head not in value:
+        return {}
+    return {head: _project_selector(value[head], remaining)}
+
+
+def _merge_projection(left: Any, right: Any) -> Any:
+    if isinstance(left, dict) and isinstance(right, dict):
+        result = dict(left)
+        for key, value in right.items():
+            result[key] = (
+                _merge_projection(result[key], value) if key in result else value
+            )
+        return result
+    if isinstance(left, list) and isinstance(right, list):
+        result = list(left)
+        for index, value in enumerate(right):
+            if index < len(result):
+                result[index] = _merge_projection(result[index], value)
+            else:
+                result.append(value)
+        return result
+    if left != right:
+        raise ValueError("selector projections disagree on a scalar value")
+    return left
+
+
+def project_evidence(
+    evidence: dict[str, Any],
+    selectors: Iterable[str],
+) -> dict[str, Any]:
+    """Keep only fields consumed by executable relation assertions."""
+    projected: dict[str, Any] = {}
+    for selector in sorted(set(map(str, selectors))):
+        partial = _project_selector(evidence, tuple(selector.split(".")))
+        projected = _merge_projection(projected, partial)
+    return projected
+
+
+def replay_selectors(graph: dict[str, Any]) -> tuple[str, ...]:
+    selectors = {
+        str(clause[key])
+        for relation in graph.get("relations", ())
+        for clause in relation.get("replay", ())
+        for key in ("selector", "other_selector")
+        if key in clause
+    }
+    return tuple(sorted(selectors))
+
+
 def _expected(
     clause: dict[str, Any],
     entity_names: dict[str, str],
@@ -53,9 +112,7 @@ def evaluate_clause(
     if operator == "any_equals":
         return any(str(value) == str(expected) for value in values)
     if operator == "all_equal":
-        return bool(values) and all(
-            str(value) == str(expected) for value in values
-        )
+        return bool(values) and all(str(value) == str(expected) for value in values)
     if operator == "nonempty":
         return bool(values)
     if operator == "all_numeric_zero":
