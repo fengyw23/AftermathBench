@@ -53,6 +53,30 @@ class ForgejoAPITest(unittest.TestCase):
         self.assertTrue(restored["passed"])
         self.assertFalse(drifted["passed"])
 
+    def test_merge_uses_the_native_forgejo_payload(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"merged": True}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).merge_pull_request(
+                "aftermath",
+                "release-control",
+                2,
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/"
+            "aftermath/release-control/pulls/2/merge",
+        )
+        self.assertEqual(
+            json.loads(request.data),
+            {"Do": "merge", "delete_branch_after_merge": False},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

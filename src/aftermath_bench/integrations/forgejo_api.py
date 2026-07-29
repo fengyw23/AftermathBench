@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.parse
@@ -107,6 +108,178 @@ class ForgejoAPI:
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no issue document")
         return result
+
+    def create_branch(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        name: str,
+        from_ref: str = "main",
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/branches",
+            {
+                "new_branch_name": name,
+                "old_ref_name": from_ref,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no branch document")
+        return result
+
+    def create_file(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        path: str,
+        content: str,
+        branch: str,
+        message: str,
+    ) -> dict[str, Any]:
+        encoded_path = urllib.parse.quote(path, safe="/")
+        result = self.post(
+            f"/repos/{owner}/{repository}/contents/{encoded_path}",
+            {
+                "content": base64.b64encode(
+                    content.encode("utf-8")
+                ).decode("ascii"),
+                "branch": branch,
+                "message": message,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no file commit document")
+        return result
+
+    def create_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        title: str,
+        body: str,
+        head: str,
+        base: str,
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/pulls",
+            {
+                "title": title,
+                "body": body,
+                "head": head,
+                "base": base,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no Pull Request document")
+        return result
+
+    def get_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+    ) -> dict[str, Any]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/pulls/{index}"
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no Pull Request document")
+        return result
+
+    def merge_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+        *,
+        method: str = "merge",
+        delete_branch: bool = False,
+    ) -> Any:
+        return self.post(
+            f"/repos/{owner}/{repository}/pulls/{index}/merge",
+            {
+                "Do": method,
+                "delete_branch_after_merge": delete_branch,
+            },
+        )
+
+    def create_hook(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        target_url: str,
+        events: list[str],
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/hooks",
+            {
+                "type": "forgejo",
+                "config": {
+                    "url": target_url,
+                    "content_type": "json",
+                },
+                "events": events,
+                "active": True,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no webhook document")
+        return result
+
+    def list_hooks(
+        self,
+        owner: str,
+        repository: str,
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/hooks",
+            query={"limit": "50"},
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no webhook list")
+        return [item for item in result if isinstance(item, dict)]
+
+    def create_release(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        tag: str,
+        target: str,
+        title: str,
+        body: str,
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/releases",
+            {
+                "tag_name": tag,
+                "target_commitish": target,
+                "name": title,
+                "body": body,
+                "draft": False,
+                "prerelease": False,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no release document")
+        return result
+
+    def list_releases(
+        self,
+        owner: str,
+        repository: str,
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/releases",
+            query={"limit": "50"},
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no release list")
+        return [item for item in result if isinstance(item, dict)]
 
     def list_issues(
         self,
