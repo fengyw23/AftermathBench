@@ -268,3 +268,149 @@ class ERPNextSalesReturnEnvironment(ERPNextPartialReturnEnvironment):
                 customer=customer,
             ),
         }
+
+
+def reference_sales_return_recovery(
+    environment: ERPNextSalesReturnEnvironment,
+) -> tuple[dict[str, Any], ...]:
+    """Reference policy composed exclusively from model-visible tools."""
+    prefix = environment.prefix
+    trace: list[dict[str, Any]] = []
+
+    def call(tool: str, **kwargs: Any) -> dict[str, Any]:
+        result = environment.invoke(tool, **kwargs)
+        trace.append({"tool": tool, "arguments": kwargs, "result": result})
+        if not result.get("ok"):
+            raise RuntimeError(f"reference tool failed: {tool}: {result}")
+        return result
+
+    sales_return = call(
+        "get_document",
+        doctype="Delivery Note",
+        name=prefix["sales_return"],
+    )["document"]
+    credit_note = call(
+        "get_document",
+        doctype="Sales Invoice",
+        name=prefix["credit_note"],
+    )["document"]
+    replacement_delivery = call(
+        "get_document",
+        doctype="Delivery Note",
+        name=prefix["replacement_delivery_note"],
+    )["document"]
+    call(
+        "get_document",
+        doctype="Payment Entry",
+        name=prefix["shared_payment_entry"],
+    )
+    call(
+        "get_document",
+        doctype="Quality Inspection",
+        name=prefix["quality_inspection"],
+    )
+
+    if int(sales_return.get("docstatus", 0)) == 0:
+        call(
+            "submit_document",
+            doctype="Delivery Note",
+            name=prefix["sales_return"],
+        )
+    replacement_delivery = call(
+        "get_document",
+        doctype="Delivery Note",
+        name=prefix["replacement_delivery_note"],
+    )["document"]
+    if int(credit_note.get("docstatus", 0)) == 0:
+        call(
+            "submit_document",
+            doctype="Sales Invoice",
+            name=prefix["credit_note"],
+        )
+    if int(replacement_delivery.get("docstatus", 0)) == 0:
+        call(
+            "submit_document",
+            doctype="Delivery Note",
+            name=prefix["replacement_delivery_note"],
+        )
+
+    related = call(
+        "list_related_documents",
+        source_doctype="Delivery Note",
+        source_name=prefix["replacement_delivery_note"],
+        target_doctype="Sales Invoice",
+        relation_type="billed_by",
+    )["related"]
+    replacement_invoices = [
+        item["document"]
+        for item in related
+        if int(item["document"].get("docstatus", 0)) != 2
+    ]
+    if not replacement_invoices:
+        replacement_invoice = call(
+            "create_sales_invoice_from_delivery",
+            delivery_note=prefix["replacement_delivery_note"],
+        )["document"]
+    elif len(replacement_invoices) == 1:
+        replacement_invoice = replacement_invoices[0]
+    else:
+        raise RuntimeError("duplicate active replacement invoices")
+    if int(replacement_invoice.get("docstatus", 0)) == 0:
+        call(
+            "submit_document",
+            doctype="Sales Invoice",
+            name=replacement_invoice["name"],
+        )
+    call(
+        "reconcile_customer_documents",
+        company=prefix["company"],
+        customer=prefix["customer"],
+    )
+
+    delivery = call(
+        "get_external_delivery",
+        reference=prefix["sales_return"],
+    )
+    jobs = call(
+        "find_background_jobs",
+        reference=prefix["sales_return"],
+    )["jobs"]
+    if not delivery["delivered"]:
+        if any(
+            str(job.get("status", "")).lower()
+            in {
+                "queued",
+                "started",
+                "failed",
+                "deferred",
+                "scheduled",
+            }
+            for job in jobs
+        ):
+            call("resume_workers")
+        else:
+            call(
+                "enqueue_document_webhook",
+                doctype="Delivery Note",
+                name=prefix["sales_return"],
+                webhook_name=ERPNextSalesReturnPrefixBuilder.PICKUP_WEBHOOK,
+            )
+        call(
+            "wait_for_external_delivery",
+            reference=prefix["sales_return"],
+            timeout_seconds=30,
+        )
+    call(
+        "get_stock_ledger",
+        voucher_no=prefix["sales_return"],
+    )
+    call(
+        "get_stock_ledger",
+        voucher_no=prefix["replacement_delivery_note"],
+    )
+    for voucher_no in (
+        prefix["shared_payment_entry"],
+        prefix["credit_note"],
+    ):
+        call("get_general_ledger", voucher_no=voucher_no)
+    return tuple(trace)
