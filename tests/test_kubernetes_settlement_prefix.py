@@ -9,6 +9,7 @@ from aftermath_bench.integrations.kubernetes_settlement_prefix import (
     SETTLEMENT_CRONJOB,
     TARGET_BATCH,
     TARGET_RECEIPT_SHA,
+    _stable_object,
     prefix_manifests,
     settlement_job_manifest,
 )
@@ -44,6 +45,25 @@ class KubernetesSettlementPrefixTest(unittest.TestCase):
     def test_suspended_job_is_a_native_controller_boundary(self) -> None:
         job = settlement_job_manifest(suspended=True)
         self.assertTrue(job["spec"]["suspend"])
+
+    def test_job_projection_excludes_controller_generated_identity(self) -> None:
+        base = settlement_job_manifest(PRIOR_BATCH)
+        base["metadata"].update({"uid": "uid-a", "resourceVersion": "10"})
+        base["spec"]["selector"] = {
+            "matchLabels": {"batch.kubernetes.io/controller-uid": "uid-a"}
+        }
+        base["spec"]["template"]["metadata"]["labels"].update(
+            {"batch.kubernetes.io/controller-uid": "uid-a"}
+        )
+        changed = settlement_job_manifest(PRIOR_BATCH)
+        changed["metadata"].update({"uid": "uid-b", "resourceVersion": "99"})
+        changed["spec"]["selector"] = {
+            "matchLabels": {"batch.kubernetes.io/controller-uid": "uid-b"}
+        }
+        changed["spec"]["template"]["metadata"]["labels"].update(
+            {"batch.kubernetes.io/controller-uid": "uid-b"}
+        )
+        self.assertEqual(_stable_object(base), _stable_object(changed))
 
 
 if __name__ == "__main__":

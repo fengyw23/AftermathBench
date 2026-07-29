@@ -208,7 +208,42 @@ def clear_settlement_taint(api: KubernetesApi) -> None:
 
 
 def _stable_object(document: dict[str, Any]) -> dict[str, Any]:
-    return {
+    spec = document.get("spec", {})
+    if document["kind"] == "Job":
+        template = spec.get("template", {})
+        pod_spec = template.get("spec", {})
+        spec = {
+            "suspend": bool(spec.get("suspend", False)),
+            "backoffLimit": spec.get("backoffLimit"),
+            "template": {
+                "metadata": {
+                    "labels": {
+                        key: value
+                        for key, value in template.get("metadata", {})
+                        .get("labels", {})
+                        .items()
+                        if key in {"app", "batch"}
+                    }
+                },
+                "spec": {
+                    "serviceAccountName": pod_spec.get("serviceAccountName"),
+                    "restartPolicy": pod_spec.get("restartPolicy"),
+                    "containers": [
+                        {
+                            key: container.get(key)
+                            for key in (
+                                "name",
+                                "image",
+                                "imagePullPolicy",
+                                "command",
+                            )
+                        }
+                        for container in pod_spec.get("containers", [])
+                    ],
+                },
+            },
+        }
+    projected = {
         "apiVersion": document["apiVersion"],
         "kind": document["kind"],
         "metadata": {
@@ -219,8 +254,12 @@ def _stable_object(document: dict[str, Any]) -> dict[str, Any]:
         },
         "data": document.get("data"),
         "type": document.get("type"),
-        "spec": document.get("spec", {}),
+        "spec": spec,
     }
+    for field in ("rules", "subjects", "roleRef"):
+        if field in document:
+            projected[field] = document[field]
+    return projected
 
 
 def capture_prefix(api: KubernetesApi) -> dict[str, Any]:

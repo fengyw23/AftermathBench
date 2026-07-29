@@ -21,6 +21,9 @@ class KubernetesSettlementWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(variant, text)
         self.assertIn("run_kubernetes_settlement_control.py", text)
+        self.assertIn("validate_kubernetes_settlement_replay.py", text)
+        self.assertIn("run_kubernetes_settlement_baseline.py", text)
+        self.assertIn("summarize_native_baselines.py", text)
         self.assertIn("kubernetes-control:local", text)
         self.assertIn("webhook_sink", text)
 
