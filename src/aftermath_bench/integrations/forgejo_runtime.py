@@ -186,6 +186,27 @@ def materialize_pinned_containerfile(plan: ForgejoBuildPlan) -> dict[str, Any]:
             )
         content = content.replace(upstream_from, pinned, 1)
         replacements[upstream_from] = pinned
+    make_fragment = (
+        "make FORGEJO_GENERATE_SKIP_HASH=true "
+        "RELEASE_VERSION=$RELEASE_VERSION"
+    )
+    versioned_make_fragment = (
+        "make FORGEJO_GENERATE_SKIP_HASH=true "
+        "GITEA_VERSION=$RELEASE_VERSION "
+        "RELEASE_VERSION=$RELEASE_VERSION"
+    )
+    occurrences = content.count(make_fragment)
+    if occurrences != 1:
+        raise RuntimeError(
+            "expected exactly one Forgejo release build command, "
+            f"found {occurrences}"
+        )
+    content = content.replace(
+        make_fragment,
+        versioned_make_fragment,
+        1,
+    )
+    replacements["build_version"] = versioned_make_fragment
     plan.pinned_containerfile.parent.mkdir(parents=True, exist_ok=True)
     plan.pinned_containerfile.write_text(content, encoding="utf-8")
     return {
@@ -196,6 +217,7 @@ def materialize_pinned_containerfile(plan: ForgejoBuildPlan) -> dict[str, Any]:
             f"{reference}@{digest}" in content
             for reference, digest, _ in plan.base_images
         ),
+        "semantic_version_pinned": versioned_make_fragment in content,
     }
 
 

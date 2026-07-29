@@ -61,13 +61,21 @@ class ForgejoRuntimeTest(unittest.TestCase):
                 "FROM --platform=$BUILDPLATFORM "
                 "data.forgejo.org/oci/golang:1.26-alpine3.23 "
                 "AS build-env\n"
+                "RUN make FORGEJO_GENERATE_SKIP_HASH=true "
+                "RELEASE_VERSION=$RELEASE_VERSION\n"
                 "FROM data.forgejo.org/oci/alpine:3.23",
                 encoding="utf-8",
             )
             result = materialize_pinned_containerfile(plan)
             pinned = plan.pinned_containerfile.read_text(encoding="utf-8")
         self.assertTrue(result["all_digests_pinned"])
+        self.assertTrue(result["semantic_version_pinned"])
         self.assertEqual(pinned.count("@sha256:"), 3)
+        self.assertIn(
+            "GITEA_VERSION=$RELEASE_VERSION "
+            "RELEASE_VERSION=$RELEASE_VERSION",
+            pinned,
+        )
         for reference, digest, _ in plan.base_images:
             self.assertIn(f"{reference}@{digest}", pinned)
 
