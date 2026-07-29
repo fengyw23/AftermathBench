@@ -82,6 +82,34 @@ jobs:
               --output "$RUNNER_TEMP/kubernetes-boundaries/$variant-reference.json"
           done
 
+      - name: Execute fixed recovery policies
+        run: |
+          mkdir -p "$RUNNER_TEMP/kubernetes-baselines"
+          for baseline in \
+            no_op \
+            blind_retry \
+            assume_committed \
+            repair_failed_record_only \
+            all_rollback \
+            switch_traffic_immediately \
+            compact_boundary_tree
+          do
+            for variant in \
+              patch_request_not_reached \
+              deployment_spec_committed_response_lost \
+              deployment_spec_committed_reconcile_paused \
+              new_replicaset_created_rollout_pending
+            do
+              python scripts/run_kubernetes_rollout_boundary.py \
+                --variant "$variant" \
+                --output "$RUNNER_TEMP/kubernetes-baselines/$baseline-$variant-boundary.json"
+              python scripts/run_kubernetes_rollout_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --output "$RUNNER_TEMP/kubernetes-baselines/$baseline-$variant.json"
+            done
+          done
+
       - name: Capture diagnostics
         if: always()
         run: |
@@ -106,6 +134,7 @@ jobs:
             ${{ runner.temp }}/kubernetes-source-verification.json
             ${{ runner.temp }}/kubernetes-reset-validation.json
             ${{ runner.temp }}/kubernetes-boundaries
+            ${{ runner.temp }}/kubernetes-baselines
             ${{ runner.temp }}/kubernetes-diagnostics
 
       - name: Purge native cluster
