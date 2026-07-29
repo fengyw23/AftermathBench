@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import unittest
+
+from aftermath_bench.schema import repository_root
+
+
+class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.text = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "kubernetes-interaction-model.yml"
+        ).read_text(encoding="utf-8")
+
+    def test_uses_bailian_secret_and_compatible_endpoint(self) -> None:
+        self.assertIn("secrets.BAILIAN_API_KEY", self.text)
+        self.assertIn("compatible-mode/v1", self.text)
+        self.assertNotIn("sk-", self.text)
+
+    def test_rebuilds_every_boundary_before_each_provider_attempt(self) -> None:
+        boundary = self.text.index("run_kubernetes_interaction_boundary.py")
+        model = self.text.index("run-native-model", boundary)
+        retry_loop = self.text.index("for attempt in 1 2 3")
+        self.assertLess(retry_loop, boundary)
+        self.assertLess(boundary, model)
+
+    def test_control_and_ordinary_conditions_have_distinct_push_branches(self) -> None:
+        self.assertIn("interaction-model-control", self.text)
+        self.assertIn("interaction-model-eval", self.text)
+        self.assertIn("--expected-execution-control", self.text)
+
+    def test_all_thirteen_neutral_variants_are_declared(self) -> None:
+        for index in range(1, 14):
+            self.assertIn(f"state_{index:02d}", self.text)
+
+
+if __name__ == "__main__":
+    unittest.main()
