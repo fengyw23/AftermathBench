@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import unittest
-from pathlib import Path
+from unittest.mock import patch
 
+from aftermath_bench.integrations.kubernetes_stack import KubernetesStack
 from aftermath_bench.runtime_gate import (
     load_runtime_manifest,
     validate_runtime_manifest,
@@ -68,6 +69,38 @@ class KubernetesRuntimeTest(unittest.TestCase):
         self.assertFalse(report.execution_admitted)
         self.assertNotIn("source_status_truthful", report.failures)
         self.assertNotIn("execution_status_truthful", report.failures)
+
+    @patch("subprocess.run")
+    @patch("shutil.which", return_value="available")
+    def test_stack_create_uses_the_digest_pinned_image(
+        self,
+        _which,
+        runner,
+    ) -> None:
+        def completed(command, **_kwargs):
+            result = unittest.mock.Mock()
+            result.returncode = 0
+            result.stderr = ""
+            if command[1:3] == ("get", "clusters"):
+                result.stdout = ""
+            elif "version" in command:
+                result.stdout = json.dumps(
+                    {"serverVersion": {"gitVersion": "v1.34.0"}}
+                )
+            else:
+                result.stdout = ""
+            return result
+
+        runner.side_effect = completed
+        stack = KubernetesStack.from_repository()
+        status = stack.up()
+        create = next(
+            call.args[0]
+            for call in runner.call_args_list
+            if call.args[0][1:3] == ("create", "cluster")
+        )
+        self.assertIn(self.lock["kubernetes"]["node_image"], create)
+        self.assertEqual(status["server_version"], "v1.34.0")
 
 
 if __name__ == "__main__":
