@@ -76,6 +76,61 @@ class ERPNextRelationTest(unittest.TestCase):
                 documents=[],
             )
 
+    def test_finds_sales_invoice_through_delivery_note_child_link(
+        self,
+    ) -> None:
+        related = find_related_documents(
+            source_doctype="Delivery Note",
+            source_name="DN-EXCHANGE",
+            target_doctype="Sales Invoice",
+            documents=[
+                {
+                    "name": "SINV-1",
+                    "items": [{"delivery_note": "DN-EXCHANGE"}],
+                },
+                {
+                    "name": "SINV-2",
+                    "items": [{"delivery_note": "DN-OTHER"}],
+                },
+            ],
+        )
+        self.assertEqual(
+            [item["document"]["name"] for item in related],
+            ["SINV-1"],
+        )
+
+    def test_sales_payment_requires_sales_reference_type(self) -> None:
+        related = find_related_documents(
+            source_doctype="Sales Invoice",
+            source_name="SINV-1",
+            target_doctype="Payment Entry",
+            relation_type="paid_by",
+            documents=[
+                {
+                    "name": "PAY-SALES",
+                    "references": [
+                        {
+                            "reference_doctype": "Sales Invoice",
+                            "reference_name": "SINV-1",
+                        }
+                    ],
+                },
+                {
+                    "name": "PAY-PURCHASE",
+                    "references": [
+                        {
+                            "reference_doctype": "Purchase Invoice",
+                            "reference_name": "SINV-1",
+                        }
+                    ],
+                },
+            ],
+        )
+        self.assertEqual(
+            [item["document"]["name"] for item in related],
+            ["PAY-SALES"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

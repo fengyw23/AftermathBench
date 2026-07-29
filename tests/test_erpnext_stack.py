@@ -94,6 +94,34 @@ class ERPNextStackTest(unittest.TestCase):
         ):
             stack.requeue_payment_remittance("PAY-1")
 
+    def test_customer_reconciliation_calls_native_bridge(self) -> None:
+        runner = Mock(
+            return_value=subprocess.CompletedProcess(
+                [],
+                0,
+                stdout=(
+                    '{"party_type":"Customer","party":"Acme",'
+                    '"allocation_count":1,"reconciled":true}\n'
+                ),
+            )
+        )
+        stack = ERPNextStack(
+            compose_file=Path("runtime/compose.yaml"),
+            runner=runner,
+        )
+        result = stack.reconcile_customer_documents(
+            company="Aftermath Laboratories LLC",
+            customer="Acme",
+        )
+        command = runner.call_args.args[0]
+        self.assertIn(
+            "frappe.aftermath_bridge.reconcile_customer_documents",
+            command,
+        )
+        kwargs = json.loads(command[command.index("--kwargs") + 1])
+        self.assertEqual(kwargs["customer"], "Acme")
+        self.assertTrue(result["reconciled"])
+
     def test_snapshot_writes_exact_dump_and_returns_digest(self) -> None:
         def runner(command, **kwargs):
             kwargs["stdout"].write(b"SQL-DUMP")

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,52 @@ RELATION_RULES = (
         "credited_by",
         "Purchase Invoice",
         "Purchase Invoice",
+        ("return_against",),
+    ),
+    ERPNextRelationRule(
+        "fulfilled_by",
+        "Sales Order",
+        "Delivery Note",
+        ("items", "*", "against_sales_order"),
+    ),
+    ERPNextRelationRule(
+        "billed_by",
+        "Sales Order",
+        "Sales Invoice",
+        ("items", "*", "sales_order"),
+    ),
+    ERPNextRelationRule(
+        "billed_by",
+        "Delivery Note",
+        "Sales Invoice",
+        ("items", "*", "delivery_note"),
+    ),
+    ERPNextRelationRule(
+        "paid_by",
+        "Sales Invoice",
+        "Payment Entry",
+        ("references", "*", "reference_name"),
+        ("references", "*", "reference_doctype"),
+        "Sales Invoice",
+    ),
+    ERPNextRelationRule(
+        "inspected_by",
+        "Delivery Note",
+        "Quality Inspection",
+        ("reference_name",),
+        ("reference_type",),
+        "Delivery Note",
+    ),
+    ERPNextRelationRule(
+        "returned_by",
+        "Delivery Note",
+        "Delivery Note",
+        ("return_against",),
+    ),
+    ERPNextRelationRule(
+        "credited_by",
+        "Sales Invoice",
+        "Sales Invoice",
         ("return_against",),
     ),
 )

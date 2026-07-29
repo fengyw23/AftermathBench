@@ -78,20 +78,23 @@ def enqueue_document_webhook(
     }
 
 
-def reconcile_supplier_documents(
+def reconcile_party_documents(
     company: str,
-    supplier: str,
+    party_type: str,
+    party: str,
 ) -> dict:
-    """Run ERPNext's native Payment Reconciliation for one supplier."""
+    """Run ERPNext's native Payment Reconciliation for one party."""
     from erpnext.accounts.party import get_party_account
 
+    if party_type not in {"Supplier", "Customer"}:
+        frappe.throw(f"Unsupported reconciliation party type: {party_type}")
     reconciliation = frappe.new_doc("Payment Reconciliation")
     reconciliation.company = company
-    reconciliation.party_type = "Supplier"
-    reconciliation.party = supplier
+    reconciliation.party_type = party_type
+    reconciliation.party = party
     reconciliation.receivable_payable_account = get_party_account(
-        "Supplier",
-        supplier,
+        party_type,
+        party,
         company,
     )
     reconciliation.get_unreconciled_entries()
@@ -110,15 +113,31 @@ def reconcile_supplier_documents(
     if not allocations:
         return {
             "company": company,
-            "supplier": supplier,
+            "party_type": party_type,
+            "party": party,
             "allocation_count": 0,
             "reconciled": False,
         }
     reconciliation.reconcile()
     return {
         "company": company,
-        "supplier": supplier,
+        "party_type": party_type,
+        "party": party,
         "allocation_count": len(allocations),
         "reconciled": True,
         "allocations": allocations,
     }
+
+
+def reconcile_supplier_documents(
+    company: str,
+    supplier: str,
+) -> dict:
+    return reconcile_party_documents(company, "Supplier", supplier)
+
+
+def reconcile_customer_documents(
+    company: str,
+    customer: str,
+) -> dict:
+    return reconcile_party_documents(company, "Customer", customer)

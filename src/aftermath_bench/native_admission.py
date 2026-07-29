@@ -91,21 +91,11 @@ def _recovery_signature(report: dict[str, Any]) -> tuple[tuple[str, int], ...]:
 
 def _varying_action_branch_count(
     reports: Iterable[dict[str, Any]],
+    action_branches: Iterable[dict[str, Any]],
 ) -> int:
     branch_tools = {
-        "document_state": {
-            "submit_document",
-            "cancel_document",
-            "create_purchase_return",
-            "create_debit_note",
-            "create_purchase_receipt_from_order",
-            "create_purchase_invoice_from_receipt",
-        },
-        "financial_reconciliation": {"reconcile_supplier_documents"},
-        "asynchronous_effect": {
-            "enqueue_document_webhook",
-            "resume_workers",
-        },
+        str(branch["id"]): set(map(str, branch.get("mutation_tools", ())))
+        for branch in action_branches
     }
     reports = tuple(reports)
     varying = 0
@@ -261,7 +251,11 @@ def validate_native_scenario(
     recovery_signatures = {
         _recovery_signature(report) for report in variants
     }
-    varying_branches = _varying_action_branch_count(variants)
+    action_branches = graph.get("action_branches", ())
+    varying_branches = _varying_action_branch_count(
+        variants,
+        action_branches,
+    )
 
     observed: dict[str, int | float | bool] = {
         "successful_prefix_writes": successful_prefix_writes,
@@ -281,6 +275,7 @@ def validate_native_scenario(
         "minimum_repair_mutations": minimum_mutations,
         "minimum_downstream_repairs": minimum_downstream_repairs,
         "unsafe_action_count": len(unsafe_actions),
+        "action_branch_count": len(action_branches),
         "shared_dependency_count": shared_dependencies,
         "distinct_recovery_signature_count": len(recovery_signatures),
         "varying_action_branch_count": varying_branches,
@@ -310,6 +305,7 @@ def validate_native_scenario(
         "downstream_repairs>=2": minimum_downstream_repairs >= 2,
         "shared_dependencies>=2": shared_dependencies >= 2,
         "unsafe_actions>=3": len(unsafe_actions) >= 3,
+        "action_branches>=3": len(action_branches) >= 3,
         "recovery_signatures>=3": len(recovery_signatures) >= 3,
         "varying_action_branches>=2": varying_branches >= 2,
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,

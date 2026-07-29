@@ -6,9 +6,10 @@ import json
 import subprocess
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 
 def _parse_mapping_output(output: str) -> dict[str, Any]:
@@ -204,6 +205,30 @@ class ERPNextStack:
             "--kwargs",
             json.dumps(
                 {"company": company, "supplier": supplier},
+                separators=(",", ":"),
+            ),
+            capture_output=True,
+        )
+        return _parse_mapping_output(result.stdout)
+
+    def reconcile_customer_documents(
+        self,
+        *,
+        company: str,
+        customer: str,
+    ) -> dict[str, Any]:
+        result = self.run(
+            "exec",
+            "-T",
+            "backend",
+            "bench",
+            "--site",
+            "aftermath.localhost",
+            "execute",
+            "frappe.aftermath_bridge.reconcile_customer_documents",
+            "--kwargs",
+            json.dumps(
+                {"company": company, "customer": customer},
                 separators=(",", ":"),
             ),
             capture_output=True,

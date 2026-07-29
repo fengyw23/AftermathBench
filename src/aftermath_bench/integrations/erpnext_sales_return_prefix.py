@@ -122,7 +122,7 @@ class ERPNextSalesReturnPrefixBuilder:
                 {
                     "customer_name": customer,
                     "customer_type": "Company",
-                    "customer_group": "All Customer Groups",
+                    "customer_group": "Commercial",
                     "territory": "All Territories",
                 },
             )
