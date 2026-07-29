@@ -77,6 +77,16 @@ class ForgejoSourceAuditTest(unittest.TestCase):
             verification["image_build"]["image_id"].startswith("sha256:")
         )
 
+    def test_runtime_workflow_builds_the_real_release_prefix(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "forgejo-source-audit.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("build_forgejo_prefix.py", workflow)
+        self.assertIn("release-prefix.json", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
