@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0",
+  "runtime_id": "forgejo-main",
+  "family_id": "forgejo-pr-merge-release-webhook",
+  "policy": {
+    "read_wrappers_may_normalize_native_responses": true,
+    "write_wrappers_map_to_one_native_operation": true,
+    "global_state_summary_forbidden": true,
+    "recommended_action_forbidden": true
+  },
+  "tools": [
+    {
+      "name": "get_pull_request",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/pulls/{index}"],
+      "audit_boundary": "One named repository Pull Request.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_issue",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/issues/{index}"],
+      "audit_boundary": "One named repository issue.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_branch",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/branches/{branch}"],
+      "audit_boundary": "One branch and native head commit.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_releases",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/releases"],
+      "audit_boundary": "Releases in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_branch_protections",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/branch_protections"],
+      "audit_boundary": "Branch-protection rules in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_hooks",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/hooks"],
+      "audit_boundary": "Webhook definitions in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_webhook_history",
+      "kind": "read",
+      "native_sources": ["Forgejo repository settings hook-history page"],
+      "audit_boundary": "Native delivery UUID and status rows for one webhook.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_external_deliveries",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent release-coordinator audit store"],
+      "audit_boundary": "External effects with their native X-Forgejo-Delivery keys.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_external_delivery",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent release-coordinator audit store"],
+      "audit_boundary": "One external effect by public delivery key.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "merge_pull_request",
+      "kind": "write",
+      "native_sources": ["Forgejo REST API: POST /repos/{owner}/{repo}/pulls/{index}/merge"],
+      "audit_boundary": "One native Pull Request merge.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "replay_webhook",
+      "kind": "write",
+      "native_sources": ["Forgejo repository settings native hook replay route"],
+      "audit_boundary": "One already-recorded native delivery UUID.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_release",
+      "kind": "write",
+      "native_sources": ["Forgejo REST API: POST /repos/{owner}/{repo}/releases"],
+      "audit_boundary": "One release tag and target ref.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "wait_for_external_delivery",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent release-coordinator audit store"],
+      "audit_boundary": "Polling effects for one Pull Request for at most 30 seconds.",
+      "returns_recommendation": false
+    }
+  ]
+}

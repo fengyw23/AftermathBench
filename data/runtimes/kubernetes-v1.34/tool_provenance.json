@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "runtime_id": "kubernetes-v1.34",
+  "family_id": "k8s-deployment-rollout",
+  "policy": {
+    "read_wrappers_may_normalize_native_responses": true,
+    "write_wrappers_map_to_one_native_operation": true,
+    "global_state_summary_forbidden": true,
+    "recommended_action_forbidden": true
+  },
+  "tools": [
+    {
+      "name": "get_object",
+      "kind": "read",
+      "native_sources": ["kubectl get {resource} {name} -o json"],
+      "audit_boundary": "One Kubernetes object through the native API server.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_objects",
+      "kind": "read",
+      "native_sources": ["kubectl get {resource} -o json with optional label selector"],
+      "audit_boundary": "One resource kind and optional namespace/selector.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_events",
+      "kind": "read",
+      "native_sources": ["Kubernetes Events API through kubectl get events"],
+      "audit_boundary": "Native Events in one namespace.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "patch_object",
+      "kind": "write",
+      "native_sources": ["kubectl patch using native merge, strategic or JSON patch"],
+      "audit_boundary": "One named Kubernetes object and explicit patch document.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "remove_node_taint",
+      "kind": "write",
+      "native_sources": ["kubectl taint node {name} {key}-"],
+      "audit_boundary": "One named taint key on one Node.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "wait_for_rollout",
+      "kind": "read",
+      "native_sources": ["kubectl rollout status deployment/{name}"],
+      "audit_boundary": "Native rollout status for one Deployment with a bounded timeout.",
+      "returns_recommendation": false
+    }
+  ]
+}
