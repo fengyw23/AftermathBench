@@ -116,6 +116,15 @@ gate. The corrected evidence under
 `data/evidence/kubernetes-constraint-native-corrected-20260729/` supersedes the
 earlier archive for iteration 004.
 
+Ordinary-model auditing later found that a terminal-consistent state could
+manufacture a preparation event after the failure boundary and still pass.
+Commit `69d5373` added the visible boundary-relative external-effect rule and a
+deterministic rejection check. The resulting final admission, GitHub Actions
+run `30470729491`, again passed hard admission, 4/4 references, zero leakage
+and the fixed-policy gate. Its evidence under
+`data/evidence/kubernetes-boundary-relative-admission-final-20260730/`
+supersedes all earlier iteration-004 admission archives.
+
 ## Interpretation target
 
 If GLM-5.2 fails iteration 004 after the execution control passes, the failure

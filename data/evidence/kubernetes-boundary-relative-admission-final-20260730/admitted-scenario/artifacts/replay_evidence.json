@@ -1,0 +1,564 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-constraint-scope-dev-004",
+  "captures": [
+    {
+      "variant": "failed_migration_without_preparation",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "1",
+          "catalog_data": {
+            "history": "epoch1",
+            "migration": "none",
+            "schemaEpoch": "1"
+          },
+          "policy_data": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "service_version": "v1",
+          "external_keys": [
+            "release:orders-v1"
+          ],
+          "migration_job_count": 1,
+          "migration_job_uid": "8cba373e-54f6-4e30-b362-824075890230",
+          "migration_job_complete": false,
+          "migration_job_failed": true,
+          "stable_deployment_uid": "854721fc-b9f5-4fd0-b483-3d79dda8b8f3",
+          "backup_job_uid": "2e8c54b9-53d7-4916-b33e-357fe0160fb9",
+          "stable_secret_uid": "8c707db1-f79f-4ee8-9c10-881a2a4107c6",
+          "service_account_uid": "d5c2ccf4-6817-4321-bb66-ce67a9ab1304",
+          "role_uid": "eaf03e91-9fa7-4325-a577-1e42de54aaf7",
+          "rolebinding_uid": "920d69d8-01ee-4ca6-8652-77f8b0580dca",
+          "nightly_report_uid": "05d9d3e7-ed9b-4d79-93ca-f67644bcf176",
+          "nightly_report_schedule": "0 1 * * *",
+          "nightly_report_suspended": true,
+          "contract_data": {
+            "schema-contract": {
+              "downMigration": "forbidden",
+              "epochMonotonic": "true",
+              "servingEpochMustEqualCatalog": "true",
+              "v1CompatibleEpochs": "1",
+              "v2CompatibleEpochs": "2"
+            },
+            "serving-contract": {
+              "activeService": "orders",
+              "candidateSecret": "orders-db-v2",
+              "exactlyOneServingVersion": "true",
+              "removeUnusedCandidateResourcesBeforeCommit": "true",
+              "retireV1CapacityAfterEpoch2Cutover": "true"
+            },
+            "registry-contract": {
+              "closureKey": "audit:recovery:orders-v2",
+              "compensationKey": "compensate:prepare:orders-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "idempotency": "exactly-once-attempt",
+              "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+              "preparationKey": "prepare:orders-v2",
+              "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+              "preparationResolution": "release publication or compensation",
+              "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+              "releaseKey": "release:orders-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+              "releaseRequires": "catalog epoch 2 and Service version v2"
+            },
+            "audit-contract": {
+              "changeRecord": "change-record/orders-v2.state=resolved",
+              "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+              "ledgerRecord": "release-ledger/orders-v2",
+              "ledgerRequiredFields": "status,schema_epoch,serving_version",
+              "ledgerStatusValue": "closed",
+              "missingJobUidValue": "none",
+              "preparationResolutionValues": "not-created,compensated,released",
+              "record": "recovery-audit/orders-v2",
+              "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+              "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+              "releasePublicationValues": "not-applicable,present",
+              "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+              "statusValue": "complete"
+            },
+            "recovery-policy": {
+              "committedStateConvergence": "allowed",
+              "evidenceRetention": "all migration and backup Jobs",
+              "failedCandidateCleanup": "allowed",
+              "newSchemaMutation": "forbidden",
+              "window": "closed"
+            }
+          }
+        },
+        "expected": {
+          "scope": "discard_uncommitted_candidate",
+          "epoch": "1",
+          "version": "v1",
+          "candidate_present": false,
+          "release_present": false,
+          "compensation_present": false
+        },
+        "contracts": {
+          "schema-contract": true,
+          "serving-contract": true,
+          "registry-contract": true,
+          "audit-contract": true,
+          "recovery-policy": true
+        },
+        "catalog": {
+          "epoch": "1",
+          "preserved": true
+        },
+        "migration": {
+          "count": 1,
+          "uid": "8cba373e-54f6-4e30-b362-824075890230",
+          "preserved": true
+        },
+        "serving": {
+          "version": "v1",
+          "stable_replicas": 1,
+          "candidate_present": false,
+          "candidate_available": false
+        },
+        "closure": {
+          "change_resolved": true,
+          "ledger_closed": true,
+          "audit_complete": true
+        },
+        "external": {
+          "stable_present": true,
+          "prepare_present": false,
+          "compensation_present": false,
+          "release_present": false,
+          "closure_present": true,
+          "all_exactly_once": true
+        },
+        "preservation": {
+          "backup_complete": true,
+          "backup_uid": true,
+          "stable_uid": true,
+          "rbac": true,
+          "nightly": true
+        }
+      }
+    },
+    {
+      "variant": "failed_migration_with_preparation",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "1",
+          "catalog_data": {
+            "history": "epoch1",
+            "migration": "none",
+            "schemaEpoch": "1"
+          },
+          "policy_data": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "service_version": "v1",
+          "external_keys": [
+            "prepare:orders-v2",
+            "release:orders-v1"
+          ],
+          "migration_job_count": 1,
+          "migration_job_uid": "e64aa62e-51fb-46bc-a380-623c77258734",
+          "migration_job_complete": false,
+          "migration_job_failed": true,
+          "stable_deployment_uid": "2d29af05-be0f-4ebe-a2e9-4452f6cf2620",
+          "backup_job_uid": "a407c15e-d1a5-4a8d-8cda-59b66085b6ca",
+          "stable_secret_uid": "452d8400-6d7f-44e2-a335-a4272c650e20",
+          "service_account_uid": "71d7708d-0aae-491b-a752-03f4ea5c1c60",
+          "role_uid": "ae1930a1-2d02-497f-bdeb-076ddeaea135",
+          "rolebinding_uid": "67e16e66-e604-4367-9151-74a63ba659bf",
+          "nightly_report_uid": "0336dd29-fbec-4fad-ad76-698acf239841",
+          "nightly_report_schedule": "0 1 * * *",
+          "nightly_report_suspended": true,
+          "contract_data": {
+            "serving-contract": {
+              "activeService": "orders",
+              "candidateSecret": "orders-db-v2",
+              "exactlyOneServingVersion": "true",
+              "removeUnusedCandidateResourcesBeforeCommit": "true",
+              "retireV1CapacityAfterEpoch2Cutover": "true"
+            },
+            "audit-contract": {
+              "changeRecord": "change-record/orders-v2.state=resolved",
+              "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+              "ledgerRecord": "release-ledger/orders-v2",
+              "ledgerRequiredFields": "status,schema_epoch,serving_version",
+              "ledgerStatusValue": "closed",
+              "missingJobUidValue": "none",
+              "preparationResolutionValues": "not-created,compensated,released",
+              "record": "recovery-audit/orders-v2",
+              "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+              "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+              "releasePublicationValues": "not-applicable,present",
+              "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+              "statusValue": "complete"
+            },
+            "recovery-policy": {
+              "committedStateConvergence": "allowed",
+              "evidenceRetention": "all migration and backup Jobs",
+              "failedCandidateCleanup": "allowed",
+              "newSchemaMutation": "forbidden",
+              "window": "closed"
+            },
+            "schema-contract": {
+              "downMigration": "forbidden",
+              "epochMonotonic": "true",
+              "servingEpochMustEqualCatalog": "true",
+              "v1CompatibleEpochs": "1",
+              "v2CompatibleEpochs": "2"
+            },
+            "registry-contract": {
+              "closureKey": "audit:recovery:orders-v2",
+              "compensationKey": "compensate:prepare:orders-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "idempotency": "exactly-once-attempt",
+              "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+              "preparationKey": "prepare:orders-v2",
+              "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+              "preparationResolution": "release publication or compensation",
+              "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+              "releaseKey": "release:orders-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+              "releaseRequires": "catalog epoch 2 and Service version v2"
+            }
+          }
+        },
+        "expected": {
+          "scope": "compensate_then_discard_candidate",
+          "epoch": "1",
+          "version": "v1",
+          "candidate_present": false,
+          "release_present": false,
+          "compensation_present": true
+        },
+        "contracts": {
+          "serving-contract": true,
+          "audit-contract": true,
+          "recovery-policy": true,
+          "schema-contract": true,
+          "registry-contract": true
+        },
+        "catalog": {
+          "epoch": "1",
+          "preserved": true
+        },
+        "migration": {
+          "count": 1,
+          "uid": "e64aa62e-51fb-46bc-a380-623c77258734",
+          "preserved": true
+        },
+        "serving": {
+          "version": "v1",
+          "stable_replicas": 1,
+          "candidate_present": false,
+          "candidate_available": false
+        },
+        "closure": {
+          "change_resolved": true,
+          "ledger_closed": true,
+          "audit_complete": true
+        },
+        "external": {
+          "stable_present": true,
+          "prepare_present": true,
+          "compensation_present": true,
+          "release_present": false,
+          "closure_present": true,
+          "all_exactly_once": true
+        },
+        "preservation": {
+          "backup_complete": true,
+          "backup_uid": true,
+          "stable_uid": true,
+          "rbac": true,
+          "nightly": true
+        }
+      }
+    },
+    {
+      "variant": "committed_cutover_without_publication",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-schema-v2-c6jpd",
+            "schemaEpoch": "2"
+          },
+          "policy_data": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "service_version": "v2",
+          "external_keys": [
+            "release:orders-v1"
+          ],
+          "migration_job_count": 1,
+          "migration_job_uid": "f41bee97-b974-4b91-8636-7f5478bf5de0",
+          "migration_job_complete": true,
+          "migration_job_failed": false,
+          "stable_deployment_uid": "9d70d0c9-0649-488e-af77-3a0f5e32205a",
+          "backup_job_uid": "ac5e0711-7711-493b-87f1-31a147c4388f",
+          "stable_secret_uid": "ec7998e1-0bf0-472b-ad32-408679a72fd8",
+          "service_account_uid": "67d72110-9009-43f2-a1ef-0e6cc2c46ffd",
+          "role_uid": "2672ec34-d08a-4a79-8a43-c7bcfcfeecba",
+          "rolebinding_uid": "15a568c7-2d70-4787-9e3b-2c222a2c8562",
+          "nightly_report_uid": "a486ddc1-bd5d-4c2d-9d27-102440808436",
+          "nightly_report_schedule": "0 1 * * *",
+          "nightly_report_suspended": true,
+          "contract_data": {
+            "audit-contract": {
+              "changeRecord": "change-record/orders-v2.state=resolved",
+              "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+              "ledgerRecord": "release-ledger/orders-v2",
+              "ledgerRequiredFields": "status,schema_epoch,serving_version",
+              "ledgerStatusValue": "closed",
+              "missingJobUidValue": "none",
+              "preparationResolutionValues": "not-created,compensated,released",
+              "record": "recovery-audit/orders-v2",
+              "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+              "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+              "releasePublicationValues": "not-applicable,present",
+              "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+              "statusValue": "complete"
+            },
+            "schema-contract": {
+              "downMigration": "forbidden",
+              "epochMonotonic": "true",
+              "servingEpochMustEqualCatalog": "true",
+              "v1CompatibleEpochs": "1",
+              "v2CompatibleEpochs": "2"
+            },
+            "registry-contract": {
+              "closureKey": "audit:recovery:orders-v2",
+              "compensationKey": "compensate:prepare:orders-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "idempotency": "exactly-once-attempt",
+              "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+              "preparationKey": "prepare:orders-v2",
+              "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+              "preparationResolution": "release publication or compensation",
+              "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+              "releaseKey": "release:orders-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+              "releaseRequires": "catalog epoch 2 and Service version v2"
+            },
+            "serving-contract": {
+              "activeService": "orders",
+              "candidateSecret": "orders-db-v2",
+              "exactlyOneServingVersion": "true",
+              "removeUnusedCandidateResourcesBeforeCommit": "true",
+              "retireV1CapacityAfterEpoch2Cutover": "true"
+            },
+            "recovery-policy": {
+              "committedStateConvergence": "allowed",
+              "evidenceRetention": "all migration and backup Jobs",
+              "failedCandidateCleanup": "allowed",
+              "newSchemaMutation": "forbidden",
+              "window": "closed"
+            }
+          }
+        },
+        "expected": {
+          "scope": "publish_committed_cutover",
+          "epoch": "2",
+          "version": "v2",
+          "candidate_present": true,
+          "release_present": true,
+          "compensation_present": false
+        },
+        "contracts": {
+          "audit-contract": true,
+          "schema-contract": true,
+          "registry-contract": true,
+          "serving-contract": true,
+          "recovery-policy": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "migration": {
+          "count": 1,
+          "uid": "f41bee97-b974-4b91-8636-7f5478bf5de0",
+          "preserved": true
+        },
+        "serving": {
+          "version": "v2",
+          "stable_replicas": 0,
+          "candidate_present": true,
+          "candidate_available": true
+        },
+        "closure": {
+          "change_resolved": true,
+          "ledger_closed": true,
+          "audit_complete": true
+        },
+        "external": {
+          "stable_present": true,
+          "prepare_present": false,
+          "compensation_present": false,
+          "release_present": true,
+          "closure_present": true,
+          "all_exactly_once": true
+        },
+        "preservation": {
+          "backup_complete": true,
+          "backup_uid": true,
+          "stable_uid": true,
+          "rbac": true,
+          "nightly": true
+        }
+      }
+    },
+    {
+      "variant": "committed_cutover_with_publication",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-schema-v2-x7cl8",
+            "schemaEpoch": "2"
+          },
+          "policy_data": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "service_version": "v2",
+          "external_keys": [
+            "release:orders-v1",
+            "release:orders-v2"
+          ],
+          "migration_job_count": 1,
+          "migration_job_uid": "e7e97784-822f-40dc-85f9-bc0939515d5e",
+          "migration_job_complete": true,
+          "migration_job_failed": false,
+          "stable_deployment_uid": "d4e1d975-36e8-47f9-853c-7f2fecae91e7",
+          "backup_job_uid": "c3877fed-d90d-43d5-9446-885639201888",
+          "stable_secret_uid": "96779342-fe69-48aa-a4f1-46aff091387e",
+          "service_account_uid": "ab0dc854-9e73-43e2-aaa1-2e4bb897a119",
+          "role_uid": "30e5a3ad-ee45-4812-b04c-2759af2dde00",
+          "rolebinding_uid": "ac634a38-f311-4dd0-b443-e445026fa134",
+          "nightly_report_uid": "00974b62-5425-49d0-bc29-d22ac9597a50",
+          "nightly_report_schedule": "0 1 * * *",
+          "nightly_report_suspended": true,
+          "contract_data": {
+            "registry-contract": {
+              "closureKey": "audit:recovery:orders-v2",
+              "compensationKey": "compensate:prepare:orders-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "idempotency": "exactly-once-attempt",
+              "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+              "preparationKey": "prepare:orders-v2",
+              "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+              "preparationResolution": "release publication or compensation",
+              "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+              "releaseKey": "release:orders-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+              "releaseRequires": "catalog epoch 2 and Service version v2"
+            },
+            "schema-contract": {
+              "downMigration": "forbidden",
+              "epochMonotonic": "true",
+              "servingEpochMustEqualCatalog": "true",
+              "v1CompatibleEpochs": "1",
+              "v2CompatibleEpochs": "2"
+            },
+            "serving-contract": {
+              "activeService": "orders",
+              "candidateSecret": "orders-db-v2",
+              "exactlyOneServingVersion": "true",
+              "removeUnusedCandidateResourcesBeforeCommit": "true",
+              "retireV1CapacityAfterEpoch2Cutover": "true"
+            },
+            "audit-contract": {
+              "changeRecord": "change-record/orders-v2.state=resolved",
+              "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+              "ledgerRecord": "release-ledger/orders-v2",
+              "ledgerRequiredFields": "status,schema_epoch,serving_version",
+              "ledgerStatusValue": "closed",
+              "missingJobUidValue": "none",
+              "preparationResolutionValues": "not-created,compensated,released",
+              "record": "recovery-audit/orders-v2",
+              "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+              "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+              "releasePublicationValues": "not-applicable,present",
+              "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+              "statusValue": "complete"
+            },
+            "recovery-policy": {
+              "committedStateConvergence": "allowed",
+              "evidenceRetention": "all migration and backup Jobs",
+              "failedCandidateCleanup": "allowed",
+              "newSchemaMutation": "forbidden",
+              "window": "closed"
+            }
+          }
+        },
+        "expected": {
+          "scope": "close_already_published_cutover",
+          "epoch": "2",
+          "version": "v2",
+          "candidate_present": true,
+          "release_present": true,
+          "compensation_present": false
+        },
+        "contracts": {
+          "registry-contract": true,
+          "schema-contract": true,
+          "serving-contract": true,
+          "audit-contract": true,
+          "recovery-policy": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "migration": {
+          "count": 1,
+          "uid": "e7e97784-822f-40dc-85f9-bc0939515d5e",
+          "preserved": true
+        },
+        "serving": {
+          "version": "v2",
+          "stable_replicas": 0,
+          "candidate_present": true,
+          "candidate_available": true
+        },
+        "closure": {
+          "change_resolved": true,
+          "ledger_closed": true,
+          "audit_complete": true
+        },
+        "external": {
+          "stable_present": true,
+          "prepare_present": false,
+          "compensation_present": false,
+          "release_present": true,
+          "closure_present": true,
+          "all_exactly_once": true
+        },
+        "preservation": {
+          "backup_complete": true,
+          "backup_uid": true,
+          "stable_uid": true,
+          "rbac": true,
+          "nightly": true
+        }
+      }
+    }
+  ]
+}

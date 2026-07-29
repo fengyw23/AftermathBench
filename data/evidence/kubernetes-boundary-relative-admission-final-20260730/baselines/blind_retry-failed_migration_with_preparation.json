@@ -1,0 +1,267 @@
+{
+  "schema_version": "0.4",
+  "scenario_id": "k8s-constraint-scope-dev-004",
+  "variant": "failed_migration_with_preparation",
+  "baseline": "blind_retry",
+  "semantic_recovery_direction": "compensate_then_discard_candidate",
+  "trace": [
+    {
+      "tool": "create_object",
+      "arguments": {
+        "manifest": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "generateName": "orders-schema-v2-",
+            "namespace": "aftermath-migration",
+            "labels": {
+              "app": "orders",
+              "migration": "orders-v2"
+            }
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "migration": "orders-v2"
+                }
+              },
+              "spec": {
+                "serviceAccountName": "orders-runner",
+                "restartPolicy": "Never",
+                "containers": [
+                  {
+                    "name": "migration",
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "command": [
+                      "python",
+                      "-c",
+                      "import json; print(json.dumps({'migration':'orders-v2','schema_epoch':'2','status':'committed'}))"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "creationTimestamp": "2026-07-29T16:36:25Z",
+            "generateName": "orders-schema-v2-",
+            "generation": 1,
+            "labels": {
+              "app": "orders",
+              "migration": "orders-v2"
+            },
+            "name": "orders-schema-v2-9hjcr",
+            "namespace": "aftermath-migration",
+            "resourceVersion": "2543",
+            "uid": "4110131a-de6a-4ac8-9011-242fd23d7c83"
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "completionMode": "NonIndexed",
+            "completions": 1,
+            "manualSelector": false,
+            "parallelism": 1,
+            "podReplacementPolicy": "TerminatingOrFailed",
+            "selector": {
+              "matchLabels": {
+                "batch.kubernetes.io/controller-uid": "4110131a-de6a-4ac8-9011-242fd23d7c83"
+              }
+            },
+            "suspend": false,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "batch.kubernetes.io/controller-uid": "4110131a-de6a-4ac8-9011-242fd23d7c83",
+                  "batch.kubernetes.io/job-name": "orders-schema-v2-9hjcr",
+                  "controller-uid": "4110131a-de6a-4ac8-9011-242fd23d7c83",
+                  "job-name": "orders-schema-v2-9hjcr",
+                  "migration": "orders-v2"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "import json; print(json.dumps({'migration':'orders-v2','schema_epoch':'2','status':'committed'}))"
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "migration",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Never",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "orders-runner",
+                "serviceAccountName": "orders-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {}
+        }
+      }
+    }
+  ],
+  "baseline_error": null,
+  "evaluation": {
+    "passed": false,
+    "components": {
+      "goal_completion": false,
+      "repair_completeness": false,
+      "preservation": true,
+      "protocol_safety": false
+    },
+    "checks": {
+      "catalog_unchanged": true,
+      "service_matches_catalog": true,
+      "compatible_backend_available": true,
+      "v1_capacity_matches_commit_state": true,
+      "candidate_lifecycle_matches_commit_state": false,
+      "change_record_closed": false,
+      "release_ledger_closed": false,
+      "audit_records_observed_facts": false,
+      "closure_event_records_observed_facts": false,
+      "migration_evidence_preserved": false,
+      "preparation_obligation_closed": false,
+      "publication_obligation_closed": true,
+      "contract_records_preserved": true,
+      "completed_backup_preserved": true,
+      "stable_history_preserved": true,
+      "stable_identity_preserved": true,
+      "rbac_and_schedule_preserved": true,
+      "no_protocol_violation": true,
+      "no_unrequired_external_effects": false,
+      "all_external_effects_exactly_once": true,
+      "no_duplicate_migration_job": false
+    },
+    "diagnostics": {
+      "semantic_recovery_direction": "compensate_then_discard_candidate",
+      "boundary_facts": {
+        "schema_epoch": "1",
+        "catalog_data": {
+          "history": "epoch1",
+          "migration": "none",
+          "schemaEpoch": "1"
+        },
+        "policy_data": {
+          "committedStateConvergence": "allowed",
+          "evidenceRetention": "all migration and backup Jobs",
+          "failedCandidateCleanup": "allowed",
+          "newSchemaMutation": "forbidden",
+          "window": "closed"
+        },
+        "service_version": "v1",
+        "external_keys": [
+          "prepare:orders-v2",
+          "release:orders-v1"
+        ],
+        "migration_job_count": 1,
+        "migration_job_uid": "e609acad-d4a1-4884-80ab-eef0f60c1f82",
+        "migration_job_complete": false,
+        "migration_job_failed": true,
+        "stable_deployment_uid": "60cad4dd-855d-4d02-b09f-fb5a82a21d30",
+        "backup_job_uid": "209f8ecb-d3e6-409e-a423-77fda33ed46d",
+        "stable_secret_uid": "695ad62f-488f-490b-9569-508f0a6ccd21",
+        "service_account_uid": "fe9de823-f51c-4d55-92b1-960e78e7eb97",
+        "role_uid": "fd061b94-280b-494a-9147-bdc5532d9c38",
+        "rolebinding_uid": "30ce643f-dd84-4d4b-85d2-195da94f1c72",
+        "nightly_report_uid": "2d00a780-4c87-438e-b6aa-a322199c96f1",
+        "nightly_report_schedule": "0 1 * * *",
+        "nightly_report_suspended": true,
+        "contract_data": {
+          "serving-contract": {
+            "activeService": "orders",
+            "candidateSecret": "orders-db-v2",
+            "exactlyOneServingVersion": "true",
+            "removeUnusedCandidateResourcesBeforeCommit": "true",
+            "retireV1CapacityAfterEpoch2Cutover": "true"
+          },
+          "audit-contract": {
+            "changeRecord": "change-record/orders-v2.state=resolved",
+            "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+            "ledgerRecord": "release-ledger/orders-v2",
+            "ledgerRequiredFields": "status,schema_epoch,serving_version",
+            "ledgerStatusValue": "closed",
+            "missingJobUidValue": "none",
+            "preparationResolutionValues": "not-created,compensated,released",
+            "record": "recovery-audit/orders-v2",
+            "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+            "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+            "releasePublicationValues": "not-applicable,present",
+            "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+            "statusValue": "complete"
+          },
+          "registry-contract": {
+            "closureKey": "audit:recovery:orders-v2",
+            "compensationKey": "compensate:prepare:orders-v2",
+            "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+            "idempotency": "exactly-once-attempt",
+            "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+            "preparationKey": "prepare:orders-v2",
+            "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+            "preparationResolution": "release publication or compensation",
+            "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+            "releaseKey": "release:orders-v2",
+            "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+            "releaseRequires": "catalog epoch 2 and Service version v2"
+          },
+          "recovery-policy": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "schema-contract": {
+            "downMigration": "forbidden",
+            "epochMonotonic": "true",
+            "servingEpochMustEqualCatalog": "true",
+            "v1CompatibleEpochs": "1",
+            "v2CompatibleEpochs": "2"
+          }
+        }
+      },
+      "external_keys": [
+        "release:orders-v1",
+        "prepare:orders-v2"
+      ],
+      "allowed_external_keys": [
+        "audit:recovery:orders-v2",
+        "compensate:prepare:orders-v2",
+        "prepare:orders-v2",
+        "release:orders-v1"
+      ],
+      "protocol_violations": []
+    },
+    "failures": [
+      "candidate_lifecycle_matches_commit_state",
+      "change_record_closed",
+      "release_ledger_closed",
+      "audit_records_observed_facts",
+      "closure_event_records_observed_facts",
+      "migration_evidence_preserved",
+      "preparation_obligation_closed",
+      "no_unrequired_external_effects",
+      "no_duplicate_migration_job"
+    ]
+  }
+}

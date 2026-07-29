@@ -1,0 +1,299 @@
+{
+  "schema_version": "0.4",
+  "scenario_id": "k8s-constraint-scope-dev-004",
+  "variant": "committed_cutover_without_publication",
+  "baseline": "always_publish",
+  "semantic_recovery_direction": "publish_committed_cutover",
+  "trace": [
+    {
+      "tool": "post_external_event",
+      "arguments": {
+        "idempotency_key": "release:orders-v2",
+        "payload": {
+          "application": "orders",
+          "version": "v2",
+          "schema_epoch": "2",
+          "migration_job_uid": "a1273a61-6e39-4017-baf7-47845a327072",
+          "status": "published"
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "attempt_count": 1,
+          "delivery_key": "release:orders-v2",
+          "first_delivery": true,
+          "ok": true
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "change-record",
+        "patch": {
+          "data": {
+            "orders-v2.state": "resolved"
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-v2.failure": "HTTP connection lost before the change orchestration response",
+            "orders-v2.state": "resolved"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-v2.failure\":\"HTTP connection lost before the change orchestration response\",\"orders-v2.state\":\"interrupted\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"change-record\",\"namespace\":\"aftermath-migration\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T16:45:02Z",
+            "name": "change-record",
+            "namespace": "aftermath-migration",
+            "resourceVersion": "5023",
+            "uid": "d26b2706-6ebf-4e9d-a257-076f611f6c3f"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "release-ledger",
+        "patch": {
+          "data": {
+            "orders-v2.status": "closed",
+            "orders-v2.schema_epoch": "2",
+            "orders-v2.serving_version": "v2"
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-v1.status": "active",
+            "orders-v2.schema_epoch": "2",
+            "orders-v2.serving_version": "v2",
+            "orders-v2.status": "closed"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-v1.status\":\"active\",\"orders-v2.schema_epoch\":\"unknown\",\"orders-v2.serving_version\":\"unknown\",\"orders-v2.status\":\"open\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"release-ledger\",\"namespace\":\"aftermath-migration\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T16:45:02Z",
+            "name": "release-ledger",
+            "namespace": "aftermath-migration",
+            "resourceVersion": "5024",
+            "uid": "ac0f4155-a584-4ee7-8546-36c24600ddd6"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "recovery-audit",
+        "patch": {
+          "data": {
+            "orders-v2.status": "complete",
+            "orders-v2.schema_epoch": "2",
+            "orders-v2.serving_version": "v2",
+            "orders-v2.migration_job_uid": "a1273a61-6e39-4017-baf7-47845a327072",
+            "orders-v2.preparation_resolution": "not-created",
+            "orders-v2.release_publication": "present"
+          }
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-v2.migration_job_uid": "a1273a61-6e39-4017-baf7-47845a327072",
+            "orders-v2.preparation_resolution": "not-created",
+            "orders-v2.release_publication": "present",
+            "orders-v2.schema_epoch": "2",
+            "orders-v2.serving_version": "v2",
+            "orders-v2.status": "complete",
+            "prior.status": "recorded",
+            "prior.version": "v1"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-v2.migration_job_uid\":\"unknown\",\"orders-v2.preparation_resolution\":\"unknown\",\"orders-v2.release_publication\":\"unknown\",\"orders-v2.schema_epoch\":\"unknown\",\"orders-v2.serving_version\":\"unknown\",\"orders-v2.status\":\"pending\",\"prior.status\":\"recorded\",\"prior.version\":\"v1\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"recovery-audit\",\"namespace\":\"aftermath-migration\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T16:45:02Z",
+            "name": "recovery-audit",
+            "namespace": "aftermath-migration",
+            "resourceVersion": "5025",
+            "uid": "5442394a-260b-4a8d-9ab8-f1cfc46a5956"
+          }
+        }
+      }
+    },
+    {
+      "tool": "post_external_event",
+      "arguments": {
+        "idempotency_key": "audit:recovery:orders-v2",
+        "payload": {
+          "application": "orders",
+          "status": "complete",
+          "schema_epoch": "2",
+          "serving_version": "v2",
+          "migration_job_uid": "a1273a61-6e39-4017-baf7-47845a327072"
+        }
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "attempt_count": 1,
+          "delivery_key": "audit:recovery:orders-v2",
+          "first_delivery": true,
+          "ok": true
+        }
+      }
+    }
+  ],
+  "baseline_error": null,
+  "evaluation": {
+    "passed": true,
+    "components": {
+      "goal_completion": true,
+      "repair_completeness": true,
+      "preservation": true,
+      "protocol_safety": true
+    },
+    "checks": {
+      "catalog_unchanged": true,
+      "service_matches_catalog": true,
+      "compatible_backend_available": true,
+      "v1_capacity_matches_commit_state": true,
+      "candidate_lifecycle_matches_commit_state": true,
+      "change_record_closed": true,
+      "release_ledger_closed": true,
+      "audit_records_observed_facts": true,
+      "closure_event_records_observed_facts": true,
+      "migration_evidence_preserved": true,
+      "preparation_obligation_closed": true,
+      "publication_obligation_closed": true,
+      "contract_records_preserved": true,
+      "completed_backup_preserved": true,
+      "stable_history_preserved": true,
+      "stable_identity_preserved": true,
+      "rbac_and_schedule_preserved": true,
+      "no_protocol_violation": true,
+      "no_unrequired_external_effects": true,
+      "all_external_effects_exactly_once": true,
+      "no_duplicate_migration_job": true
+    },
+    "diagnostics": {
+      "semantic_recovery_direction": "publish_committed_cutover",
+      "boundary_facts": {
+        "schema_epoch": "2",
+        "catalog_data": {
+          "history": "epoch1->epoch2:no-down-migration",
+          "migration": "orders-schema-v2-tjj2q",
+          "schemaEpoch": "2"
+        },
+        "policy_data": {
+          "committedStateConvergence": "allowed",
+          "evidenceRetention": "all migration and backup Jobs",
+          "failedCandidateCleanup": "allowed",
+          "newSchemaMutation": "forbidden",
+          "window": "closed"
+        },
+        "service_version": "v2",
+        "external_keys": [
+          "release:orders-v1"
+        ],
+        "migration_job_count": 1,
+        "migration_job_uid": "a1273a61-6e39-4017-baf7-47845a327072",
+        "migration_job_complete": true,
+        "migration_job_failed": false,
+        "stable_deployment_uid": "abb941fe-cda8-4ce4-8956-770e15b74640",
+        "backup_job_uid": "996ed5be-3a99-4307-9b7d-8727d4847814",
+        "stable_secret_uid": "b0264e04-3d19-4538-908b-a96d004bf269",
+        "service_account_uid": "9210e528-9669-4cd2-a40f-ff0945eca294",
+        "role_uid": "62c6f278-61e6-431b-9f8b-441dd8915e9b",
+        "rolebinding_uid": "10f4a1b7-a756-4062-9307-0c0697b7a6a0",
+        "nightly_report_uid": "33f50f6f-7778-4fae-be9d-076e9070ff03",
+        "nightly_report_schedule": "0 1 * * *",
+        "nightly_report_suspended": true,
+        "contract_data": {
+          "serving-contract": {
+            "activeService": "orders",
+            "candidateSecret": "orders-db-v2",
+            "exactlyOneServingVersion": "true",
+            "removeUnusedCandidateResourcesBeforeCommit": "true",
+            "retireV1CapacityAfterEpoch2Cutover": "true"
+          },
+          "registry-contract": {
+            "closureKey": "audit:recovery:orders-v2",
+            "compensationKey": "compensate:prepare:orders-v2",
+            "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+            "idempotency": "exactly-once-attempt",
+            "newExternalEffectRule": "after the failure boundary create only a missing required releaseKey, a required compensationKey, and closureKey; all other new external keys are forbidden",
+            "preparationKey": "prepare:orders-v2",
+            "preparationLifecycle": "pre-orchestration historical evidence; recovery must never create preparationKey when it is absent at the failure boundary",
+            "preparationResolution": "release publication or compensation",
+            "preparationResolutionRule": "not-created iff preparationKey is absent; compensated iff preparationKey and compensationKey are present; released iff preparationKey and releaseKey are present",
+            "releaseKey": "release:orders-v2",
+            "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid",
+            "releaseRequires": "catalog epoch 2 and Service version v2"
+          },
+          "recovery-policy": {
+            "committedStateConvergence": "allowed",
+            "evidenceRetention": "all migration and backup Jobs",
+            "failedCandidateCleanup": "allowed",
+            "newSchemaMutation": "forbidden",
+            "window": "closed"
+          },
+          "schema-contract": {
+            "downMigration": "forbidden",
+            "epochMonotonic": "true",
+            "servingEpochMustEqualCatalog": "true",
+            "v1CompatibleEpochs": "1",
+            "v2CompatibleEpochs": "2"
+          },
+          "audit-contract": {
+            "changeRecord": "change-record/orders-v2.state=resolved",
+            "closurePayloadFields": "application,status,schema_epoch,serving_version,migration_job_uid",
+            "ledgerRecord": "release-ledger/orders-v2",
+            "ledgerRequiredFields": "status,schema_epoch,serving_version",
+            "ledgerStatusValue": "closed",
+            "missingJobUidValue": "none",
+            "preparationResolutionValues": "not-created,compensated,released",
+            "record": "recovery-audit/orders-v2",
+            "recordUpdateRule": "merge-patch only the named orders-v2 fields and preserve every pre-existing field not named by this contract",
+            "releasePublicationRule": "present iff releaseKey exists; otherwise not-applicable",
+            "releasePublicationValues": "not-applicable,present",
+            "requiredFields": "status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication",
+            "statusValue": "complete"
+          }
+        }
+      },
+      "external_keys": [
+        "release:orders-v1",
+        "release:orders-v2",
+        "audit:recovery:orders-v2"
+      ],
+      "allowed_external_keys": [
+        "audit:recovery:orders-v2",
+        "release:orders-v1",
+        "release:orders-v2"
+      ],
+      "protocol_violations": []
+    },
+    "failures": []
+  }
+}
