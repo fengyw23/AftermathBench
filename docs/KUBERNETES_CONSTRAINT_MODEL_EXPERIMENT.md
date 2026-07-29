@@ -51,3 +51,17 @@ attempt. Commit `1d6e705` changes only provider robustness: it raises the
 per-response limit from 300 to 600 seconds. It does not change the task,
 contracts, target state or evaluator. Raw evidence is under
 `data/evidence/kubernetes-constraint-model-control-incomplete-20260729/`.
+
+## Valid control run 30461762556
+
+With the 600-second provider limit, the same GLM-5.2 control completed all four
+matched states with no run errors. Task pass was 4/4, matched-group success was
+1/1, and goal completion, repair completeness, preservation and protocol
+safety were each 100%. This exceeds the predeclared 80% execution-control
+threshold and permits the ordinary condition to be evaluated.
+
+The ordinary run uses the same source commit `1d6e705`, snapshots, tools,
+25-turn limit, provider configuration and deterministic evaluator. The only
+condition change is removal of the supplied target recovery scope. Complete
+control trajectories are archived under
+`data/evidence/kubernetes-constraint-model-control-final-20260729/`.
