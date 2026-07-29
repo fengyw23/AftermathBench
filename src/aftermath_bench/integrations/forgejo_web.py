@@ -161,6 +161,13 @@ class ForgejoWebSession:
             headers={
                 "Origin": self.base_url,
                 "Referer": base,
+                # Forgejo uses Go's CrossOriginProtection middleware for
+                # authenticated web POSTs.  A browser sends this Fetch
+                # Metadata header; urllib does not.  Supplying the truthful
+                # same-origin value makes this session reproduce the native
+                # UI request instead of being rejected before the replay
+                # handler runs.
+                "Sec-Fetch-Site": "same-origin",
             },
         )
         with self._open(request) as response:
