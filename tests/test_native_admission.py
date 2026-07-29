@@ -1,6 +1,9 @@
 import unittest
 
-from aftermath_bench.native_admission import validate_native_scenario
+from aftermath_bench.native_admission import (
+    _reference_evidence_groups,
+    validate_native_scenario,
+)
 from aftermath_bench.native_scenario import (
     load_native_scenario,
     native_scenario_paths,
@@ -8,6 +11,29 @@ from aftermath_bench.native_scenario import (
 
 
 class NativeAdmissionTest(unittest.TestCase):
+    def test_domain_specific_evidence_groups_are_tool_driven(self) -> None:
+        graph = {
+            "evidence_tool_groups": [
+                {"id": "objects", "tools": ["get_object", "list_objects"]},
+                {"id": "events", "tools": ["list_events"]},
+                {"id": "logs", "tools": ["get_job_logs"]},
+                {
+                    "id": "external",
+                    "tools": ["list_external_deliveries"],
+                },
+            ]
+        }
+        groups = _reference_evidence_groups(
+            {
+                "list_objects",
+                "list_events",
+                "get_job_logs",
+                "list_external_deliveries",
+            },
+            graph,
+        )
+        self.assertTrue(all(groups.values()))
+
     def test_payment_pilot_is_truthfully_classified_easy(self) -> None:
         path = next(
             path

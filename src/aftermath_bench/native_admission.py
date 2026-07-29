@@ -113,6 +113,34 @@ def _varying_action_branch_count(
     return varying
 
 
+def _reference_evidence_groups(
+    query_tools: set[str],
+    graph: dict[str, Any],
+) -> dict[str, bool]:
+    configured = graph.get("evidence_tool_groups")
+    if configured:
+        return {
+            str(group["id"]): bool(
+                query_tools & set(map(str, group.get("tools", ())))
+            )
+            for group in configured
+        }
+    return {
+        "documents": bool(query_tools & {"get_document", "list_documents"}),
+        "ledgers": bool(
+            query_tools & {"get_stock_ledger", "get_general_ledger"}
+        ),
+        "async": bool(
+            query_tools
+            & {"find_background_jobs", "wait_for_external_delivery"}
+        ),
+        "external": bool(
+            query_tools
+            & {"get_external_delivery", "wait_for_external_delivery"}
+        ),
+    }
+
+
 def validate_native_scenario(
     scenario: NativeScenario,
 ) -> NativeAdmissionReport:
@@ -181,31 +209,11 @@ def validate_native_scenario(
     ]
     reference_query_groups = []
     for report in variants:
-        query_tools = set(report.get("query_tools", ()))
         reference_query_groups.append(
-            {
-                "documents": bool(
-                    query_tools & {"get_document", "list_documents"}
-                ),
-                "ledgers": bool(
-                    query_tools
-                    & {"get_stock_ledger", "get_general_ledger"}
-                ),
-                "async": bool(
-                    query_tools
-                    & {
-                        "find_background_jobs",
-                        "wait_for_external_delivery",
-                    }
-                ),
-                "external": bool(
-                    query_tools
-                    & {
-                        "get_external_delivery",
-                        "wait_for_external_delivery",
-                    }
-                ),
-            }
+            _reference_evidence_groups(
+                set(map(str, report.get("query_tools", ()))),
+                graph,
+            )
         )
     minimum_reference_evidence_groups = min(
         (

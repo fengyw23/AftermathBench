@@ -168,7 +168,8 @@ def reference_kubernetes_settlement_v2_recovery(
                     key="aftermath.dev/settlement-pending",
                 )
     if not _complete(target_job):
-        target_job = call("wait_for_job", job=job_name, timeout="180s")
+        call("wait_for_job", job=job_name, timeout="180s")
+        target_job = call("get_object", resource="job", name=job_name)
     receipt = json.loads(
         str(call("get_job_logs", job=job_name)).strip().splitlines()[-1]
     )
