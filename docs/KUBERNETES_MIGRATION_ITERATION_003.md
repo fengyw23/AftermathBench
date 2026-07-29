@@ -66,8 +66,8 @@ share the same generic tool name.
 
 The replay graph contains 22 relevant entities, 26 executable relations, 25
 relation types, dependency depth 11 and four required semantic directions.
-GitHub Actions run `30443406478` replayed the complete native experiment at
-commit `cf2e649`: all four references passed, the semantic prefix had one
+GitHub Actions run `30446998595` replayed the corrected native experiment at
+commit `71be17a`: all four references passed, the semantic prefix had one
 stable hash, the maximum fixed-policy pass rate was 25%, no fixed policy solved
 the matched group, and replay-derived hard admission passed every check.
 
