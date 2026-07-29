@@ -109,3 +109,12 @@ execution-control condition, and retries one provider/runtime failure after
 reconstructing the failure boundary. The invalid raw trajectories remain under
 `data/evidence/kubernetes-migration-glm52-*-invalid-20260729/` so the correction
 is auditable.
+
+The corrected ordinary GLM-5.2 run `30448798556` then passed all four states
+and the complete matched group, with every evaluation component at 100% and no
+provider/runtime error. This validates the repaired task interface, but also
+shows that the explicit if/then branches in the user instruction and recovery
+policy make iteration 003 too easy for the final hard split. It is retained as
+an easy directional pilot and execution-validity control. The next iteration
+must expose independent safety and consistency constraints from which the
+scope is derived, rather than naming the four recovery branches directly.
