@@ -1,5 +1,9 @@
 # AftermathBench
 
+> Current status: one native ERPNext recovery family is implemented as a
+> `candidate`; the strict 144-case cross-domain release is under construction.
+> See [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
+
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
 persistent environment after a tool call returns an ambiguous failure.
 
