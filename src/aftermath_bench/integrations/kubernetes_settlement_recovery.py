@@ -160,7 +160,10 @@ def evaluate_kubernetes_settlement_recovery(
             receipt_data.get("batch") == TARGET_BATCH
             and receipt_data.get("amount") == TARGET_AMOUNT
             and receipt_data.get("receipt_sha256") == TARGET_RECEIPT_SHA
-            and receipt_data.get("status") == "complete"
+            # The Job's model-visible receipt says ``approved``. Requiring a
+            # hidden synonym such as ``complete`` would turn an otherwise
+            # correct recovery into an evaluator convention failure.
+            and receipt_data.get("status") == "approved"
         ),
         "monthly_ledger_closed": (
             ledger_data.get("2026-07.status") == "complete"
@@ -553,7 +556,7 @@ def reference_kubernetes_settlement_recovery(
             "batch": TARGET_BATCH,
             "amount": TARGET_AMOUNT,
             "receipt_sha256": TARGET_RECEIPT_SHA,
-            "status": "complete",
+            "status": "approved",
         },
     }
     if _find(configmaps, f"receipt-{TARGET_BATCH}") is None:

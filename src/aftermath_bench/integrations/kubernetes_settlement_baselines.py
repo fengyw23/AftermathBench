@@ -146,7 +146,7 @@ def _fixed_downstream(
                 "batch": TARGET_BATCH,
                 "amount": TARGET_AMOUNT,
                 "receipt_sha256": receipt["receipt_sha256"],
-                "status": "complete",
+                "status": "approved",
             },
         },
     )

@@ -68,7 +68,7 @@ def _passing_evidence() -> dict:
                     "batch": TARGET_BATCH,
                     "amount": TARGET_AMOUNT,
                     "receipt_sha256": TARGET_RECEIPT_SHA,
-                    "status": "complete",
+                    "status": "approved",
                 },
             },
         ],
