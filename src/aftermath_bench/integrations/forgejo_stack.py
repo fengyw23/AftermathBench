@@ -96,7 +96,9 @@ class ForgejoStack:
             raise RuntimeError("Forgejo did not return an administrator token")
         return {
             "base_url": "http://127.0.0.1:8080/api/v1",
+            "web_base_url": "http://127.0.0.1:8080",
             "username": username,
+            "password": password,
             "token": match.group(1),
         }
 

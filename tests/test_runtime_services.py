@@ -84,6 +84,8 @@ class _UpstreamHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    do_PATCH = do_POST
+
 
 class GatewayServiceTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -118,6 +120,9 @@ class GatewayServiceTest(unittest.TestCase):
         self.temporary_directory.cleanup()
 
     def _post(self) -> tuple[int, bytes]:
+        return self._request("POST")
+
+    def _request(self, method: str) -> tuple[int, bytes]:
         connection = http.client.HTTPConnection(
             "127.0.0.1",
             self.gateway.server_address[1],
@@ -125,7 +130,7 @@ class GatewayServiceTest(unittest.TestCase):
         )
         try:
             connection.request(
-                "POST",
+                method,
                 "/api/method/frappe.client.submit",
                 body=b"{}",
                 headers={"Content-Type": "application/json"},
@@ -144,6 +149,12 @@ class GatewayServiceTest(unittest.TestCase):
             self.audit.events()[-1]["outcome"],
             "response_forwarded",
         )
+
+    def test_patch_is_forwarded_for_native_domain_apis(self) -> None:
+        status, body = self._request("PATCH")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body), {"committed": True})
+        self.assertEqual(self.audit.events()[-1]["method"], "PATCH")
 
     def test_suppress_mode_never_reaches_upstream(self) -> None:
         self.state.set("suppress_request")

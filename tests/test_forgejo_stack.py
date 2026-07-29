@@ -36,7 +36,7 @@ class ForgejoStackTest(unittest.TestCase):
         ))
         self.assertIn("--volumes", command)
 
-    def test_create_administrator_extracts_only_the_token(self) -> None:
+    def test_create_administrator_returns_ephemeral_web_credentials(self) -> None:
         runner = Mock(
             return_value=subprocess.CompletedProcess(
                 [],
@@ -53,6 +53,12 @@ class ForgejoStackTest(unittest.TestCase):
         )
         credentials = stack.create_administrator()
         self.assertEqual(credentials["token"], "secret-token")
+        self.assertEqual(credentials["username"], "aftermath")
+        self.assertEqual(credentials["password"], "aftermath-admin")
+        self.assertEqual(
+            credentials["web_base_url"],
+            "http://127.0.0.1:8080",
+        )
         self.assertEqual(
             credentials["base_url"],
             "http://127.0.0.1:8080/api/v1",

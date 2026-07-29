@@ -232,6 +232,7 @@ def make_gateway_handler(
 
         do_GET = _handle
         do_POST = _handle
+        do_PATCH = _handle
         do_PUT = _handle
         do_DELETE = _handle
 

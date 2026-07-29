@@ -86,6 +86,7 @@ class ForgejoSourceAuditTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("build_forgejo_prefix.py", workflow)
         self.assertIn("release-prefix.json", workflow)
+        self.assertIn("validate_forgejo_web_tools.py", workflow)
 
 
 if __name__ == "__main__":
