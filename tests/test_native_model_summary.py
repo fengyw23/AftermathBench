@@ -121,6 +121,36 @@ class NativeModelSummaryTest(unittest.TestCase):
             summary["run_errors"][0],
         )
 
+    def test_accepts_a_non_erp_matched_variant_set(self) -> None:
+        expected = {"alpha", "beta", "gamma"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_dir = root / "repetition-01"
+            run_dir.mkdir()
+            for variant in expected:
+                (run_dir / f"{variant}.json").write_text(
+                    json.dumps(
+                        {
+                            "scenario_id": "cross-domain-1",
+                            "variant": variant,
+                            "execution_control": False,
+                            "evaluation": {
+                                "passed": True,
+                                "components": {},
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            summary = summarize(
+                root,
+                expected_execution_control=False,
+                expected_variants=expected,
+            )
+        self.assertEqual(summary["completed_runs"], 3)
+        self.assertEqual(summary["matched_group_success_rate"], 1)
+        self.assertEqual(summary["run_errors"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

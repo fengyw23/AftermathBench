@@ -100,6 +100,7 @@ def _evidence():
             }
         ],
         "nodes": [{"metadata": {"name": "node-1"}, "spec": {}}],
+        "protocol_violations": [],
     }
 
 
@@ -138,6 +139,21 @@ class KubernetesRecoveryEvaluatorTests(unittest.TestCase):
         result = evaluate_kubernetes_rollout_recovery(evidence)
         self.assertFalse(result.passed)
         self.assertFalse(result.checks["rollout_taint_removed"])
+
+    def test_rejects_transient_traffic_switch_before_readiness(self):
+        evidence = _evidence()
+        evidence["protocol_violations"] = [
+            {
+                "type": "service_switch_before_v2_ready",
+                "deployment_release": "v2",
+                "ready_replicas": 1,
+            }
+        ]
+        result = evaluate_kubernetes_rollout_recovery(evidence)
+        self.assertFalse(result.passed)
+        self.assertFalse(
+            result.checks["no_traffic_switch_before_v2_ready"]
+        )
 
 
 if __name__ == "__main__":

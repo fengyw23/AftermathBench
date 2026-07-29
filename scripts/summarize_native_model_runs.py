@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-VARIANTS = {
+DEFAULT_VARIANTS = {
     "request_not_reached",
     "database_committed_response_lost",
     "after_commit_enqueue_failed",
@@ -15,7 +15,11 @@ VARIANTS = {
 }
 
 
-def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
+def _load_reports(
+    root: Path,
+    *,
+    expected_variants: set[str],
+) -> tuple[list[dict[str, Any]], list[str]]:
     reports = []
     errors = []
     repetition_directories = sorted(
@@ -24,7 +28,7 @@ def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
         if path.is_dir()
     )
     for run_directory in repetition_directories:
-        for variant in sorted(VARIANTS):
+        for variant in sorted(expected_variants):
             path = run_directory / f"{variant}.json"
             if not path.is_file() or path.stat().st_size == 0:
                 errors.append(
@@ -53,8 +57,13 @@ def summarize(
     root: Path,
     *,
     expected_execution_control: bool | None = None,
+    expected_variants: set[str] | None = None,
 ) -> dict[str, Any]:
-    reports, errors = _load_reports(root)
+    expected_variants = expected_variants or DEFAULT_VARIANTS
+    reports, errors = _load_reports(
+        root,
+        expected_variants=expected_variants,
+    )
     by_group: dict[tuple[str, str], dict[str, bool]] = defaultdict(dict)
     component_totals: Counter[str] = Counter()
     failure_types: Counter[str] = Counter()
@@ -97,7 +106,7 @@ def summarize(
     matched_groups = [
         variants
         for variants in by_group.values()
-        if set(variants) == VARIANTS
+        if set(variants) == expected_variants
     ]
     matched_successes = sum(
         int(all(group.values())) for group in matched_groups
@@ -146,15 +155,27 @@ def main() -> int:
         "--expected-execution-control",
         choices=("true", "false"),
     )
+    parser.add_argument(
+        "--scenario",
+        type=Path,
+        help="derive the expected matched variants from a scenario manifest",
+    )
     args = parser.parse_args()
     expected_execution_control = (
         args.expected_execution_control == "true"
         if args.expected_execution_control is not None
         else None
     )
+    expected_variants = None
+    if args.scenario is not None:
+        scenario = json.loads(args.scenario.read_text(encoding="utf-8"))
+        expected_variants = {
+            str(item["id"]) for item in scenario["matched_variants"]
+        }
     summary = summarize(
         args.run_directory,
         expected_execution_control=expected_execution_control,
+        expected_variants=expected_variants,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

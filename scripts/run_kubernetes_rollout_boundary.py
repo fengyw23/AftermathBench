@@ -36,10 +36,26 @@ def main() -> int:
         "--variant", choices=KUBERNETES_FAULT_VARIANTS, required=True
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--prefix-output", type=Path)
     args = parser.parse_args()
     stack = KubernetesStack.from_repository()
     api = KubernetesApi(context=stack.context)
     prefix = reset_prefix(api)
+    if args.prefix_output:
+        args.prefix_output.parent.mkdir(parents=True, exist_ok=True)
+        args.prefix_output.write_text(
+            json.dumps(
+                {
+                    "scenario_id": "k8s-deployment-rollout-dev-001",
+                    "trace": prefix["trace"],
+                    "fingerprint": prefix["fingerprint"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     boundary = KubernetesRolloutFaultBoundary(api)
     error = None
     try:

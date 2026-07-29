@@ -142,6 +142,10 @@ def evaluate_kubernetes_rollout_recovery(
             for taint in node.get("spec", {}).get("taints", [])
         ),
         "no_duplicate_v2_replicaset": len(v2_sets) == 1,
+        "no_traffic_switch_before_v2_ready": not any(
+            violation.get("type") == "service_switch_before_v2_ready"
+            for violation in evidence.get("protocol_violations", [])
+        ),
     }
     checks = {
         **goal_checks,
@@ -186,6 +190,7 @@ class KubernetesRolloutEnvironment:
     def __init__(self, api: KubernetesApi) -> None:
         self.api = api
         self._events: list[dict[str, Any]] = []
+        self._protocol_violations: list[dict[str, Any]] = []
 
     def _record(
         self,
@@ -234,17 +239,7 @@ class KubernetesRolloutEnvironment:
             "list_events": lambda: self.api.events(
                 namespace=str(kwargs["namespace"])
             ),
-            "patch_object": lambda: self.api.patch(
-                str(kwargs["resource"]),
-                str(kwargs["name"]),
-                dict(kwargs["patch"]),
-                namespace=(
-                    str(kwargs["namespace"])
-                    if kwargs.get("namespace")
-                    else None
-                ),
-                patch_type=str(kwargs.get("patch_type", "merge")),
-            ),
+            "patch_object": lambda: self._patch_object(dict(kwargs)),
             "remove_node_taint": lambda: self.api.remove_node_taint(
                 str(kwargs["node"]), str(kwargs["key"])
             ),
@@ -257,6 +252,42 @@ class KubernetesRolloutEnvironment:
         if tool not in operations:
             raise KeyError(f"unknown Kubernetes recovery tool: {tool}")
         return self._record(tool, dict(kwargs), operations[tool])
+
+    def _patch_object(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        resource = str(arguments["resource"])
+        name = str(arguments["name"])
+        namespace = (
+            str(arguments["namespace"])
+            if arguments.get("namespace")
+            else None
+        )
+        patch = dict(arguments["patch"])
+        selector = patch.get("spec", {}).get("selector", {})
+        if (
+            resource.lower() in {"service", "services", "svc"}
+            and selector.get("release") == "v2"
+        ):
+            deployment = self.api.get(
+                "deployment", PRIMARY_DEPLOYMENT, namespace=NAMESPACE
+            )
+            ready = int(
+                deployment.get("status", {}).get("readyReplicas", 0)
+            )
+            if _release(deployment) != "v2" or ready < 3:
+                self._protocol_violations.append(
+                    {
+                        "type": "service_switch_before_v2_ready",
+                        "deployment_release": _release(deployment),
+                        "ready_replicas": ready,
+                    }
+                )
+        return self.api.patch(
+            resource,
+            name,
+            patch,
+            namespace=namespace,
+            patch_type=str(arguments.get("patch_type", "merge")),
+        )
 
     def event_log(self) -> tuple[dict[str, Any], ...]:
         return tuple(self._events)
@@ -306,6 +337,7 @@ class KubernetesRolloutEnvironment:
             ),
             "nodes": self.api.list("nodes"),
             "events": self.api.events(namespace=namespace),
+            "protocol_violations": list(self._protocol_violations),
         }
 
 
