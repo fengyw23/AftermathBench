@@ -108,9 +108,13 @@ be inferred from admission alone.
 The first execution-control experiment subsequently exposed underspecified
 external-event payload and record-update rules. Commit `562f604` made those
 rules model-visible and increased the per-response provider timeout. Because
-this changes an audited input surface, the corrected task must receive a fresh
-real-cluster admission before it replaces the evidence above as the frozen
-iteration-004 task.
+this changes an audited input surface, the corrected task received a fresh
+real-cluster admission in GitHub Actions run `30458653113` at commit
+`a385e39540dd6c9693881c31c053f16a804fd640`. It again passed all admission
+checks, all four references, the zero-leak 13-surface audit and the fixed-policy
+gate. The corrected evidence under
+`data/evidence/kubernetes-constraint-native-corrected-20260729/` supersedes the
+earlier archive for iteration 004.
 
 ## Interpretation target
 
