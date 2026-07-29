@@ -212,3 +212,30 @@ python -m aftermath_bench demo-itsm --all `
   --enterpriseops-archive "<path-to-gym_dbs.zip>"
 python -m aftermath_bench baselines
 ```
+
+## Native ERPNext final comparison
+
+The formal native comparison uses
+`.github/workflows/erpnext-final-experiment.yml`. One job builds pinned
+ERPNext/Frappe once and then runs:
+
+1. `erpnext-procurement-payment-001`, four variants by five repetitions;
+2. a clean runtime reset and frozen holdout hash verification;
+3. `erpnext-partial-return-holdout-001`, four variants by five repetitions.
+
+Both conditions use `glm-5.2`, the same provider, ordinary public tools, and a
+15-turn limit. Task failures return trajectories and remain benchmark results;
+missing trajectories or provider/runtime failures are reported separately and
+invalidate the comparison.
+
+The valid run is [GitHub Actions
+`30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921)
+at experiment commit `afcf9638b4cc4e3c4f031dda146a8edc6e246c16`.
+Easy Recovery Integrity was 20/20; frozen holdout Recovery Integrity was 6/20;
+the absolute reduction was 70 percentage points, and holdout matched-group
+success was 0/5. All 40 trajectories completed without a provider retry,
+runtime failure, or model tool-call error.
+
+The sanitized artifact and independent trajectory analysis are preserved under
+`data/evidence/erpnext-glm52-final-valid-20260729`. Invalid CLI experiments are
+preserved in separately labelled directories and are not used in any score.

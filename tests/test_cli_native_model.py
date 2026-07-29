@@ -38,6 +38,7 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             patch.object(
                 cli,
                 "run_live_native_agent",
+                autospec=True,
                 return_value=report,
             ) as runner,
         ):
@@ -85,6 +86,7 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             patch.object(
                 cli,
                 "run_live_erpnext_agent",
+                autospec=True,
                 return_value=report,
             ) as runner,
             patch("builtins.print"),

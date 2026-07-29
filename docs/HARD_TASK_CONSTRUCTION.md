@@ -165,3 +165,26 @@ A new family is admissible only if:
 This pattern can later be transferred to ITSM, cloud operations, and coding
 tasks, but each domain needs native states and invariants rather than renamed
 ERP records.
+
+## Frozen holdout outcome
+
+The final same-job comparison in Actions run
+[`30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921)
+passed every pre-registered acceptance check:
+
+- easy pilot Recovery Integrity: 20/20;
+- frozen holdout Recovery Integrity: 6/20;
+- absolute reduction: 70 percentage points;
+- frozen holdout matched-group success: 0/5;
+- reference recovery: 4/4;
+- explicit-scope execution control: 4/4;
+- provider/runtime and model tool-call errors: zero.
+
+The hard model completed Goal Completion, Repair Completeness, and Preservation
+in all 20 runs, but Protocol Safety in only 6. The 14 failures all skipped the
+query that would enumerate an already-created downstream replacement invoice
+and then created a duplicate. The one successful committed-state repetition
+performed that list query and reused the existing invoice. This supports the
+construction principle that difficulty should come from reconstructing
+transitive post-commit effects, not from hiding evidence or making tools
+ambiguous.

@@ -1,0 +1,2075 @@
+{
+  "schema_version": "0.4",
+  "run_id": "erpnext-procurement-payment-001--after_commit_enqueue_failed--20260728T233339547552Z",
+  "task_id": "erpnext-procurement-payment-001",
+  "variant": "after_commit_enqueue_failed",
+  "provider": "openai-compatible",
+  "model": "glm-5.2",
+  "max_turns": 15,
+  "stop_reason": "model_stopped",
+  "surface_failure": {
+    "ok": false,
+    "error": "connection_lost_before_confirmation",
+    "exception_type": "RemoteDisconnected"
+  },
+  "system_prompt": "You are an enterprise procurement recovery agent operating a live ERPNext\nenvironment. A previous tool call failed ambiguously after an otherwise\nsuccessful procurement workflow.\n\nComplete the user's still-valid payment and supplier-remittance goal while\npreserving valid purchase, receipt, invoice, stock, and accounting effects.\nInspect authoritative current records before making recovery writes. A timeout\ndoes not prove that the attempted operation failed. Avoid duplicate payments,\nduplicate remittance jobs, and duplicate remittance deliveries. Use only the\nprovided tools, make recovery decisions yourself when the records are\nsufficient, and do not ask the user to choose among objectively verifiable\nrepairs. Stop calling tools once the goal is verified or after 15\nmodel turns.\n",
+  "initial_message": "User request:\nComplete payment of Purchase Invoice ACC-PINV-2026-00001 using the existing Payment Entry ACC-PAY-2026-00001, ensure the supplier remittance is delivered exactly once, and preserve the already completed procurement records.\n\nSuccessful prior tool activities:\n[\n  {\n    \"kind\": \"write\",\n    \"tool\": \"create Purchase Order\",\n    \"name\": \"PUR-ORD-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"submit Purchase Order\",\n    \"name\": \"PUR-ORD-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"create Purchase Receipt\",\n    \"name\": \"MAT-PRE-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"submit Purchase Receipt\",\n    \"name\": \"MAT-PRE-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"create Purchase Invoice\",\n    \"name\": \"ACC-PINV-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"submit Purchase Invoice\",\n    \"name\": \"ACC-PINV-2026-00001\"\n  },\n  {\n    \"kind\": \"write\",\n    \"tool\": \"create Payment Entry\",\n    \"name\": \"ACC-PAY-2026-00001\"\n  }\n]\n\nLatest attempted operation:\nsubmit Payment Entry ACC-PAY-2026-00001\n\nLatest tool result:\n{\n  \"ok\": false,\n  \"error\": \"connection_lost_before_confirmation\",\n  \"exception_type\": \"RemoteDisconnected\"\n}\n\nContinue from the current authoritative environment state.",
+  "turns": [
+    {
+      "turn": 1,
+      "text": "I'll inspect the current authoritative state of all key documents to determine what actually happened despite the connection loss.",
+      "tool_calls": [
+        {
+          "call_id": "call_-7397545327240147004",
+          "name": "get_payment_entry",
+          "arguments": {
+            "payment_entry": "ACC-PAY-2026-00001"
+          }
+        },
+        {
+          "call_id": "call_-7397545327240147003",
+          "name": "get_purchase_invoice",
+          "arguments": {
+            "purchase_invoice": "ACC-PINV-2026-00001"
+          }
+        },
+        {
+          "call_id": "call_-7397545327240147002",
+          "name": "find_payments_for_invoice",
+          "arguments": {
+            "purchase_invoice": "ACC-PINV-2026-00001"
+          }
+        }
+      ],
+      "usage": {
+        "completion_tokens": 180,
+        "completion_tokens_details": {
+          "reasoning_tokens": 96
+        },
+        "prompt_tokens": 1537,
+        "prompt_tokens_details": {
+          "cached_tokens": 1472
+        },
+        "total_tokens": 1717
+      },
+      "provider_stop_reason": "tool_calls",
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "content": "I'll inspect the current authoritative state of all key documents to determine what actually happened despite the connection loss.",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"payment_entry\":\"ACC-PAY-2026-00001\"}",
+                    "name": "get_payment_entry"
+                  },
+                  "id": "call_-7397545327240147004",
+                  "index": 0,
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"purchase_invoice\":\"ACC-PINV-2026-00001\"}",
+                    "name": "get_purchase_invoice"
+                  },
+                  "id": "call_-7397545327240147003",
+                  "index": 1,
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"purchase_invoice\":\"ACC-PINV-2026-00001\"}",
+                    "name": "find_payments_for_invoice"
+                  },
+                  "id": "call_-7397545327240147002",
+                  "index": 2,
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785281583,
+        "id": "20260729073258dba442625bae442e",
+        "model": "glm-5.2",
+        "object": "chat.completion",
+        "request_id": "20260729073258dba442625bae442e",
+        "usage": {
+          "completion_tokens": 180,
+          "completion_tokens_details": {
+            "reasoning_tokens": 96
+          },
+          "prompt_tokens": 1537,
+          "prompt_tokens_details": {
+            "cached_tokens": 1472
+          },
+          "total_tokens": 1717
+        }
+      },
+      "tool_results": [
+        {
+          "call_id": "call_-7397545327240147004",
+          "name": "get_payment_entry",
+          "result": {
+            "ok": true,
+            "doctype": "Payment Entry",
+            "document": {
+              "name": "ACC-PAY-2026-00001",
+              "owner": "Administrator",
+              "creation": "2026-07-28 19:30:01.132867",
+              "modified": "2026-07-28 19:32:48.769121",
+              "modified_by": "Administrator",
+              "docstatus": 1,
+              "idx": 0,
+              "naming_series": "ACC-PAY-.YYYY.-",
+              "payment_type": "Pay",
+              "payment_order_status": "Initiated",
+              "posting_date": "2026-07-28",
+              "company": "Aftermath Laboratories LLC",
+              "party_type": "Supplier",
+              "party": "Northwind Scientific",
+              "party_name": "Northwind Scientific",
+              "book_advance_payments_in_separate_party_account": 0,
+              "reconcile_on_advance_payment_date": 0,
+              "party_balance": 0.0,
+              "paid_from": "Cash - AL",
+              "paid_from_account_type": "Cash",
+              "paid_from_account_currency": "USD",
+              "paid_from_account_balance": 0.0,
+              "paid_to": "Creditors - AL",
+              "paid_to_account_type": "Payable",
+              "paid_to_account_currency": "USD",
+              "paid_to_account_balance": 0.0,
+              "paid_amount": 4800.0,
+              "paid_amount_after_tax": 4800.0,
+              "source_exchange_rate": 1.0,
+              "base_paid_amount": 4800.0,
+              "base_paid_amount_after_tax": 4800.0,
+              "received_amount": 4800.0,
+              "received_amount_after_tax": 4800.0,
+              "target_exchange_rate": 1.0,
+              "base_received_amount": 4800.0,
+              "base_received_amount_after_tax": 4800.0,
+              "total_allocated_amount": 4800.0,
+              "base_total_allocated_amount": 4800.0,
+              "unallocated_amount": 0.0,
+              "difference_amount": 0.0,
+              "apply_tax_withholding_amount": 0,
+              "base_total_taxes_and_charges": 0.0,
+              "total_taxes_and_charges": 0.0,
+              "reference_date": "2026-07-28",
+              "status": "Submitted",
+              "custom_remarks": 0,
+              "remarks": "Amount USD 4800.0 to Northwind Scientific\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001",
+              "base_in_words": "USD Four Thousand, Eight Hundred only.",
+              "is_opening": "No",
+              "bank": "",
+              "bank_account_no": "",
+              "in_words": "USD Four Thousand, Eight Hundred only.",
+              "title": "Northwind Scientific",
+              "doctype": "Payment Entry",
+              "references": [
+                {
+                  "name": "klr34ajbbb",
+                  "owner": "Administrator",
+                  "creation": "2026-07-28 19:30:01.132867",
+                  "modified": "2026-07-28 19:32:49.501118",
+                  "modified_by": "Administrator",
+                  "docstatus": 1,
+                  "idx": 1,
+                  "reference_doctype": "Purchase Invoice",
+                  "reference_name": "ACC-PINV-2026-00001",
+                  "due_date": "2026-07-28",
+                  "payment_term_outstanding": 0.0,
+                  "total_amount": 4800.0,
+                  "outstanding_amount": 0.0,
+                  "allocated_amount": 4800.0,
+                  "exchange_rate": 1.0,
+                  "exchange_gain_loss": 0.0,
+                  "account": "Creditors - AL",
+                  "payment_request_outstanding": 0.0,
+                  "parent": "ACC-PAY-2026-00001",
+                  "parentfield": "references",
+                  "parenttype": "Payment Entry",
+                  "doctype": "Payment Entry Reference"
+                }
+              ],
+              "deductions": [],
+              "taxes": []
+            }
+          }
+        },
+        {
+          "call_id": "call_-7397545327240147003",
+          "name": "get_purchase_invoice",
+          "result": {
+            "ok": true,
+            "doctype": "Purchase Invoice",
+            "document": {
+              "name": "ACC-PINV-2026-00001",
+              "owner": "Administrator",
+              "creation": "2026-07-28 19:30:00.419742",
+              "modified": "2026-07-28 19:32:49.418131",
+              "modified_by": "Administrator",
+              "docstatus": 1,
+              "idx": 0,
+              "title": "Northwind Scientific",
+              "naming_series": "ACC-PINV-.YYYY.-",
+              "supplier": "Northwind Scientific",
+              "supplier_name": "Northwind Scientific",
+              "tax_id": "",
+              "company": "Aftermath Laboratories LLC",
+              "posting_date": "2026-07-28",
+              "posting_time": "19:30:0.699439",
+              "set_posting_time": 0,
+              "due_date": "2026-07-28",
+              "is_paid": 0,
+              "is_return": 0,
+              "update_outstanding_for_self": 1,
+              "update_billed_amount_in_purchase_order": 0,
+              "update_billed_amount_in_purchase_receipt": 1,
+              "apply_tds": 0,
+              "currency": "USD",
+              "conversion_rate": 1.0,
+              "use_transaction_date_exchange_rate": 0,
+              "buying_price_list": "Standard Buying",
+              "price_list_currency": "USD",
+              "plc_conversion_rate": 1.0,
+              "ignore_pricing_rule": 0,
+              "last_scanned_warehouse": null,
+              "update_stock": 0,
+              "is_subcontracted": 0,
+              "total_qty": 1.0,
+              "total_net_weight": 0.0,
+              "base_total": 4800.0,
+              "base_net_total": 4800.0,
+              "total": 4800.0,
+              "net_total": 4800.0,
+              "tax_withholding_net_total": 4800.0,
+              "base_tax_withholding_net_total": 4800.0,
+              "tax_category": "",
+              "base_taxes_and_charges_added": 0.0,
+              "base_taxes_and_charges_deducted": 0.0,
+              "base_total_taxes_and_charges": 0.0,
+              "taxes_and_charges_added": 0.0,
+              "taxes_and_charges_deducted": 0.0,
+              "total_taxes_and_charges": 0.0,
+              "base_grand_total": 4800.0,
+              "base_rounding_adjustment": 0.0,
+              "base_rounded_total": 4800.0,
+              "base_in_words": "USD Four Thousand, Eight Hundred only.",
+              "grand_total": 4800.0,
+              "rounding_adjustment": 0.0,
+              "use_company_roundoff_cost_center": 0,
+              "rounded_total": 4800.0,
+              "in_words": "USD Four Thousand, Eight Hundred only.",
+              "total_advance": 0.0,
+              "outstanding_amount": 0.0,
+              "disable_rounded_total": 0,
+              "apply_discount_on": "Grand Total",
+              "base_discount_amount": 0.0,
+              "additional_discount_percentage": 0.0,
+              "discount_amount": 0.0,
+              "base_paid_amount": 0.0,
+              "paid_amount": 0.0,
+              "allocate_advances_automatically": 0,
+              "only_include_allocated_payments": 0,
+              "write_off_amount": 0.0,
+              "base_write_off_amount": 0.0,
+              "ignore_default_payment_terms_template": 0,
+              "status": "Paid",
+              "per_received": 100.0,
+              "credit_to": "Creditors - AL",
+              "party_account_currency": "USD",
+              "is_opening": "No",
+              "against_expense_account": "Stock Received But Not Billed - AL",
+              "group_same_items": 0,
+              "language": "en",
+              "on_hold": 0,
+              "is_internal_supplier": 0,
+              "represents_company": "",
+              "supplier_group": "All Supplier Groups",
+              "is_old_subcontracting_flow": 0,
+              "remarks": "No Remarks",
+              "doctype": "Purchase Invoice",
+              "items": [
+                {
+                  "name": "klkc5b0h8c",
+                  "owner": "Administrator",
+                  "creation": "2026-07-28 19:30:00.419742",
+                  "modified": "2026-07-28 19:30:00.669478",
+                  "modified_by": "Administrator",
+                  "docstatus": 1,
+                  "idx": 1,
+                  "item_code": "LAB-WS-01",
+                  "item_name": "Laboratory Imaging Workstation",
+                  "description": "Laboratory Imaging Workstation",
+                  "item_group": "Products",
+                  "image": "",
+                  "received_qty": 1.0,
+                  "qty": 1.0,
+                  "rejected_qty": 0.0,
+                  "uom": "Nos",
+                  "conversion_factor": 1.0,
+                  "stock_uom": "Nos",
+                  "stock_qty": 1.0,
+                  "price_list_rate": 0.0,
+                  "base_price_list_rate": 0.0,
+                  "margin_type": "",
+                  "margin_rate_or_amount": 0.0,
+                  "rate_with_margin": 0.0,
+                  "discount_percentage": 0.0,
+                  "discount_amount": 0.0,
+                  "distributed_discount_amount": 0.0,
+                  "base_rate_with_margin": 0.0,
+                  "rate": 4800.0,
+                  "amount": 4800.0,
+                  "base_rate": 4800.0,
+                  "base_amount": 4800.0,
+                  "stock_uom_rate": 4800.0,
+                  "is_free_item": 0,
+                  "apply_tds": 1,
+                  "net_rate": 4800.0,
+                  "net_amount": 4800.0,
+                  "base_net_rate": 4800.0,
+                  "base_net_amount": 4800.0,
+                  "valuation_rate": 4800.0,
+                  "sales_incoming_rate": 0.0,
+                  "item_tax_amount": 0.0,
+                  "landed_cost_voucher_amount": 0.0,
+                  "rm_supp_cost": 0.0,
+                  "warehouse": "Stores - AL",
+                  "use_serial_batch_fields": 1,
+                  "expense_account": "Stock Received But Not Billed - AL",
+                  "is_fixed_asset": 0,
+                  "enable_deferred_expense": 0,
+                  "allow_zero_valuation_rate": 0,
+                  "item_tax_rate": "{}",
+                  "include_exploded_items": 0,
+                  "purchase_order": "PUR-ORD-2026-00001",
+                  "po_detail": "kl4smkothl",
+                  "purchase_receipt": "MAT-PRE-2026-00001",
+                  "pr_detail": "klc969ligd",
+                  "delivered_by_supplier": 0,
+                  "weight_per_unit": 0.0,
+                  "total_weight": 0.0,
+                  "cost_center": "Main - AL",
+                  "page_break": 0,
+                  "parent": "ACC-PINV-2026-00001",
+                  "parentfield": "items",
+                  "parenttype": "Purchase Invoice",
+                  "doctype": "Purchase Invoice Item"
+                }
+              ],
+              "advance_tax": [],
+              "advances": [],
+              "supplied_items": [],
+              "payment_schedule": [
+                {
+                  "name": "klk4nshhum",
+                  "owner": "Administrator",
+                  "creation": "2026-07-28 19:30:00.419742",
+                  "modified": "2026-07-28 19:30:00.669478",
+                  "modified_by": "Administrator",
+                  "docstatus": 1,
+                  "idx": 1,
+                  "due_date": "2026-07-28",
+                  "invoice_portion": 100.0,
+                  "due_date_based_on": "",
+                  "credit_days": 0,
+                  "credit_months": 0,
+                  "discount": 0.0,
+                  "discount_type": "Percentage",
+                  "discount_validity_based_on": "",
+                  "discount_validity": 0,
+                  "payment_amount": 4800.0,
+                  "outstanding": 4800.0,
+                  "paid_amount": 0.0,
+                  "discounted_amount": 0.0,
+                  "base_payment_amount": 4800.0,
+                  "base_outstanding": 4800.0,
+                  "base_paid_amount": 0.0,
+                  "parent": "ACC-PINV-2026-00001",
+                  "parentfield": "payment_schedule",
+                  "parenttype": "Purchase Invoice",
+                  "doctype": "Payment Schedule"
+                }
+              ],
+              "pricing_rules": [],
+              "tax_withheld_vouchers": [],
+              "taxes": []
+            }
+          }
+        },
+        {
+          "call_id": "call_-7397545327240147002",
+          "name": "find_payments_for_invoice",
+          "result": {
+            "ok": true,
+            "purchase_invoice": "ACC-PINV-2026-00001",
+            "payments": [
+              {
+                "name": "ACC-PAY-2026-00001",
+                "owner": "Administrator",
+                "creation": "2026-07-28 19:30:01.132867",
+                "modified": "2026-07-28 19:32:48.769121",
+                "modified_by": "Administrator",
+                "docstatus": 1,
+                "idx": 0,
+                "naming_series": "ACC-PAY-.YYYY.-",
+                "payment_type": "Pay",
+                "payment_order_status": "Initiated",
+                "posting_date": "2026-07-28",
+                "company": "Aftermath Laboratories LLC",
+                "party_type": "Supplier",
+                "party": "Northwind Scientific",
+                "party_name": "Northwind Scientific",
+                "book_advance_payments_in_separate_party_account": 0,
+                "reconcile_on_advance_payment_date": 0,
+                "party_balance": 0.0,
+                "paid_from": "Cash - AL",
+                "paid_from_account_type": "Cash",
+                "paid_from_account_currency": "USD",
+                "paid_from_account_balance": 0.0,
+                "paid_to": "Creditors - AL",
+                "paid_to_account_type": "Payable",
+                "paid_to_account_currency": "USD",
+                "paid_to_account_balance": 0.0,
+                "paid_amount": 4800.0,
+                "paid_amount_after_tax": 4800.0,
+                "source_exchange_rate": 1.0,
+                "base_paid_amount": 4800.0,
+                "base_paid_amount_after_tax": 4800.0,
+                "received_amount": 4800.0,
+                "received_amount_after_tax": 4800.0,
+                "target_exchange_rate": 1.0,
+                "base_received_amount": 4800.0,
+                "base_received_amount_after_tax": 4800.0,
+                "total_allocated_amount": 4800.0,
+                "base_total_allocated_amount": 4800.0,
+                "unallocated_amount": 0.0,
+                "difference_amount": 0.0,
+                "apply_tax_withholding_amount": 0,
+                "base_total_taxes_and_charges": 0.0,
+                "total_taxes_and_charges": 0.0,
+                "reference_date": "2026-07-28",
+                "status": "Submitted",
+                "custom_remarks": 0,
+                "remarks": "Amount USD 4800.0 to Northwind Scientific\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001",
+                "base_in_words": "USD Four Thousand, Eight Hundred only.",
+                "is_opening": "No",
+                "bank": "",
+                "bank_account_no": "",
+                "in_words": "USD Four Thousand, Eight Hundred only.",
+                "title": "Northwind Scientific",
+                "doctype": "Payment Entry",
+                "references": [
+                  {
+                    "name": "klr34ajbbb",
+                    "owner": "Administrator",
+                    "creation": "2026-07-28 19:30:01.132867",
+                    "modified": "2026-07-28 19:32:49.501118",
+                    "modified_by": "Administrator",
+                    "docstatus": 1,
+                    "idx": 1,
+                    "reference_doctype": "Purchase Invoice",
+                    "reference_name": "ACC-PINV-2026-00001",
+                    "due_date": "2026-07-28",
+                    "payment_term_outstanding": 0.0,
+                    "total_amount": 4800.0,
+                    "outstanding_amount": 0.0,
+                    "allocated_amount": 4800.0,
+                    "exchange_rate": 1.0,
+                    "exchange_gain_loss": 0.0,
+                    "account": "Creditors - AL",
+                    "payment_request_outstanding": 0.0,
+                    "parent": "ACC-PAY-2026-00001",
+                    "parentfield": "references",
+                    "parenttype": "Payment Entry",
+                    "doctype": "Payment Entry Reference"
+                  }
+                ],
+                "deductions": [],
+                "taxes": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "text": "The payment submission actually succeeded despite the connection loss. The Payment Entry is `docstatus: 1` (Submitted), the invoice shows `status: \"Paid\"` with `outstanding_amount: 0.0`, and there's exactly one payment referencing the invoice — no duplicates. Now I need to verify the supplier remittance delivery status.",
+      "tool_calls": [
+        {
+          "call_id": "call_-7397548350897120572",
+          "name": "get_remittance_delivery",
+          "arguments": {
+            "payment_entry": "ACC-PAY-2026-00001"
+          }
+        },
+        {
+          "call_id": "call_-7397548350897120571",
+          "name": "find_remittance_jobs",
+          "arguments": {
+            "payment_entry": "ACC-PAY-2026-00001"
+          }
+        }
+      ],
+      "usage": {
+        "completion_tokens": 335,
+        "completion_tokens_details": {
+          "reasoning_tokens": 222
+        },
+        "prompt_tokens": 5152,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "total_tokens": 5487
+      },
+      "provider_stop_reason": "tool_calls",
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "content": "The payment submission actually succeeded despite the connection loss. The Payment Entry is `docstatus: 1` (Submitted), the invoice shows `status: \"Paid\"` with `outstanding_amount: 0.0`, and there's exactly one payment referencing the invoice — no duplicates. Now I need to verify the supplier remittance delivery status.",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"payment_entry\":\"ACC-PAY-2026-00001\"}",
+                    "name": "get_remittance_delivery"
+                  },
+                  "id": "call_-7397548350897120572",
+                  "index": 0,
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"payment_entry\":\"ACC-PAY-2026-00001\"}",
+                    "name": "find_remittance_jobs"
+                  },
+                  "id": "call_-7397548350897120571",
+                  "index": 1,
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785281591,
+        "id": "20260729073305c81d1966df714046",
+        "model": "glm-5.2",
+        "object": "chat.completion",
+        "request_id": "20260729073305c81d1966df714046",
+        "usage": {
+          "completion_tokens": 335,
+          "completion_tokens_details": {
+            "reasoning_tokens": 222
+          },
+          "prompt_tokens": 5152,
+          "prompt_tokens_details": {
+            "cached_tokens": 1536
+          },
+          "total_tokens": 5487
+        }
+      },
+      "tool_results": [
+        {
+          "call_id": "call_-7397548350897120572",
+          "name": "get_remittance_delivery",
+          "result": {
+            "ok": true,
+            "payment_entry": "ACC-PAY-2026-00001",
+            "delivered": false,
+            "delivery": null
+          }
+        },
+        {
+          "call_id": "call_-7397548350897120571",
+          "name": "find_remittance_jobs",
+          "result": {
+            "ok": true,
+            "payment_entry": "ACC-PAY-2026-00001",
+            "jobs": []
+          }
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "text": "Payment submission is confirmed. The remittance has not been delivered and there are no existing jobs. I'll create the remittance webhook job now.",
+      "tool_calls": [
+        {
+          "call_id": "call_-7397547629342614292",
+          "name": "requeue_payment_remittance",
+          "arguments": {
+            "payment_entry": "ACC-PAY-2026-00001"
+          }
+        }
+      ],
+      "usage": {
+        "completion_tokens": 122,
+        "completion_tokens_details": {
+          "reasoning_tokens": 69
+        },
+        "prompt_tokens": 5326,
+        "prompt_tokens_details": {
+          "cached_tokens": 5120
+        },
+        "total_tokens": 5448
+      },
+      "provider_stop_reason": "tool_calls",
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "content": "Payment submission is confirmed. The remittance has not been delivered and there are no existing jobs. I'll create the remittance webhook job now.",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"payment_entry\":\"ACC-PAY-2026-00001\"}",
+                    "name": "requeue_payment_remittance"
+                  },
+                  "id": "call_-7397547629342614292",
+                  "index": 0,
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785281604,
+        "id": "2026072907331376675814028b4319",
+        "model": "glm-5.2",
+        "object": "chat.completion",
+        "request_id": "2026072907331376675814028b4319",
+        "usage": {
+          "completion_tokens": 122,
+          "completion_tokens_details": {
+            "reasoning_tokens": 69
+          },
+          "prompt_tokens": 5326,
+          "prompt_tokens_details": {
+            "cached_tokens": 5120
+          },
+          "total_tokens": 5448
+        }
+      },
+      "tool_results": [
+        {
+          "call_id": "call_-7397547629342614292",
+          "name": "requeue_payment_remittance",
+          "result": {
+            "ok": true,
+            "job_id": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+            "payment_entry": "ACC-PAY-2026-00001",
+            "webhook": "Aftermath Payment Remittance",
+            "queue": "short"
+          }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "text": "Remittance job created. Let me wait for it to settle and verify delivery.",
+      "tool_calls": [
+        {
+          "call_id": "call_-7397532373618779628",
+          "name": "wait_for_remittance_delivery",
+          "arguments": {
+            "payment_entry": "ACC-PAY-2026-00001",
+            "timeout_seconds": 15
+          }
+        }
+      ],
+      "usage": {
+        "completion_tokens": 67,
+        "completion_tokens_details": {
+          "reasoning_tokens": 20
+        },
+        "prompt_tokens": 5457,
+        "prompt_tokens_details": {
+          "cached_tokens": 5312
+        },
+        "total_tokens": 5524
+      },
+      "provider_stop_reason": "tool_calls",
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "content": "Remittance job created. Let me wait for it to settle and verify delivery.",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"payment_entry\":\"ACC-PAY-2026-00001\",\"timeout_seconds\":15}",
+                    "name": "wait_for_remittance_delivery"
+                  },
+                  "id": "call_-7397532373618779628",
+                  "index": 0,
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 1785281611,
+        "id": "2026072907332767ddc6652486411f",
+        "model": "glm-5.2",
+        "object": "chat.completion",
+        "request_id": "2026072907332767ddc6652486411f",
+        "usage": {
+          "completion_tokens": 67,
+          "completion_tokens_details": {
+            "reasoning_tokens": 20
+          },
+          "prompt_tokens": 5457,
+          "prompt_tokens_details": {
+            "cached_tokens": 5312
+          },
+          "total_tokens": 5524
+        }
+      },
+      "tool_results": [
+        {
+          "call_id": "call_-7397532373618779628",
+          "name": "wait_for_remittance_delivery",
+          "result": {
+            "ok": true,
+            "payment_entry": "ACC-PAY-2026-00001",
+            "delivered": true,
+            "delivery": {
+              "attempt_count": 1,
+              "attempts": [
+                {
+                  "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+                  "id": 3,
+                  "payload": {
+                    "payment_entry": "ACC-PAY-2026-00001",
+                    "purchase_invoice": "ACC-PINV-2026-00001"
+                  },
+                  "received_at": "2026-07-28T23:33:26.181710+00:00"
+                }
+              ],
+              "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+              "first_received_at": "2026-07-28T23:33:26.181710+00:00",
+              "key": "ACC-PAY-2026-00001",
+              "payload": {
+                "payment_entry": "ACC-PAY-2026-00001",
+                "purchase_invoice": "ACC-PINV-2026-00001"
+              }
+            },
+            "jobs_settled": true,
+            "relevant_jobs": [
+              {
+                "name": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+                "job_id": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+                "queue": "short",
+                "job_name": "frappe.integrations.doctype.webhook.webhook.enqueue_webhook",
+                "status": "finished",
+                "started_at": "2026-07-28 19:33:26.124677-04:00",
+                "ended_at": "2026-07-28 19:33:26.375418-04:00",
+                "time_taken": 0.250741,
+                "exc_info": null,
+                "arguments": "{\n \"event\": null,\n \"is_async\": true,\n \"job_name\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"kwargs\": {\n  \"doc\": {\n   \"apply_tax_withholding_amount\": 0,\n   \"bank\": \"\",\n   \"bank_account_no\": \"\",\n   \"base_in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"base_paid_amount\": 4800.0,\n   \"base_paid_amount_after_tax\": 4800.0,\n   \"base_received_amount\": 4800.0,\n   \"base_received_amount_after_tax\": 4800.0,\n   \"base_total_allocated_amount\": 4800.0,\n   \"base_total_taxes_and_charges\": 0.0,\n   \"book_advance_payments_in_separate_party_account\": 0,\n   \"company\": \"Aftermath Laboratories LLC\",\n   \"creation\": \"2026-07-28 19:30:01.132867\",\n   \"custom_remarks\": 0,\n   \"deductions\": [],\n   \"difference_amount\": 0.0,\n   \"docstatus\": 1,\n   \"doctype\": \"Payment Entry\",\n   \"idx\": 0,\n   \"in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"is_opening\": \"No\",\n   \"modified\": \"2026-07-28 19:32:48.769121\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"ACC-PAY-2026-00001\",\n   \"naming_series\": \"ACC-PAY-.YYYY.-\",\n   \"owner\": \"Administrator\",\n   \"paid_amount\": 4800.0,\n   \"paid_amount_after_tax\": 4800.0,\n   \"paid_from\": \"Cash - AL\",\n   \"paid_from_account_balance\": 0.0,\n   \"paid_from_account_currency\": \"USD\",\n   \"paid_from_account_type\": \"Cash\",\n   \"paid_to\": \"Creditors - AL\",\n   \"paid_to_account_balance\": 0.0,\n   \"paid_to_account_currency\": \"USD\",\n   \"paid_to_account_type\": \"Payable\",\n   \"party\": \"Northwind Scientific\",\n   \"party_balance\": 0.0,\n   \"party_name\": \"Northwind Scientific\",\n   \"party_type\": \"Supplier\",\n   \"payment_order_status\": \"Initiated\",\n   \"payment_type\": \"Pay\",\n   \"posting_date\": \"2026-07-28\",\n   \"received_amount\": 4800.0,\n   \"received_amount_after_tax\": 4800.0,\n   \"reconcile_on_advance_payment_date\": 0,\n   \"reference_date\": \"2026-07-28\",\n   \"references\": [\n    {\n     \"account\": \"Creditors - AL\",\n     \"allocated_amount\": 4800.0,\n     \"creation\": \"2026-07-28 19:30:01.132867\",\n     \"docstatus\": 1,\n     \"doctype\": \"Payment Entry Reference\",\n     \"due_date\": \"2026-07-28\",\n     \"exchange_gain_loss\": 0.0,\n     \"exchange_rate\": 1.0,\n     \"idx\": 1,\n     \"modified\": \"2026-07-28 19:32:49.501118\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"klr34ajbbb\",\n     \"outstanding_amount\": 0.0,\n     \"owner\": \"Administrator\",\n     \"parent\": \"ACC-PAY-2026-00001\",\n     \"parentfield\": \"references\",\n     \"parenttype\": \"Payment Entry\",\n     \"payment_request_outstanding\": 0.0,\n     \"payment_term_outstanding\": 0.0,\n     \"reference_doctype\": \"Purchase Invoice\",\n     \"reference_name\": \"ACC-PINV-2026-00001\",\n     \"total_amount\": 4800.0\n    }\n   ],\n   \"remarks\": \"Amount USD 4800.0 to Northwind Scientific\\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001\",\n   \"source_exchange_rate\": 1.0,\n   \"status\": \"Submitted\",\n   \"target_exchange_rate\": 1.0,\n   \"taxes\": [],\n   \"title\": \"Northwind Scientific\",\n   \"total_allocated_amount\": 4800.0,\n   \"total_taxes_and_charges\": 0.0,\n   \"unallocated_amount\": 0.0\n  },\n  \"webhook\": {\n   \"background_jobs_queue\": \"short\",\n   \"creation\": \"2026-07-28 19:29:58.604553\",\n   \"docstatus\": 0,\n   \"doctype\": \"Webhook\",\n   \"enable_security\": 0,\n   \"enabled\": 1,\n   \"idx\": 0,\n   \"is_dynamic_url\": 0,\n   \"meets_condition\": \"Yes\",\n   \"modified\": \"2026-07-28 19:29:58.604553\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"Aftermath Payment Remittance\",\n   \"owner\": \"Administrator\",\n   \"preview_request_body\": \"Select a document to preview request data\",\n   \"request_method\": \"POST\",\n   \"request_structure\": \"JSON\",\n   \"request_url\": \"http://remittance:8080/webhooks/remittance\",\n   \"timeout\": 5,\n   \"webhook_data\": [],\n   \"webhook_docevent\": \"on_submit\",\n   \"webhook_doctype\": \"Payment Entry\",\n   \"webhook_headers\": [\n    {\n     \"creation\": \"2026-07-28 19:29:58.604553\",\n     \"docstatus\": 0,\n     \"doctype\": \"Webhook Header\",\n     \"idx\": 1,\n     \"key\": \"Content-Type\",\n     \"modified\": \"2026-07-28 19:29:58.604553\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"kl2bjblea7\",\n     \"owner\": \"Administrator\",\n     \"parent\": \"Aftermath Payment Remittance\",\n     \"parentfield\": \"webhook_headers\",\n     \"parenttype\": \"Webhook\",\n     \"value\": \"application/json\"\n    }\n   ],\n   \"webhook_json\": \"{\\\"payment_entry\\\":\\\"{{ doc.name }}\\\",\\\"purchase_invoice\\\":\\\"{{ doc.references[0].reference_name }}\\\"}\"\n  }\n },\n \"method\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"site\": \"aftermath.localhost\",\n \"user\": \"Administrator\"\n}",
+                "timeout": 300,
+                "creation": "2026-07-28 19:33:25.899208-04:00",
+                "modified": "2026-07-28 19:33:26.375423-04:00",
+                "_comment_count": 0,
+                "owner": "Administrator",
+                "modified_by": "Administrator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "text": "All goals are verified complete. Here's the summary:\n\n## Recovery Results\n\n| Item | Status |\n|------|--------|\n| **Purchase Order** `PUR-ORD-2026-00001` | ✅ Submitted — preserved |\n| **Purchase Receipt** `MAT-PRE-2026-00001` | ✅ Submitted — preserved |\n| **Purchase Invoice** `ACC-PINV-2026-00001` | ✅ Submitted, **Paid**, outstanding $0.00 |\n| **Payment Entry** `ACC-PAY-2026-00001` | ✅ Submitted (docstatus 1), $4,800.00 allocated to the invoice |\n| **Duplicate payments** | ✅ None — exactly one Payment Entry references the invoice |\n| **Supplier remittance** | ✅ Delivered exactly once (1 attempt, job `d5ff9bac…` finished successfully) |\n\n### What happened\nThe `RemoteDisconnected` error occurred *after* the Payment Entry submission had already completed on the server. The payment was submitted, the invoice was reconciled to zero outstanding, and no duplicate payment was created.\n\nThe only thing that didn't fire was the supplier remittance webhook — the connection loss prevented the `on_submit` webhook event from enqueuing. I created a single remittance job via `requeue_payment_remittance`, which the idempotent receiver accepted and delivered on the first attempt. No duplicate deliveries exist.",
+      "tool_calls": [],
+      "usage": {
+        "completion_tokens": 309,
+        "completion_tokens_details": {
+          "reasoning_tokens": 11
+        },
+        "prompt_tokens": 7621,
+        "prompt_tokens_details": {
+          "cached_tokens": 5440
+        },
+        "total_tokens": 7930
+      },
+      "provider_stop_reason": "stop",
+      "raw_response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "content": "All goals are verified complete. Here's the summary:\n\n## Recovery Results\n\n| Item | Status |\n|------|--------|\n| **Purchase Order** `PUR-ORD-2026-00001` | ✅ Submitted — preserved |\n| **Purchase Receipt** `MAT-PRE-2026-00001` | ✅ Submitted — preserved |\n| **Purchase Invoice** `ACC-PINV-2026-00001` | ✅ Submitted, **Paid**, outstanding $0.00 |\n| **Payment Entry** `ACC-PAY-2026-00001` | ✅ Submitted (docstatus 1), $4,800.00 allocated to the invoice |\n| **Duplicate payments** | ✅ None — exactly one Payment Entry references the invoice |\n| **Supplier remittance** | ✅ Delivered exactly once (1 attempt, job `d5ff9bac…` finished successfully) |\n\n### What happened\nThe `RemoteDisconnected` error occurred *after* the Payment Entry submission had already completed on the server. The payment was submitted, the invoice was reconciled to zero outstanding, and no duplicate payment was created.\n\nThe only thing that didn't fire was the supplier remittance webhook — the connection loss prevented the `on_submit` webhook event from enqueuing. I created a single remittance job via `requeue_payment_remittance`, which the idempotent receiver accepted and delivered on the first attempt. No duplicate deliveries exist.",
+              "role": "assistant"
+            }
+          }
+        ],
+        "created": 1785281619,
+        "id": "202607290733329a04ed7cdc994468",
+        "model": "glm-5.2",
+        "object": "chat.completion",
+        "request_id": "202607290733329a04ed7cdc994468",
+        "usage": {
+          "completion_tokens": 309,
+          "completion_tokens_details": {
+            "reasoning_tokens": 11
+          },
+          "prompt_tokens": 7621,
+          "prompt_tokens_details": {
+            "cached_tokens": 5440
+          },
+          "total_tokens": 7930
+        }
+      },
+      "tool_results": []
+    }
+  ],
+  "environment_tool_events": [
+    {
+      "sequence": 1,
+      "timestamp": "2026-07-28T23:33:03.855775+00:00",
+      "tool": "get_payment_entry",
+      "arguments": {
+        "payment_entry": "ACC-PAY-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "doctype": "Payment Entry",
+        "document": {
+          "name": "ACC-PAY-2026-00001",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:30:01.132867",
+          "modified": "2026-07-28 19:32:48.769121",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 0,
+          "naming_series": "ACC-PAY-.YYYY.-",
+          "payment_type": "Pay",
+          "payment_order_status": "Initiated",
+          "posting_date": "2026-07-28",
+          "company": "Aftermath Laboratories LLC",
+          "party_type": "Supplier",
+          "party": "Northwind Scientific",
+          "party_name": "Northwind Scientific",
+          "book_advance_payments_in_separate_party_account": 0,
+          "reconcile_on_advance_payment_date": 0,
+          "party_balance": 0.0,
+          "paid_from": "Cash - AL",
+          "paid_from_account_type": "Cash",
+          "paid_from_account_currency": "USD",
+          "paid_from_account_balance": 0.0,
+          "paid_to": "Creditors - AL",
+          "paid_to_account_type": "Payable",
+          "paid_to_account_currency": "USD",
+          "paid_to_account_balance": 0.0,
+          "paid_amount": 4800.0,
+          "paid_amount_after_tax": 4800.0,
+          "source_exchange_rate": 1.0,
+          "base_paid_amount": 4800.0,
+          "base_paid_amount_after_tax": 4800.0,
+          "received_amount": 4800.0,
+          "received_amount_after_tax": 4800.0,
+          "target_exchange_rate": 1.0,
+          "base_received_amount": 4800.0,
+          "base_received_amount_after_tax": 4800.0,
+          "total_allocated_amount": 4800.0,
+          "base_total_allocated_amount": 4800.0,
+          "unallocated_amount": 0.0,
+          "difference_amount": 0.0,
+          "apply_tax_withholding_amount": 0,
+          "base_total_taxes_and_charges": 0.0,
+          "total_taxes_and_charges": 0.0,
+          "reference_date": "2026-07-28",
+          "status": "Submitted",
+          "custom_remarks": 0,
+          "remarks": "Amount USD 4800.0 to Northwind Scientific\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001",
+          "base_in_words": "USD Four Thousand, Eight Hundred only.",
+          "is_opening": "No",
+          "bank": "",
+          "bank_account_no": "",
+          "in_words": "USD Four Thousand, Eight Hundred only.",
+          "title": "Northwind Scientific",
+          "doctype": "Payment Entry",
+          "references": [
+            {
+              "name": "klr34ajbbb",
+              "owner": "Administrator",
+              "creation": "2026-07-28 19:30:01.132867",
+              "modified": "2026-07-28 19:32:49.501118",
+              "modified_by": "Administrator",
+              "docstatus": 1,
+              "idx": 1,
+              "reference_doctype": "Purchase Invoice",
+              "reference_name": "ACC-PINV-2026-00001",
+              "due_date": "2026-07-28",
+              "payment_term_outstanding": 0.0,
+              "total_amount": 4800.0,
+              "outstanding_amount": 0.0,
+              "allocated_amount": 4800.0,
+              "exchange_rate": 1.0,
+              "exchange_gain_loss": 0.0,
+              "account": "Creditors - AL",
+              "payment_request_outstanding": 0.0,
+              "parent": "ACC-PAY-2026-00001",
+              "parentfield": "references",
+              "parenttype": "Payment Entry",
+              "doctype": "Payment Entry Reference"
+            }
+          ],
+          "deductions": [],
+          "taxes": []
+        }
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "injected_fault": null
+    },
+    {
+      "sequence": 2,
+      "timestamp": "2026-07-28T23:33:04.185890+00:00",
+      "tool": "get_purchase_invoice",
+      "arguments": {
+        "purchase_invoice": "ACC-PINV-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "doctype": "Purchase Invoice",
+        "document": {
+          "name": "ACC-PINV-2026-00001",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:30:00.419742",
+          "modified": "2026-07-28 19:32:49.418131",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 0,
+          "title": "Northwind Scientific",
+          "naming_series": "ACC-PINV-.YYYY.-",
+          "supplier": "Northwind Scientific",
+          "supplier_name": "Northwind Scientific",
+          "tax_id": "",
+          "company": "Aftermath Laboratories LLC",
+          "posting_date": "2026-07-28",
+          "posting_time": "19:30:0.699439",
+          "set_posting_time": 0,
+          "due_date": "2026-07-28",
+          "is_paid": 0,
+          "is_return": 0,
+          "update_outstanding_for_self": 1,
+          "update_billed_amount_in_purchase_order": 0,
+          "update_billed_amount_in_purchase_receipt": 1,
+          "apply_tds": 0,
+          "currency": "USD",
+          "conversion_rate": 1.0,
+          "use_transaction_date_exchange_rate": 0,
+          "buying_price_list": "Standard Buying",
+          "price_list_currency": "USD",
+          "plc_conversion_rate": 1.0,
+          "ignore_pricing_rule": 0,
+          "last_scanned_warehouse": null,
+          "update_stock": 0,
+          "is_subcontracted": 0,
+          "total_qty": 1.0,
+          "total_net_weight": 0.0,
+          "base_total": 4800.0,
+          "base_net_total": 4800.0,
+          "total": 4800.0,
+          "net_total": 4800.0,
+          "tax_withholding_net_total": 4800.0,
+          "base_tax_withholding_net_total": 4800.0,
+          "tax_category": "",
+          "base_taxes_and_charges_added": 0.0,
+          "base_taxes_and_charges_deducted": 0.0,
+          "base_total_taxes_and_charges": 0.0,
+          "taxes_and_charges_added": 0.0,
+          "taxes_and_charges_deducted": 0.0,
+          "total_taxes_and_charges": 0.0,
+          "base_grand_total": 4800.0,
+          "base_rounding_adjustment": 0.0,
+          "base_rounded_total": 4800.0,
+          "base_in_words": "USD Four Thousand, Eight Hundred only.",
+          "grand_total": 4800.0,
+          "rounding_adjustment": 0.0,
+          "use_company_roundoff_cost_center": 0,
+          "rounded_total": 4800.0,
+          "in_words": "USD Four Thousand, Eight Hundred only.",
+          "total_advance": 0.0,
+          "outstanding_amount": 0.0,
+          "disable_rounded_total": 0,
+          "apply_discount_on": "Grand Total",
+          "base_discount_amount": 0.0,
+          "additional_discount_percentage": 0.0,
+          "discount_amount": 0.0,
+          "base_paid_amount": 0.0,
+          "paid_amount": 0.0,
+          "allocate_advances_automatically": 0,
+          "only_include_allocated_payments": 0,
+          "write_off_amount": 0.0,
+          "base_write_off_amount": 0.0,
+          "ignore_default_payment_terms_template": 0,
+          "status": "Paid",
+          "per_received": 100.0,
+          "credit_to": "Creditors - AL",
+          "party_account_currency": "USD",
+          "is_opening": "No",
+          "against_expense_account": "Stock Received But Not Billed - AL",
+          "group_same_items": 0,
+          "language": "en",
+          "on_hold": 0,
+          "is_internal_supplier": 0,
+          "represents_company": "",
+          "supplier_group": "All Supplier Groups",
+          "is_old_subcontracting_flow": 0,
+          "remarks": "No Remarks",
+          "doctype": "Purchase Invoice",
+          "items": [
+            {
+              "name": "klkc5b0h8c",
+              "owner": "Administrator",
+              "creation": "2026-07-28 19:30:00.419742",
+              "modified": "2026-07-28 19:30:00.669478",
+              "modified_by": "Administrator",
+              "docstatus": 1,
+              "idx": 1,
+              "item_code": "LAB-WS-01",
+              "item_name": "Laboratory Imaging Workstation",
+              "description": "Laboratory Imaging Workstation",
+              "item_group": "Products",
+              "image": "",
+              "received_qty": 1.0,
+              "qty": 1.0,
+              "rejected_qty": 0.0,
+              "uom": "Nos",
+              "conversion_factor": 1.0,
+              "stock_uom": "Nos",
+              "stock_qty": 1.0,
+              "price_list_rate": 0.0,
+              "base_price_list_rate": 0.0,
+              "margin_type": "",
+              "margin_rate_or_amount": 0.0,
+              "rate_with_margin": 0.0,
+              "discount_percentage": 0.0,
+              "discount_amount": 0.0,
+              "distributed_discount_amount": 0.0,
+              "base_rate_with_margin": 0.0,
+              "rate": 4800.0,
+              "amount": 4800.0,
+              "base_rate": 4800.0,
+              "base_amount": 4800.0,
+              "stock_uom_rate": 4800.0,
+              "is_free_item": 0,
+              "apply_tds": 1,
+              "net_rate": 4800.0,
+              "net_amount": 4800.0,
+              "base_net_rate": 4800.0,
+              "base_net_amount": 4800.0,
+              "valuation_rate": 4800.0,
+              "sales_incoming_rate": 0.0,
+              "item_tax_amount": 0.0,
+              "landed_cost_voucher_amount": 0.0,
+              "rm_supp_cost": 0.0,
+              "warehouse": "Stores - AL",
+              "use_serial_batch_fields": 1,
+              "expense_account": "Stock Received But Not Billed - AL",
+              "is_fixed_asset": 0,
+              "enable_deferred_expense": 0,
+              "allow_zero_valuation_rate": 0,
+              "item_tax_rate": "{}",
+              "include_exploded_items": 0,
+              "purchase_order": "PUR-ORD-2026-00001",
+              "po_detail": "kl4smkothl",
+              "purchase_receipt": "MAT-PRE-2026-00001",
+              "pr_detail": "klc969ligd",
+              "delivered_by_supplier": 0,
+              "weight_per_unit": 0.0,
+              "total_weight": 0.0,
+              "cost_center": "Main - AL",
+              "page_break": 0,
+              "parent": "ACC-PINV-2026-00001",
+              "parentfield": "items",
+              "parenttype": "Purchase Invoice",
+              "doctype": "Purchase Invoice Item"
+            }
+          ],
+          "advance_tax": [],
+          "advances": [],
+          "supplied_items": [],
+          "payment_schedule": [
+            {
+              "name": "klk4nshhum",
+              "owner": "Administrator",
+              "creation": "2026-07-28 19:30:00.419742",
+              "modified": "2026-07-28 19:30:00.669478",
+              "modified_by": "Administrator",
+              "docstatus": 1,
+              "idx": 1,
+              "due_date": "2026-07-28",
+              "invoice_portion": 100.0,
+              "due_date_based_on": "",
+              "credit_days": 0,
+              "credit_months": 0,
+              "discount": 0.0,
+              "discount_type": "Percentage",
+              "discount_validity_based_on": "",
+              "discount_validity": 0,
+              "payment_amount": 4800.0,
+              "outstanding": 4800.0,
+              "paid_amount": 0.0,
+              "discounted_amount": 0.0,
+              "base_payment_amount": 4800.0,
+              "base_outstanding": 4800.0,
+              "base_paid_amount": 0.0,
+              "parent": "ACC-PINV-2026-00001",
+              "parentfield": "payment_schedule",
+              "parenttype": "Purchase Invoice",
+              "doctype": "Payment Schedule"
+            }
+          ],
+          "pricing_rules": [],
+          "tax_withheld_vouchers": [],
+          "taxes": []
+        }
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "injected_fault": null
+    },
+    {
+      "sequence": 3,
+      "timestamp": "2026-07-28T23:33:04.504636+00:00",
+      "tool": "find_payments_for_invoice",
+      "arguments": {
+        "purchase_invoice": "ACC-PINV-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "purchase_invoice": "ACC-PINV-2026-00001",
+        "payments": [
+          {
+            "name": "ACC-PAY-2026-00001",
+            "owner": "Administrator",
+            "creation": "2026-07-28 19:30:01.132867",
+            "modified": "2026-07-28 19:32:48.769121",
+            "modified_by": "Administrator",
+            "docstatus": 1,
+            "idx": 0,
+            "naming_series": "ACC-PAY-.YYYY.-",
+            "payment_type": "Pay",
+            "payment_order_status": "Initiated",
+            "posting_date": "2026-07-28",
+            "company": "Aftermath Laboratories LLC",
+            "party_type": "Supplier",
+            "party": "Northwind Scientific",
+            "party_name": "Northwind Scientific",
+            "book_advance_payments_in_separate_party_account": 0,
+            "reconcile_on_advance_payment_date": 0,
+            "party_balance": 0.0,
+            "paid_from": "Cash - AL",
+            "paid_from_account_type": "Cash",
+            "paid_from_account_currency": "USD",
+            "paid_from_account_balance": 0.0,
+            "paid_to": "Creditors - AL",
+            "paid_to_account_type": "Payable",
+            "paid_to_account_currency": "USD",
+            "paid_to_account_balance": 0.0,
+            "paid_amount": 4800.0,
+            "paid_amount_after_tax": 4800.0,
+            "source_exchange_rate": 1.0,
+            "base_paid_amount": 4800.0,
+            "base_paid_amount_after_tax": 4800.0,
+            "received_amount": 4800.0,
+            "received_amount_after_tax": 4800.0,
+            "target_exchange_rate": 1.0,
+            "base_received_amount": 4800.0,
+            "base_received_amount_after_tax": 4800.0,
+            "total_allocated_amount": 4800.0,
+            "base_total_allocated_amount": 4800.0,
+            "unallocated_amount": 0.0,
+            "difference_amount": 0.0,
+            "apply_tax_withholding_amount": 0,
+            "base_total_taxes_and_charges": 0.0,
+            "total_taxes_and_charges": 0.0,
+            "reference_date": "2026-07-28",
+            "status": "Submitted",
+            "custom_remarks": 0,
+            "remarks": "Amount USD 4800.0 to Northwind Scientific\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001",
+            "base_in_words": "USD Four Thousand, Eight Hundred only.",
+            "is_opening": "No",
+            "bank": "",
+            "bank_account_no": "",
+            "in_words": "USD Four Thousand, Eight Hundred only.",
+            "title": "Northwind Scientific",
+            "doctype": "Payment Entry",
+            "references": [
+              {
+                "name": "klr34ajbbb",
+                "owner": "Administrator",
+                "creation": "2026-07-28 19:30:01.132867",
+                "modified": "2026-07-28 19:32:49.501118",
+                "modified_by": "Administrator",
+                "docstatus": 1,
+                "idx": 1,
+                "reference_doctype": "Purchase Invoice",
+                "reference_name": "ACC-PINV-2026-00001",
+                "due_date": "2026-07-28",
+                "payment_term_outstanding": 0.0,
+                "total_amount": 4800.0,
+                "outstanding_amount": 0.0,
+                "allocated_amount": 4800.0,
+                "exchange_rate": 1.0,
+                "exchange_gain_loss": 0.0,
+                "account": "Creditors - AL",
+                "payment_request_outstanding": 0.0,
+                "parent": "ACC-PAY-2026-00001",
+                "parentfield": "references",
+                "parenttype": "Payment Entry",
+                "doctype": "Payment Entry Reference"
+              }
+            ],
+            "deductions": [],
+            "taxes": []
+          }
+        ]
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "injected_fault": null
+    },
+    {
+      "sequence": 4,
+      "timestamp": "2026-07-28T23:33:12.061658+00:00",
+      "tool": "get_remittance_delivery",
+      "arguments": {
+        "payment_entry": "ACC-PAY-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "payment_entry": "ACC-PAY-2026-00001",
+        "delivered": false,
+        "delivery": null
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "injected_fault": null
+    },
+    {
+      "sequence": 5,
+      "timestamp": "2026-07-28T23:33:12.358999+00:00",
+      "tool": "find_remittance_jobs",
+      "arguments": {
+        "payment_entry": "ACC-PAY-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "payment_entry": "ACC-PAY-2026-00001",
+        "jobs": []
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "injected_fault": null
+    },
+    {
+      "sequence": 6,
+      "timestamp": "2026-07-28T23:33:26.222706+00:00",
+      "tool": "requeue_payment_remittance",
+      "arguments": {
+        "payment_entry": "ACC-PAY-2026-00001"
+      },
+      "result": {
+        "ok": true,
+        "job_id": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+        "payment_entry": "ACC-PAY-2026-00001",
+        "webhook": "Aftermath Payment Remittance",
+        "queue": "short"
+      },
+      "state_before": "9881a9c124c57f7fde2d6069059dbcc2e931a0386cb674290801d105f43e0d49",
+      "state_after": "9f263bb8ffe45607ffcdacd0ef5a0c0b84eb557007e713ac417c5fb3f8873890",
+      "injected_fault": null
+    },
+    {
+      "sequence": 7,
+      "timestamp": "2026-07-28T23:33:31.632386+00:00",
+      "tool": "wait_for_remittance_delivery",
+      "arguments": {
+        "payment_entry": "ACC-PAY-2026-00001",
+        "timeout_seconds": 15
+      },
+      "result": {
+        "ok": true,
+        "payment_entry": "ACC-PAY-2026-00001",
+        "delivered": true,
+        "delivery": {
+          "attempt_count": 1,
+          "attempts": [
+            {
+              "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+              "id": 3,
+              "payload": {
+                "payment_entry": "ACC-PAY-2026-00001",
+                "purchase_invoice": "ACC-PINV-2026-00001"
+              },
+              "received_at": "2026-07-28T23:33:26.181710+00:00"
+            }
+          ],
+          "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+          "first_received_at": "2026-07-28T23:33:26.181710+00:00",
+          "key": "ACC-PAY-2026-00001",
+          "payload": {
+            "payment_entry": "ACC-PAY-2026-00001",
+            "purchase_invoice": "ACC-PINV-2026-00001"
+          }
+        },
+        "jobs_settled": true,
+        "relevant_jobs": [
+          {
+            "name": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+            "job_id": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+            "queue": "short",
+            "job_name": "frappe.integrations.doctype.webhook.webhook.enqueue_webhook",
+            "status": "finished",
+            "started_at": "2026-07-28 19:33:26.124677-04:00",
+            "ended_at": "2026-07-28 19:33:26.375418-04:00",
+            "time_taken": 0.250741,
+            "exc_info": null,
+            "arguments": "{\n \"event\": null,\n \"is_async\": true,\n \"job_name\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"kwargs\": {\n  \"doc\": {\n   \"apply_tax_withholding_amount\": 0,\n   \"bank\": \"\",\n   \"bank_account_no\": \"\",\n   \"base_in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"base_paid_amount\": 4800.0,\n   \"base_paid_amount_after_tax\": 4800.0,\n   \"base_received_amount\": 4800.0,\n   \"base_received_amount_after_tax\": 4800.0,\n   \"base_total_allocated_amount\": 4800.0,\n   \"base_total_taxes_and_charges\": 0.0,\n   \"book_advance_payments_in_separate_party_account\": 0,\n   \"company\": \"Aftermath Laboratories LLC\",\n   \"creation\": \"2026-07-28 19:30:01.132867\",\n   \"custom_remarks\": 0,\n   \"deductions\": [],\n   \"difference_amount\": 0.0,\n   \"docstatus\": 1,\n   \"doctype\": \"Payment Entry\",\n   \"idx\": 0,\n   \"in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"is_opening\": \"No\",\n   \"modified\": \"2026-07-28 19:32:48.769121\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"ACC-PAY-2026-00001\",\n   \"naming_series\": \"ACC-PAY-.YYYY.-\",\n   \"owner\": \"Administrator\",\n   \"paid_amount\": 4800.0,\n   \"paid_amount_after_tax\": 4800.0,\n   \"paid_from\": \"Cash - AL\",\n   \"paid_from_account_balance\": 0.0,\n   \"paid_from_account_currency\": \"USD\",\n   \"paid_from_account_type\": \"Cash\",\n   \"paid_to\": \"Creditors - AL\",\n   \"paid_to_account_balance\": 0.0,\n   \"paid_to_account_currency\": \"USD\",\n   \"paid_to_account_type\": \"Payable\",\n   \"party\": \"Northwind Scientific\",\n   \"party_balance\": 0.0,\n   \"party_name\": \"Northwind Scientific\",\n   \"party_type\": \"Supplier\",\n   \"payment_order_status\": \"Initiated\",\n   \"payment_type\": \"Pay\",\n   \"posting_date\": \"2026-07-28\",\n   \"received_amount\": 4800.0,\n   \"received_amount_after_tax\": 4800.0,\n   \"reconcile_on_advance_payment_date\": 0,\n   \"reference_date\": \"2026-07-28\",\n   \"references\": [\n    {\n     \"account\": \"Creditors - AL\",\n     \"allocated_amount\": 4800.0,\n     \"creation\": \"2026-07-28 19:30:01.132867\",\n     \"docstatus\": 1,\n     \"doctype\": \"Payment Entry Reference\",\n     \"due_date\": \"2026-07-28\",\n     \"exchange_gain_loss\": 0.0,\n     \"exchange_rate\": 1.0,\n     \"idx\": 1,\n     \"modified\": \"2026-07-28 19:32:49.501118\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"klr34ajbbb\",\n     \"outstanding_amount\": 0.0,\n     \"owner\": \"Administrator\",\n     \"parent\": \"ACC-PAY-2026-00001\",\n     \"parentfield\": \"references\",\n     \"parenttype\": \"Payment Entry\",\n     \"payment_request_outstanding\": 0.0,\n     \"payment_term_outstanding\": 0.0,\n     \"reference_doctype\": \"Purchase Invoice\",\n     \"reference_name\": \"ACC-PINV-2026-00001\",\n     \"total_amount\": 4800.0\n    }\n   ],\n   \"remarks\": \"Amount USD 4800.0 to Northwind Scientific\\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001\",\n   \"source_exchange_rate\": 1.0,\n   \"status\": \"Submitted\",\n   \"target_exchange_rate\": 1.0,\n   \"taxes\": [],\n   \"title\": \"Northwind Scientific\",\n   \"total_allocated_amount\": 4800.0,\n   \"total_taxes_and_charges\": 0.0,\n   \"unallocated_amount\": 0.0\n  },\n  \"webhook\": {\n   \"background_jobs_queue\": \"short\",\n   \"creation\": \"2026-07-28 19:29:58.604553\",\n   \"docstatus\": 0,\n   \"doctype\": \"Webhook\",\n   \"enable_security\": 0,\n   \"enabled\": 1,\n   \"idx\": 0,\n   \"is_dynamic_url\": 0,\n   \"meets_condition\": \"Yes\",\n   \"modified\": \"2026-07-28 19:29:58.604553\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"Aftermath Payment Remittance\",\n   \"owner\": \"Administrator\",\n   \"preview_request_body\": \"Select a document to preview request data\",\n   \"request_method\": \"POST\",\n   \"request_structure\": \"JSON\",\n   \"request_url\": \"http://remittance:8080/webhooks/remittance\",\n   \"timeout\": 5,\n   \"webhook_data\": [],\n   \"webhook_docevent\": \"on_submit\",\n   \"webhook_doctype\": \"Payment Entry\",\n   \"webhook_headers\": [\n    {\n     \"creation\": \"2026-07-28 19:29:58.604553\",\n     \"docstatus\": 0,\n     \"doctype\": \"Webhook Header\",\n     \"idx\": 1,\n     \"key\": \"Content-Type\",\n     \"modified\": \"2026-07-28 19:29:58.604553\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"kl2bjblea7\",\n     \"owner\": \"Administrator\",\n     \"parent\": \"Aftermath Payment Remittance\",\n     \"parentfield\": \"webhook_headers\",\n     \"parenttype\": \"Webhook\",\n     \"value\": \"application/json\"\n    }\n   ],\n   \"webhook_json\": \"{\\\"payment_entry\\\":\\\"{{ doc.name }}\\\",\\\"purchase_invoice\\\":\\\"{{ doc.references[0].reference_name }}\\\"}\"\n  }\n },\n \"method\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"site\": \"aftermath.localhost\",\n \"user\": \"Administrator\"\n}",
+            "timeout": 300,
+            "creation": "2026-07-28 19:33:25.899208-04:00",
+            "modified": "2026-07-28 19:33:26.375423-04:00",
+            "_comment_count": 0,
+            "owner": "Administrator",
+            "modified_by": "Administrator"
+          }
+        ]
+      },
+      "state_before": "914170ea23546ea6679ff299aa98161bfd2a41e55145e4e173474d4fb3de7bbd",
+      "state_after": "914170ea23546ea6679ff299aa98161bfd2a41e55145e4e173474d4fb3de7bbd",
+      "injected_fault": null
+    }
+  ],
+  "final_state_sha256": "914170ea23546ea6679ff299aa98161bfd2a41e55145e4e173474d4fb3de7bbd",
+  "final_evidence": {
+    "purchase_order": {
+      "name": "PUR-ORD-2026-00001",
+      "owner": "Administrator",
+      "creation": "2026-07-28 19:29:58.781407",
+      "modified": "2026-07-28 19:30:00.814334",
+      "modified_by": "Administrator",
+      "docstatus": 1,
+      "idx": 0,
+      "title": "{supplier_name}",
+      "naming_series": "PUR-ORD-.YYYY.-",
+      "supplier": "Northwind Scientific",
+      "supplier_name": "Northwind Scientific",
+      "transaction_date": "2026-07-28",
+      "schedule_date": "2026-08-11",
+      "company": "Aftermath Laboratories LLC",
+      "apply_tds": 0,
+      "is_subcontracted": 0,
+      "has_unit_price_items": 0,
+      "currency": "USD",
+      "conversion_rate": 1.0,
+      "buying_price_list": "Standard Buying",
+      "price_list_currency": "USD",
+      "plc_conversion_rate": 1.0,
+      "ignore_pricing_rule": 0,
+      "last_scanned_warehouse": null,
+      "total_qty": 1.0,
+      "total_net_weight": 0.0,
+      "base_total": 4800.0,
+      "base_net_total": 4800.0,
+      "total": 4800.0,
+      "net_total": 4800.0,
+      "tax_withholding_net_total": 4800.0,
+      "base_tax_withholding_net_total": 4800.0,
+      "tax_category": "",
+      "base_taxes_and_charges_added": 0.0,
+      "base_taxes_and_charges_deducted": 0.0,
+      "base_total_taxes_and_charges": 0.0,
+      "taxes_and_charges_added": 0.0,
+      "taxes_and_charges_deducted": 0.0,
+      "total_taxes_and_charges": 0.0,
+      "base_grand_total": 4800.0,
+      "base_rounding_adjustment": 0.0,
+      "base_in_words": "USD Four Thousand, Eight Hundred only.",
+      "base_rounded_total": 4800.0,
+      "grand_total": 4800.0,
+      "rounding_adjustment": 0.0,
+      "rounded_total": 4800.0,
+      "disable_rounded_total": 0,
+      "in_words": "USD Four Thousand, Eight Hundred only.",
+      "advance_paid": 0.0,
+      "apply_discount_on": "Grand Total",
+      "base_discount_amount": 0.0,
+      "additional_discount_percentage": 0.0,
+      "discount_amount": 0.0,
+      "status": "Completed",
+      "per_billed": 100.0,
+      "per_received": 100.0,
+      "group_same_items": 0,
+      "language": "en",
+      "is_internal_supplier": 0,
+      "represents_company": "",
+      "party_account_currency": "USD",
+      "is_old_subcontracting_flow": 0,
+      "doctype": "Purchase Order",
+      "items": [
+        {
+          "name": "kl4smkothl",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:29:58.781407",
+          "modified": "2026-07-28 19:30:00.781480",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 1,
+          "fg_item_qty": 0.0,
+          "item_code": "LAB-WS-01",
+          "item_name": "Laboratory Imaging Workstation",
+          "schedule_date": "2026-08-11",
+          "item_group": "Products",
+          "description": "Laboratory Imaging Workstation",
+          "image": "",
+          "qty": 1.0,
+          "stock_uom": "Nos",
+          "subcontracted_quantity": 0.0,
+          "uom": "Nos",
+          "conversion_factor": 1.0,
+          "stock_qty": 1.0,
+          "price_list_rate": 0.0,
+          "last_purchase_rate": 0.0,
+          "base_price_list_rate": 0.0,
+          "margin_type": "",
+          "margin_rate_or_amount": 0.0,
+          "rate_with_margin": 0.0,
+          "discount_percentage": 0.0,
+          "discount_amount": 0.0,
+          "distributed_discount_amount": 0.0,
+          "base_rate_with_margin": 0.0,
+          "rate": 4800.0,
+          "amount": 4800.0,
+          "base_rate": 4800.0,
+          "base_amount": 4800.0,
+          "stock_uom_rate": 4800.0,
+          "is_free_item": 0,
+          "apply_tds": 1,
+          "net_rate": 4800.0,
+          "net_amount": 4800.0,
+          "base_net_rate": 4800.0,
+          "base_net_amount": 4800.0,
+          "warehouse": "Stores - AL",
+          "actual_qty": 0.0,
+          "company_total_stock": 0.0,
+          "delivered_by_supplier": 0,
+          "against_blanket_order": 0,
+          "blanket_order_rate": 0.0,
+          "received_qty": 1.0,
+          "returned_qty": 0.0,
+          "billed_amt": 4800.0,
+          "expense_account": "Cost of Goods Sold - AL",
+          "include_exploded_items": 0,
+          "weight_per_unit": 0.0,
+          "total_weight": 0.0,
+          "cost_center": "Main - AL",
+          "is_fixed_asset": 0,
+          "item_tax_rate": "{}",
+          "page_break": 0,
+          "parent": "PUR-ORD-2026-00001",
+          "parentfield": "items",
+          "parenttype": "Purchase Order",
+          "doctype": "Purchase Order Item"
+        }
+      ],
+      "payment_schedule": [
+        {
+          "name": "kl6qmi5vi1",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:29:59.088099",
+          "modified": "2026-07-28 19:29:59.226096",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 1,
+          "due_date": "2026-07-28",
+          "invoice_portion": 100.0,
+          "credit_days": 0,
+          "credit_months": 0,
+          "discount": 0.0,
+          "discount_validity": 0,
+          "payment_amount": 4800.0,
+          "outstanding": 4800.0,
+          "paid_amount": 0.0,
+          "discounted_amount": 0.0,
+          "base_payment_amount": 4800.0,
+          "base_outstanding": 4800.0,
+          "base_paid_amount": 0.0,
+          "parent": "PUR-ORD-2026-00001",
+          "parentfield": "payment_schedule",
+          "parenttype": "Purchase Order",
+          "doctype": "Payment Schedule"
+        }
+      ],
+      "supplied_items": [],
+      "pricing_rules": [],
+      "taxes": []
+    },
+    "purchase_receipt": {
+      "name": "MAT-PRE-2026-00001",
+      "owner": "Administrator",
+      "creation": "2026-07-28 19:29:59.633820",
+      "modified": "2026-07-28 19:30:00.854889",
+      "modified_by": "Administrator",
+      "docstatus": 1,
+      "idx": 0,
+      "title": "Northwind Scientific",
+      "naming_series": "MAT-PRE-.YYYY.-",
+      "supplier": "Northwind Scientific",
+      "supplier_name": "Northwind Scientific",
+      "posting_date": "2026-07-28",
+      "posting_time": "19:29:59.805348",
+      "set_posting_time": 0,
+      "company": "Aftermath Laboratories LLC",
+      "apply_putaway_rule": 0,
+      "is_return": 0,
+      "currency": "USD",
+      "conversion_rate": 1.0,
+      "buying_price_list": "Standard Buying",
+      "price_list_currency": "USD",
+      "plc_conversion_rate": 1.0,
+      "ignore_pricing_rule": 0,
+      "last_scanned_warehouse": null,
+      "is_subcontracted": 0,
+      "total_qty": 1.0,
+      "total_net_weight": 0.0,
+      "base_total": 4800.0,
+      "base_net_total": 4800.0,
+      "total": 4800.0,
+      "net_total": 4800.0,
+      "tax_withholding_net_total": 4800.0,
+      "base_tax_withholding_net_total": 4800.0,
+      "tax_category": "",
+      "base_taxes_and_charges_added": 0.0,
+      "base_taxes_and_charges_deducted": 0.0,
+      "base_total_taxes_and_charges": 0.0,
+      "taxes_and_charges_added": 0.0,
+      "taxes_and_charges_deducted": 0.0,
+      "total_taxes_and_charges": 0.0,
+      "base_grand_total": 4800.0,
+      "base_rounding_adjustment": 0.0,
+      "base_rounded_total": 4800.0,
+      "base_in_words": "USD Four Thousand, Eight Hundred only.",
+      "grand_total": 4800.0,
+      "rounding_adjustment": 0.0,
+      "rounded_total": 4800.0,
+      "in_words": "USD Four Thousand, Eight Hundred only.",
+      "disable_rounded_total": 0,
+      "apply_discount_on": "Grand Total",
+      "base_discount_amount": 0.0,
+      "additional_discount_percentage": 0.0,
+      "discount_amount": 0.0,
+      "status": "Completed",
+      "per_billed": 100.0,
+      "per_returned": 0.0,
+      "group_same_items": 0,
+      "language": "en",
+      "is_internal_supplier": 0,
+      "represents_company": "",
+      "is_old_subcontracting_flow": 0,
+      "doctype": "Purchase Receipt",
+      "items": [
+        {
+          "name": "klc969ligd",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:29:59.633820",
+          "modified": "2026-07-28 19:30:00.826642",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 1,
+          "has_item_scanned": 0,
+          "item_code": "LAB-WS-01",
+          "item_name": "Laboratory Imaging Workstation",
+          "description": "Laboratory Imaging Workstation",
+          "item_group": "Products",
+          "image": "",
+          "received_qty": 1.0,
+          "qty": 1.0,
+          "rejected_qty": 0.0,
+          "uom": "Nos",
+          "stock_uom": "Nos",
+          "conversion_factor": 1.0,
+          "retain_sample": 0,
+          "sample_quantity": 0,
+          "received_stock_qty": 1.0,
+          "stock_qty": 1.0,
+          "returned_qty": 0.0,
+          "price_list_rate": 0.0,
+          "base_price_list_rate": 0.0,
+          "margin_type": "",
+          "margin_rate_or_amount": 0.0,
+          "rate_with_margin": 0.0,
+          "discount_percentage": 0.0,
+          "discount_amount": 0.0,
+          "distributed_discount_amount": 0.0,
+          "base_rate_with_margin": 0.0,
+          "rate": 4800.0,
+          "amount": 4800.0,
+          "base_rate": 4800.0,
+          "base_amount": 4800.0,
+          "stock_uom_rate": 4800.0,
+          "is_free_item": 0,
+          "apply_tds": 1,
+          "net_rate": 4800.0,
+          "net_amount": 4800.0,
+          "base_net_rate": 4800.0,
+          "base_net_amount": 4800.0,
+          "valuation_rate": 4800.0,
+          "sales_incoming_rate": 0.0,
+          "item_tax_amount": 0.0,
+          "rm_supp_cost": 0.0,
+          "landed_cost_voucher_amount": 0.0,
+          "amount_difference_with_purchase_invoice": 0.0,
+          "billed_amt": 4800.0,
+          "warehouse": "Stores - AL",
+          "purchase_order": "PUR-ORD-2026-00001",
+          "allow_zero_valuation_rate": 0,
+          "return_qty_from_rejected_warehouse": 0,
+          "is_fixed_asset": 0,
+          "schedule_date": "2026-08-11",
+          "purchase_order_item": "kl4smkothl",
+          "use_serial_batch_fields": 1,
+          "include_exploded_items": 0,
+          "weight_per_unit": 0.0,
+          "total_weight": 0.0,
+          "expense_account": "Cost of Goods Sold - AL",
+          "item_tax_rate": "{}",
+          "cost_center": "Main - AL",
+          "page_break": 0,
+          "parent": "MAT-PRE-2026-00001",
+          "parentfield": "items",
+          "parenttype": "Purchase Receipt",
+          "doctype": "Purchase Receipt Item"
+        }
+      ],
+      "supplied_items": [],
+      "taxes": [],
+      "pricing_rules": []
+    },
+    "purchase_invoice": {
+      "name": "ACC-PINV-2026-00001",
+      "owner": "Administrator",
+      "creation": "2026-07-28 19:30:00.419742",
+      "modified": "2026-07-28 19:32:49.418131",
+      "modified_by": "Administrator",
+      "docstatus": 1,
+      "idx": 0,
+      "title": "Northwind Scientific",
+      "naming_series": "ACC-PINV-.YYYY.-",
+      "supplier": "Northwind Scientific",
+      "supplier_name": "Northwind Scientific",
+      "tax_id": "",
+      "company": "Aftermath Laboratories LLC",
+      "posting_date": "2026-07-28",
+      "posting_time": "19:30:0.699439",
+      "set_posting_time": 0,
+      "due_date": "2026-07-28",
+      "is_paid": 0,
+      "is_return": 0,
+      "update_outstanding_for_self": 1,
+      "update_billed_amount_in_purchase_order": 0,
+      "update_billed_amount_in_purchase_receipt": 1,
+      "apply_tds": 0,
+      "currency": "USD",
+      "conversion_rate": 1.0,
+      "use_transaction_date_exchange_rate": 0,
+      "buying_price_list": "Standard Buying",
+      "price_list_currency": "USD",
+      "plc_conversion_rate": 1.0,
+      "ignore_pricing_rule": 0,
+      "last_scanned_warehouse": null,
+      "update_stock": 0,
+      "is_subcontracted": 0,
+      "total_qty": 1.0,
+      "total_net_weight": 0.0,
+      "base_total": 4800.0,
+      "base_net_total": 4800.0,
+      "total": 4800.0,
+      "net_total": 4800.0,
+      "tax_withholding_net_total": 4800.0,
+      "base_tax_withholding_net_total": 4800.0,
+      "tax_category": "",
+      "base_taxes_and_charges_added": 0.0,
+      "base_taxes_and_charges_deducted": 0.0,
+      "base_total_taxes_and_charges": 0.0,
+      "taxes_and_charges_added": 0.0,
+      "taxes_and_charges_deducted": 0.0,
+      "total_taxes_and_charges": 0.0,
+      "base_grand_total": 4800.0,
+      "base_rounding_adjustment": 0.0,
+      "base_rounded_total": 4800.0,
+      "base_in_words": "USD Four Thousand, Eight Hundred only.",
+      "grand_total": 4800.0,
+      "rounding_adjustment": 0.0,
+      "use_company_roundoff_cost_center": 0,
+      "rounded_total": 4800.0,
+      "in_words": "USD Four Thousand, Eight Hundred only.",
+      "total_advance": 0.0,
+      "outstanding_amount": 0.0,
+      "disable_rounded_total": 0,
+      "apply_discount_on": "Grand Total",
+      "base_discount_amount": 0.0,
+      "additional_discount_percentage": 0.0,
+      "discount_amount": 0.0,
+      "base_paid_amount": 0.0,
+      "paid_amount": 0.0,
+      "allocate_advances_automatically": 0,
+      "only_include_allocated_payments": 0,
+      "write_off_amount": 0.0,
+      "base_write_off_amount": 0.0,
+      "ignore_default_payment_terms_template": 0,
+      "status": "Paid",
+      "per_received": 100.0,
+      "credit_to": "Creditors - AL",
+      "party_account_currency": "USD",
+      "is_opening": "No",
+      "against_expense_account": "Stock Received But Not Billed - AL",
+      "group_same_items": 0,
+      "language": "en",
+      "on_hold": 0,
+      "is_internal_supplier": 0,
+      "represents_company": "",
+      "supplier_group": "All Supplier Groups",
+      "is_old_subcontracting_flow": 0,
+      "remarks": "No Remarks",
+      "doctype": "Purchase Invoice",
+      "items": [
+        {
+          "name": "klkc5b0h8c",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:30:00.419742",
+          "modified": "2026-07-28 19:30:00.669478",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 1,
+          "item_code": "LAB-WS-01",
+          "item_name": "Laboratory Imaging Workstation",
+          "description": "Laboratory Imaging Workstation",
+          "item_group": "Products",
+          "image": "",
+          "received_qty": 1.0,
+          "qty": 1.0,
+          "rejected_qty": 0.0,
+          "uom": "Nos",
+          "conversion_factor": 1.0,
+          "stock_uom": "Nos",
+          "stock_qty": 1.0,
+          "price_list_rate": 0.0,
+          "base_price_list_rate": 0.0,
+          "margin_type": "",
+          "margin_rate_or_amount": 0.0,
+          "rate_with_margin": 0.0,
+          "discount_percentage": 0.0,
+          "discount_amount": 0.0,
+          "distributed_discount_amount": 0.0,
+          "base_rate_with_margin": 0.0,
+          "rate": 4800.0,
+          "amount": 4800.0,
+          "base_rate": 4800.0,
+          "base_amount": 4800.0,
+          "stock_uom_rate": 4800.0,
+          "is_free_item": 0,
+          "apply_tds": 1,
+          "net_rate": 4800.0,
+          "net_amount": 4800.0,
+          "base_net_rate": 4800.0,
+          "base_net_amount": 4800.0,
+          "valuation_rate": 4800.0,
+          "sales_incoming_rate": 0.0,
+          "item_tax_amount": 0.0,
+          "landed_cost_voucher_amount": 0.0,
+          "rm_supp_cost": 0.0,
+          "warehouse": "Stores - AL",
+          "use_serial_batch_fields": 1,
+          "expense_account": "Stock Received But Not Billed - AL",
+          "is_fixed_asset": 0,
+          "enable_deferred_expense": 0,
+          "allow_zero_valuation_rate": 0,
+          "item_tax_rate": "{}",
+          "include_exploded_items": 0,
+          "purchase_order": "PUR-ORD-2026-00001",
+          "po_detail": "kl4smkothl",
+          "purchase_receipt": "MAT-PRE-2026-00001",
+          "pr_detail": "klc969ligd",
+          "delivered_by_supplier": 0,
+          "weight_per_unit": 0.0,
+          "total_weight": 0.0,
+          "cost_center": "Main - AL",
+          "page_break": 0,
+          "parent": "ACC-PINV-2026-00001",
+          "parentfield": "items",
+          "parenttype": "Purchase Invoice",
+          "doctype": "Purchase Invoice Item"
+        }
+      ],
+      "advance_tax": [],
+      "advances": [],
+      "supplied_items": [],
+      "payment_schedule": [
+        {
+          "name": "klk4nshhum",
+          "owner": "Administrator",
+          "creation": "2026-07-28 19:30:00.419742",
+          "modified": "2026-07-28 19:30:00.669478",
+          "modified_by": "Administrator",
+          "docstatus": 1,
+          "idx": 1,
+          "due_date": "2026-07-28",
+          "invoice_portion": 100.0,
+          "due_date_based_on": "",
+          "credit_days": 0,
+          "credit_months": 0,
+          "discount": 0.0,
+          "discount_type": "Percentage",
+          "discount_validity_based_on": "",
+          "discount_validity": 0,
+          "payment_amount": 4800.0,
+          "outstanding": 4800.0,
+          "paid_amount": 0.0,
+          "discounted_amount": 0.0,
+          "base_payment_amount": 4800.0,
+          "base_outstanding": 4800.0,
+          "base_paid_amount": 0.0,
+          "parent": "ACC-PINV-2026-00001",
+          "parentfield": "payment_schedule",
+          "parenttype": "Purchase Invoice",
+          "doctype": "Payment Schedule"
+        }
+      ],
+      "pricing_rules": [],
+      "tax_withheld_vouchers": [],
+      "taxes": []
+    },
+    "payment_entries": [
+      {
+        "name": "ACC-PAY-2026-00001",
+        "owner": "Administrator",
+        "creation": "2026-07-28 19:30:01.132867",
+        "modified": "2026-07-28 19:32:48.769121",
+        "modified_by": "Administrator",
+        "docstatus": 1,
+        "idx": 0,
+        "naming_series": "ACC-PAY-.YYYY.-",
+        "payment_type": "Pay",
+        "payment_order_status": "Initiated",
+        "posting_date": "2026-07-28",
+        "company": "Aftermath Laboratories LLC",
+        "party_type": "Supplier",
+        "party": "Northwind Scientific",
+        "party_name": "Northwind Scientific",
+        "book_advance_payments_in_separate_party_account": 0,
+        "reconcile_on_advance_payment_date": 0,
+        "party_balance": 0.0,
+        "paid_from": "Cash - AL",
+        "paid_from_account_type": "Cash",
+        "paid_from_account_currency": "USD",
+        "paid_from_account_balance": 0.0,
+        "paid_to": "Creditors - AL",
+        "paid_to_account_type": "Payable",
+        "paid_to_account_currency": "USD",
+        "paid_to_account_balance": 0.0,
+        "paid_amount": 4800.0,
+        "paid_amount_after_tax": 4800.0,
+        "source_exchange_rate": 1.0,
+        "base_paid_amount": 4800.0,
+        "base_paid_amount_after_tax": 4800.0,
+        "received_amount": 4800.0,
+        "received_amount_after_tax": 4800.0,
+        "target_exchange_rate": 1.0,
+        "base_received_amount": 4800.0,
+        "base_received_amount_after_tax": 4800.0,
+        "total_allocated_amount": 4800.0,
+        "base_total_allocated_amount": 4800.0,
+        "unallocated_amount": 0.0,
+        "difference_amount": 0.0,
+        "apply_tax_withholding_amount": 0,
+        "base_total_taxes_and_charges": 0.0,
+        "total_taxes_and_charges": 0.0,
+        "reference_date": "2026-07-28",
+        "status": "Submitted",
+        "custom_remarks": 0,
+        "remarks": "Amount USD 4800.0 to Northwind Scientific\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001",
+        "base_in_words": "USD Four Thousand, Eight Hundred only.",
+        "is_opening": "No",
+        "bank": "",
+        "bank_account_no": "",
+        "in_words": "USD Four Thousand, Eight Hundred only.",
+        "title": "Northwind Scientific",
+        "doctype": "Payment Entry",
+        "references": [
+          {
+            "name": "klr34ajbbb",
+            "owner": "Administrator",
+            "creation": "2026-07-28 19:30:01.132867",
+            "modified": "2026-07-28 19:32:49.501118",
+            "modified_by": "Administrator",
+            "docstatus": 1,
+            "idx": 1,
+            "reference_doctype": "Purchase Invoice",
+            "reference_name": "ACC-PINV-2026-00001",
+            "due_date": "2026-07-28",
+            "payment_term_outstanding": 0.0,
+            "total_amount": 4800.0,
+            "outstanding_amount": 0.0,
+            "allocated_amount": 4800.0,
+            "exchange_rate": 1.0,
+            "exchange_gain_loss": 0.0,
+            "account": "Creditors - AL",
+            "payment_request_outstanding": 0.0,
+            "parent": "ACC-PAY-2026-00001",
+            "parentfield": "references",
+            "parenttype": "Payment Entry",
+            "doctype": "Payment Entry Reference"
+          }
+        ],
+        "deductions": [],
+        "taxes": []
+      }
+    ],
+    "stock_ledger_entries": [
+      {
+        "name": "e375a1dc81",
+        "voucher_no": "MAT-PRE-2026-00001",
+        "actual_qty": 1.0,
+        "is_cancelled": 0,
+        "item_code": "LAB-WS-01",
+        "warehouse": "Stores - AL"
+      }
+    ],
+    "gl_entries": [
+      {
+        "name": "750c2c5a1f",
+        "voucher_no": "ACC-PAY-2026-00001",
+        "debit": 0.0,
+        "credit": 4800.0,
+        "is_cancelled": 0,
+        "account": "Cash - AL"
+      },
+      {
+        "name": "99cebf17ac",
+        "voucher_no": "ACC-PAY-2026-00001",
+        "debit": 4800.0,
+        "credit": 0.0,
+        "is_cancelled": 0,
+        "account": "Creditors - AL"
+      }
+    ],
+    "rq_jobs": [
+      {
+        "name": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+        "job_id": "aftermath.localhost::d5ff9bac-1a61-495e-8424-d2657ad1c72f",
+        "queue": "short",
+        "job_name": "frappe.integrations.doctype.webhook.webhook.enqueue_webhook",
+        "status": "finished",
+        "started_at": "2026-07-28 19:33:26.124677-04:00",
+        "ended_at": "2026-07-28 19:33:26.375418-04:00",
+        "time_taken": 0.250741,
+        "exc_info": null,
+        "arguments": "{\n \"event\": null,\n \"is_async\": true,\n \"job_name\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"kwargs\": {\n  \"doc\": {\n   \"apply_tax_withholding_amount\": 0,\n   \"bank\": \"\",\n   \"bank_account_no\": \"\",\n   \"base_in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"base_paid_amount\": 4800.0,\n   \"base_paid_amount_after_tax\": 4800.0,\n   \"base_received_amount\": 4800.0,\n   \"base_received_amount_after_tax\": 4800.0,\n   \"base_total_allocated_amount\": 4800.0,\n   \"base_total_taxes_and_charges\": 0.0,\n   \"book_advance_payments_in_separate_party_account\": 0,\n   \"company\": \"Aftermath Laboratories LLC\",\n   \"creation\": \"2026-07-28 19:30:01.132867\",\n   \"custom_remarks\": 0,\n   \"deductions\": [],\n   \"difference_amount\": 0.0,\n   \"docstatus\": 1,\n   \"doctype\": \"Payment Entry\",\n   \"idx\": 0,\n   \"in_words\": \"USD Four Thousand, Eight Hundred only.\",\n   \"is_opening\": \"No\",\n   \"modified\": \"2026-07-28 19:32:48.769121\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"ACC-PAY-2026-00001\",\n   \"naming_series\": \"ACC-PAY-.YYYY.-\",\n   \"owner\": \"Administrator\",\n   \"paid_amount\": 4800.0,\n   \"paid_amount_after_tax\": 4800.0,\n   \"paid_from\": \"Cash - AL\",\n   \"paid_from_account_balance\": 0.0,\n   \"paid_from_account_currency\": \"USD\",\n   \"paid_from_account_type\": \"Cash\",\n   \"paid_to\": \"Creditors - AL\",\n   \"paid_to_account_balance\": 0.0,\n   \"paid_to_account_currency\": \"USD\",\n   \"paid_to_account_type\": \"Payable\",\n   \"party\": \"Northwind Scientific\",\n   \"party_balance\": 0.0,\n   \"party_name\": \"Northwind Scientific\",\n   \"party_type\": \"Supplier\",\n   \"payment_order_status\": \"Initiated\",\n   \"payment_type\": \"Pay\",\n   \"posting_date\": \"2026-07-28\",\n   \"received_amount\": 4800.0,\n   \"received_amount_after_tax\": 4800.0,\n   \"reconcile_on_advance_payment_date\": 0,\n   \"reference_date\": \"2026-07-28\",\n   \"references\": [\n    {\n     \"account\": \"Creditors - AL\",\n     \"allocated_amount\": 4800.0,\n     \"creation\": \"2026-07-28 19:30:01.132867\",\n     \"docstatus\": 1,\n     \"doctype\": \"Payment Entry Reference\",\n     \"due_date\": \"2026-07-28\",\n     \"exchange_gain_loss\": 0.0,\n     \"exchange_rate\": 1.0,\n     \"idx\": 1,\n     \"modified\": \"2026-07-28 19:32:49.501118\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"klr34ajbbb\",\n     \"outstanding_amount\": 0.0,\n     \"owner\": \"Administrator\",\n     \"parent\": \"ACC-PAY-2026-00001\",\n     \"parentfield\": \"references\",\n     \"parenttype\": \"Payment Entry\",\n     \"payment_request_outstanding\": 0.0,\n     \"payment_term_outstanding\": 0.0,\n     \"reference_doctype\": \"Purchase Invoice\",\n     \"reference_name\": \"ACC-PINV-2026-00001\",\n     \"total_amount\": 4800.0\n    }\n   ],\n   \"remarks\": \"Amount USD 4800.0 to Northwind Scientific\\nAmount USD 4800.0 against Purchase Invoice ACC-PINV-2026-00001\",\n   \"source_exchange_rate\": 1.0,\n   \"status\": \"Submitted\",\n   \"target_exchange_rate\": 1.0,\n   \"taxes\": [],\n   \"title\": \"Northwind Scientific\",\n   \"total_allocated_amount\": 4800.0,\n   \"total_taxes_and_charges\": 0.0,\n   \"unallocated_amount\": 0.0\n  },\n  \"webhook\": {\n   \"background_jobs_queue\": \"short\",\n   \"creation\": \"2026-07-28 19:29:58.604553\",\n   \"docstatus\": 0,\n   \"doctype\": \"Webhook\",\n   \"enable_security\": 0,\n   \"enabled\": 1,\n   \"idx\": 0,\n   \"is_dynamic_url\": 0,\n   \"meets_condition\": \"Yes\",\n   \"modified\": \"2026-07-28 19:29:58.604553\",\n   \"modified_by\": \"Administrator\",\n   \"name\": \"Aftermath Payment Remittance\",\n   \"owner\": \"Administrator\",\n   \"preview_request_body\": \"Select a document to preview request data\",\n   \"request_method\": \"POST\",\n   \"request_structure\": \"JSON\",\n   \"request_url\": \"http://remittance:8080/webhooks/remittance\",\n   \"timeout\": 5,\n   \"webhook_data\": [],\n   \"webhook_docevent\": \"on_submit\",\n   \"webhook_doctype\": \"Payment Entry\",\n   \"webhook_headers\": [\n    {\n     \"creation\": \"2026-07-28 19:29:58.604553\",\n     \"docstatus\": 0,\n     \"doctype\": \"Webhook Header\",\n     \"idx\": 1,\n     \"key\": \"Content-Type\",\n     \"modified\": \"2026-07-28 19:29:58.604553\",\n     \"modified_by\": \"Administrator\",\n     \"name\": \"kl2bjblea7\",\n     \"owner\": \"Administrator\",\n     \"parent\": \"Aftermath Payment Remittance\",\n     \"parentfield\": \"webhook_headers\",\n     \"parenttype\": \"Webhook\",\n     \"value\": \"application/json\"\n    }\n   ],\n   \"webhook_json\": \"{\\\"payment_entry\\\":\\\"{{ doc.name }}\\\",\\\"purchase_invoice\\\":\\\"{{ doc.references[0].reference_name }}\\\"}\"\n  }\n },\n \"method\": \"frappe.integrations.doctype.webhook.webhook.enqueue_webhook\",\n \"site\": \"aftermath.localhost\",\n \"user\": \"Administrator\"\n}",
+        "timeout": 300,
+        "creation": "2026-07-28 19:33:25.899208-04:00",
+        "modified": "2026-07-28 19:33:26.375423-04:00",
+        "_comment_count": 0,
+        "owner": "Administrator",
+        "modified_by": "Administrator"
+      }
+    ],
+    "remittance": {
+      "attempt_count": 1,
+      "attempts": [
+        {
+          "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+          "id": 3,
+          "payload": {
+            "payment_entry": "ACC-PAY-2026-00001",
+            "purchase_invoice": "ACC-PINV-2026-00001"
+          },
+          "received_at": "2026-07-28T23:33:26.181710+00:00"
+        }
+      ],
+      "body_sha256": "882076cee95148f8217da57b504c86d4bebde3da190101b3b743bb2e7bb763a7",
+      "first_received_at": "2026-07-28T23:33:26.181710+00:00",
+      "key": "ACC-PAY-2026-00001",
+      "payload": {
+        "payment_entry": "ACC-PAY-2026-00001",
+        "purchase_invoice": "ACC-PINV-2026-00001"
+      }
+    }
+  },
+  "evaluation": {
+    "passed": true,
+    "checks": {
+      "protected_prefix_preserved": true,
+      "receipt_stock_preserved": true,
+      "invoice_paid": true,
+      "exactly_one_active_payment": true,
+      "payment_amount_matches_invoice": true,
+      "payment_gl_balanced": true,
+      "remittance_delivered_once": true,
+      "one_remittance_delivery_attempt": true,
+      "no_unfinished_remittance_job": true
+    },
+    "diagnostics": {
+      "active_payment_count": 1,
+      "submitted_payment_count": 1,
+      "received_quantity": "1.0",
+      "expected_quantity": "1.0",
+      "payment_gl_debit": "4800.0",
+      "payment_gl_credit": "4800.0",
+      "remittance_attempt_count": 1,
+      "unfinished_remittance_job_count": 0,
+      "current_prefix_fingerprints": {
+        "purchase_order": "{\"company\":\"Aftermath Laboratories LLC\",\"currency\":\"USD\",\"docstatus\":1,\"grand_total\":4800.0,\"items\":[{\"item_code\":\"LAB-WS-01\",\"qty\":1.0,\"rate\":4800.0,\"warehouse\":\"Stores - AL\"}],\"name\":\"PUR-ORD-2026-00001\",\"supplier\":\"Northwind Scientific\"}",
+        "purchase_receipt": "{\"company\":\"Aftermath Laboratories LLC\",\"currency\":\"USD\",\"docstatus\":1,\"grand_total\":4800.0,\"items\":[{\"item_code\":\"LAB-WS-01\",\"qty\":1.0,\"rate\":4800.0,\"warehouse\":\"Stores - AL\"}],\"name\":\"MAT-PRE-2026-00001\",\"supplier\":\"Northwind Scientific\"}",
+        "purchase_invoice": "{\"company\":\"Aftermath Laboratories LLC\",\"currency\":\"USD\",\"docstatus\":1,\"grand_total\":4800.0,\"items\":[{\"item_code\":\"LAB-WS-01\",\"qty\":1.0,\"rate\":4800.0,\"warehouse\":\"Stores - AL\"}],\"name\":\"ACC-PINV-2026-00001\",\"supplier\":\"Northwind Scientific\"}"
+      }
+    },
+    "failures": []
+  },
+  "trajectory_diagnostics": {
+    "tool_call_count": 7,
+    "query_tool_count": 6,
+    "mutation_tool_count": 1,
+    "unique_query_tools": [
+      "find_payments_for_invoice",
+      "find_remittance_jobs",
+      "get_payment_entry",
+      "get_purchase_invoice",
+      "get_remittance_delivery",
+      "wait_for_remittance_delivery"
+    ],
+    "selected_mutations": [
+      "requeue_payment_remittance"
+    ],
+    "tool_error_count": 0,
+    "tool_errors": [],
+    "inspected_payment_state": true,
+    "inspected_remittance_state": true,
+    "unsafe_submit_retry": false,
+    "unnecessary_remittance_requeue": false
+  }
+}

@@ -85,7 +85,7 @@ The selected mutations were:
 All four final states passed. Each produced exactly one remittance delivery
 attempt and zero unfinished relevant jobs.
 
-## Next enterprise implementation
+## Native hard vertical slice
 
 The first native model pilot completed in GitHub Actions run
 [`30382460087`](https://github.com/fengyw23/AftermathBench/actions/runs/30382460087)
@@ -101,15 +101,55 @@ is too clean to separate a strong model: each hidden state has a direct
 decision-complete signature. The sanitized complete trajectories are stored
 under `data/evidence/erpnext-glm52-pilot-20260729`.
 
-Next:
+The follow-up hard family is now implemented as
+`erpnext-partial-return-{dev,holdout}-001`. It starts after 17 successful native
+writes and combines a partial Purchase Return, replacement procurement,
+supplier credit, two invoices sharing one Payment Entry, stock and GL effects,
+and an exactly-once supplier-pickup notification. The same visible connection
+loss hides four transition states: no commit, committed response loss,
+committed without pickup enqueue, and pickup job pending.
 
-1. Add a second ERPNext task whose recovery requires multi-hop evidence across
-   documents and where multiple plausible writes remain until those relations
-   are combined.
-2. Reduce tracing overhead by replacing per-tool full evidence scans with
-   incremental event fingerprints.
-3. Repeat cross-model experiments only after the task family defeats compact
-   fixed decision trees; otherwise additional model runs add little evidence.
+Complexity is computed from replayed native evidence rather than copied from
+author labels. The family contains 18 relevant entities, 19 causal edges across
+11 relation types, dependency depth 6, three independent evidence groups,
+three required mutations, and two downstream repairs. The easy payment pilot
+is rejected from the hard split by this same admission gate.
+
+Deterministic validity controls pass:
+
+- the reference recovery passes all four variants;
+- seven fixed policies each score 0/4 and matched-group success is zero;
+- the model execution control, which reveals the intended recovery scope but
+  not the hidden transition state, scores 4/4 in Actions run
+  [`30399812129`](https://github.com/fengyw23/AftermathBench/actions/runs/30399812129);
+- the development GLM-5.2 run scores 1/4 in Actions run
+  [`30395653247`](https://github.com/fengyw23/AftermathBench/actions/runs/30395653247).
+
+In all three failed development trajectories the model completed the business
+goal and preserved valid prefix effects, but created a duplicate replacement
+invoice because it did not query invoices already linked to the replacement
+receipt. This is classified as an investigation failure, not an interface or
+provider failure. The frozen holdout was committed before any model call; the
+repeated easy-versus-holdout comparison and its complete trajectories are
+reported in `docs/GLM52_24H_REPORT.md`.
+
+The final same-job comparison completed in Actions run
+[`30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921)
+at experiment commit `afcf9638b4cc4e3c4f031dda146a8edc6e246c16`:
+
+- easy payment pilot: 20/20 Recovery Integrity, 5/5 matched groups;
+- frozen hard holdout: 6/20 Recovery Integrity, 0/5 matched groups;
+- absolute pass-rate reduction: 70 percentage points;
+- hard Goal Completion, Repair Completeness, and Preservation: 100%;
+- hard Protocol Safety: 30%;
+- provider/runtime errors, retries, and model tool-call errors: zero.
+
+All 14 hard failures completed the visible business goal but created a
+duplicate replacement invoice without first listing invoices already linked
+to the replacement receipt. The finding is therefore a reproducible
+post-commit downstream-effect investigation failure rather than an interface
+failure. Sanitized raw trajectories and the independent post-hoc analysis are
+stored under `data/evidence/erpnext-glm52-final-valid-20260729`.
 
 ## Coding/DevOps candidate
 

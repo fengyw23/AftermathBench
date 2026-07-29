@@ -58,6 +58,30 @@ matched-group success, and the holdout scenario and prefix were frozen before
 any model access. The repository still contains only one formal native hard
 family, so it does not yet claim broad benchmark coverage.
 
+## GLM-5.2 native result
+
+[GitHub Actions run
+`30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921)
+ran the easy pilot and frozen hard holdout in one job with the same model,
+provider, public tools, and 15-turn budget:
+
+| Metric | Easy pilot | Frozen hard holdout |
+|---|---:|---:|
+| Complete trajectories | 20/20 | 20/20 |
+| Recovery Integrity Pass | 100% | 30% |
+| Matched-Group Success | 100% | 0% |
+| Goal Completion | 100% | 100% |
+| Protocol Safety | 100% | 30% |
+| Provider/runtime errors | 0 | 0 |
+
+All 14 hard failures completed the visible business goal but created a
+duplicate replacement invoice without first investigating invoices already
+linked to the replacement receipt. An explicit-scope execution control passed
+4/4, and the replayed reference recovery passed 4/4. This isolates a
+post-commit downstream-effect investigation failure rather than inability to
+execute the tools. The sanitized trajectories are in
+`data/evidence/erpnext-glm52-final-valid-20260729`.
+
 ## Quick start
 
 Python 3.12 or newer is required.
