@@ -16,7 +16,12 @@ from aftermath_bench.integrations.kubernetes_migration_recovery import (
     derive_recovery_direction,
 )
 from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
+from aftermath_bench.native_admission import (
+    _dependency_depth,
+    _shared_dependency_count,
+)
 from aftermath_bench.schema import repository_root
+from scripts.build_kubernetes_migration_admission import _observed_graph
 
 
 class KubernetesMigrationBlueprintTest(unittest.TestCase):
@@ -84,10 +89,25 @@ class KubernetesMigrationBlueprintTest(unittest.TestCase):
             "run_kubernetes_migration_boundary.py",
             "run_kubernetes_migration_control.py",
             "run_kubernetes_migration_baseline.py",
+            "build_kubernetes_migration_admission.py",
         ):
             self.assertIn(script, runtime)
         self.assertIn("secrets.BAILIAN_API_KEY", model)
         self.assertNotIn("sk-", model)
+
+    def test_replay_graph_meets_structural_hardness_floor(self) -> None:
+        graph = _observed_graph()
+        entity_ids = {entity["id"] for entity in graph["entities"]}
+        self.assertGreaterEqual(len(entity_ids), 20)
+        self.assertGreaterEqual(_dependency_depth(entity_ids, graph["relations"]), 5)
+        self.assertGreaterEqual(
+            len({relation["type"] for relation in graph["relations"]}), 8
+        )
+        self.assertGreaterEqual(
+            _shared_dependency_count(graph["protected_effects"], graph["relations"]),
+            2,
+        )
+        self.assertEqual(graph["minimum_semantic_recovery_directions"], 4)
 
 
 class KubernetesMigrationDirectionTest(unittest.TestCase):
