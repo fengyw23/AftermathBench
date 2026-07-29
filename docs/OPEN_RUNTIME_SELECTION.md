@@ -60,9 +60,11 @@ application image satisfies the execution gate.
 ### Forgejo
 
 - Audited revision:
-  `fbafae6c6288f3448aa6932576841f5daf5a9c76`, MIT.
-- The checkout contains 808 model-layer Go files, 130 model-registration
-  calls, and 213 API files.
+  `fbafae6c6288f3448aa6932576841f5daf5a9c76`,
+  GPL-3.0-or-later.
+- The checkout contains 808 model-layer Go files, 613 service-layer Go files,
+  272 API Go files including tests, and 112 model files that register native
+  models.
 - Public transaction boundaries cover package files, releases and attachments,
   Actions runs, and post-receive processing.
 

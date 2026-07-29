@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1",
+  "runtime_id": "forgejo-main",
+  "role": "primary_coding_devops_runtime",
+  "upstream_components": [
+    {
+      "repository": "https://codeberg.org/forgejo/forgejo",
+      "revision": "fbafae6c6288f3448aa6932576841f5daf5a9c76",
+      "branch": "forgejo",
+      "license": "GPL-3.0-or-later"
+    }
+  ],
+  "open_runtime_evidence": {
+    "server_implementation_source": true,
+    "schema_migrations_source": true,
+    "transaction_logic_source": true,
+    "source_build_recipe": true,
+    "redistributable_inputs": true,
+    "fault_injection_without_business_logic_reimplementation": true
+  },
+  "fault_seams": [
+    {
+      "id": "forgejo-pr-merge-post-receive-and-notifier-boundary",
+      "source_path": "services/pull/merge.go",
+      "symbol": "Merge",
+      "supporting_paths": [
+        "routers/api/v1/repo/pull.go:MergePullRequest",
+        "services/actions/notifier.go:MergePullRequest",
+        "services/webhook/notifier.go:MergePullRequest",
+        "models/actions/run.go"
+      ],
+      "observable_outcomes": [
+        "merge_request_not_reached",
+        "git_ref_and_pull_request_merged_response_lost",
+        "merge_committed_downstream_notification_missing",
+        "merge_committed_downstream_work_pending"
+      ],
+      "forbidden_injection": "Do not invent a partially written Git object or split one native database transaction into row-level pseudo-commits."
+    }
+  ],
+  "execution_validation": {
+    "container_images_digest_pinned": false,
+    "built_from_source": false,
+    "deterministic_reset_verified": false,
+    "fault_variants_replayed": false,
+    "terminal_checks_replayed": false
+  },
+  "declared_status": {
+    "source_audit": "passed",
+    "execution": "pending_or_rejected"
+  },
+  "admission_evidence": {}
+}

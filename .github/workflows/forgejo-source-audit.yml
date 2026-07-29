@@ -1,0 +1,40 @@
+name: forgejo-source-audit
+
+on:
+  push:
+    branches:
+      - forgejo-runtime-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-pinned-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run repository tests and runtime gates
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Fetch and verify pinned Forgejo source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --report "$RUNNER_TEMP/forgejo-source-verification.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-source-verification-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-source-verification.json
+          if-no-files-found: error

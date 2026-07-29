@@ -43,6 +43,17 @@ class RuntimeGateTest(unittest.TestCase):
         )
         self.assertFalse(report.failures)
 
+    def test_forgejo_passes_source_gate_but_execution_is_pending(self) -> None:
+        report = next(
+            validate_runtime_manifest(load_runtime_manifest(path))
+            for path in runtime_manifest_paths()
+            if path.parent.name == "forgejo-main"
+        )
+        self.assertTrue(report.source_audit_passed)
+        self.assertFalse(report.execution_admitted)
+        self.assertNotIn("source_status_truthful", report.failures)
+        self.assertNotIn("execution_status_truthful", report.failures)
+
     def test_erpnext_admission_manifest_records_all_four_reports(self) -> None:
         path = (
             repository_root()
