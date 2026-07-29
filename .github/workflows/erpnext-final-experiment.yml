@@ -9,9 +9,10 @@ on:
       provider_profile:
         description: Configured OpenAI-compatible provider profile
         required: true
-        default: zhipu
+        default: bailian
         type: choice
         options:
+          - bailian
           - zhipu
           - paratera
       model:
@@ -36,6 +37,7 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_BAILIAN_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
       AFTERMATH_ZHIPU_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
       AFTERMATH_PARATERA_API_KEY: ${{ secrets.PARATERA_API_KEY }}
       HOLDOUT_SCENARIO: data/scenarios/erpnext-partial-return-holdout-001/scenario.json
@@ -53,7 +55,7 @@ jobs:
           requested_repetitions="${{ inputs.repetitions }}"
           if [ -z "$requested_provider" ]
           then
-            requested_provider=zhipu
+            requested_provider=bailian
           fi
           if [ -z "$requested_model" ]
           then
@@ -64,6 +66,10 @@ jobs:
             requested_repetitions=5
           fi
           case "$requested_provider" in
+            bailian)
+              selected_api_key="$AFTERMATH_BAILIAN_API_KEY"
+              selected_base_url="https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+              ;;
             zhipu)
               selected_api_key="$AFTERMATH_ZHIPU_API_KEY"
               selected_base_url="https://open.bigmodel.cn/api/coding/paas/v4"

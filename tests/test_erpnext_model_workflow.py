@@ -15,7 +15,7 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             / "workflows"
             / "erpnext-model-pilot.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("secrets.BAILIAN_API_KEY", workflow)
         self.assertIn("run-erpnext-model", workflow)
         for variant in (
             "request_not_reached",
@@ -49,7 +49,12 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             / "workflows"
             / "erpnext-sales-return-model.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("secrets.BAILIAN_API_KEY", workflow)
+        self.assertIn(
+            "ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/"
+            "compatible-mode/v1",
+            workflow,
+        )
         self.assertIn("run_erpnext_sales_return_failure.py", workflow)
         self.assertIn("run-native-model", workflow)
         self.assertIn(
@@ -94,7 +99,8 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
         self.assertIn("summarize_final_experiment.py", workflow)
         self.assertIn("test \"$requested_repetitions\" -eq 5", workflow)
         self.assertIn("provider_profile:", workflow)
-        self.assertIn("secrets.ZHIPU_CODING_API_KEY", workflow)
+        self.assertIn("default: bailian", workflow)
+        self.assertIn("secrets.BAILIAN_API_KEY", workflow)
         self.assertIn("secrets.PARATERA_API_KEY", workflow)
         self.assertIn("https://llmapi.paratera.com/v1", workflow)
         self.assertIn(

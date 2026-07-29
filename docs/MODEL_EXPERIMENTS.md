@@ -40,11 +40,12 @@ verifies the pre-model holdout hashes, and then runs
 runtime failure with no trajectory is restored and retried once; it is never
 counted as a benchmark failure.
 
-Configure the repository secret `ZHIPU_CODING_API_KEY`. The default provider
-configuration is GLM-5.2 through:
+Configure the repository secret `BAILIAN_API_KEY`. The default provider
+configuration is GLM-5.2 through the Alibaba Cloud Bailian
+OpenAI-compatible endpoint:
 
 ```text
-https://open.bigmodel.cn/api/coding/paas/v4
+https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
 ```
 
 For one already-constructed hard failure state:
@@ -53,7 +54,7 @@ For one already-constructed hard failure state:
 $env:AFTERMATH_API_KEY = "<key>"
 python -m aftermath_bench run-native-model `
   --provider openai-compatible `
-  --base-url "https://open.bigmodel.cn/api/coding/paas/v4" `
+  --base-url "https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" `
   --model "glm-5.2" `
   --scenario "data/scenarios/erpnext-partial-return-dev-001/scenario.json" `
   --credentials "runtimes/erpnext/.runtime/credentials.json" `
