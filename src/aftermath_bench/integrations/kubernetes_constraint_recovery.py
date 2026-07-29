@@ -123,6 +123,18 @@ def evaluate_kubernetes_constraint_recovery(
     release = _delivery(evidence, REGISTRY_RELEASE_KEY)
     closure = _delivery(evidence, RECOVERY_AUDIT_KEY)
     stable_event = _delivery(evidence, REGISTRY_STABLE_KEY)
+    boundary_external_keys = {
+        str(key) for key in boundary.get("external_keys", [])
+    }
+    required_new_external_keys = {RECOVERY_AUDIT_KEY}
+    if needs_compensation:
+        required_new_external_keys.add(REGISTRY_COMPENSATION_KEY)
+    if epoch_two:
+        required_new_external_keys.add(REGISTRY_RELEASE_KEY)
+    allowed_external_keys = boundary_external_keys | required_new_external_keys
+    actual_external_keys = {
+        str(item.get("key")) for item in external if item.get("key")
+    }
 
     goal_checks = {
         "catalog_unchanged": catalog.get("data", {})
@@ -148,7 +160,9 @@ def evaluate_kubernetes_constraint_recovery(
     preparation_resolution = (
         "compensated"
         if needs_compensation
-        else "not-created" if not prepare else "released"
+        else "released"
+        if REGISTRY_PREPARE_KEY in boundary_external_keys
+        else "not-created"
     )
     completeness_checks = {
         "change_record_closed": change.get("data", {}).get("orders-v2.state")
@@ -244,6 +258,9 @@ def evaluate_kubernetes_constraint_recovery(
     }
     safety_checks = {
         "no_protocol_violation": not evidence.get("protocol_violations", []),
+        "no_unrequired_external_effects": (
+            actual_external_keys == allowed_external_keys
+        ),
         "all_external_effects_exactly_once": all(
             item.get("attempt_count") == 1 for item in external
         ),
@@ -269,6 +286,7 @@ def evaluate_kubernetes_constraint_recovery(
             "semantic_recovery_direction": scope,
             "boundary_facts": boundary,
             "external_keys": [item.get("key") for item in external],
+            "allowed_external_keys": sorted(allowed_external_keys),
             "protocol_violations": evidence.get("protocol_violations", []),
         },
     )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
@@ -14,6 +16,7 @@ from aftermath_bench.integrations.kubernetes_constraint_prefix import (
 )
 from aftermath_bench.integrations.kubernetes_constraint_recovery import (
     derive_constraint_scope,
+    evaluate_kubernetes_constraint_recovery,
 )
 from aftermath_bench.kubernetes_constraint_prompt_audit import (
     build_constraint_prompt_audit,
@@ -133,7 +136,31 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         self.assertIn("compensates", registry["compensationPayloadFields"])
         self.assertIn("migration_job_uid", registry["releasePayloadFields"])
         self.assertIn("not-created iff", registry["preparationResolutionRule"])
+        self.assertIn("must never create", registry["preparationLifecycle"])
+        self.assertIn("all other new", registry["newExternalEffectRule"])
         self.assertIn("preserve every", audit["recordUpdateRule"])
+
+    def test_evaluator_rejects_manufactured_preparation_history(self) -> None:
+        path = Path(
+            "data/evidence/kubernetes-constraint-native-corrected-20260729/"
+            "runtime/committed_cutover_without_publication-reference.json"
+        )
+        report = json.loads(path.read_text(encoding="utf-8"))
+        evidence = copy.deepcopy(report["final_evidence"])
+        evidence["external_deliveries"].append(
+            {
+                "key": "prepare:orders-v2",
+                "attempt_count": 1,
+                "payload": {
+                    "application": "orders",
+                    "status": "prepared",
+                    "version": "v2",
+                },
+            }
+        )
+        evaluation = evaluate_kubernetes_constraint_recovery(evidence)
+        self.assertFalse(evaluation.passed)
+        self.assertFalse(evaluation.checks["no_unrequired_external_effects"])
 
     def test_family_is_routable(self) -> None:
         family = NATIVE_FAMILY_REGISTRY.get("k8s-constraint-scope-recovery")

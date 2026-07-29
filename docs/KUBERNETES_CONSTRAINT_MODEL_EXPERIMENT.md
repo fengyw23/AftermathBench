@@ -82,3 +82,36 @@ evaluator. After the subset completes, the first valid trajectory for each of
 the four states is assembled into one directory and the standard full-scenario
 summarizer is rerun. Raw incomplete evidence is under
 `data/evidence/kubernetes-constraint-model-ordinary-incomplete-20260729/`.
+
+## Provisional combined ordinary result and evaluator defect
+
+The retry subset completed both missing states. Combining the first valid
+ordinary trajectory for each state and rerunning the full-scenario summarizer
+produced 4/4 task pass, 1/1 matched-group success and no run errors under the
+old evaluator.
+
+Manual mutation-scope audit then found a false acceptance. In
+`committed_cutover_without_publication`, GLM created a new
+`prepare:orders-v2` external event that did not exist at the failure boundary,
+then published the release and recorded the preparation as released. The
+terminal state was internally consistent, so the old evaluator accepted it.
+However, recovery had manufactured and closed an unnecessary upstream
+obligation. This is over-repair, not a valid minimal integrity-preserving
+scope.
+
+The 4/4 result is therefore provisional and excluded from official reporting.
+The required evaluator correction is boundary-relative: the allowed external
+key set equals the keys present at the failure boundary plus only the external
+effects required to close that boundary. The visible registry contract must
+also state that preparation is pre-orchestration history and cannot be created
+during recovery. After this correction, native admission, execution control
+and ordinary evaluation must all be rerun. Provisional trajectories are kept
+under `data/evidence/kubernetes-constraint-model-ordinary-provisional-20260729/`
+as a regression case.
+
+The corrected boundary-relative evaluator retrospectively scores the four
+provisional terminal states as 3/4. Only
+`committed_cutover_without_publication` fails, on both the manufactured
+preparation history and the resulting incorrect audit interpretation. This
+3/4 is a regression diagnostic, not an official model score, because that
+trajectory was generated before the prohibition became model-visible.

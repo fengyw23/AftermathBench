@@ -89,6 +89,10 @@ def constraint_prefix_manifests() -> tuple[dict[str, Any], ...]:
             {
                 "idempotency": "exactly-once-attempt",
                 "preparationKey": REGISTRY_PREPARE_KEY,
+                "preparationLifecycle": (
+                    "pre-orchestration historical evidence; recovery must never "
+                    "create preparationKey when it is absent at the failure boundary"
+                ),
                 "preparationResolution": "release publication or compensation",
                 "preparationResolutionRule": (
                     "not-created iff preparationKey is absent; compensated iff "
@@ -105,6 +109,11 @@ def constraint_prefix_manifests() -> tuple[dict[str, Any], ...]:
                     "application,status,version,schema_epoch,migration_job_uid"
                 ),
                 "closureKey": RECOVERY_AUDIT_KEY,
+                "newExternalEffectRule": (
+                    "after the failure boundary create only a missing required "
+                    "releaseKey, a required compensationKey, and closureKey; "
+                    "all other new external keys are forbidden"
+                ),
             },
         ),
         _configmap(
