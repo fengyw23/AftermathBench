@@ -37,9 +37,11 @@ class ForgejoBuildPlan:
     revision: str
     image: str
     containerfile: str
+    pinned_containerfile: Path
     fetch_commands: tuple[tuple[str, ...], ...]
     build_command: tuple[str, ...]
     expected_hashes: tuple[tuple[str, str], ...]
+    base_images: tuple[tuple[str, str, str], ...]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -48,11 +50,20 @@ class ForgejoBuildPlan:
             "revision": self.revision,
             "image": self.image,
             "containerfile": self.containerfile,
+            "pinned_containerfile": str(self.pinned_containerfile),
             "fetch_commands": [list(command) for command in self.fetch_commands],
             "build_command": list(self.build_command),
             "expected_hashes": [
                 {"path": path, "sha256": digest}
                 for path, digest in self.expected_hashes
+            ],
+            "base_images": [
+                {
+                    "reference": reference,
+                    "digest": digest,
+                    "upstream_from": upstream_from,
+                }
+                for reference, digest, upstream_from in self.base_images
             ],
         }
 
@@ -71,6 +82,7 @@ def create_build_plan(
     revision = str(upstream["revision"])
     if revision != str(source_audit["revision"]):
         raise ValueError("Forgejo lock and source audit revisions disagree")
+    pinned_containerfile = source / ".aftermath" / "Dockerfile.pinned"
     build: list[str] = [
         container_cli,
         "build",
@@ -78,7 +90,7 @@ def create_build_plan(
         "--tag",
         str(runtime_lock["image"]),
         "--file",
-        str(source / str(upstream["containerfile"])),
+        str(pinned_containerfile),
     ]
     for name, value in sorted(runtime_lock.get("build_args", {}).items()):
         build.extend(("--build-arg", f"{name}={value}"))
@@ -89,6 +101,7 @@ def create_build_plan(
         revision=revision,
         image=str(runtime_lock["image"]),
         containerfile=str(upstream["containerfile"]),
+        pinned_containerfile=pinned_containerfile,
         fetch_commands=(
             ("git", "init", str(source)),
             (
@@ -116,6 +129,14 @@ def create_build_plan(
         expected_hashes=tuple(
             (str(item["path"]), str(item["sha256"]))
             for item in source_audit["audited_paths"]
+        ),
+        base_images=tuple(
+            (
+                str(item["reference"]),
+                str(item["digest"]),
+                str(item["upstream_from"]),
+            )
+            for _, item in sorted(runtime_lock["base_images"].items())
         ),
     )
 
@@ -151,6 +172,33 @@ def verify_checkout(plan: ForgejoBuildPlan) -> dict[str, Any]:
     return result
 
 
+def materialize_pinned_containerfile(plan: ForgejoBuildPlan) -> dict[str, Any]:
+    source_path = plan.source_directory / plan.containerfile
+    content = source_path.read_text(encoding="utf-8")
+    replacements: dict[str, str] = {}
+    for reference, digest, upstream_from in plan.base_images:
+        pinned = f"{reference}@{digest}"
+        occurrences = content.count(upstream_from)
+        if occurrences != 1:
+            raise RuntimeError(
+                "expected exactly one Forgejo base-image occurrence for "
+                f"{upstream_from!r}, found {occurrences}"
+            )
+        content = content.replace(upstream_from, pinned, 1)
+        replacements[upstream_from] = pinned
+    plan.pinned_containerfile.parent.mkdir(parents=True, exist_ok=True)
+    plan.pinned_containerfile.write_text(content, encoding="utf-8")
+    return {
+        "path": str(plan.pinned_containerfile),
+        "sha256": sha256(content.encode("utf-8")).hexdigest(),
+        "replacements": replacements,
+        "all_digests_pinned": all(
+            f"{reference}@{digest}" in content
+            for reference, digest, _ in plan.base_images
+        ),
+    }
+
+
 def checkout_and_verify(plan: ForgejoBuildPlan) -> dict[str, Any]:
     if plan.source_directory.exists() and any(plan.source_directory.iterdir()):
         raise RuntimeError(
@@ -160,14 +208,38 @@ def checkout_and_verify(plan: ForgejoBuildPlan) -> dict[str, Any]:
     plan.source_directory.mkdir(parents=True, exist_ok=True)
     for command in plan.fetch_commands:
         _run(command)
-    return verify_checkout(plan)
+    verification = verify_checkout(plan)
+    verification["pinned_containerfile"] = materialize_pinned_containerfile(
+        plan
+    )
+    return verification
 
 
-def execute_build(plan: ForgejoBuildPlan) -> None:
+def execute_build(plan: ForgejoBuildPlan) -> dict[str, Any]:
     if shutil.which(plan.build_command[0]) is None:
         raise RuntimeError(
             f"{plan.build_command[0]!r} is not installed; run the build on "
             "a Docker/Podman host."
         )
     verify_checkout(plan)
+    pinned = materialize_pinned_containerfile(plan)
     _run(plan.build_command)
+    image_id = subprocess.check_output(
+        (
+            plan.build_command[0],
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            plan.image,
+        ),
+        text=True,
+    ).strip()
+    if not image_id.startswith("sha256:"):
+        raise RuntimeError(f"invalid Forgejo image ID: {image_id!r}")
+    return {
+        "image": plan.image,
+        "image_id": image_id,
+        "pinned_containerfile": pinned,
+        "built_from_verified_revision": plan.revision,
+    }

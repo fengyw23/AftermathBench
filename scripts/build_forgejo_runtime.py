@@ -55,8 +55,7 @@ def main() -> int:
     if args.checkout:
         payload["source_verification"] = checkout_and_verify(plan)
     if args.build:
-        execute_build(plan)
-        payload["image_built"] = True
+        payload["image_build"] = execute_build(plan)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
