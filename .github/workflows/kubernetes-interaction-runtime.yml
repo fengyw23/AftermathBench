@@ -12,7 +12,7 @@ permissions:
 jobs:
   replay-interaction-family:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 240
     env:
       PYTHONPATH: src
     steps:
@@ -66,7 +66,7 @@ jobs:
       - name: Replay thirteen native boundaries and references
         run: |
           run_root="$RUNNER_TEMP/kubernetes-interaction"
-          mkdir -p "$run_root/runtime"
+          mkdir -p "$run_root/runtime" "$run_root/baselines"
           variants=(
             state_01 state_02 state_03 state_04 state_05 state_06 state_07
             state_08 state_09 state_10 state_11 state_12 state_13
@@ -84,6 +84,44 @@ jobs:
             --run-directory "$run_root/runtime" \
             --output "$run_root/runtime-summary.json" \
             --projection-output "$run_root/projection-witnesses.json"
+
+      - name: Replay fixed policies from every native boundary
+        run: |
+          run_root="$RUNNER_TEMP/kubernetes-interaction"
+          variants=(
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07
+            state_08 state_09 state_10 state_11 state_12 state_13
+          )
+          baselines=(
+            no_op blind_retry always_abort always_compensate_abort
+            always_defer_new_owner always_forward_new_owners
+            always_publish_new_owner close_only compact_epoch_external_tree
+          )
+          for baseline in "${baselines[@]}"; do
+            for variant in "${variants[@]}"; do
+              python scripts/run_kubernetes_interaction_boundary.py \
+                --variant "$variant" \
+                --prefix-output "$run_root/runtime/prefix.json" \
+                --output "$run_root/baselines/$baseline-$variant-boundary.json"
+              python scripts/run_kubernetes_interaction_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --output "$run_root/baselines/$baseline-$variant.json"
+            done
+          done
+          python scripts/summarize_native_baselines.py \
+            --run-directory "$run_root/baselines" \
+            --scenario data/scenario_blueprints/k8s-constraint-interactions-dev-005/scenario.json \
+            --output "$run_root/baselines/summary.json"
+
+      - name: Build and validate replay-derived hard admission
+        run: |
+          run_root="$RUNNER_TEMP/kubernetes-interaction"
+          python scripts/build_kubernetes_interaction_admission.py \
+            --run-directory "$run_root" \
+            --output-directory "$run_root/admitted-scenario"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$run_root/admitted-scenario/scenario.json"
 
       - name: Upload interaction replay evidence
         if: always()
