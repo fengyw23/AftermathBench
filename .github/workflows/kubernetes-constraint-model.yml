@@ -1,0 +1,148 @@
+name: kubernetes-constraint-model
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Repetitions for each matched state
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the target state to isolate tool execution
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run-constraint-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      SCENARIO: data/scenario_blueprints/k8s-constraint-scope-dev-004/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Validate experiment configuration
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          echo "MODEL_ID=${{ inputs.model }}" >> "$GITHUB_ENV"
+          echo "REPETITIONS=${{ inputs.repetitions }}" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=${{ inputs.execution_control }}" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests -v
+
+      - name: Build kind and install kubectl
+        run: |
+          git clone --no-checkout https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin 9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Start native services
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes aftermathbench/kubernetes-control:local
+          docker run --detach --rm --name aftermath-constraint-registry \
+            --publish 127.0.0.1:9092:8080 aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9092/health && break
+            sleep 1
+          done
+          run_root="$RUNNER_TEMP/kubernetes-constraint-model"
+          mkdir -p "$run_root/model-runs"
+          printf '{}\n' > "$run_root/credentials.json"
+
+      - name: Run matched constraint states
+        run: |
+          run_status=0
+          run_root="$RUNNER_TEMP/kubernetes-constraint-model"
+          variants=(
+            failed_migration_without_preparation
+            failed_migration_with_preparation
+            committed_cutover_without_publication
+            committed_cutover_with_publication
+          )
+          for repetition in $(seq 1 "$REPETITIONS"); do
+            run_dir="$run_root/model-runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"; do
+              control_flag=()
+              if [ "$EXECUTION_CONTROL" = "true" ]; then
+                control_flag=(--execution-control)
+              fi
+              model_completed=false
+              for attempt in 1 2; do
+                rm -f "$run_dir/${variant}.json"
+                python scripts/run_kubernetes_constraint_boundary.py \
+                  --variant "$variant" \
+                  --prefix-output "$run_root/prefix.json" \
+                  --output "$run_dir/${variant}-failure.json"
+                if python -m aftermath_bench run-native-model \
+                    --provider openai-compatible \
+                    --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                    --model "$MODEL_ID" \
+                    --scenario "$SCENARIO" \
+                    --credentials "$run_root/credentials.json" \
+                    --prefix "$run_root/prefix.json" \
+                    --failure-report "$run_dir/${variant}-failure.json" \
+                    --max-turns 25 "${control_flag[@]}" \
+                    --output "$run_dir/${variant}.json"; then
+                  model_completed=true
+                  break
+                fi
+                if [ -s "$run_dir/${variant}.json" ]; then
+                  echo "model trajectory completed with a scored failure for $variant"
+                  model_completed=true
+                  break
+                fi
+                echo "provider/runtime attempt $attempt failed for $variant"
+              done
+              if [ "$model_completed" != "true" ]; then run_status=1; fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/model-runs" \
+            --scenario "$SCENARIO" \
+            --output "$run_root/model-runs/summary.json" \
+            --expected-execution-control "$EXECUTION_CONTROL" || run_status=1
+          rm -f "$run_root/credentials.json"
+          exit "$run_status"
+
+      - name: Upload model evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-constraint-model-${{ github.run_id }}
+          path: ${{ runner.temp }}/kubernetes-constraint-model/
+
+      - name: Purge native services
+        if: always()
+        run: |
+          docker rm --force aftermath-constraint-registry || true
+          python scripts/manage_kubernetes_stack.py down || true

@@ -154,6 +154,18 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         ):
             self.assertIn(script, workflow)
 
+    def test_model_workflow_uses_secret_and_all_matched_states(self) -> None:
+        workflow = Path(".github/workflows/kubernetes-constraint-model.yml").read_text(
+            encoding="utf-8"
+        )
+        for variant in _scenario().variants:
+            self.assertIn(variant, workflow)
+        self.assertIn("secrets.BAILIAN_API_KEY", workflow)
+        self.assertNotIn("sk-", workflow)
+        self.assertIn("for attempt in 1 2", workflow)
+        self.assertIn("--execution-control", workflow)
+        self.assertIn('rm -f "$run_root/credentials.json"', workflow)
+
 
 class KubernetesConstraintBoundaryTest(unittest.TestCase):
     def _api(self) -> Mock:
