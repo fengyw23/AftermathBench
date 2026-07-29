@@ -139,6 +139,16 @@ def prefix_manifests() -> tuple[dict[str, Any], ...]:
                 "committedMigrationEvidence": "preserve",
                 "forwardStableCapacity": "deployment/orders-v1=0",
                 "requiredLedger": "release-ledger/orders-v2.status",
+                "ledgerStatusByDirection": (
+                    "rollback_to_stable=aborted,"
+                    "compensate_external_effect=compensated,"
+                    "forward_complete=active,"
+                    "repair_downstream_only=active"
+                ),
+                "preserveStableReleaseHistory": (
+                    "release-ledger/orders-v1.status=active,"
+                    f"external/{REGISTRY_STABLE_KEY}=preserve"
+                ),
                 "requiredAudit": "recovery-audit/orders-v2",
                 "auditRecordFields": (
                     "orders-v2.status=complete,"

@@ -75,6 +75,14 @@ class KubernetesMigrationBlueprintTest(unittest.TestCase):
             {key for key in audit if key.startswith("orders-v2.")},
         )
         self.assertIn("status=complete", policy["auditRecordFields"])
+        self.assertIn(
+            "compensate_external_effect=compensated",
+            policy["ledgerStatusByDirection"],
+        )
+        self.assertIn(
+            "release-ledger/orders-v1.status=active",
+            policy["preserveStableReleaseHistory"],
+        )
         self.assertIn("direction=", policy["recoveryEventPayloadFields"])
         self.assertIn("migration_job_uid=", policy["releaseEventPayloadFields"])
         self.assertIn("compensates=", policy["compensationEventPayloadFields"])
