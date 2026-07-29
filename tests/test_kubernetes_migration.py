@@ -10,6 +10,7 @@ from aftermath_bench.integrations.kubernetes_migration_faults import (
     KubernetesMigrationFaultBoundary,
 )
 from aftermath_bench.integrations.kubernetes_migration_prefix import (
+    _stable_migration_object,
     prefix_manifests,
 )
 from aftermath_bench.integrations.kubernetes_migration_recovery import (
@@ -57,6 +58,28 @@ class KubernetesMigrationBlueprintTest(unittest.TestCase):
         )
         self.assertEqual(len(scenario["matched_variants"]), 4)
         self.assertEqual(len(set(scenario["required_semantic_recovery_directions"])), 4)
+
+    def test_prefix_fingerprint_excludes_service_allocations(self) -> None:
+        base = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": "orders", "namespace": "ns"},
+            "spec": {
+                "selector": {"version": "v1"},
+                "ports": [{"port": 80}],
+                "clusterIP": "10.96.1.20",
+                "clusterIPs": ["10.96.1.20"],
+                "ipFamilies": ["IPv4"],
+                "ipFamilyPolicy": "SingleStack",
+            },
+        }
+        other = json.loads(json.dumps(base))
+        other["spec"]["clusterIP"] = "10.96.8.90"
+        other["spec"]["clusterIPs"] = ["10.96.8.90"]
+        self.assertEqual(
+            _stable_migration_object(base),
+            _stable_migration_object(other),
+        )
 
     def test_family_is_registered(self) -> None:
         family = NATIVE_FAMILY_REGISTRY.get("k8s-schema-rollout-recovery")

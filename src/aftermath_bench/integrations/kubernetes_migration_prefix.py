@@ -21,6 +21,21 @@ REGISTRY_COMPENSATION_KEY = "compensate:prepare:orders-v2"
 RECOVERY_AUDIT_KEY = "audit:recovery:orders-v2"
 
 
+def _stable_migration_object(document: dict[str, Any]) -> dict[str, Any]:
+    """Project authored state while excluding API-server allocations."""
+    projected = _stable_object(document)
+    if document.get("kind") == "Service":
+        for field in (
+            "clusterIP",
+            "clusterIPs",
+            "healthCheckNodePort",
+            "ipFamilies",
+            "ipFamilyPolicy",
+        ):
+            projected.get("spec", {}).pop(field, None)
+    return projected
+
+
 def _deployment(name: str, version: str, replicas: int) -> dict[str, Any]:
     return {
         "apiVersion": "apps/v1",
@@ -260,7 +275,7 @@ def capture_prefix(api: KubernetesApi) -> dict[str, Any]:
         "jobs",
     )
     objects = [
-        _stable_object(item)
+        _stable_migration_object(item)
         for resource in resources
         for item in api.list(resource, namespace=NAMESPACE)
     ]
