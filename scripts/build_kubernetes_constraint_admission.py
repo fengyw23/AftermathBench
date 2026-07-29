@@ -496,6 +496,8 @@ def main() -> int:
             variant: report["counterfactual_facts"]
             for variant, report in boundaries.items()
         },
+        prefix_trace=_read(runtime / "prefix.json").get("trace", []),
+        visible_failure=next(iter(boundaries.values()))["visible_failure"],
     )
     _write(artifacts / "reference.json", reference)
     _write(artifacts / "observed_graph.json", _observed_graph())

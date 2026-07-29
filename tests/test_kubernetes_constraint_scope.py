@@ -101,6 +101,8 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         audit = build_constraint_prompt_audit(
             scenario,
             variant_facts=_variant_facts(),
+            prefix_trace=[],
+            visible_failure={"ok": False, "error": SURFACE_ERROR},
         )
         checks, observed = _constraint_prompt_admission(
             audit,
@@ -108,7 +110,7 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
             expected_variants=set(scenario.variants),
         )
         self.assertTrue(all(checks.values()), checks)
-        self.assertEqual(observed["ordinary_visible_surface_count"], 8)
+        self.assertEqual(observed["ordinary_visible_surface_count"], 13)
         self.assertEqual(observed["single_fact_direction_flip_count"], 2)
         self.assertEqual(
             [pair["changed_facts"] for pair in audit["counterfactual_pairs"]],

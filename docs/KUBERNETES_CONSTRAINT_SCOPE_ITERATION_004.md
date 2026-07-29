@@ -37,31 +37,37 @@ require at least three sources and at least two interacting rules, such as
 move backward" together with "the service must have one compatible available
 backend".
 
-## Matched counterfactual group
+## Implemented matched counterfactual group
 
-The group keeps one user request and one surface connection error. Four native
-boundaries alter only durable state:
+The group keeps one user request and one surface connection error. The four
+implemented native boundaries form two single-fact counterfactual pairs:
 
-- no approved write or external effect occurred;
-- a preparatory external effect escaped before an uncommitted migration failed;
-- the schema committed but serving cutover and publication did not;
-- schema, serving cutover and publication committed, while downstream closure
-  records did not.
+- the same failed migration Job with no preparation event versus one escaped
+  preparation event;
+- the same committed schema and completed serving cutover with no release
+  publication versus one already accepted publication.
+
+The first pair changes only `prepare:orders-v2`; the second changes only
+`release:orders-v2`. These projections are calculated from the replayed
+boundary state rather than copied from author labels. All four states contain
+a real migration Job and require closure of a change record, release ledger,
+recovery audit and external audit event.
 
 The evaluator may internally name the four semantic directions for analysis,
 but these labels are never model-visible in the ordinary condition. The
 execution-control condition supplies the exact target scope and remains a
 separate experiment.
 
-## New admission gates
+## Implemented admission gates
 
 A task cannot enter the final hard split unless replay proves all existing
 native gates and the following additional checks:
 
-- **answer-leakage gate:** no semantic direction label or branch-to-action
-  mapping occurs in the ordinary prompt, visible records or tool descriptions;
-- **constraint-composition gate:** removing any one of at least three evidence
-  groups makes the correct scope underdetermined;
+- **answer-leakage gate:** no semantic direction label occurs in the rendered
+  system prompt, complete ordinary initial message, successful prefix trace,
+  identifiers, failure result, visible contracts or tool descriptions;
+- **constraint-composition gate:** every reference scope cites at least three
+  independently queryable evidence groups and two visible constraints;
 - **single-query gate:** no single public query selects the recovery scope;
 - **counterfactual flip gate:** changing one native fact changes the required
   scope while the request and surface error remain identical;
@@ -69,6 +75,20 @@ native gates and the following additional checks:
   justified by a model-visible contract or existing record;
 - **execution-control gate:** oracle-scope execution succeeds at least 80%;
 - **fixed-policy gate:** no fixed recovery direction solves the matched group.
+
+The current composition gate validates provenance and minimum composition. It
+does not yet prove, by automated ablation, that deleting each cited source
+makes the answer underdetermined. That stronger minimal-evidence test remains
+required before this mechanism is treated as a frozen benchmark template.
+
+## Current implementation status
+
+The repository now contains the native prefix, four fault injectors,
+constraint-only model interface, deterministic evaluator, public-tool
+reference recovery, six fixed policies, replay graph, prompt audit and GitHub
+Actions workflows for native replay and model experiments. Admission remains
+pending until the real-cluster workflow passes; an authored `hard` label alone
+does not admit the scenario.
 
 ## Interpretation target
 

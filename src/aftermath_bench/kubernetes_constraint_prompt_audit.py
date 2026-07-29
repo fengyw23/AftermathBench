@@ -8,6 +8,7 @@ from .integrations.kubernetes_constraint_prefix import constraint_prefix_manifes
 from .native_kubernetes_constraint_family import (
     KUBERNETES_CONSTRAINT_SYSTEM_PROMPT,
     KUBERNETES_MIGRATION_TOOL_DEFINITIONS,
+    kubernetes_constraint_initial_message,
 )
 from .native_scenario import NativeScenario
 
@@ -64,10 +65,42 @@ def build_constraint_prompt_audit(
     scenario: NativeScenario,
     *,
     variant_facts: dict[str, dict[str, Any]],
+    prefix_trace: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+    visible_failure: dict[str, Any],
+    max_turns: int = 25,
 ) -> dict[str, Any]:
+    ordinary_message = kubernetes_constraint_initial_message(
+        scenario=scenario,
+        prefix={"trace": list(prefix_trace)},
+        failure_report={
+            "variant": scenario.variants[0],
+            "visible_failure": visible_failure,
+        },
+        execution_control=False,
+    )
     surfaces = (
+        _surface("ordinary_initial_message", ordinary_message),
         _surface("user_instruction", str(scenario.raw["user_instruction"])),
-        _surface("system_prompt", KUBERNETES_CONSTRAINT_SYSTEM_PROMPT),
+        _surface(
+            "system_prompt",
+            KUBERNETES_CONSTRAINT_SYSTEM_PROMPT.format(max_turns=max_turns),
+        ),
+        _surface(
+            "known_identifiers",
+            json.dumps(scenario.raw["fixture"], sort_keys=True, ensure_ascii=False),
+        ),
+        _surface(
+            "successful_prior_tool_activity",
+            json.dumps(prefix_trace, sort_keys=True, ensure_ascii=False),
+        ),
+        _surface(
+            "latest_attempted_operation",
+            str(scenario.raw["ambiguous_operation"]["operation"]),
+        ),
+        _surface(
+            "latest_tool_result",
+            json.dumps(visible_failure, sort_keys=True, ensure_ascii=False),
+        ),
         _surface("tool_descriptions", _tool_surface()),
         _surface("change_authorization", _manifest_data("recovery-policy")),
         _surface("schema_contract", _manifest_data("schema-contract")),

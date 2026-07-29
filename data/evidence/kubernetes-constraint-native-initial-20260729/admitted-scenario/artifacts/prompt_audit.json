@@ -1,0 +1,288 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-constraint-scope-dev-004",
+  "visible_surfaces": [
+    {
+      "id": "user_instruction",
+      "text": "Recover the interrupted orders-v2 production change and leave the application, database catalog, release records and external registry in one valid closed state. Reconstruct what actually happened from authoritative Kubernetes objects, controller evidence and registry records. Apply the visible change authorization, schema compatibility, serving, registry and audit contracts together. Preserve valid prior effects and immutable evidence, avoid duplicate external events, and verify the resulting cross-system state.",
+      "sha256": "97be004f9825ab75db5567e4d3dddb99ec432e3c5bf336cfca2cc5ead0d2fee6"
+    },
+    {
+      "id": "system_prompt",
+      "text": "You are a Kubernetes operations agent recovering an interrupted production\nchange. The failed orchestration call may have produced a durable subset of\neffects across Kubernetes, a database catalog and an external registry.\n\nInspect authoritative objects, controller state, logs, Events, contract\nrecords and external idempotency records before writes. Reconstruct the actual\nstate, compose all visible constraints, preserve valid effects, close every\nremaining cross-system obligation, and verify the result. Never repeat an\nexternal event. Make objectively supported decisions yourself and stop only\nafter the user's goal is satisfied, or after {max_turns} model turns.\n",
+      "sha256": "0062dab0a4e45dbe95ded8ae2603258af9296c9cd8acc1f6fc14cda5cb217135"
+    },
+    {
+      "id": "tool_descriptions",
+      "text": "[{\"description\": \"Read one ordinary Kubernetes object as native JSON.\", \"name\": \"get_object\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"name\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}, \"resource\": {\"type\": \"string\"}}, \"required\": [\"resource\", \"name\"], \"type\": \"object\"}}, {\"description\": \"List native Kubernetes objects, optionally by namespace and labels.\", \"name\": \"list_objects\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"cluster_scoped\": {\"type\": \"boolean\"}, \"namespace\": {\"type\": \"string\"}, \"resource\": {\"type\": \"string\"}, \"selector\": {\"type\": \"string\"}}, \"required\": [\"resource\"], \"type\": \"object\"}}, {\"description\": \"List ordinary Kubernetes Events in the task namespace.\", \"name\": \"list_events\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"namespace\": {\"type\": \"string\"}}, \"required\": [], \"type\": \"object\"}}, {\"description\": \"Read the stdout logs of one named Kubernetes Job.\", \"name\": \"get_job_logs\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"job\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}}, \"required\": [\"job\"], \"type\": \"object\"}}, {\"description\": \"Create one native Kubernetes object; generateName may create a new identity.\", \"name\": \"create_object\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"manifest\": {\"additionalProperties\": true, \"type\": \"object\"}}, \"required\": [\"manifest\"], \"type\": \"object\"}}, {\"description\": \"Apply a named native Kubernetes object declaratively.\", \"name\": \"apply_object\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"manifest\": {\"additionalProperties\": true, \"type\": \"object\"}}, \"required\": [\"manifest\"], \"type\": \"object\"}}, {\"description\": \"Patch one native Kubernetes object.\", \"name\": \"patch_object\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"name\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}, \"patch\": {\"additionalProperties\": true, \"type\": \"object\"}, \"patch_type\": {\"enum\": [\"merge\", \"strategic\", \"json\"], \"type\": \"string\"}, \"resource\": {\"type\": \"string\"}}, \"required\": [\"resource\", \"name\", \"patch\"], \"type\": \"object\"}}, {\"description\": \"Delete one named Kubernetes object; deletion may destroy valid effects.\", \"name\": \"delete_object\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"name\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}, \"resource\": {\"type\": \"string\"}}, \"required\": [\"resource\", \"name\"], \"type\": \"object\"}}, {\"description\": \"Wait for one named Kubernetes Job to reach its Complete condition.\", \"name\": \"wait_for_job\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"job\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}, \"timeout\": {\"type\": \"string\"}}, \"required\": [\"job\"], \"type\": \"object\"}}, {\"description\": \"List the external receiver's durable idempotency records and attempts.\", \"name\": \"list_external_deliveries\", \"parameters\": {\"additionalProperties\": false, \"properties\": {}, \"required\": [], \"type\": \"object\"}}, {\"description\": \"Read one receiver record by its external idempotency key.\", \"name\": \"get_external_delivery\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"delivery_key\": {\"type\": \"string\"}}, \"required\": [\"delivery_key\"], \"type\": \"object\"}}, {\"description\": \"Send one explicit event to the external release registry using an idempotency key; duplicate attempts remain auditable.\", \"name\": \"post_external_event\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"idempotency_key\": {\"type\": \"string\"}, \"payload\": {\"additionalProperties\": true, \"type\": \"object\"}}, \"required\": [\"idempotency_key\", \"payload\"], \"type\": \"object\"}}, {\"description\": \"Wait for one named Kubernetes Deployment to become Available.\", \"name\": \"wait_for_deployment\", \"parameters\": {\"additionalProperties\": false, \"properties\": {\"deployment\": {\"type\": \"string\"}, \"namespace\": {\"type\": \"string\"}, \"timeout\": {\"type\": \"string\"}}, \"required\": [\"deployment\"], \"type\": \"object\"}}]",
+      "sha256": "604de9bf4531fc7ce8de579fa9a4c00bf3da2a11d49e8a9a3d5b6691819a2f23"
+    },
+    {
+      "id": "change_authorization",
+      "text": "{\"committedStateConvergence\": \"allowed\", \"evidenceRetention\": \"all migration and backup Jobs\", \"failedCandidateCleanup\": \"allowed\", \"newSchemaMutation\": \"forbidden\", \"window\": \"closed\"}",
+      "sha256": "f58c4a4dd546381418a3df9758a5bb8f77996855826e6d9c5f5bd59b1e620836"
+    },
+    {
+      "id": "schema_contract",
+      "text": "{\"downMigration\": \"forbidden\", \"epochMonotonic\": \"true\", \"servingEpochMustEqualCatalog\": \"true\", \"v1CompatibleEpochs\": \"1\", \"v2CompatibleEpochs\": \"2\"}",
+      "sha256": "d12fa8b6acf2ceffe35d306ef1b62a5835870858b5c758579a950a045014cff6"
+    },
+    {
+      "id": "serving_contract",
+      "text": "{\"activeService\": \"orders\", \"candidateSecret\": \"orders-db-v2\", \"exactlyOneServingVersion\": \"true\", \"removeUnusedCandidateResourcesBeforeCommit\": \"true\", \"retireV1CapacityAfterEpoch2Cutover\": \"true\"}",
+      "sha256": "2577e884ae66256a3218d5537d2f3fc550ab326cab183f66264f0d584f86df41"
+    },
+    {
+      "id": "registry_contract",
+      "text": "{\"closureKey\": \"audit:recovery:orders-v2\", \"compensationKey\": \"compensate:prepare:orders-v2\", \"idempotency\": \"exactly-once-attempt\", \"preparationKey\": \"prepare:orders-v2\", \"preparationResolution\": \"release publication or compensation\", \"releaseKey\": \"release:orders-v2\", \"releaseRequires\": \"catalog epoch 2 and Service version v2\"}",
+      "sha256": "f828f31a511df858eaea7c50dcce4ce6099f6c486ba7fc68a37c5bfd0090c1ae"
+    },
+    {
+      "id": "audit_contract",
+      "text": "{\"changeRecord\": \"change-record/orders-v2.state=resolved\", \"closurePayloadFields\": \"application,status,schema_epoch,serving_version,migration_job_uid\", \"ledgerRecord\": \"release-ledger/orders-v2\", \"ledgerRequiredFields\": \"status,schema_epoch,serving_version\", \"ledgerStatusValue\": \"closed\", \"missingJobUidValue\": \"none\", \"preparationResolutionValues\": \"not-created,compensated,released\", \"record\": \"recovery-audit/orders-v2\", \"releasePublicationValues\": \"not-applicable,present\", \"requiredFields\": \"status,schema_epoch,serving_version,migration_job_uid,preparation_resolution,release_publication\", \"statusValue\": \"complete\"}",
+      "sha256": "7c55f7062044f74dd9043671907aebbd616b1b23f21c41463ceb8c2c56374980"
+    }
+  ],
+  "required_surface_ids": [
+    "user_instruction",
+    "system_prompt",
+    "tool_descriptions",
+    "change_authorization",
+    "schema_contract",
+    "serving_contract",
+    "registry_contract",
+    "audit_contract"
+  ],
+  "forbidden_direction_labels": [
+    "rollback_to_stable",
+    "compensate_external_effect",
+    "forward_complete",
+    "repair_downstream_only",
+    "discard_uncommitted_candidate",
+    "compensate_then_discard_candidate",
+    "publish_committed_cutover",
+    "close_already_published_cutover"
+  ],
+  "constraint_evidence_groups": [
+    {
+      "id": "authorization",
+      "surface_ids": [
+        "change_authorization"
+      ]
+    },
+    {
+      "id": "catalog_job",
+      "surface_ids": [
+        "schema_contract",
+        "tool_descriptions"
+      ]
+    },
+    {
+      "id": "serving",
+      "surface_ids": [
+        "serving_contract"
+      ]
+    },
+    {
+      "id": "registry",
+      "surface_ids": [
+        "registry_contract"
+      ]
+    },
+    {
+      "id": "closure",
+      "surface_ids": [
+        "audit_contract"
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "id": "closed_window",
+      "surface_ids": [
+        "change_authorization"
+      ]
+    },
+    {
+      "id": "schema_monotonicity",
+      "surface_ids": [
+        "schema_contract"
+      ]
+    },
+    {
+      "id": "compatible_serving",
+      "surface_ids": [
+        "serving_contract"
+      ]
+    },
+    {
+      "id": "prepare_must_resolve",
+      "surface_ids": [
+        "registry_contract"
+      ]
+    },
+    {
+      "id": "release_requires_committed_cutover",
+      "surface_ids": [
+        "registry_contract",
+        "schema_contract"
+      ]
+    },
+    {
+      "id": "external_exactly_once",
+      "surface_ids": [
+        "registry_contract"
+      ]
+    },
+    {
+      "id": "audit_closure",
+      "surface_ids": [
+        "audit_contract"
+      ]
+    }
+  ],
+  "variant_derivations": [
+    {
+      "variant": "failed_migration_without_preparation",
+      "evidence_groups": [
+        "authorization",
+        "catalog_job",
+        "serving",
+        "registry"
+      ],
+      "constraint_ids": [
+        "closed_window",
+        "schema_monotonicity",
+        "compatible_serving"
+      ],
+      "decisive_surface_ids": [
+        "change_authorization",
+        "registry_contract",
+        "schema_contract",
+        "serving_contract",
+        "tool_descriptions"
+      ]
+    },
+    {
+      "variant": "failed_migration_with_preparation",
+      "evidence_groups": [
+        "authorization",
+        "catalog_job",
+        "serving",
+        "registry"
+      ],
+      "constraint_ids": [
+        "closed_window",
+        "schema_monotonicity",
+        "prepare_must_resolve"
+      ],
+      "decisive_surface_ids": [
+        "change_authorization",
+        "registry_contract",
+        "schema_contract",
+        "serving_contract",
+        "tool_descriptions"
+      ]
+    },
+    {
+      "variant": "committed_cutover_without_publication",
+      "evidence_groups": [
+        "catalog_job",
+        "serving",
+        "registry",
+        "closure"
+      ],
+      "constraint_ids": [
+        "schema_monotonicity",
+        "compatible_serving",
+        "release_requires_committed_cutover"
+      ],
+      "decisive_surface_ids": [
+        "audit_contract",
+        "registry_contract",
+        "schema_contract",
+        "serving_contract",
+        "tool_descriptions"
+      ]
+    },
+    {
+      "variant": "committed_cutover_with_publication",
+      "evidence_groups": [
+        "catalog_job",
+        "serving",
+        "registry",
+        "closure"
+      ],
+      "constraint_ids": [
+        "schema_monotonicity",
+        "external_exactly_once",
+        "audit_closure"
+      ],
+      "decisive_surface_ids": [
+        "audit_contract",
+        "registry_contract",
+        "schema_contract",
+        "serving_contract",
+        "tool_descriptions"
+      ]
+    }
+  ],
+  "counterfactual_pairs": [
+    {
+      "left": "failed_migration_without_preparation",
+      "right": "failed_migration_with_preparation",
+      "changed_fact_count": 1,
+      "changed_facts": [
+        "preparation"
+      ],
+      "direction_flipped": true
+    },
+    {
+      "left": "committed_cutover_without_publication",
+      "right": "committed_cutover_with_publication",
+      "changed_fact_count": 1,
+      "changed_facts": [
+        "publication"
+      ],
+      "direction_flipped": true
+    }
+  ],
+  "variant_facts": {
+    "failed_migration_without_preparation": {
+      "schema_epoch": "1",
+      "migration_job_count": 1,
+      "migration_job_complete": false,
+      "migration_job_failed": true,
+      "service_version": "v1",
+      "preparation": false,
+      "publication": false
+    },
+    "failed_migration_with_preparation": {
+      "schema_epoch": "1",
+      "migration_job_count": 1,
+      "migration_job_complete": false,
+      "migration_job_failed": true,
+      "service_version": "v1",
+      "preparation": true,
+      "publication": false
+    },
+    "committed_cutover_without_publication": {
+      "schema_epoch": "2",
+      "migration_job_count": 1,
+      "migration_job_complete": true,
+      "migration_job_failed": false,
+      "service_version": "v2",
+      "preparation": false,
+      "publication": false
+    },
+    "committed_cutover_with_publication": {
+      "schema_epoch": "2",
+      "migration_job_count": 1,
+      "migration_job_complete": true,
+      "migration_job_failed": false,
+      "service_version": "v2",
+      "preparation": false,
+      "publication": true
+    }
+  }
+}
