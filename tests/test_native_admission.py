@@ -34,6 +34,23 @@ class NativeAdmissionTest(unittest.TestCase):
         )
         self.assertTrue(all(groups.values()))
 
+    def test_directional_profile_cannot_be_faked_by_tool_signatures(self) -> None:
+        reports = [
+            {
+                "mutation_tools": ["patch_object"] * count,
+                "semantic_recovery_direction": "forward_complete",
+            }
+            for count in (1, 2, 3, 4)
+        ]
+        directions = {
+            report["semantic_recovery_direction"] for report in reports
+        }
+        signatures = {
+            tuple(report["mutation_tools"]) for report in reports
+        }
+        self.assertEqual(len(signatures), 4)
+        self.assertEqual(len(directions), 1)
+
     def test_payment_pilot_is_truthfully_classified_easy(self) -> None:
         path = next(
             path

@@ -259,6 +259,14 @@ def validate_native_scenario(
     recovery_signatures = {
         _recovery_signature(report) for report in variants
     }
+    semantic_directions = {
+        str(report["semantic_recovery_direction"])
+        for report in variants
+        if report.get("semantic_recovery_direction")
+    }
+    required_semantic_directions = int(
+        graph.get("minimum_semantic_recovery_directions", 0)
+    )
     action_branches = graph.get("action_branches", ())
     varying_branches = _varying_action_branch_count(
         variants,
@@ -286,6 +294,10 @@ def validate_native_scenario(
         "action_branch_count": len(action_branches),
         "shared_dependency_count": shared_dependencies,
         "distinct_recovery_signature_count": len(recovery_signatures),
+        "semantic_recovery_direction_count": len(semantic_directions),
+        "required_semantic_recovery_direction_count": (
+            required_semantic_directions
+        ),
         "varying_action_branch_count": varying_branches,
         "maximum_heuristic_pass_rate": maximum_heuristic_pass_rate,
     }
@@ -315,6 +327,10 @@ def validate_native_scenario(
         "unsafe_actions>=3": len(unsafe_actions) >= 3,
         "action_branches>=3": len(action_branches) >= 3,
         "recovery_signatures>=3": len(recovery_signatures) >= 3,
+        "semantic_recovery_directions_meet_profile": (
+            required_semantic_directions == 0
+            or len(semantic_directions) >= required_semantic_directions
+        ),
         "varying_action_branches>=2": varying_branches >= 2,
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
         "heuristic_matched_group_zero": not any(
