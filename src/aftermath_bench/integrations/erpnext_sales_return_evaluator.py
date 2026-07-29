@@ -236,10 +236,9 @@ def evaluate_sales_return_recovery(
         "no_duplicate_credit_note": len(credit_notes) == 1,
         "no_duplicate_replacement_delivery": len(replacement_deliveries) == 1,
         "no_duplicate_replacement_invoice": len(replacement_invoices) == 1,
-        "customer_pickup_delivered_exactly_once": (
+        "customer_pickup_effect_applied_exactly_once": (
             delivery is not None
             and delivery.get("key") == prefix["sales_return"]
-            and int(delivery.get("attempt_count", 0)) == 1
         ),
         "no_unfinished_customer_pickup_job": not unfinished,
     }
@@ -266,6 +265,11 @@ def evaluate_sales_return_recovery(
             "replacement_invoice_count": len(replacement_invoices),
             "pickup_attempt_count": (
                 int(delivery.get("attempt_count", 0)) if delivery else 0
+            ),
+            "redundant_pickup_attempt_count": (
+                max(int(delivery.get("attempt_count", 0)) - 1, 0)
+                if delivery
+                else 0
             ),
             "unfinished_pickup_job_count": len(unfinished),
         },

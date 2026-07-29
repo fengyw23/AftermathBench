@@ -245,6 +245,23 @@ class ERPNextSalesReturnEvaluatorTest(unittest.TestCase):
         self.assertFalse(result.checks["no_duplicate_replacement_invoice"])
         self.assertTrue(result.components["preservation"])
 
+    def test_idempotently_deduplicated_delivery_is_execution_waste_not_failure(
+        self,
+    ) -> None:
+        self.evidence["pickup_delivery"]["attempt_count"] = 2
+        result = evaluate_sales_return_recovery(
+            self.evidence,
+            prefix=self.prefix,
+        )
+        self.assertTrue(result.passed, result.failures)
+        self.assertTrue(
+            result.checks["customer_pickup_effect_applied_exactly_once"]
+        )
+        self.assertEqual(
+            result.diagnostics["redundant_pickup_attempt_count"],
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
