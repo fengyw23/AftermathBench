@@ -105,6 +105,13 @@ The immutable evidence is archived under
 establishes task validity; model difficulty is reported separately and cannot
 be inferred from admission alone.
 
+The first execution-control experiment subsequently exposed underspecified
+external-event payload and record-update rules. Commit `562f604` made those
+rules model-visible and increased the per-response provider timeout. Because
+this changes an audited input surface, the corrected task must receive a fresh
+real-cluster admission before it replaces the evidence above as the frozen
+iteration-004 task.
+
 ## Interpretation target
 
 If GLM-5.2 fails iteration 004 after the execution control passes, the failure
