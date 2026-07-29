@@ -212,6 +212,56 @@ def _constraint_prompt_admission(
     return checks, observed
 
 
+def _projection_witness_admission(
+    report: dict[str, Any],
+    *,
+    expected_variants: set[str],
+    minimum_witnesses: int,
+) -> tuple[dict[str, bool], dict[str, int | float | bool]]:
+    witnesses = report.get("witnesses", {})
+    if not isinstance(witnesses, dict):
+        witnesses = {}
+    variant_ids = set(map(str, report.get("variant_ids", ())))
+    valid_witnesses = 0
+    for witness in witnesses.values():
+        if not isinstance(witness, dict):
+            continue
+        left = str(witness.get("left_variant", ""))
+        right = str(witness.get("right_variant", ""))
+        left_scope = str(witness.get("left_scope", ""))
+        right_scope = str(witness.get("right_scope", ""))
+        removed = tuple(map(str, witness.get("removed_fact_keys", ())))
+        if (
+            left in expected_variants
+            and right in expected_variants
+            and left != right
+            and left_scope
+            and right_scope
+            and left_scope != right_scope
+            and bool(removed)
+        ):
+            valid_witnesses += 1
+    declared_group_count = int(report.get("evidence_group_count", 0))
+    observed: dict[str, int | float | bool] = {
+        "projection_variant_count": len(variant_ids),
+        "projection_evidence_group_count": declared_group_count,
+        "valid_projection_witness_count": valid_witnesses,
+    }
+    checks = {
+        "projection_variants_cover_all_variants": variant_ids == expected_variants,
+        "projection_group_count_matches_report": (
+            declared_group_count == len(witnesses)
+        ),
+        "projection_witnesses_meet_profile": valid_witnesses >= minimum_witnesses,
+        "every_declared_evidence_group_has_projection_witness": (
+            bool(witnesses)
+            and valid_witnesses == len(witnesses)
+            and bool(report.get("all_declared_groups_have_witnesses", False))
+        ),
+    }
+    return checks, observed
+
+
 def _varying_action_branch_count(
     reports: Iterable[dict[str, Any]],
     action_branches: Iterable[dict[str, Any]],
@@ -297,6 +347,10 @@ def validate_native_scenario(
     )
     if constraint_profile:
         paths["prompt_audit"] = scenario.resolve_artifact("prompt_audit")
+        if bool(constraint_profile.get("require_projection_witnesses", False)):
+            paths["projection_witnesses"] = scenario.resolve_artifact(
+                "projection_witnesses"
+            )
     if replay_path is not None:
         paths["replay_evidence"] = replay_path
     missing = [name for name, path in paths.items() if not path.is_file()]
@@ -319,6 +373,11 @@ def validate_native_scenario(
     replay_evidence = _load_json(replay_path) if replay_path else None
     prompt_audit = (
         _load_json(paths["prompt_audit"]) if "prompt_audit" in paths else None
+    )
+    projection_witnesses = (
+        _load_json(paths["projection_witnesses"])
+        if "projection_witnesses" in paths
+        else None
     )
 
     trace = prefix.get("trace", ())
@@ -462,6 +521,16 @@ def validate_native_scenario(
         )
         checks.update(prompt_checks)
         observed.update(prompt_observed)
+    if projection_witnesses is not None:
+        projection_checks, projection_observed = _projection_witness_admission(
+            projection_witnesses,
+            expected_variants=set(scenario.variants),
+            minimum_witnesses=int(
+                constraint_profile.get("minimum_projection_witnesses", 1)
+            ),
+        )
+        checks.update(projection_checks)
+        observed.update(projection_observed)
     hard_passed = all(checks.values())
     requested_tier = scenario.tier
     candidate_passed = (

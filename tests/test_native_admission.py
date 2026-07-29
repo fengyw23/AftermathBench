@@ -3,6 +3,7 @@ import unittest
 
 from aftermath_bench.native_admission import (
     _constraint_prompt_admission,
+    _projection_witness_admission,
     _reference_evidence_groups,
     validate_native_scenario,
 )
@@ -13,6 +14,62 @@ from aftermath_bench.native_scenario import (
 
 
 class NativeAdmissionTest(unittest.TestCase):
+    def test_projection_profile_requires_valid_witness_for_every_group(self) -> None:
+        report = {
+            "variant_ids": ["a", "b", "c"],
+            "evidence_group_count": 2,
+            "all_declared_groups_have_witnesses": True,
+            "witnesses": {
+                "commit": {
+                    "left_variant": "a",
+                    "right_variant": "b",
+                    "left_scope": "keep",
+                    "right_scope": "discard",
+                    "removed_fact_keys": ["committed"],
+                },
+                "publication": {
+                    "left_variant": "b",
+                    "right_variant": "c",
+                    "left_scope": "discard",
+                    "right_scope": "publish",
+                    "removed_fact_keys": ["published"],
+                },
+            },
+        }
+        checks, observed = _projection_witness_admission(
+            report,
+            expected_variants={"a", "b", "c"},
+            minimum_witnesses=2,
+        )
+        self.assertTrue(all(checks.values()), checks)
+        self.assertEqual(observed["valid_projection_witness_count"], 2)
+
+    def test_projection_profile_rejects_redundant_declared_group(self) -> None:
+        report = {
+            "variant_ids": ["a", "b"],
+            "evidence_group_count": 2,
+            "all_declared_groups_have_witnesses": False,
+            "witnesses": {
+                "commit": {
+                    "left_variant": "a",
+                    "right_variant": "b",
+                    "left_scope": "keep",
+                    "right_scope": "discard",
+                    "removed_fact_keys": ["committed"],
+                },
+                "region": None,
+            },
+        }
+        checks, _ = _projection_witness_admission(
+            report,
+            expected_variants={"a", "b"},
+            minimum_witnesses=2,
+        )
+        self.assertFalse(checks["projection_witnesses_meet_profile"])
+        self.assertFalse(
+            checks["every_declared_evidence_group_has_projection_witness"]
+        )
+
     def _constraint_audit(self) -> dict:
         texts = {
             "user_instruction": "Restore consistent service without repeating effects.",

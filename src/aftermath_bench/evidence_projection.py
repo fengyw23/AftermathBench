@@ -110,6 +110,9 @@ def projection_admission_report(
     witnessed = sum(witness is not None for witness in witnesses.values())
     return {
         "schema_version": "1.0",
+        "variant_ids": list(sorted(map(str, variant_facts))),
+        "variant_count": len(variant_facts),
+        "scope_count": len(set(map(str, variant_scopes.values()))),
         "evidence_group_count": len(witnesses),
         "projection_witness_count": witnessed,
         "all_declared_groups_have_witnesses": witnessed == len(witnesses),

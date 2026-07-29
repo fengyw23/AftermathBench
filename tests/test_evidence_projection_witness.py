@@ -40,6 +40,8 @@ class EvidenceProjectionWitnessTest(unittest.TestCase):
         )
         self.assertTrue(report["all_declared_groups_have_witnesses"])
         self.assertEqual(report["projection_witness_count"], 3)
+        self.assertEqual(report["variant_count"], 4)
+        self.assertEqual(report["scope_count"], 4)
 
     def test_redundant_group_is_not_counted_as_required(self) -> None:
         report = projection_admission_report(

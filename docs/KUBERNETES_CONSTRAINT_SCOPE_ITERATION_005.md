@@ -74,6 +74,29 @@ Additional states may vary credential rotation or external acceptance, but a
 new state enters only if it creates a new semantic scope and a fixed action
 sequence fails at least one paired state.
 
+The implemented decision matrix contains 13 neutral `state_NN` boundaries.
+The IDs carry no recovery meaning. Its paired facts cover:
+
+| Pair | Only changed fact | Why the scope changes |
+|---|---|---|
+| 01/02 | escaped preparation | cleanup versus exactly-once compensation plus cleanup |
+| 03/04 | transition controller ownership | create an owner versus preserve the existing owner without duplication |
+| 04/05 | compatibility lease | preserve the active bridge versus renew an expired bridge while keeping its owner |
+| 04/06 | non-replayable batch liveness | defer worker replacement versus advance it |
+| 07/11 | API consumer version | publish-ready versus repair an incompatible API |
+| 12/13 | worker consumer version | create the worker transition versus only rotate credentials |
+| 07/13 | shared credential generation | publish-ready versus rotate the shared credential |
+| 07/08 | publication owner | create a publisher versus resume the existing owner |
+| 09/10 | external release acceptance | reconcile a missing delivery versus close an accepted release |
+
+States 01 and 03 additionally form a grouped commit witness: after the native
+commit cluster (catalog, migration result and API state) is projected away,
+their remaining visible facts are identical but their recovery scopes differ.
+Across all 13 boundaries there are 13 evaluator-only scopes and ten declared
+evidence groups, each with an automated projection witness. The matrix is code
+in `integrations/kubernetes_interaction_scope.py`; it is not yet native replay
+evidence and cannot be admitted until the real fault builders reproduce it.
+
 Expected semantic scopes include cleanup, compensation plus cleanup,
 bridge-preserving closure, worker forward completion, resuming an owned
 controller, creating a missing controller, publishing a missing release and
