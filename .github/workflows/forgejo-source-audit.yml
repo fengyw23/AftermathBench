@@ -54,6 +54,22 @@ jobs:
             --credentials "$runtime_root/credentials.json" \
             --output "$runtime_root/validation/restored.json"
 
+      - name: Capture native runtime diagnostics
+        if: always()
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          mkdir -p "$runtime_root/validation"
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$runtime_root/validation/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            logs --no-color > "$runtime_root/validation/compose.log" 2>&1 || true
+          docker inspect aftermath-forgejo-forgejo-1 \
+            > "$runtime_root/validation/forgejo-inspect.json" 2>&1 || true
+
       - name: Remove runtime secrets and snapshot
         if: always()
         run: |
