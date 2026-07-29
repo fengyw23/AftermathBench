@@ -1,6 +1,10 @@
 name: kubernetes-constraint-model
 
 on:
+  push:
+    branches:
+      - constraint-model-control
+      - constraint-model-eval
   workflow_dispatch:
     inputs:
       model:
@@ -43,9 +47,22 @@ jobs:
       - name: Validate experiment configuration
         run: |
           test -n "$AFTERMATH_API_KEY"
-          echo "MODEL_ID=${{ inputs.model }}" >> "$GITHUB_ENV"
-          echo "REPETITIONS=${{ inputs.repetitions }}" >> "$GITHUB_ENV"
-          echo "EXECUTION_CONTROL=${{ inputs.execution_control }}" >> "$GITHUB_ENV"
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          test -n "$requested_model" || requested_model=glm-5.2
+          test -n "$requested_repetitions" || requested_repetitions=1
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$GITHUB_REF_NAME" = "constraint-model-control" ]; then
+              requested_control=true
+            else
+              requested_control=false
+            fi
+          fi
+          test -n "$requested_control" || requested_control=false
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -v
 
       - name: Build kind and install kubectl
