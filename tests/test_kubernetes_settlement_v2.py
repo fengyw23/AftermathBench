@@ -166,6 +166,12 @@ class KubernetesSettlementV2EvaluationTest(unittest.TestCase):
         self.assertFalse(report.checks["audit_record_closed"])
         self.assertFalse(report.checks["schedule_completion_marker_updated"])
 
+    def test_audit_does_not_require_an_unstated_duplicate_receipt_hash(self) -> None:
+        evidence = self._passing()
+        del evidence["configmaps"][-1]["data"]["2026-07.receipt_sha256"]
+        report = evaluate_kubernetes_settlement_v2_recovery(evidence)
+        self.assertTrue(report.passed, report.failures)
+
 
 if __name__ == "__main__":
     unittest.main()
