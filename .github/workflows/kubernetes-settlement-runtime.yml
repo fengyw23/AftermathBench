@@ -1,0 +1,131 @@
+name: kubernetes-settlement-runtime
+
+on:
+  push:
+    branches:
+      - kubernetes-settlement-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-native-settlement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Run deterministic tests
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned kind from source
+        run: |
+          git clone --no-checkout \
+            https://github.com/kubernetes-sigs/kind.git \
+            "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
+            9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          python scripts/verify_kubernetes_sources.py \
+            --kind-source "$RUNNER_TEMP/kind" \
+            --output "$RUNNER_TEMP/kubernetes-source-verification.json"
+          mkdir -p "$RUNNER_TEMP/bin"
+          (
+            cd "$RUNNER_TEMP/kind"
+            go build -trimpath -o "$RUNNER_TEMP/bin/kind" .
+          )
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned kubectl
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" \
+            | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+
+      - name: Start cluster, worker image and external receiver
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build \
+            --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local \
+            .
+          kind load docker-image \
+            --name aftermath-kubernetes \
+            aftermathbench/kubernetes-control:local
+          docker run --detach --rm \
+            --name aftermath-settlement-sink \
+            --publish 127.0.0.1:9092:8080 \
+            --volume "$RUNNER_TEMP/settlement-sink:/data" \
+            aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9092/health && break
+            if [ "$attempt" = 30 ]; then exit 1; fi
+            sleep 1
+          done
+
+      - name: Replay four settlement boundaries and references
+        run: |
+          mkdir -p "$RUNNER_TEMP/kubernetes-settlement"
+          for variant in \
+            job_create_request_not_reached \
+            job_created_response_lost \
+            job_created_controller_suspended \
+            job_created_pod_pending
+          do
+            python scripts/run_kubernetes_settlement_boundary.py \
+              --variant "$variant" \
+              --output "$RUNNER_TEMP/kubernetes-settlement/$variant.json" \
+              --prefix-output "$RUNNER_TEMP/kubernetes-settlement/prefix.json"
+            python scripts/run_kubernetes_settlement_control.py \
+              --variant "$variant" \
+              --output "$RUNNER_TEMP/kubernetes-settlement/$variant-reference.json"
+          done
+
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/kubernetes-settlement-diagnostics"
+          kind export logs "$RUNNER_TEMP/kubernetes-settlement-diagnostics" \
+            --name aftermath-kubernetes || true
+          kubectl --context kind-aftermath-kubernetes get all \
+            --all-namespaces -o wide \
+            > "$RUNNER_TEMP/kubernetes-settlement-diagnostics/all.txt" \
+            2>&1 || true
+          kubectl --context kind-aftermath-kubernetes get events \
+            --all-namespaces \
+            > "$RUNNER_TEMP/kubernetes-settlement-diagnostics/events.txt" \
+            2>&1 || true
+
+      - name: Upload settlement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-settlement-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kubernetes-source-verification.json
+            ${{ runner.temp }}/kubernetes-settlement
+            ${{ runner.temp }}/kubernetes-settlement-diagnostics
+
+      - name: Purge native services
+        if: always()
+        run: |
+          docker rm --force aftermath-settlement-sink || true
+          python scripts/manage_kubernetes_stack.py down || true

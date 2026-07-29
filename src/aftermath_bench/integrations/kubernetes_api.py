@@ -67,6 +67,13 @@ class KubernetesApi:
         )
         return json.loads(result.stdout)
 
+    def create(self, manifest: Mapping[str, Any]) -> dict[str, Any]:
+        result = self._run(
+            ("create", "-f", "-", "-o", "json"),
+            stdin=json.dumps(manifest),
+        )
+        return json.loads(result.stdout)
+
     def get(
         self,
         resource: str,
@@ -168,6 +175,37 @@ class KubernetesApi:
                 f"--timeout={timeout}",
             )
         ).stdout.strip()
+
+    def wait_condition(
+        self,
+        resource: str,
+        name: str,
+        *,
+        condition: str,
+        namespace: str | None = None,
+        timeout: str = "180s",
+    ) -> str:
+        arguments = [
+            "wait",
+            f"--for=condition={condition}",
+            f"{resource}/{name}",
+            f"--timeout={timeout}",
+        ]
+        if namespace:
+            arguments.extend(("-n", namespace))
+        return self._run(arguments).stdout.strip()
+
+    def logs(
+        self,
+        resource: str,
+        name: str,
+        *,
+        namespace: str | None = None,
+    ) -> str:
+        arguments = ["logs", f"{resource}/{name}"]
+        if namespace:
+            arguments.extend(("-n", namespace))
+        return self._run(arguments).stdout
 
     def events(
         self,

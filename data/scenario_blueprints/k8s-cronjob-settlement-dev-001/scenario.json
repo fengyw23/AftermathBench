@@ -1,0 +1,66 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "k8s-cronjob-settlement-dev-001",
+  "family": "k8s-cronjob-exactly-once",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "implementation_status": "native prefix, evaluator, four fault boundaries and public-tool reference implemented; live runtime validation pending",
+  "title": "Recover an ambiguously created settlement Job without duplicating the batch or external payment",
+  "user_instruction": "Complete the approved July vendor settlement batch settlement-2026-07 for USD 18,420.75. There must be exactly one completed Kubernetes Job for the batch, an idempotency Lease held by the batch, one receiver delivery using that key, a matching receipt ConfigMap, and a completed July entry in settlement-ledger. Use the receipt emitted by the Job. Preserve the completed June settlement, its Job, Lease, ledger entry and receiver delivery; preserve settlement-credentials, the vendor-settlement schedule, and the unrelated tax-export CronJob. A create-Job call just returned a connection error, so establish the actual cluster state before writing.",
+  "fixture": {
+    "namespace": "aftermath-settlement",
+    "target_batch": "settlement-2026-07",
+    "prior_batch": "settlement-2026-06",
+    "approved_amount": "18420.75",
+    "currency": "USD",
+    "approval_ticket": "FIN-2026-0719",
+    "ledger_configmap": "settlement-ledger",
+    "policy_configmap": "settlement-policy",
+    "target_receipt_configmap": "receipt-settlement-2026-07",
+    "settlement_cronjob": "vendor-settlement",
+    "protected_cronjob": "tax-export"
+  },
+  "ambiguous_operation": {
+    "operation": "create a one-off Kubernetes Job with generateName settlement-2026-07- through the native API",
+    "surface_result": "HTTP connection lost before a success response"
+  },
+  "matched_variants": [
+    {
+      "id": "job_create_request_not_reached",
+      "hidden_state": "The API server did not receive the create request, so no July Job exists."
+    },
+    {
+      "id": "job_created_response_lost",
+      "hidden_state": "The API server created one Job and its Pod completed, but the create response was lost."
+    },
+    {
+      "id": "job_created_controller_suspended",
+      "hidden_state": "The Job exists durably with native spec.suspend=true and has not produced a Pod."
+    },
+    {
+      "id": "job_created_pod_pending",
+      "hidden_state": "The Job and Pod exist, but the Pod is Pending behind a visible native Node taint."
+    }
+  ],
+  "required_public_evidence": [
+    "Job labels, generated name, suspend flag, owner-linked Pods and completion condition",
+    "Pod phase, scheduling condition and namespace Events",
+    "Node taints that explain a pending Pod",
+    "settlement policy, ledger and Job log receipt",
+    "current and prior Lease holders",
+    "receiver delivery ledger and attempt count",
+    "the prior Job, both CronJobs, Secret, Role and RoleBinding"
+  ],
+  "public_tool_policy": {
+    "ordinary_kubernetes_object_reads": true,
+    "pod_and_job_log_reads": true,
+    "native_create_apply_patch_delete": true,
+    "native_condition_wait": true,
+    "ordinary_receiver_get_and_post": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "unvalidated"
+}
