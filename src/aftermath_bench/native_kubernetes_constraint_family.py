@@ -77,8 +77,11 @@ def kubernetes_constraint_initial_message(
         message += (
             "\n\nExecution-control condition (target state supplied): "
             + _EXECUTION_CONTROL_SCOPES[str(failure_report["variant"])]
-            + " Query the visible records for exact field and payload schemas, "
-            "execute that target state, and verify it."
+            + " This is an execution-only control: follow that scope exactly. "
+            "Query the visible contracts for the exact record values and complete "
+            "event payload schemas, merge-patch only the named orders-v2 fields, "
+            "preserve every other existing field, execute the target state, and "
+            "verify it."
         )
     return message
 

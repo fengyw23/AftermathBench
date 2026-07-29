@@ -90,9 +90,20 @@ def constraint_prefix_manifests() -> tuple[dict[str, Any], ...]:
                 "idempotency": "exactly-once-attempt",
                 "preparationKey": REGISTRY_PREPARE_KEY,
                 "preparationResolution": "release publication or compensation",
+                "preparationResolutionRule": (
+                    "not-created iff preparationKey is absent; compensated iff "
+                    "preparationKey and compensationKey are present; released iff "
+                    "preparationKey and releaseKey are present"
+                ),
                 "compensationKey": REGISTRY_COMPENSATION_KEY,
+                "compensationPayloadFields": (
+                    "application,status,compensates,migration_job_uid"
+                ),
                 "releaseKey": REGISTRY_RELEASE_KEY,
                 "releaseRequires": "catalog epoch 2 and Service version v2",
+                "releasePayloadFields": (
+                    "application,status,version,schema_epoch,migration_job_uid"
+                ),
                 "closureKey": RECOVERY_AUDIT_KEY,
             },
         ),
@@ -108,9 +119,16 @@ def constraint_prefix_manifests() -> tuple[dict[str, Any], ...]:
                 "missingJobUidValue": "none",
                 "preparationResolutionValues": "not-created,compensated,released",
                 "releasePublicationValues": "not-applicable,present",
+                "releasePublicationRule": (
+                    "present iff releaseKey exists; otherwise not-applicable"
+                ),
                 "ledgerRecord": "release-ledger/orders-v2",
                 "ledgerRequiredFields": "status,schema_epoch,serving_version",
                 "ledgerStatusValue": "closed",
+                "recordUpdateRule": (
+                    "merge-patch only the named orders-v2 fields and preserve every "
+                    "pre-existing field not named by this contract"
+                ),
                 "closurePayloadFields": (
                     "application,status,schema_epoch,serving_version,"
                     "migration_job_uid"

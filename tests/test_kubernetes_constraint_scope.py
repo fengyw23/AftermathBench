@@ -122,6 +122,19 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         for label in _scenario().raw["required_semantic_recovery_directions"]:
             self.assertNotIn(label, text)
 
+    def test_external_payload_and_record_update_rules_are_visible(self) -> None:
+        manifests = {
+            item["metadata"]["name"]: item.get("data", {})
+            for item in constraint_prefix_manifests()
+            if item.get("kind") == "ConfigMap"
+        }
+        registry = manifests["registry-contract"]
+        audit = manifests["audit-contract"]
+        self.assertIn("compensates", registry["compensationPayloadFields"])
+        self.assertIn("migration_job_uid", registry["releasePayloadFields"])
+        self.assertIn("not-created iff", registry["preparationResolutionRule"])
+        self.assertIn("preserve every", audit["recordUpdateRule"])
+
     def test_family_is_routable(self) -> None:
         family = NATIVE_FAMILY_REGISTRY.get("k8s-constraint-scope-recovery")
         self.assertEqual(family.domain, "kubernetes")
@@ -166,6 +179,7 @@ class KubernetesConstraintPromptTest(unittest.TestCase):
         self.assertNotIn("sk-", workflow)
         self.assertIn("for attempt in 1 2", workflow)
         self.assertIn("--execution-control", workflow)
+        self.assertIn("--model-timeout-seconds 300", workflow)
         self.assertIn('rm -f "$run_root/credentials.json"', workflow)
 
 

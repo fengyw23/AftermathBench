@@ -761,6 +761,7 @@ def client_from_environment(
     model: str,
     base_url: str | None,
     api_key_env: str,
+    timeout_seconds: int | None = None,
 ) -> ChatClient:
     api_key = os.environ.get(api_key_env)
     if not api_key:
@@ -768,15 +769,23 @@ def client_from_environment(
     if provider == "openai-compatible":
         if not base_url:
             raise ValueError("--base-url is required for openai-compatible")
+        kwargs: dict[str, Any] = {}
+        if timeout_seconds is not None:
+            kwargs["timeout"] = timeout_seconds
         return OpenAICompatibleClient(
             model=model,
             base_url=base_url,
             api_key=api_key,
+            **kwargs,
         )
     if provider == "anthropic":
+        kwargs = {}
+        if timeout_seconds is not None:
+            kwargs["timeout"] = timeout_seconds
         return AnthropicClient(
             model=model,
             base_url=base_url or "https://api.anthropic.com/v1",
             api_key=api_key,
+            **kwargs,
         )
     raise ValueError(f"unsupported provider: {provider}")

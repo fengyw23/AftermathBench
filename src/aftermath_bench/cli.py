@@ -296,6 +296,12 @@ def build_parser() -> argparse.ArgumentParser:
     native_model_run.add_argument("--failure-report", required=True)
     native_model_run.add_argument("--max-turns", type=int, default=15)
     native_model_run.add_argument(
+        "--model-timeout-seconds",
+        type=int,
+        default=300,
+        help="per-response provider timeout; native reasoning calls may be long",
+    )
+    native_model_run.add_argument(
         "--execution-control",
         action="store_true",
         help="supply the correct recovery scope to isolate tool execution",
@@ -465,6 +471,7 @@ def main() -> int:
             model=args.model,
             base_url=args.base_url,
             api_key_env=args.api_key_env,
+            timeout_seconds=args.model_timeout_seconds,
         )
         report = run_live_native_agent(
             client,
