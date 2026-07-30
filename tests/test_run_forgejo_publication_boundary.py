@@ -75,8 +75,8 @@ class ForgejoPublicationBoundaryCaptureTests(unittest.TestCase):
             with self.subTest(role=role):
                 api = _FakeForgejoAPI()
                 prefix = {
-                    "owner": "orion-release",
-                    "repository": "telemetry-bundle",
+                    "owner": "sample-owner",
+                    "repository": "sample-repository",
                     "release_tag": "v1.2.3",
                     "base_branch": "release/1.2",
                     "expected_assets": [
@@ -114,8 +114,8 @@ class ForgejoPublicationBoundaryCaptureTests(unittest.TestCase):
         release, assets = _capture_release_and_assets(
             api,
             {
-                "owner": "orion-release",
-                "repository": "telemetry-bundle",
+                "owner": "sample-owner",
+                "repository": "sample-repository",
                 "release_tag": "v1.2.3",
                 "base_branch": "release/1.2",
                 "expected_assets": [],
