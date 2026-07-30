@@ -101,7 +101,14 @@ and stored-payload semantics were not explicit in the original tool
 description. The current implementation publishes those stable semantics,
 supports parameterized independent instances, snapshots both Forgejo and
 receiver state, and freezes a salted evaluator-bundle commitment before any
-provider call. See
+provider call. An independently named private candidate validated the full
+protocol in run
+[`30568303895`](https://github.com/fengyw23/AftermathBench/actions/runs/30568303895):
+reference `8/8`, best fixed policy `2/8` with no matched-group solver, and
+GLM-5.2 supplied-scope execution control `8/8` with no run errors. That
+candidate is consumed and is not an ordinary-condition or leaderboard
+result. Its public aggregate is archived under
+`data/evidence/forgejo-publication-candidate-control-20260731`. See
 `docs/FORGEJO_PUBLICATION_INSTANCE_AND_FREEZE.md`.
 
 AftermathBench does not yet claim a complete multi-domain benchmark release.

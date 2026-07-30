@@ -100,6 +100,14 @@ control must cover every matched variant, contain no run errors and reach at
 least 80% task pass rate; model access marks the candidate consumed even if
 that gate later fails.
 
+The protocol was exercised end to end in GitHub Actions run
+[`30568303895`](https://github.com/fengyw23/AftermathBench/actions/runs/30568303895).
+The independent private candidate passed hard admission and reference `8/8`;
+the best fixed policy reached `2/8` and no fixed policy solved the matched
+group. GLM-5.2 execution control passed `8/8` with zero run errors. Only the
+pre-model commitment and aggregate result were retained in
+`data/evidence/forgejo-publication-candidate-control-20260731`.
+
 An execution-control call consumes that candidate for methodology validation.
 It must not later be presented as an unseen leaderboard test. Formal hidden
 instances require the same protocol plus a pre-registered release matrix and
