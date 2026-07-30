@@ -8,8 +8,6 @@ from typing import Any
 from aftermath_bench.native_admission import validate_native_scenario
 from aftermath_bench.native_baseline_summary import summarize_baselines
 from aftermath_bench.native_scenario import load_native_scenario
-from aftermath_bench.schema import repository_root
-
 
 SCENARIO_ID = "forgejo-release-publication-dev-002"
 
@@ -54,6 +52,18 @@ def _named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
     )
 
 
+def _asset_roles(prefix: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    assets = {
+        str(item["name"]): item for item in prefix["expected_assets"]
+    }
+    binary = "aftermath-agent_2026.08.0_linux_amd64.tar.gz"
+    return {
+        "binary": assets[binary],
+        "checksum": assets[f"{binary}.sha256"],
+        "sbom": assets["aftermath-agent_2026.08.0.spdx.json"],
+    }
+
+
 def _compact_capture(
     report: dict[str, Any],
     prefix: dict[str, Any],
@@ -76,25 +86,30 @@ def _compact_capture(
         ref=prefix["base_branch"],
     )
     manifest_data = json.loads(manifest["content"])
+    roles = _asset_roles(prefix)
     source_files = {}
-    for asset in prefix["expected_assets"]:
+    for role, asset in roles.items():
         source = _tool_result(
             report,
             "get_repository_file",
             path=asset["source_path"],
             ref=prefix["base_branch"],
         )
-        source_files[str(asset["name"])] = {
+        source_files[role] = {
             "name": asset["name"],
             "path": source["path"],
             "sha256": source["sha256"],
         }
-    target_assets = {
-        str(item.get("name")): {
-            "name": item.get("name"),
-            "sha256": item.get("content_sha256"),
-        }
+    published = {
+        str(item.get("name")): item
         for item in state["target_release_assets"]
+    }
+    target_assets = {
+        role: {
+            "name": asset["name"],
+            "sha256": published[str(asset["name"])].get("content_sha256"),
+        }
+        for role, asset in roles.items()
     }
     external = {
         str(item.get("key")): item
@@ -259,13 +274,11 @@ def _intersects(left: str, right: str) -> dict[str, Any]:
 
 
 def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
-    assets = {
-        str(item["name"]): item for item in prefix["expected_assets"]
-    }
+    roles = _asset_roles(prefix)
     binary, checksum, sbom = (
-        "aftermath-agent_2026.08.0_linux_amd64.tar.gz",
-        "aftermath-agent_2026.08.0_linux_amd64.tar.gz.sha256",
-        "aftermath-agent_2026.08.0.spdx.json",
+        str(roles["binary"]["name"]),
+        str(roles["checksum"]["name"]),
+        str(roles["sbom"]["name"]),
     )
     entities = [
         ("repository", "Repository", prefix["repository"]),
@@ -275,13 +288,21 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         ("linked_issue", "Issue", str(prefix["linked_issue_index"])),
         ("release_milestone", "Milestone", str(prefix["milestone_id"])),
         ("manifest", "RepositoryFile", "release/publication-manifest.json"),
-        ("binary_source", "RepositoryFile", assets[binary]["source_path"]),
+        (
+            "binary_source",
+            "RepositoryFile",
+            roles["binary"]["source_path"],
+        ),
         (
             "checksum_source",
             "RepositoryFile",
-            assets[checksum]["source_path"],
+            roles["checksum"]["source_path"],
         ),
-        ("sbom_source", "RepositoryFile", assets[sbom]["source_path"]),
+        (
+            "sbom_source",
+            "RepositoryFile",
+            roles["sbom"]["source_path"],
+        ),
         ("target_release", "Release", prefix["release_tag"]),
         ("binary_asset", "ReleaseAttachment", binary),
         ("checksum_asset", "ReleaseAttachment", checksum),
@@ -391,7 +412,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             _equals("manifest.asset_names.*", binary),
             _intersects(
                 "manifest.source_paths.*",
-                f"source_files.{binary}.path",
+                "source_files.binary.path",
             ),
         ),
         _relation(
@@ -401,7 +422,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             _equals("manifest.asset_names.*", checksum),
             _intersects(
                 "manifest.source_paths.*",
-                f"source_files.{checksum}.path",
+                "source_files.checksum.path",
             ),
         ),
         _relation(
@@ -411,7 +432,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             _equals("manifest.asset_names.*", sbom),
             _intersects(
                 "manifest.source_paths.*",
-                f"source_files.{sbom}.path",
+                "source_files.sbom.path",
             ),
         ),
         _relation(
@@ -419,8 +440,8 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "binary_asset",
             "published_as",
             _intersects(
-                f"source_files.{binary}.sha256",
-                f"target_assets.{binary}.sha256",
+                "source_files.binary.sha256",
+                "target_assets.binary.sha256",
             ),
         ),
         _relation(
@@ -428,8 +449,8 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "checksum_asset",
             "published_as",
             _intersects(
-                f"source_files.{checksum}.sha256",
-                f"target_assets.{checksum}.sha256",
+                "source_files.checksum.sha256",
+                "target_assets.checksum.sha256",
             ),
         ),
         _relation(
@@ -437,8 +458,8 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "sbom_asset",
             "published_as",
             _intersects(
-                f"source_files.{sbom}.sha256",
-                f"target_assets.{sbom}.sha256",
+                "source_files.sbom.sha256",
+                "target_assets.sbom.sha256",
             ),
         ),
         _relation(

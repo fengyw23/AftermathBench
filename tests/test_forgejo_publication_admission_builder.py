@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from aftermath_bench.evidence_replay import replay_graph
 from aftermath_bench.integrations.forgejo_publication_faults import (
     PUBLICATION_VARIANTS,
 )
@@ -85,6 +86,59 @@ class ForgejoPublicationAdmissionBuilderTest(unittest.TestCase):
                 )
             )
         self.assertGreaterEqual(len(signatures), 3)
+
+    def test_asset_relations_use_selector_safe_roles_and_replay(self) -> None:
+        prefix = _prefix()
+        graph = _observed_graph(prefix)
+        asset_relations = [
+            relation
+            for relation in graph["relations"]
+            if relation["type"]
+            in {"declares_asset_source", "published_as"}
+        ]
+        asset_graph = {
+            "entities": graph["entities"],
+            "relations": asset_relations,
+        }
+        assets = prefix["expected_assets"]
+        capture = {
+            "variant": "test",
+            "evidence": {
+                "manifest": {
+                    "asset_names": [asset["name"] for asset in assets],
+                    "source_paths": [
+                        asset["source_path"] for asset in assets
+                    ],
+                },
+                "source_files": {
+                    "binary": {
+                        "path": assets[0]["source_path"],
+                        "sha256": "binary-hash",
+                    },
+                    "checksum": {
+                        "path": assets[1]["source_path"],
+                        "sha256": "checksum-hash",
+                    },
+                    "sbom": {
+                        "path": assets[2]["source_path"],
+                        "sha256": "sbom-hash",
+                    },
+                },
+                "target_assets": {
+                    "binary": {"sha256": "binary-hash"},
+                    "checksum": {"sha256": "checksum-hash"},
+                    "sbom": {"sha256": "sbom-hash"},
+                },
+            },
+        }
+
+        results = replay_graph(
+            asset_graph,
+            {"captures": [capture]},
+        )
+
+        self.assertEqual(len(results), 6)
+        self.assertTrue(all(result.passed for result in results))
 
 
 if __name__ == "__main__":
