@@ -36,8 +36,9 @@ jobs:
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
       AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
       AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-      SCENARIO: data/scenario_blueprints/erpnext-sales-return-dev-001/scenario.json
+      SCENARIO: data/scenarios/erpnext-sales-return-dev-001/scenario.json
       SCENARIO_ID: erpnext-sales-return-dev-001
+      CONTROL_MIN_PASS_RATE: "0.8"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -98,6 +99,7 @@ jobs:
             echo "model=$MODEL_ID"
             echo "repetitions=$REPETITIONS"
             echo "execution_control=$EXECUTION_CONTROL"
+            echo "control_min_pass_rate=$CONTROL_MIN_PASS_RATE"
             echo "commit=$GITHUB_SHA"
           } > "$run_root/model-runs/manifest.txt"
 
@@ -158,6 +160,27 @@ jobs:
             --output "$run_root/model-runs/summary.json" \
             --expected-execution-control "$EXECUTION_CONTROL" \
             || run_status=1
+          if [ "$EXECUTION_CONTROL" = "true" ]; then
+            if ! python - "$run_root/model-runs/summary.json" "$CONTROL_MIN_PASS_RATE" <<'PY'
+          import json
+          import sys
+
+          summary_path, threshold_text = sys.argv[1:]
+          with open(summary_path, encoding="utf-8") as handle:
+              summary = json.load(handle)
+          observed = float(summary["task_pass_rate"])
+          threshold = float(threshold_text)
+          print(
+              "execution-control scientific gate: "
+              f"observed={observed:.6f}, required={threshold:.6f}"
+          )
+          if observed < threshold:
+              raise SystemExit(1)
+          PY
+            then
+              run_status=1
+            fi
+          fi
           exit "$run_status"
 
       - name: Capture compose diagnostics

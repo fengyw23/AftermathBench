@@ -61,6 +61,17 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
             '--expected-execution-control "$EXECUTION_CONTROL"',
             workflow,
         )
+        self.assertIn(
+            "data/scenarios/erpnext-sales-return-dev-001/scenario.json",
+            workflow,
+        )
+        self.assertNotIn(
+            "data/scenario_blueprints/erpnext-sales-return-dev-001/scenario.json",
+            workflow,
+        )
+        self.assertIn('CONTROL_MIN_PASS_RATE: "0.8"', workflow)
+        self.assertIn('summary["task_pass_rate"]', workflow)
+        self.assertIn("observed < threshold", workflow)
         for variant in (
             "request_not_reached",
             "database_committed_response_lost",
