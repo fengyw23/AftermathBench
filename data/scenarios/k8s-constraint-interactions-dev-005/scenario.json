@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-constraint-interactions-dev-005",
+  "family": "k8s-constraint-interaction-recovery",
+  "runtime_id": "kubernetes-v1.34",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "implementation_status": "native replay admitted",
+  "title": "Recover an interrupted two-consumer schema change by composing native constraints",
+  "user_instruction": "Recover the interrupted orders platform change and leave both consumers, the database catalog, shared credentials, controller-owned work, release records and external registry in one valid state. Reconstruct what actually happened from authoritative Kubernetes objects, controller evidence and registry records. Apply every visible compatibility, ownership, publication and audit contract together. Preserve valid prior effects and immutable evidence, avoid duplicate external events, and verify the resulting cross-system state.",
+  "fixture": {
+    "namespace": "aftermath-interactions",
+    "application": "orders",
+    "change": "orders-platform-v2",
+    "api_deployment": "orders-api-v2",
+    "worker_deployment": "orders-worker-v2",
+    "api_service": "orders-api",
+    "catalog_configmap": "database-catalog",
+    "credential_secret": "orders-db-current",
+    "bridge_configmap": "schema-compatibility-bridge",
+    "batch_configmap": "worker-batch-state",
+    "transition_controller_prefix": "orders-worker-transition-",
+    "publication_controller_prefix": "orders-release-publication-",
+    "change_record_configmap": "change-record",
+    "audit_configmap": "recovery-audit"
+  },
+  "ambiguous_operation": {
+    "operation": "execute the approved orders platform migration and coordinated rollout",
+    "surface_result": "HTTP connection lost before the change orchestration response"
+  },
+  "matched_variants": [
+    {
+      "id": "state_01"
+    },
+    {
+      "id": "state_02"
+    },
+    {
+      "id": "state_03"
+    },
+    {
+      "id": "state_04"
+    },
+    {
+      "id": "state_05"
+    },
+    {
+      "id": "state_06"
+    },
+    {
+      "id": "state_07"
+    },
+    {
+      "id": "state_08"
+    },
+    {
+      "id": "state_09"
+    },
+    {
+      "id": "state_10"
+    },
+    {
+      "id": "state_11"
+    },
+    {
+      "id": "state_12"
+    },
+    {
+      "id": "state_13"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "discard_failed_change",
+    "compensate_and_discard_failed_change",
+    "create_deferred_transition_owner",
+    "preserve_deferred_transition_owner",
+    "renew_bridge_and_preserve_transition_owner",
+    "resume_worker_transition",
+    "create_publication_owner",
+    "resume_publication_owner",
+    "reconcile_completed_publication",
+    "close_accepted_publication",
+    "repair_api_consumer_before_publication",
+    "create_worker_transition",
+    "rotate_shared_credential"
+  ],
+  "public_tool_policy": {
+    "ordinary_kubernetes_object_reads": true,
+    "pod_and_job_log_reads": true,
+    "native_create_apply_patch_delete": true,
+    "ordinary_registry_get_and_post": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_profile": {
+    "constraint_derived_scope": {
+      "minimum_counterfactual_flips": 8,
+      "require_projection_witnesses": true,
+      "minimum_projection_witnesses": 10
+    }
+  },
+  "admission_status": "validated",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json",
+    "prompt_audit": "artifacts/prompt_audit.json",
+    "projection_witnesses": "artifacts/projection-witnesses.json"
+  }
+}

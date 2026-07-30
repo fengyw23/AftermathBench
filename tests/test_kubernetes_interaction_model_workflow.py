@@ -36,6 +36,16 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
         for index in range(1, 14):
             self.assertIn(f"state_{index:02d}", self.text)
 
+    def test_model_uses_the_native_admitted_scenario(self) -> None:
+        self.assertIn(
+            "data/scenarios/k8s-constraint-interactions-dev-005/scenario.json",
+            self.text,
+        )
+        self.assertNotIn(
+            "data/scenario_blueprints/k8s-constraint-interactions-dev-005/scenario.json",
+            self.text,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

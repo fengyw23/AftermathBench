@@ -94,8 +94,9 @@ commit cluster (catalog, migration result and API state) is projected away,
 their remaining visible facts are identical but their recovery scopes differ.
 Across all 13 boundaries there are 13 evaluator-only scopes and ten declared
 evidence groups, each with an automated projection witness. The matrix is code
-in `integrations/kubernetes_interaction_scope.py`; it is not yet native replay
-evidence and cannot be admitted until the real fault builders reproduce it.
+in `integrations/kubernetes_interaction_scope.py`; the admitted dataset stores
+separate native replay evidence proving that the real fault builders reproduce
+every declared fact vector.
 
 Expected semantic scopes include cleanup, compensation plus cleanup,
 bridge-preserving closure, worker forward completion, resuming an owned
@@ -141,3 +142,33 @@ execution control remains high, provider/tool errors are zero, and model
 failures arise from the interaction above. A lower score caused by omitted
 payload schemas, vague sentinel semantics, hidden timing assumptions or tool
 friction invalidates the run.
+
+## Native admission result
+
+GitHub Actions run
+[`30483281549`](https://github.com/fengyw23/AftermathBench/actions/runs/30483281549)
+validated the construction at source commit
+`2be631e50b7c86183d2e4214ec77f266fef2b682`:
+
+- all 13 failure boundaries reproduced their declared native fact vectors and
+  exposed the identical connection-loss result;
+- the public-tool reference recovered all 13 states;
+- the observed graph contains 28 entities, 30 replayed relations across 27
+  relation types, dependency depth 8 and three shared dependencies;
+- all 30 relation assertions replayed against all reference terminal states;
+- all ten declared evidence groups have a valid projection witness, while the
+  13 states induce 13 distinct semantic recovery directions;
+- all 14 ordinary model-input surfaces were audited, with zero direction-label
+  leaks and at least seven decisive surfaces per counterfactual derivation;
+- nine fixed policies were replayed from every state, for 117 native policy
+  runs. No policy solved the matched group. The strongest compact
+  epoch/external-key tree passed 6/13 (46.15%).
+
+The scenario is therefore admitted as `hard`. The complete raw evidence is in
+`data/evidence/kubernetes-constraint-interaction-admission-final-20260730`, and
+the compact admitted task is in
+`data/scenarios/k8s-constraint-interactions-dev-005`.
+
+This construction result does not yet establish model difficulty. The next
+validity gate is an exact-target execution control on all 13 states, followed
+by the ordinary GLM-5.2 condition using the same public tools and evaluator.

@@ -157,3 +157,30 @@ Forgejo is the selected fully open candidate. The first source-backed task will
 be chosen from package publication, releases and attachments, Actions runs, or
 post-receive processing. Every coding workflow must include a durable effect
 beyond repository files.
+
+## Kubernetes constraint-interaction vertical slice
+
+The fifth Kubernetes iteration moves beyond a four-leaf commit-state task. It
+combines a monotonic schema catalog, two independently deployed consumers, a
+shared credential, a temporary compatibility bridge, a non-replayable worker
+batch, controller-owned Jobs, and exactly-once external registry events. The
+same connection-loss result hides 13 native states requiring 13 distinct
+recovery directions.
+
+Native construction admission passed in GitHub Actions run
+[`30483281549`](https://github.com/fengyw23/AftermathBench/actions/runs/30483281549)
+at source commit `2be631e50b7c86183d2e4214ec77f266fef2b682`:
+
+- reference recovery passed 13/13 states using only public model tools;
+- 30/30 semantic relations replayed against native terminal evidence;
+- ten evidence projections all had matched witnesses whose recovery direction
+  changed after one fact group was restored;
+- prompt audit found zero recovery-direction leaks across 14 complete input
+  surfaces;
+- nine fixed policies produced no matched-group solver. The strongest compact
+  tree passed 6/13 (46.15%).
+
+The task is admitted as hard for model validation, not yet as a finished
+benchmark family. The exact-target execution control and ordinary GLM-5.2
+experiment remain the next gates. Full replay evidence is archived under
+`data/evidence/kubernetes-constraint-interaction-admission-final-20260730`.

@@ -1,0 +1,2071 @@
+{
+  "schema_version": "0.5",
+  "scenario_id": "k8s-constraint-interactions-dev-005",
+  "variant": "state_02",
+  "baseline": "always_defer_new_owner",
+  "semantic_recovery_direction": "compensate_and_discard_failed_change",
+  "trace": [
+    {
+      "tool": "list_objects",
+      "arguments": {
+        "resource": "deployments",
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"},\"name\":\"orders-api-v1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v1\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:28Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v1"
+              },
+              "name": "orders-api-v1",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24456",
+              "uid": "aa47b1c9-4d2e-498c-9731-b8ed17f39394"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 1,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v1"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "api",
+                    "version": "v1"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v1"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "api",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "availableReplicas": 1,
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:28Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-api-v1-55997cc8bc\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1,
+              "readyReplicas": 1,
+              "replicas": 1,
+              "updatedReplicas": 1
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"},\"name\":\"orders-api-v2\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v2\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v2"
+              },
+              "name": "orders-api-v2",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24413",
+              "uid": "84e67ded-1b81-4542-a760-3e9d84362ef9"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 0,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v2"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "api",
+                    "version": "v2"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v2"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "api",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-api-v2-55b9bb48f5\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"},\"name\":\"orders-worker-v1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v1\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "worker",
+                "version": "v1"
+              },
+              "name": "orders-worker-v1",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24458",
+              "uid": "b15870db-0b34-4cbd-979f-359a6c5cb5b7"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 1,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "worker",
+                  "version": "v1"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "worker",
+                    "version": "v1"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v1"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "worker",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "availableReplicas": 1,
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-worker-v1-7dcf47489f\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1,
+              "readyReplicas": 1,
+              "replicas": 1,
+              "updatedReplicas": 1
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"},\"name\":\"orders-worker-v2\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v2\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "worker",
+                "version": "v2"
+              },
+              "name": "orders-worker-v2",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24431",
+              "uid": "4bdd5bc2-d274-4b38-ae17-07e2cd7f65c4"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 0,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "worker",
+                  "version": "v2"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "worker",
+                    "version": "v2"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v2"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "worker",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-worker-v2-57bc464497\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "deployment",
+        "name": "orders-api-v2",
+        "patch": {
+          "spec": {
+            "replicas": 1
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "annotations": {
+              "deployment.kubernetes.io/revision": "1",
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"},\"name\":\"orders-api-v2\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v2\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:29Z",
+            "generation": 2,
+            "labels": {
+              "app": "orders",
+              "component": "api",
+              "version": "v2"
+            },
+            "name": "orders-api-v2",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24498",
+            "uid": "84e67ded-1b81-4542-a760-3e9d84362ef9"
+          },
+          "spec": {
+            "progressDeadlineSeconds": 600,
+            "replicas": 1,
+            "revisionHistoryLimit": 10,
+            "selector": {
+              "matchLabels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v2"
+              }
+            },
+            "strategy": {
+              "rollingUpdate": {
+                "maxSurge": "25%",
+                "maxUnavailable": "25%"
+              },
+              "type": "RollingUpdate"
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v2"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "import time; time.sleep(3600)"
+                    ],
+                    "env": [
+                      {
+                        "name": "APP_VERSION",
+                        "value": "v2"
+                      },
+                      {
+                        "name": "DB_TOKEN",
+                        "valueFrom": {
+                          "secretKeyRef": {
+                            "key": "token",
+                            "name": "orders-db-current"
+                          }
+                        }
+                      }
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "api",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "orders-runner",
+                "serviceAccountName": "orders-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {
+            "conditions": [
+              {
+                "lastTransitionTime": "2026-07-29T20:16:29Z",
+                "lastUpdateTime": "2026-07-29T20:16:29Z",
+                "message": "Deployment has minimum availability.",
+                "reason": "MinimumReplicasAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2026-07-29T20:16:29Z",
+                "lastUpdateTime": "2026-07-29T20:16:29Z",
+                "message": "ReplicaSet \"orders-api-v2-55b9bb48f5\" has successfully progressed.",
+                "reason": "NewReplicaSetAvailable",
+                "status": "True",
+                "type": "Progressing"
+              }
+            ],
+            "observedGeneration": 1
+          }
+        }
+      }
+    },
+    {
+      "tool": "wait_for_deployment",
+      "arguments": {
+        "deployment": "orders-api-v2",
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": "deployment.apps/orders-api-v2 condition met"
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "deployment",
+        "name": "orders-api-v1",
+        "patch": {
+          "spec": {
+            "replicas": 0
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "annotations": {
+              "deployment.kubernetes.io/revision": "1",
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"},\"name\":\"orders-api-v1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v1\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "generation": 2,
+            "labels": {
+              "app": "orders",
+              "component": "api",
+              "version": "v1"
+            },
+            "name": "orders-api-v1",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24518",
+            "uid": "aa47b1c9-4d2e-498c-9731-b8ed17f39394"
+          },
+          "spec": {
+            "progressDeadlineSeconds": 600,
+            "replicas": 0,
+            "revisionHistoryLimit": 10,
+            "selector": {
+              "matchLabels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v1"
+              }
+            },
+            "strategy": {
+              "rollingUpdate": {
+                "maxSurge": "25%",
+                "maxUnavailable": "25%"
+              },
+              "type": "RollingUpdate"
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v1"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "import time; time.sleep(3600)"
+                    ],
+                    "env": [
+                      {
+                        "name": "APP_VERSION",
+                        "value": "v1"
+                      },
+                      {
+                        "name": "DB_TOKEN",
+                        "valueFrom": {
+                          "secretKeyRef": {
+                            "key": "token",
+                            "name": "orders-db-current"
+                          }
+                        }
+                      }
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "api",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "orders-runner",
+                "serviceAccountName": "orders-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {
+            "availableReplicas": 1,
+            "conditions": [
+              {
+                "lastTransitionTime": "2026-07-29T20:16:29Z",
+                "lastUpdateTime": "2026-07-29T20:16:29Z",
+                "message": "Deployment has minimum availability.",
+                "reason": "MinimumReplicasAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2026-07-29T20:16:28Z",
+                "lastUpdateTime": "2026-07-29T20:16:29Z",
+                "message": "ReplicaSet \"orders-api-v1-55997cc8bc\" has successfully progressed.",
+                "reason": "NewReplicaSetAvailable",
+                "status": "True",
+                "type": "Progressing"
+              }
+            ],
+            "observedGeneration": 1,
+            "readyReplicas": 1,
+            "replicas": 1,
+            "updatedReplicas": 1
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "service",
+        "name": "orders-api",
+        "patch": {
+          "spec": {
+            "selector": {
+              "app": "orders",
+              "component": "api",
+              "version": "v2"
+            }
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "kind": "Service",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"name\":\"orders-api\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"ports\":[{\"port\":80,\"targetPort\":8080}],\"selector\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:29Z",
+            "name": "orders-api",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24531",
+            "uid": "ba9c50bb-2460-4aa0-834f-5dfbe6dea0c4"
+          },
+          "spec": {
+            "clusterIP": "10.96.28.208",
+            "clusterIPs": [
+              "10.96.28.208"
+            ],
+            "internalTrafficPolicy": "Cluster",
+            "ipFamilies": [
+              "IPv4"
+            ],
+            "ipFamilyPolicy": "SingleStack",
+            "ports": [
+              {
+                "port": 80,
+                "protocol": "TCP",
+                "targetPort": 8080
+              }
+            ],
+            "selector": {
+              "app": "orders",
+              "component": "api",
+              "version": "v2"
+            },
+            "sessionAffinity": "None",
+            "type": "ClusterIP"
+          },
+          "status": {
+            "loadBalancer": {}
+          }
+        }
+      }
+    },
+    {
+      "tool": "list_objects",
+      "arguments": {
+        "resource": "deployments",
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"},\"name\":\"orders-api-v1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v1\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:28Z",
+              "generation": 2,
+              "labels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v1"
+              },
+              "name": "orders-api-v1",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24530",
+              "uid": "aa47b1c9-4d2e-498c-9731-b8ed17f39394"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 0,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v1"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "api",
+                    "version": "v1"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v1"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "api",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:28Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-api-v1-55997cc8bc\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 2
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"},\"name\":\"orders-api-v2\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"api\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v2\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 2,
+              "labels": {
+                "app": "orders",
+                "component": "api",
+                "version": "v2"
+              },
+              "name": "orders-api-v2",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24517",
+              "uid": "84e67ded-1b81-4542-a760-3e9d84362ef9"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 1,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "api",
+                  "version": "v2"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "api",
+                    "version": "v2"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v2"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "api",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "availableReplicas": 1,
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-api-v2-55b9bb48f5\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:40Z",
+                  "lastUpdateTime": "2026-07-29T20:16:40Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                }
+              ],
+              "observedGeneration": 2,
+              "readyReplicas": 1,
+              "replicas": 1,
+              "updatedReplicas": 1
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"},\"name\":\"orders-worker-v1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v1\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "worker",
+                "version": "v1"
+              },
+              "name": "orders-worker-v1",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24458",
+              "uid": "b15870db-0b34-4cbd-979f-359a6c5cb5b7"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 1,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "worker",
+                  "version": "v1"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "worker",
+                    "version": "v1"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v1"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "worker",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "availableReplicas": 1,
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-worker-v1-7dcf47489f\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1,
+              "readyReplicas": 1,
+              "replicas": 1,
+              "updatedReplicas": 1
+            }
+          },
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "annotations": {
+                "deployment.kubernetes.io/revision": "1",
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"},\"name\":\"orders-worker-v2\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"component\":\"worker\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v2\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"orders-db-current\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "component": "worker",
+                "version": "v2"
+              },
+              "name": "orders-worker-v2",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24431",
+              "uid": "4bdd5bc2-d274-4b38-ae17-07e2cd7f65c4"
+            },
+            "spec": {
+              "progressDeadlineSeconds": 600,
+              "replicas": 0,
+              "revisionHistoryLimit": 10,
+              "selector": {
+                "matchLabels": {
+                  "app": "orders",
+                  "component": "worker",
+                  "version": "v2"
+                }
+              },
+              "strategy": {
+                "rollingUpdate": {
+                  "maxSurge": "25%",
+                  "maxUnavailable": "25%"
+                },
+                "type": "RollingUpdate"
+              },
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "component": "worker",
+                    "version": "v2"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "import time; time.sleep(3600)"
+                      ],
+                      "env": [
+                        {
+                          "name": "APP_VERSION",
+                          "value": "v2"
+                        },
+                        {
+                          "name": "DB_TOKEN",
+                          "valueFrom": {
+                            "secretKeyRef": {
+                              "key": "token",
+                              "name": "orders-db-current"
+                            }
+                          }
+                        }
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "worker",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Always",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "Deployment has minimum availability.",
+                  "reason": "MinimumReplicasAvailable",
+                  "status": "True",
+                  "type": "Available"
+                },
+                {
+                  "lastTransitionTime": "2026-07-29T20:16:29Z",
+                  "lastUpdateTime": "2026-07-29T20:16:29Z",
+                  "message": "ReplicaSet \"orders-worker-v2-57bc464497\" has successfully progressed.",
+                  "reason": "NewReplicaSetAvailable",
+                  "status": "True",
+                  "type": "Progressing"
+                }
+              ],
+              "observedGeneration": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "secret",
+        "name": "orders-db-current",
+        "patch": {
+          "metadata": {
+            "labels": {
+              "credential-generation": "1"
+            }
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "token": "Y3VycmVudC1nZW5lcmF0aW9uLW9uZQ=="
+          },
+          "kind": "Secret",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"annotations\":{},\"labels\":{\"credential-generation\":\"1\"},\"name\":\"orders-db-current\",\"namespace\":\"aftermath-interactions\"},\"stringData\":{\"token\":\"current-generation-one\"},\"type\":\"Opaque\"}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "labels": {
+              "credential-generation": "1"
+            },
+            "name": "orders-db-current",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24391",
+            "uid": "891cf8fd-29e7-4853-904f-9c44b778210e"
+          },
+          "type": "Opaque"
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "schema-compatibility-bridge",
+        "patch": {
+          "data": {
+            "lease": "active"
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "consumer": "orders-worker-v1",
+            "epoch": "2",
+            "lease": "active"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"consumer\":\"orders-worker-v1\",\"epoch\":\"2\",\"lease\":\"active\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"schema-compatibility-bridge\",\"namespace\":\"aftermath-interactions\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "name": "schema-compatibility-bridge",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24386",
+            "uid": "e9d082c5-7b27-4f8d-ac64-27bce6e9fd7b"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "worker-batch-state",
+        "patch": {
+          "data": {
+            "state": "inflight"
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "batch": "batch-4821",
+            "replayable": "false",
+            "state": "inflight"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"batch\":\"batch-4821\",\"replayable\":\"false\",\"state\":\"inflight\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"worker-batch-state\",\"namespace\":\"aftermath-interactions\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "name": "worker-batch-state",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24387",
+            "uid": "37e5b7f2-e5ad-41c7-b6bf-684edd069a77"
+          }
+        }
+      }
+    },
+    {
+      "tool": "create_object",
+      "arguments": {
+        "manifest": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "name": "orders-worker-transition",
+            "namespace": "aftermath-interactions",
+            "labels": {
+              "app": "orders",
+              "transition-owner": "orders-worker-transition"
+            }
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "suspend": true,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "transition-owner": "orders-worker-transition"
+                }
+              },
+              "spec": {
+                "serviceAccountName": "orders-runner",
+                "restartPolicy": "Never",
+                "containers": [
+                  {
+                    "name": "controller",
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "command": [
+                      "python",
+                      "-c",
+                      "print('worker transition controller observed state')"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "creationTimestamp": "2026-07-29T20:16:41Z",
+            "generation": 1,
+            "labels": {
+              "app": "orders",
+              "transition-owner": "orders-worker-transition"
+            },
+            "name": "orders-worker-transition",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24534",
+            "uid": "eda980e3-f640-4347-9652-201875b350b7"
+          },
+          "spec": {
+            "backoffLimit": 0,
+            "completionMode": "NonIndexed",
+            "completions": 1,
+            "manualSelector": false,
+            "parallelism": 1,
+            "podReplacementPolicy": "TerminatingOrFailed",
+            "selector": {
+              "matchLabels": {
+                "batch.kubernetes.io/controller-uid": "eda980e3-f640-4347-9652-201875b350b7"
+              }
+            },
+            "suspend": true,
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "orders",
+                  "batch.kubernetes.io/controller-uid": "eda980e3-f640-4347-9652-201875b350b7",
+                  "batch.kubernetes.io/job-name": "orders-worker-transition",
+                  "controller-uid": "eda980e3-f640-4347-9652-201875b350b7",
+                  "job-name": "orders-worker-transition",
+                  "transition-owner": "orders-worker-transition"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "python",
+                      "-c",
+                      "print('worker transition controller observed state')"
+                    ],
+                    "image": "aftermathbench/kubernetes-control:local",
+                    "imagePullPolicy": "Never",
+                    "name": "controller",
+                    "resources": {},
+                    "terminationMessagePath": "/dev/termination-log",
+                    "terminationMessagePolicy": "File"
+                  }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Never",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "serviceAccount": "orders-runner",
+                "serviceAccountName": "orders-runner",
+                "terminationGracePeriodSeconds": 30
+              }
+            }
+          },
+          "status": {}
+        }
+      }
+    },
+    {
+      "tool": "list_objects",
+      "arguments": {
+        "resource": "jobs",
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": [
+          {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+              "annotations": {
+                "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"orders\",\"backup\":\"epoch1\"},\"name\":\"orders-backup-epoch1\",\"namespace\":\"aftermath-interactions\"},\"spec\":{\"backoffLimit\":0,\"template\":{\"metadata\":{\"labels\":{\"app\":\"orders\",\"backup\":\"epoch1\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"print('epoch1 backup complete')\"],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"backup\"}],\"restartPolicy\":\"Never\",\"serviceAccountName\":\"orders-runner\"}}}}\n"
+              },
+              "creationTimestamp": "2026-07-29T20:16:29Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "backup": "epoch1"
+              },
+              "name": "orders-backup-epoch1",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24470",
+              "uid": "373757d5-ad2f-49a0-b8af-8e603f0fde7e"
+            },
+            "spec": {
+              "backoffLimit": 0,
+              "completionMode": "NonIndexed",
+              "completions": 1,
+              "manualSelector": false,
+              "parallelism": 1,
+              "podReplacementPolicy": "TerminatingOrFailed",
+              "selector": {
+                "matchLabels": {
+                  "batch.kubernetes.io/controller-uid": "373757d5-ad2f-49a0-b8af-8e603f0fde7e"
+                }
+              },
+              "suspend": false,
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "backup": "epoch1",
+                    "batch.kubernetes.io/controller-uid": "373757d5-ad2f-49a0-b8af-8e603f0fde7e",
+                    "batch.kubernetes.io/job-name": "orders-backup-epoch1",
+                    "controller-uid": "373757d5-ad2f-49a0-b8af-8e603f0fde7e",
+                    "job-name": "orders-backup-epoch1"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "print('epoch1 backup complete')"
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "backup",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Never",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "completionTime": "2026-07-29T20:16:32Z",
+              "conditions": [
+                {
+                  "lastProbeTime": "2026-07-29T20:16:32Z",
+                  "lastTransitionTime": "2026-07-29T20:16:32Z",
+                  "message": "Reached expected number of succeeded pods",
+                  "reason": "CompletionsReached",
+                  "status": "True",
+                  "type": "SuccessCriteriaMet"
+                },
+                {
+                  "lastProbeTime": "2026-07-29T20:16:32Z",
+                  "lastTransitionTime": "2026-07-29T20:16:32Z",
+                  "message": "Reached expected number of succeeded pods",
+                  "reason": "CompletionsReached",
+                  "status": "True",
+                  "type": "Complete"
+                }
+              ],
+              "ready": 0,
+              "startTime": "2026-07-29T20:16:29Z",
+              "succeeded": 1,
+              "terminating": 0,
+              "uncountedTerminatedPods": {}
+            }
+          },
+          {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+              "creationTimestamp": "2026-07-29T20:16:33Z",
+              "generateName": "orders-platform-migration-",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "migration": "orders-platform-v2"
+              },
+              "name": "orders-platform-migration-5l4mr",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24492",
+              "uid": "5c533075-f343-4ca8-9783-1e50165917aa"
+            },
+            "spec": {
+              "backoffLimit": 0,
+              "completionMode": "NonIndexed",
+              "completions": 1,
+              "manualSelector": false,
+              "parallelism": 1,
+              "podReplacementPolicy": "TerminatingOrFailed",
+              "selector": {
+                "matchLabels": {
+                  "batch.kubernetes.io/controller-uid": "5c533075-f343-4ca8-9783-1e50165917aa"
+                }
+              },
+              "suspend": false,
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "batch.kubernetes.io/controller-uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+                    "batch.kubernetes.io/job-name": "orders-platform-migration-5l4mr",
+                    "controller-uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+                    "job-name": "orders-platform-migration-5l4mr",
+                    "migration": "orders-platform-v2"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "raise SystemExit('platform migration failed before commit')"
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "controller",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Never",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastProbeTime": "2026-07-29T20:16:36Z",
+                  "lastTransitionTime": "2026-07-29T20:16:36Z",
+                  "message": "Job has reached the specified backoff limit",
+                  "reason": "BackoffLimitExceeded",
+                  "status": "True",
+                  "type": "FailureTarget"
+                },
+                {
+                  "lastProbeTime": "2026-07-29T20:16:36Z",
+                  "lastTransitionTime": "2026-07-29T20:16:36Z",
+                  "message": "Job has reached the specified backoff limit",
+                  "reason": "BackoffLimitExceeded",
+                  "status": "True",
+                  "type": "Failed"
+                }
+              ],
+              "failed": 1,
+              "ready": 0,
+              "startTime": "2026-07-29T20:16:33Z",
+              "terminating": 0,
+              "uncountedTerminatedPods": {}
+            }
+          },
+          {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {
+              "creationTimestamp": "2026-07-29T20:16:41Z",
+              "generation": 1,
+              "labels": {
+                "app": "orders",
+                "transition-owner": "orders-worker-transition"
+              },
+              "name": "orders-worker-transition",
+              "namespace": "aftermath-interactions",
+              "resourceVersion": "24536",
+              "uid": "eda980e3-f640-4347-9652-201875b350b7"
+            },
+            "spec": {
+              "backoffLimit": 0,
+              "completionMode": "NonIndexed",
+              "completions": 1,
+              "manualSelector": false,
+              "parallelism": 1,
+              "podReplacementPolicy": "TerminatingOrFailed",
+              "selector": {
+                "matchLabels": {
+                  "batch.kubernetes.io/controller-uid": "eda980e3-f640-4347-9652-201875b350b7"
+                }
+              },
+              "suspend": true,
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "orders",
+                    "batch.kubernetes.io/controller-uid": "eda980e3-f640-4347-9652-201875b350b7",
+                    "batch.kubernetes.io/job-name": "orders-worker-transition",
+                    "controller-uid": "eda980e3-f640-4347-9652-201875b350b7",
+                    "job-name": "orders-worker-transition",
+                    "transition-owner": "orders-worker-transition"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "command": [
+                        "python",
+                        "-c",
+                        "print('worker transition controller observed state')"
+                      ],
+                      "image": "aftermathbench/kubernetes-control:local",
+                      "imagePullPolicy": "Never",
+                      "name": "controller",
+                      "resources": {},
+                      "terminationMessagePath": "/dev/termination-log",
+                      "terminationMessagePolicy": "File"
+                    }
+                  ],
+                  "dnsPolicy": "ClusterFirst",
+                  "restartPolicy": "Never",
+                  "schedulerName": "default-scheduler",
+                  "securityContext": {},
+                  "serviceAccount": "orders-runner",
+                  "serviceAccountName": "orders-runner",
+                  "terminationGracePeriodSeconds": 30
+                }
+              }
+            },
+            "status": {
+              "conditions": [
+                {
+                  "lastProbeTime": "2026-07-29T20:16:41Z",
+                  "lastTransitionTime": "2026-07-29T20:16:41Z",
+                  "message": "Job suspended",
+                  "reason": "JobSuspended",
+                  "status": "True",
+                  "type": "Suspended"
+                }
+              ],
+              "ready": 0,
+              "terminating": 0,
+              "uncountedTerminatedPods": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "change-record",
+        "patch": {
+          "data": {
+            "orders-platform-v2.state": "resolved"
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-platform-v2.failure": "HTTP connection lost before the change orchestration response",
+            "orders-platform-v2.state": "resolved"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-platform-v2.failure\":\"HTTP connection lost before the change orchestration response\",\"orders-platform-v2.state\":\"interrupted\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"change-record\",\"namespace\":\"aftermath-interactions\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "name": "change-record",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24537",
+            "uid": "43e4be32-1e38-457b-ba0a-7fa5b1a838eb"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "release-ledger",
+        "patch": {
+          "data": {
+            "orders-platform-v2.status": "deferred",
+            "orders-platform-v2.schema_epoch": "2"
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-platform-v1.status": "active",
+            "orders-platform-v2.schema_epoch": "2",
+            "orders-platform-v2.status": "deferred"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-platform-v1.status\":\"active\",\"orders-platform-v2.schema_epoch\":\"unknown\",\"orders-platform-v2.status\":\"open\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"release-ledger\",\"namespace\":\"aftermath-interactions\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "name": "release-ledger",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24538",
+            "uid": "1a2a6c66-3104-45c8-a240-6bab15871287"
+          }
+        }
+      }
+    },
+    {
+      "tool": "patch_object",
+      "arguments": {
+        "resource": "configmap",
+        "name": "recovery-audit",
+        "patch": {
+          "data": {
+            "orders-platform-v2.status": "complete",
+            "orders-platform-v2.schema_epoch": "2",
+            "orders-platform-v2.api_version": "v2",
+            "orders-platform-v2.worker_version": "v1",
+            "orders-platform-v2.credential_generation": "1",
+            "orders-platform-v2.migration_job_uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+            "orders-platform-v2.transition_job_uid": "eda980e3-f640-4347-9652-201875b350b7",
+            "orders-platform-v2.publication_job_uid": "none",
+            "orders-platform-v2.preparation_resolution": "not-created",
+            "orders-platform-v2.release_resolution": "deferred"
+          }
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "apiVersion": "v1",
+          "data": {
+            "orders-platform-v2.api_version": "v2",
+            "orders-platform-v2.credential_generation": "1",
+            "orders-platform-v2.migration_job_uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+            "orders-platform-v2.preparation_resolution": "not-created",
+            "orders-platform-v2.publication_job_uid": "none",
+            "orders-platform-v2.release_resolution": "deferred",
+            "orders-platform-v2.schema_epoch": "2",
+            "orders-platform-v2.status": "complete",
+            "orders-platform-v2.transition_job_uid": "eda980e3-f640-4347-9652-201875b350b7",
+            "orders-platform-v2.worker_version": "v1",
+            "prior.status": "recorded",
+            "prior.version": "v1"
+          },
+          "kind": "ConfigMap",
+          "metadata": {
+            "annotations": {
+              "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"orders-platform-v2.api_version\":\"unknown\",\"orders-platform-v2.credential_generation\":\"unknown\",\"orders-platform-v2.migration_job_uid\":\"unknown\",\"orders-platform-v2.preparation_resolution\":\"unknown\",\"orders-platform-v2.publication_job_uid\":\"unknown\",\"orders-platform-v2.release_resolution\":\"unknown\",\"orders-platform-v2.schema_epoch\":\"unknown\",\"orders-platform-v2.status\":\"pending\",\"orders-platform-v2.transition_job_uid\":\"unknown\",\"orders-platform-v2.worker_version\":\"unknown\",\"prior.status\":\"recorded\",\"prior.version\":\"v1\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"recovery-audit\",\"namespace\":\"aftermath-interactions\"}}\n"
+            },
+            "creationTimestamp": "2026-07-29T20:16:28Z",
+            "name": "recovery-audit",
+            "namespace": "aftermath-interactions",
+            "resourceVersion": "24539",
+            "uid": "124e1662-4853-495a-98a5-647f8aae25e8"
+          }
+        }
+      }
+    },
+    {
+      "tool": "post_external_event",
+      "arguments": {
+        "idempotency_key": "audit:recovery:orders-platform-v2",
+        "payload": {
+          "application": "orders",
+          "status": "complete",
+          "schema_epoch": "2",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "migration_job_uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+          "transition_job_uid": "eda980e3-f640-4347-9652-201875b350b7",
+          "publication_job_uid": "none"
+        },
+        "namespace": "aftermath-interactions"
+      },
+      "result": {
+        "ok": true,
+        "result": {
+          "attempt_count": 1,
+          "delivery_key": "audit:recovery:orders-platform-v2",
+          "first_delivery": true,
+          "ok": true
+        }
+      }
+    }
+  ],
+  "baseline_error": null,
+  "evaluation": {
+    "passed": false,
+    "components": {
+      "goal_completion": false,
+      "repair_completeness": false,
+      "preservation": true,
+      "protocol_safety": false
+    },
+    "checks": {
+      "catalog_preserved": true,
+      "api_consumer_matches_scope": false,
+      "api_service_matches_consumer": false,
+      "api_backend_available": false,
+      "worker_consumer_matches_scope": true,
+      "worker_backend_available": true,
+      "shared_credential_matches_scope": true,
+      "bridge_matches_scope": true,
+      "batch_matches_scope": true,
+      "candidate_artifacts_match_commit": false,
+      "transition_owner_closed_correctly": false,
+      "publication_owner_closed_correctly": true,
+      "change_record_closed": true,
+      "release_ledger_closed": false,
+      "audit_records_observed_facts": false,
+      "closure_event_records_observed_facts": false,
+      "preparation_obligation_closed": false,
+      "release_obligation_closed": true,
+      "contracts_preserved": true,
+      "migration_evidence_preserved": true,
+      "backup_preserved": true,
+      "stable_consumer_identity_preserved": true,
+      "shared_identity_preserved": true,
+      "rbac_preserved": true,
+      "prior_release_preserved": true,
+      "no_protocol_violation": true,
+      "boundary_effect_envelope_respected": false,
+      "all_external_effects_exactly_once": true,
+      "no_duplicate_migration_job": true,
+      "no_duplicate_transition_owner": true,
+      "no_duplicate_publication_owner": true
+    },
+    "diagnostics": {
+      "semantic_recovery_direction": "compensate_and_discard_failed_change",
+      "boundary_facts": {
+        "schema_epoch": "1",
+        "migration_state": "failed",
+        "api_version": "v1",
+        "worker_version": "v1",
+        "credential_generation": "1",
+        "bridge_lease": "active",
+        "batch_state": "inflight",
+        "transition_controller": "absent",
+        "publication_task": "absent",
+        "preparation_present": true,
+        "release_accepted": false,
+        "external_keys": [
+          "prepare:orders-platform-v2",
+          "release:orders-platform-v1"
+        ],
+        "catalog_data": {
+          "history": "epoch1",
+          "migration": "none",
+          "schemaEpoch": "1"
+        },
+        "contract_data": {
+          "schema-contract": {
+            "apiV1CompatibleEpochs": "1",
+            "apiV2CompatibleEpochs": "2",
+            "downMigrationAllowed": "false",
+            "epochMonotonic": "true",
+            "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+            "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+            "workerV2CompatibleEpochs": "2"
+          },
+          "compatibility-contract": {
+            "batchRecord": "worker-batch-state",
+            "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+            "bridgeRecord": "schema-compatibility-bridge",
+            "expiredLease": "cannot authorize a v1 worker at epoch 2",
+            "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+            "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+          },
+          "credential-contract": {
+            "candidateSecret": "orders-db-next",
+            "generationLabel": "metadata.labels.credential-generation",
+            "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+            "sharedSecret": "orders-db-current",
+            "targetGeneration": "2",
+            "v1AllowedGenerations": "1",
+            "v2AllowedGenerations": "1,2"
+          },
+          "controller-contract": {
+            "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+            "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+            "ownerUniqueness": "at most one Job for each selector",
+            "publicationSelector": "publication-owner=orders-release-publication",
+            "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+            "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+            "transitionSelector": "transition-owner=orders-worker-transition"
+          },
+          "publication-contract": {
+            "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+            "closureKey": "audit:recovery:orders-platform-v2",
+            "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+            "compensationKey": "compensate:prepare:orders-platform-v2",
+            "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+            "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+            "idempotency": "exactly-once-attempt per key",
+            "preparationKey": "prepare:orders-platform-v2",
+            "releaseKey": "release:orders-platform-v2",
+            "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+            "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+          },
+          "audit-contract": {
+            "auditRecord": "recovery-audit/orders-platform-v2",
+            "changeRecord": "change-record/orders-platform-v2.state=resolved",
+            "ledgerRecord": "release-ledger/orders-platform-v2",
+            "ledgerStatusValues": "aborted,deferred,active",
+            "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+            "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+            "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+            "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+            "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+            "statusValue": "complete"
+          }
+        },
+        "migration_job_count": 1,
+        "migration_job_uid": "5c533075-f343-4ca8-9783-1e50165917aa",
+        "transition_job_count": 0,
+        "transition_job_uid": "none",
+        "publication_job_count": 0,
+        "publication_job_uid": "none",
+        "api_v1_uid": "aa47b1c9-4d2e-498c-9731-b8ed17f39394",
+        "worker_v1_uid": "b15870db-0b34-4cbd-979f-359a6c5cb5b7",
+        "api_service_uid": "ba9c50bb-2460-4aa0-834f-5dfbe6dea0c4",
+        "current_credential_uid": "891cf8fd-29e7-4853-904f-9c44b778210e",
+        "backup_job_uid": "373757d5-ad2f-49a0-b8af-8e603f0fde7e",
+        "service_account_uid": "47de6bc4-d679-46e0-acf9-6f43a63391b2",
+        "role_uid": "d5fd6e45-f947-46de-99ba-1eb1f784ba3c",
+        "rolebinding_uid": "99cc6245-bd39-4582-a8de-435dab533e74"
+      },
+      "allowed_external_keys": [
+        "audit:recovery:orders-platform-v2",
+        "compensate:prepare:orders-platform-v2",
+        "prepare:orders-platform-v2",
+        "release:orders-platform-v1"
+      ],
+      "actual_external_keys": [
+        "audit:recovery:orders-platform-v2",
+        "prepare:orders-platform-v2",
+        "release:orders-platform-v1"
+      ],
+      "protocol_violations": []
+    },
+    "failures": [
+      "api_consumer_matches_scope",
+      "api_service_matches_consumer",
+      "api_backend_available",
+      "candidate_artifacts_match_commit",
+      "transition_owner_closed_correctly",
+      "release_ledger_closed",
+      "audit_records_observed_facts",
+      "closure_event_records_observed_facts",
+      "preparation_obligation_closed",
+      "boundary_effect_envelope_respected"
+    ]
+  }
+}

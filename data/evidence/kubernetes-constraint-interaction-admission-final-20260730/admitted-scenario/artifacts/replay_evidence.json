@@ -1,0 +1,2244 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "k8s-constraint-interactions-dev-005",
+  "captures": [
+    {
+      "variant": "state_01",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "1",
+          "migration_state": "failed",
+          "api_version": "v1",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1",
+            "migration": "none",
+            "schemaEpoch": "1"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "76419aa7-2461-40e1-bf5a-dd955c4ca803",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "e9dec7fa-5774-4cab-a6a3-9f61341579db",
+          "worker_v1_uid": "d22218d4-2b3c-416e-8d60-f22112961678",
+          "api_service_uid": "fd9dc156-6dac-4e2d-9932-aba24e2631f1",
+          "current_credential_uid": "747af35b-6380-4608-9a3a-208a37c2485d",
+          "backup_job_uid": "2d9462a0-8ad2-4c56-b31b-3b91afa67284",
+          "service_account_uid": "765e2f36-5520-4b50-8c36-18c628feafac",
+          "role_uid": "a23bb994-40ce-4135-bac4-4e673a802615",
+          "rolebinding_uid": "bc1aded6-187b-4156-81e4-572cd4060904"
+        },
+        "expected": {
+          "scope": "discard_failed_change",
+          "epoch": "1",
+          "status": "aborted",
+          "api_version": "v1",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": false,
+          "release_required": false,
+          "candidate_present": false,
+          "release_resolution": "not-applicable"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "1",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v1",
+          "worker": "v1",
+          "service": "v1",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": false
+        },
+        "shared": {
+          "credential_generation": "1",
+          "bridge": "active",
+          "batch": "inflight"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "76419aa7-2461-40e1-bf5a-dd955c4ca803",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 0,
+          "publication_uid": "none",
+          "publication_completed": false
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": false,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_02",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "1",
+          "migration_state": "failed",
+          "api_version": "v1",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": true,
+          "release_accepted": false,
+          "external_keys": [
+            "prepare:orders-platform-v2",
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1",
+            "migration": "none",
+            "schemaEpoch": "1"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "7850f31c-91ed-4964-baf3-6553154b53d0",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "f0972d34-3d3b-4fe8-9354-405205fb1369",
+          "worker_v1_uid": "013e5347-36b8-4f5a-9bd8-11f625ff1d07",
+          "api_service_uid": "689f8c83-b4db-4e0a-bb4b-055ef3b2bb02",
+          "current_credential_uid": "96efdbe2-2983-466a-aa97-634943373be9",
+          "backup_job_uid": "d62d6dda-ba7a-4ce3-926f-d6d1a4fba6a7",
+          "service_account_uid": "89979991-b159-4999-9c7f-6e15a95a64f7",
+          "role_uid": "1886ef8e-0f73-48f2-90c5-04aa5e5a64de",
+          "rolebinding_uid": "8bab376a-65ca-456f-ad57-4cd51d7ac4d9"
+        },
+        "expected": {
+          "scope": "compensate_and_discard_failed_change",
+          "epoch": "1",
+          "status": "aborted",
+          "api_version": "v1",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": false,
+          "release_required": false,
+          "candidate_present": false,
+          "release_resolution": "not-applicable"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "1",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v1",
+          "worker": "v1",
+          "service": "v1",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": false
+        },
+        "shared": {
+          "credential_generation": "1",
+          "bridge": "active",
+          "batch": "inflight"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "7850f31c-91ed-4964-baf3-6553154b53d0",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 0,
+          "publication_uid": "none",
+          "publication_completed": false
+        },
+        "external": {
+          "stable": true,
+          "preparation": true,
+          "compensation": true,
+          "release": false,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_03",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-dnddk",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "d7484a4b-eb51-451a-9991-2037d39e22d8",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "9c81ff80-cba9-4b09-b310-e66300b49dc7",
+          "worker_v1_uid": "af62fb4e-f2e9-4835-8eb2-12a73b5c0f4f",
+          "api_service_uid": "b992580d-fb5f-41ff-90c4-0790c2a6802b",
+          "current_credential_uid": "8d30469b-9b6a-4721-be28-881ebb006eee",
+          "backup_job_uid": "a8de6f45-d0e2-4f0f-82c1-b44dc4942caa",
+          "service_account_uid": "785adc05-33fc-43e3-8f53-6501c91681af",
+          "role_uid": "26965c83-8393-4b2e-bdb1-1a3e9db0278a",
+          "rolebinding_uid": "56fc71d7-d550-45e3-aca8-cbb15c8819be"
+        },
+        "expected": {
+          "scope": "create_deferred_transition_owner",
+          "epoch": "2",
+          "status": "deferred",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_required": true,
+          "transition_completed": false,
+          "publication_required": false,
+          "release_required": false,
+          "candidate_present": true,
+          "release_resolution": "deferred"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v1",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "1",
+          "bridge": "active",
+          "batch": "inflight"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "d7484a4b-eb51-451a-9991-2037d39e22d8",
+          "transition_count": 1,
+          "transition_uid": "d32c56fe-ec27-44e3-b59a-ff4b816667f4",
+          "transition_completed": false,
+          "transition_suspended": true,
+          "publication_count": 0,
+          "publication_uid": "none",
+          "publication_completed": false
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": false,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_04",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_controller": "suspended",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-nl7ds",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "bd81569c-a388-427a-9e4b-56270fd76b8a",
+          "transition_job_count": 1,
+          "transition_job_uid": "b6c5c58f-f696-45a8-a682-3974d5843d4b",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "99af2623-5af6-423a-88aa-71fab09f4d36",
+          "worker_v1_uid": "a26f5a36-effd-4c33-bf94-e90f80aa4b87",
+          "api_service_uid": "b5d818de-0826-4460-9777-49b837168676",
+          "current_credential_uid": "0a4a822d-0681-4130-9fa5-064b475b4c40",
+          "backup_job_uid": "50d53763-67e8-4551-a148-acfa08073016",
+          "service_account_uid": "62627a22-22fa-4805-a851-4dfc7e4dba4c",
+          "role_uid": "9997c13c-3175-441d-9369-dfa13259c3c0",
+          "rolebinding_uid": "3bee8cac-c394-409d-95ea-fce2a58c4bbf"
+        },
+        "expected": {
+          "scope": "preserve_deferred_transition_owner",
+          "epoch": "2",
+          "status": "deferred",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_required": true,
+          "transition_completed": false,
+          "publication_required": false,
+          "release_required": false,
+          "candidate_present": true,
+          "release_resolution": "deferred"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v1",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "1",
+          "bridge": "active",
+          "batch": "inflight"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "bd81569c-a388-427a-9e4b-56270fd76b8a",
+          "transition_count": 1,
+          "transition_uid": "b6c5c58f-f696-45a8-a682-3974d5843d4b",
+          "transition_completed": false,
+          "transition_suspended": true,
+          "publication_count": 0,
+          "publication_uid": "none",
+          "publication_completed": false
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": false,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_05",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "expired",
+          "batch_state": "inflight",
+          "transition_controller": "suspended",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-tt7jf",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "4e21e505-60cc-4d28-a2fb-e70ba3b3cb8d",
+          "transition_job_count": 1,
+          "transition_job_uid": "53c7228e-c96e-450b-beaa-8a9e0c0aad68",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "ef8e82c9-5725-458b-bbba-333658afdd22",
+          "worker_v1_uid": "28e736f5-806a-4315-923b-1b577294a915",
+          "api_service_uid": "df652cf7-3839-4231-941f-4405856a2234",
+          "current_credential_uid": "2cbfa62c-4b37-48be-908a-7b2ea0848e4f",
+          "backup_job_uid": "81f23eb8-28af-480b-9ab3-c525ca55f1b5",
+          "service_account_uid": "8bbccf45-78be-43f3-a6f6-1f78f21c6f1c",
+          "role_uid": "ff280da4-ee4d-46fb-94c9-bf0d04d4a20e",
+          "rolebinding_uid": "c8008e6d-d258-476e-bd5e-22c6a2220183"
+        },
+        "expected": {
+          "scope": "renew_bridge_and_preserve_transition_owner",
+          "epoch": "2",
+          "status": "deferred",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "inflight",
+          "transition_required": true,
+          "transition_completed": false,
+          "publication_required": false,
+          "release_required": false,
+          "candidate_present": true,
+          "release_resolution": "deferred"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v1",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "1",
+          "bridge": "active",
+          "batch": "inflight"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "4e21e505-60cc-4d28-a2fb-e70ba3b3cb8d",
+          "transition_count": 1,
+          "transition_uid": "53c7228e-c96e-450b-beaa-8a9e0c0aad68",
+          "transition_completed": false,
+          "transition_suspended": true,
+          "publication_count": 0,
+          "publication_uid": "none",
+          "publication_completed": false
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": false,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_06",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "active",
+          "batch_state": "drained",
+          "transition_controller": "suspended",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-st8zg",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "a95d1432-2a2c-49a6-b8de-f8e280f66222",
+          "transition_job_count": 1,
+          "transition_job_uid": "4adcec0c-c6a1-444a-b8e9-2af0b7d72618",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "df044133-5a9d-4add-8b5f-dacd4957613a",
+          "worker_v1_uid": "aa37f819-98df-4867-bdf3-435f3d29a09e",
+          "api_service_uid": "8f113b3a-7e0f-4c88-96fc-575d5332e704",
+          "current_credential_uid": "fe1656f5-9d60-4188-bceb-548e533ebbd5",
+          "backup_job_uid": "5b36c28b-3553-459d-ae35-333c3fd791a7",
+          "service_account_uid": "d25d8cea-1c64-41ab-a652-dcb322a8e3a8",
+          "role_uid": "443e6b3f-c2dd-429f-b5a3-3cdb46d80db3",
+          "rolebinding_uid": "5f9406c2-3a67-4e15-b31a-8e4d8aa38c2b"
+        },
+        "expected": {
+          "scope": "resume_worker_transition",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": true,
+          "transition_completed": true,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "a95d1432-2a2c-49a6-b8de-f8e280f66222",
+          "transition_count": 1,
+          "transition_uid": "4adcec0c-c6a1-444a-b8e9-2af0b7d72618",
+          "transition_completed": true,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "43a3f913-9f4e-4380-82ae-9dbc01e768bb",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_07",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-59c4r",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "1b1e34bf-82a7-4233-848c-b70c12099f42",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "fb0b8767-fc49-4d5a-93bd-c9ff2fa1bc43",
+          "worker_v1_uid": "e9d1ce35-f1a7-4991-8c8c-6c42ed6e165f",
+          "api_service_uid": "06373428-6703-4320-83db-a6c8ab7b2f64",
+          "current_credential_uid": "397d818d-f321-4df5-9920-6eea6ad0827f",
+          "backup_job_uid": "3d8bd7fc-16bc-4212-8d00-3fd24c3b59e9",
+          "service_account_uid": "87d333b9-5ca7-4e72-be66-4575084e6c47",
+          "role_uid": "4c05c1fb-1c9b-4685-bed3-d7895a224fab",
+          "rolebinding_uid": "7586716b-062a-4067-810d-92b4a090d3bd"
+        },
+        "expected": {
+          "scope": "create_publication_owner",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "1b1e34bf-82a7-4233-848c-b70c12099f42",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "9b1346e5-ee9b-4dab-a43d-0cb87bcfee1b",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_08",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "pending",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-w6cns",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "388cebe9-7aed-44c2-aff7-7d63377cf100",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 1,
+          "publication_job_uid": "20d8b82b-59a1-45d1-b185-ae627fa695f0",
+          "api_v1_uid": "7372b8ee-9aca-44a4-971e-a9b769c41c4b",
+          "worker_v1_uid": "46f9dc2f-0696-42ae-8562-fd67efda1349",
+          "api_service_uid": "d29ebe5c-6901-4180-a523-bb2d689943d2",
+          "current_credential_uid": "1ae9cec3-19bf-42ec-a23f-1e6673a22550",
+          "backup_job_uid": "12bee7b0-38f4-4d1b-bf94-3475498ca112",
+          "service_account_uid": "4971f0c3-86d8-414d-9ec2-36188f5895c0",
+          "role_uid": "1f694316-e52a-446a-a34b-0cd185265832",
+          "rolebinding_uid": "91fc650e-4c59-4bd3-8640-ad4479320de9"
+        },
+        "expected": {
+          "scope": "resume_publication_owner",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "388cebe9-7aed-44c2-aff7-7d63377cf100",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "20d8b82b-59a1-45d1-b185-ae627fa695f0",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_09",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "completed",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-hmsr6",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "4786f94f-0ac8-42dc-87ae-92407893d99f",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 1,
+          "publication_job_uid": "f296be30-36c4-4861-ae9b-e4ffb8f98793",
+          "api_v1_uid": "43b8af05-4b86-42a0-935d-68c9e4bdb975",
+          "worker_v1_uid": "eb58367c-eaa9-4030-9065-78d2845a6842",
+          "api_service_uid": "91451734-70be-4d5d-a943-df89e02d45c5",
+          "current_credential_uid": "122b33d0-37e6-4793-93f1-e7f244de2b54",
+          "backup_job_uid": "22aa2273-df18-4ad0-9e7b-6dff62753a05",
+          "service_account_uid": "08cf42ed-cd25-4c72-a2ec-9ad7dc0937e9",
+          "role_uid": "4a035b04-90a0-4cd2-92aa-13b334454963",
+          "rolebinding_uid": "9cd6beda-e44b-4808-96e9-bf582bb286df"
+        },
+        "expected": {
+          "scope": "reconcile_completed_publication",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "4786f94f-0ac8-42dc-87ae-92407893d99f",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "f296be30-36c4-4861-ae9b-e4ffb8f98793",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_10",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "completed",
+          "preparation_present": false,
+          "release_accepted": true,
+          "external_keys": [
+            "release:orders-platform-v1",
+            "release:orders-platform-v2"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-65gkl",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "759eba56-85a8-455f-8bc9-e8332ddea8ff",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 1,
+          "publication_job_uid": "45178c4e-4037-429d-9c4b-322ac87b6736",
+          "api_v1_uid": "75a03a42-fb36-44ac-9454-565b621d6a2f",
+          "worker_v1_uid": "58b00e60-ad70-43a9-a334-04554bfac006",
+          "api_service_uid": "d1e9ae62-c88c-49c8-b9d4-0607546e67f0",
+          "current_credential_uid": "c46fe429-e176-4f07-aa56-519ed2b8b71e",
+          "backup_job_uid": "8df8d268-40e4-4e28-923c-8921ab07b31a",
+          "service_account_uid": "773ff450-2737-457f-9b70-e00082fbebeb",
+          "role_uid": "7ef27274-fd3c-4f76-a376-b5ac6de6e07b",
+          "rolebinding_uid": "008e7c9d-1cb4-43d9-a747-bbf6c2214520"
+        },
+        "expected": {
+          "scope": "close_accepted_publication",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "759eba56-85a8-455f-8bc9-e8332ddea8ff",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "45178c4e-4037-429d-9c4b-322ac87b6736",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_11",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v1",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-k52gc",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "239e81de-c141-47a3-9dc5-f7505d67a2e1",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "03df188e-dc3a-47f4-9233-3f73ff0918cd",
+          "worker_v1_uid": "d2d2de19-41b7-401e-a7c1-fc8186ebd08d",
+          "api_service_uid": "e2d2fd80-1e4b-4efd-8bf7-54ab0496b2c3",
+          "current_credential_uid": "cb744747-3ac7-45e5-8386-6e95cb81d2c0",
+          "backup_job_uid": "28fface8-8ca7-43b7-8158-56571ddd4ae0",
+          "service_account_uid": "de61d891-023a-4e3e-a375-fbdfb909dade",
+          "role_uid": "e452a2a0-3be7-4951-9f20-a5895dbf4651",
+          "rolebinding_uid": "7ef7af51-637d-46bd-91da-02f821853d06"
+        },
+        "expected": {
+          "scope": "repair_api_consumer_before_publication",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "239e81de-c141-47a3-9dc5-f7505d67a2e1",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "b53e81a0-9977-46f4-95bf-e53a9930f2a7",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_12",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v1",
+          "credential_generation": "1",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-l7qpf",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "6cbccf98-f18e-4276-9485-f5c8bfa93e04",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "a298d63c-01b7-4d09-bc44-d74c74d2f68e",
+          "worker_v1_uid": "284a4b82-fbf5-45e5-a425-f5bec1ddb56a",
+          "api_service_uid": "ec993ef5-7337-47e7-a40f-962c38b50cb7",
+          "current_credential_uid": "e749f81d-9b3c-4705-b0e8-00f68ae3ca64",
+          "backup_job_uid": "e44ce44d-ee1d-46af-b468-4b364a2a569e",
+          "service_account_uid": "8213ab9e-6c94-4ed2-8cf7-fda0b6c001da",
+          "role_uid": "3f79d335-3441-408e-9cbb-9955704577c1",
+          "rolebinding_uid": "e60159aa-f8e9-4b84-961c-c51c66848022"
+        },
+        "expected": {
+          "scope": "create_worker_transition",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": true,
+          "transition_completed": true,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "6cbccf98-f18e-4276-9485-f5c8bfa93e04",
+          "transition_count": 1,
+          "transition_uid": "d00c1795-a2f1-45f9-ac0e-a396013e2e37",
+          "transition_completed": true,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "a5eff303-151e-46ab-a0d4-eb72ad05f654",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    },
+    {
+      "variant": "state_13",
+      "evidence": {
+        "boundary": {
+          "schema_epoch": "2",
+          "migration_state": "committed",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "1",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_controller": "absent",
+          "publication_task": "absent",
+          "preparation_present": false,
+          "release_accepted": false,
+          "external_keys": [
+            "release:orders-platform-v1"
+          ],
+          "catalog_data": {
+            "history": "epoch1->epoch2:no-down-migration",
+            "migration": "orders-platform-migration-ckn2v",
+            "schemaEpoch": "2"
+          },
+          "contract_data": {
+            "schema-contract": {
+              "apiV1CompatibleEpochs": "1",
+              "apiV2CompatibleEpochs": "2",
+              "downMigrationAllowed": "false",
+              "epochMonotonic": "true",
+              "migrationEvidence": "preserve every Job labeled migration=orders-platform-v2",
+              "workerV1CompatibleEpochs": "1; epoch 2 only under compatibility-contract",
+              "workerV2CompatibleEpochs": "2"
+            },
+            "compatibility-contract": {
+              "batchRecord": "worker-batch-state",
+              "bridgeException": "worker v1 may coexist with epoch 2 only when lease=active and batch.state=inflight",
+              "bridgeRecord": "schema-compatibility-bridge",
+              "expiredLease": "cannot authorize a v1 worker at epoch 2",
+              "nonReplayableBatch": "must not stop worker v1 while batch.state=inflight",
+              "retirementRule": "lease=retired after worker v2 is active and batch.state=drained"
+            },
+            "credential-contract": {
+              "candidateSecret": "orders-db-next",
+              "generationLabel": "metadata.labels.credential-generation",
+              "rotationGuard": "generation 2 is legal only when no active v1 consumer remains",
+              "sharedSecret": "orders-db-current",
+              "targetGeneration": "2",
+              "v1AllowedGenerations": "1",
+              "v2AllowedGenerations": "1,2"
+            },
+            "controller-contract": {
+              "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+              "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+              "ownerUniqueness": "at most one Job for each selector",
+              "publicationSelector": "publication-owner=orders-release-publication",
+              "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+              "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+              "transitionSelector": "transition-owner=orders-worker-transition"
+            },
+            "publication-contract": {
+              "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+              "closureKey": "audit:recovery:orders-platform-v2",
+              "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+              "compensationKey": "compensate:prepare:orders-platform-v2",
+              "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+              "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+              "idempotency": "exactly-once-attempt per key",
+              "preparationKey": "prepare:orders-platform-v2",
+              "releaseKey": "release:orders-platform-v2",
+              "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+              "releaseRequires": "catalog epoch 2, API v2, worker v2, credential generation 2, and one completed publication owner"
+            },
+            "audit-contract": {
+              "auditRecord": "recovery-audit/orders-platform-v2",
+              "changeRecord": "change-record/orders-platform-v2.state=resolved",
+              "ledgerRecord": "release-ledger/orders-platform-v2",
+              "ledgerStatusValues": "aborted,deferred,active",
+              "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+              "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+              "recordUpdateRule": "merge-patch only orders-platform-v2 fields and preserve all other fields",
+              "releaseResolutionRule": "not-applicable iff the catalog remains epoch 1 after a failed migration; deferred iff epoch 2 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+              "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+              "statusValue": "complete"
+            }
+          },
+          "migration_job_count": 1,
+          "migration_job_uid": "4a84350c-697c-4a56-a2ef-0f6740097f5c",
+          "transition_job_count": 0,
+          "transition_job_uid": "none",
+          "publication_job_count": 0,
+          "publication_job_uid": "none",
+          "api_v1_uid": "706ab9bd-fa03-41f2-84b2-8019f9d3741a",
+          "worker_v1_uid": "043a7661-e3c9-4123-aa79-03a41bb3fc4b",
+          "api_service_uid": "0c24a41d-2930-47dc-851c-b5f6b6fba52b",
+          "current_credential_uid": "1f554f24-fe20-4499-ad10-ae73e5477f43",
+          "backup_job_uid": "08641c94-99f1-4dc4-b251-79c9afc43819",
+          "service_account_uid": "bda85821-0c6f-4cba-abe0-5d6e4b9fea2d",
+          "role_uid": "3225adb3-69f6-48b7-b9de-2cb2951c48a5",
+          "rolebinding_uid": "b7e55325-7f6d-4b0a-ad43-6a67616da80c"
+        },
+        "expected": {
+          "scope": "rotate_shared_credential",
+          "epoch": "2",
+          "status": "active",
+          "api_version": "v2",
+          "worker_version": "v2",
+          "credential_generation": "2",
+          "bridge_lease": "retired",
+          "batch_state": "drained",
+          "transition_required": false,
+          "transition_completed": false,
+          "publication_required": true,
+          "release_required": true,
+          "candidate_present": true,
+          "release_resolution": "present"
+        },
+        "contracts": {
+          "schema-contract": true,
+          "compatibility-contract": true,
+          "credential-contract": true,
+          "controller-contract": true,
+          "publication-contract": true,
+          "audit-contract": true
+        },
+        "catalog": {
+          "epoch": "2",
+          "preserved": true
+        },
+        "consumers": {
+          "api": "v2",
+          "worker": "v2",
+          "service": "v2",
+          "api_available": true,
+          "worker_available": true,
+          "candidate_present": true
+        },
+        "shared": {
+          "credential_generation": "2",
+          "bridge": "retired",
+          "batch": "drained"
+        },
+        "owners": {
+          "migration_count": 1,
+          "migration_uid": "4a84350c-697c-4a56-a2ef-0f6740097f5c",
+          "transition_count": 0,
+          "transition_uid": "none",
+          "transition_completed": false,
+          "transition_suspended": false,
+          "publication_count": 1,
+          "publication_uid": "933dc247-3d5b-48ee-a020-47f420dd9512",
+          "publication_completed": true
+        },
+        "external": {
+          "stable": true,
+          "preparation": false,
+          "compensation": false,
+          "release": true,
+          "closure": true,
+          "exactly_once": true
+        },
+        "closure": {
+          "change": true,
+          "ledger": true,
+          "audit": true
+        },
+        "preservation": {
+          "backup": true,
+          "api_v1_uid": true,
+          "worker_v1_uid": true
+        }
+      }
+    }
+  ]
+}
