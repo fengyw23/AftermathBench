@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 
@@ -43,16 +44,15 @@ class RuntimeGateTest(unittest.TestCase):
         )
         self.assertFalse(report.failures)
 
-    def test_forgejo_passes_source_gate_but_execution_is_pending(self) -> None:
+    def test_forgejo_passes_source_and_execution_gates(self) -> None:
         report = next(
             validate_runtime_manifest(load_runtime_manifest(path))
             for path in runtime_manifest_paths()
             if path.parent.name == "forgejo-main"
         )
         self.assertTrue(report.source_audit_passed)
-        self.assertFalse(report.execution_admitted)
-        self.assertNotIn("source_status_truthful", report.failures)
-        self.assertNotIn("execution_status_truthful", report.failures)
+        self.assertTrue(report.execution_admitted)
+        self.assertFalse(report.failures)
 
     def test_erpnext_admission_manifest_records_all_four_reports(self) -> None:
         path = (
@@ -80,6 +80,51 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertTrue(
             all(len(report["sha256"]) == 64 for report in reports)
         )
+
+    def test_runtime_gate_rejects_mismatched_evidence_identity(self) -> None:
+        path = next(
+            path
+            for path in runtime_manifest_paths()
+            if path.parent.name == "erpnext-v15"
+        )
+        manifest = load_runtime_manifest(path)
+        manifest["admission_evidence"] = dict(
+            manifest["admission_evidence"],
+            head_sha="0" * 40,
+        )
+        report = validate_runtime_manifest(manifest)
+        self.assertFalse(report.execution_admitted)
+        self.assertFalse(
+            report.execution_checks["admission_evidence_recorded"]
+        )
+
+    def test_forgejo_admission_manifest_records_replayable_reports(self) -> None:
+        root = (
+            repository_root()
+            / "data"
+            / "evidence"
+            / "forgejo-native-recovery-control-20260729"
+        )
+        evidence = json.loads(
+            (root / "admission.json").read_text(encoding="utf-8")
+        )
+        self.assertFalse(evidence["credentials_present"])
+        self.assertEqual(evidence["reference_recovery_passed"], "4/4")
+        reports = evidence["reports"]
+        self.assertEqual(len(reports), 4)
+        for report in reports:
+            self.assertTrue(report["boundary_validation_passed"])
+            self.assertTrue(report["reference_recovery_passed"])
+            boundary = root / report["boundary_file"]
+            reference = root / report["reference_file"]
+            self.assertEqual(
+                hashlib.sha256(boundary.read_bytes()).hexdigest(),
+                report["boundary_sha256"],
+            )
+            self.assertEqual(
+                hashlib.sha256(reference.read_bytes()).hexdigest(),
+                report["reference_sha256"],
+            )
 
 
 if __name__ == "__main__":
