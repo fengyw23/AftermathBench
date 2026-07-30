@@ -34,6 +34,8 @@ investigation and plan invalidation rather than inability to operate the
 interface. Four trials are still a development result, not a stable model
 ranking.
 
+`paired-comparison.json` machine-checks the scenario, source commit, model,
+prefix, variant set, condition labels, control threshold, and error counts.
 `experiment.json` binds every retained artifact to its SHA-256 digest. The
 archive contains no API key, authorization header, database dump, or runtime
 credential file.
