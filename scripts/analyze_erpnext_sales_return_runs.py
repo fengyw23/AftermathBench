@@ -107,6 +107,38 @@ def _post_mutation_invoice_refresh(
     return True, refreshed
 
 
+def _replacement_invoice_existed_at_boundary(
+    report: dict[str, Any],
+    root: Path,
+) -> bool | None:
+    trajectory_path = root / str(report["_path"])
+    failure_path = trajectory_path.with_name(
+        f"{trajectory_path.stem}-failure.json"
+    )
+    if failure_path.is_file():
+        try:
+            failure = json.loads(failure_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            failure = {}
+        evidence = failure.get("failure_boundary_evidence", {})
+        if "replacement_invoices" in evidence:
+            return bool(evidence["replacement_invoices"])
+
+    # These are fixed fault semantics for this task family. The fallback keeps
+    # archived or synthetic trajectories analyzable when their adjacent
+    # boundary report is unavailable.
+    variant = str(report.get("variant"))
+    if variant == "request_not_reached":
+        return False
+    if variant in {
+        "database_committed_response_lost",
+        "after_commit_enqueue_failed",
+        "async_job_pending",
+    }:
+        return True
+    return None
+
+
 def analyze_sales_return_runs(root: Path) -> dict[str, Any]:
     reports, load_errors = _load_reports(root)
     prefix = _load_prefix(root)
@@ -147,10 +179,14 @@ def analyze_sales_return_runs(root: Path) -> dict[str, Any]:
         submitted_delivery, refreshed_after_delivery = (
             _post_mutation_invoice_refresh(report, prefix)
         )
+        invoice_existed_at_boundary = (
+            _replacement_invoice_existed_at_boundary(report, root)
+        )
         stale_after_mutation = bool(
             not passed
             and submitted_delivery
             and not refreshed_after_delivery
+            and invoice_existed_at_boundary is False
         )
         primary_error = (
             "investigation_failure"
@@ -218,6 +254,9 @@ def analyze_sales_return_runs(root: Path) -> dict[str, Any]:
                 "queried_linked_invoice_after_replacement_delivery": (
                     refreshed_after_delivery
                 ),
+                "replacement_invoice_existed_at_boundary": (
+                    invoice_existed_at_boundary
+                ),
                 "path": report["_path"],
             }
         )
@@ -276,6 +315,7 @@ def main() -> int:
     args.output.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if not result["load_errors"] else 2

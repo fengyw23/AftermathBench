@@ -31,6 +31,7 @@ def main() -> int:
     args.output.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["valid_pair"] else 2

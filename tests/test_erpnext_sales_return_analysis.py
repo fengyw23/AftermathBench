@@ -158,6 +158,52 @@ class ERPNextSalesReturnAnalysisTest(unittest.TestCase):
             1,
         )
 
+    def test_does_not_call_preexisting_invoice_post_mutation_staleness(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = _report(
+                variant="database_committed_response_lost",
+                passed=False,
+                linked_query=False,
+            )
+            report["turns"] = [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "submit_document",
+                            "arguments": {
+                                "doctype": "Delivery Note",
+                                "name": "DN-REPLACEMENT",
+                            },
+                        },
+                        {
+                            "name": "create_sales_invoice_from_order",
+                            "arguments": {
+                                "sales_order": "SO-REPLACEMENT",
+                            },
+                        },
+                    ]
+                }
+            ]
+            (root / "trajectory.json").write_text(
+                json.dumps(report),
+                encoding="utf-8",
+            )
+            result = analyze_sales_return_runs(root)
+
+        self.assertEqual(
+            result[
+                "created_after_delivery_without_state_refresh_count"
+            ],
+            0,
+        )
+        self.assertEqual(
+            result["failure_subtype_counts"],
+            {"preexisting_downstream_not_queried": 1},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

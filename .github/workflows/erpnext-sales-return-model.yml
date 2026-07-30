@@ -121,13 +121,24 @@ jobs:
             do
               failure_report="$run_dir/${variant}-failure.json"
               trajectory="$run_dir/${variant}.json"
-              if python scripts/run_erpnext_sales_return_failure.py \
-                  --variant "$variant" \
-                  --credentials runtimes/erpnext/.runtime/credentials.json \
-                  --prefix "$run_root/prefix.json" \
-                  --snapshot "$run_root/prefix.sql" \
-                  --output "$failure_report"
-              then
+              model_completed=false
+              for attempt in 1 2 3
+              do
+                # A provider disconnect can occur after tool mutations. Rebuild
+                # the native failure boundary before every retry so an accepted
+                # trajectory is never scored against state left by a failed
+                # provider attempt.
+                rm -f "$trajectory"
+                if ! python scripts/run_erpnext_sales_return_failure.py \
+                    --variant "$variant" \
+                    --credentials runtimes/erpnext/.runtime/credentials.json \
+                    --prefix "$run_root/prefix.json" \
+                    --snapshot "$run_root/prefix.sql" \
+                    --output "$failure_report"
+                then
+                  echo "boundary attempt $attempt failed for $variant"
+                  continue
+                fi
                 control_flag=()
                 if [ "$EXECUTION_CONTROL" = "true" ]
                 then
@@ -145,12 +156,18 @@ jobs:
                     "${control_flag[@]}" \
                     --output "$trajectory"
                 then
-                  true
-                elif [ ! -s "$trajectory" ]
+                  model_completed=true
+                  break
+                elif [ -s "$trajectory" ]
                 then
-                  run_status=1
+                  echo "model trajectory completed with a scored failure for $variant"
+                  model_completed=true
+                  break
                 fi
-              else
+                echo "provider/runtime attempt $attempt failed for $variant"
+              done
+              if [ "$model_completed" != "true" ]
+              then
                 run_status=1
               fi
             done

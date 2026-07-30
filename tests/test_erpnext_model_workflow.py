@@ -72,6 +72,14 @@ class ERPNextModelWorkflowTest(unittest.TestCase):
         self.assertIn('CONTROL_MIN_PASS_RATE: "0.8"', workflow)
         self.assertIn('summary["task_pass_rate"]', workflow)
         self.assertIn("observed < threshold", workflow)
+        self.assertIn("for attempt in 1 2 3", workflow)
+        self.assertIn(
+            "Rebuild\n"
+            "                # the native failure boundary before every retry",
+            workflow,
+        )
+        self.assertIn('rm -f "$trajectory"', workflow)
+        self.assertIn('model_completed=true', workflow)
         for variant in (
             "request_not_reached",
             "database_committed_response_lost",
