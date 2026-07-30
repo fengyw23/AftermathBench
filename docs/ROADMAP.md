@@ -75,10 +75,14 @@ promoted into the final native-runtime benchmark.
   boundary-relative recovery directions.
 - [x] Reject an invalid first execution control whose target omitted the exact
   external-event envelope.
-- [ ] Complete and audit the corrected execution control.
-- [ ] Accept the 13-state task-specific execution control only if it passes at
-  least 80% with zero infrastructure and interface failures.
-- [ ] Run the ordinary condition only after that gate passes.
+- [x] Complete and audit the corrected execution control.
+- [x] Accept the 13-state task-specific execution control after it passed
+  12/13 (92.31%) with zero infrastructure and interface failures.
+- [x] Launch the ordinary condition from the exact same source commit only
+  after that gate passed.
+- [x] Audit, archive, and compare the completed ordinary condition: 1/13
+  ordinary versus 12/13 explicit-scope control, with identical task-state
+  projections and zero scored infrastructure failures.
 
 The Kubernetes interaction family uses native Kubernetes objects and public
 tools, but some cross-system contracts are benchmark-authored ConfigMaps and

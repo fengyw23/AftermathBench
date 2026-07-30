@@ -187,6 +187,25 @@ at source commit `2be631e50b7c86183d2e4214ec77f266fef2b682`:
   tree passed 6/13 (46.15%).
 
 The task is admitted as hard for model validation, not yet as a finished
-benchmark family. The exact-target execution control and ordinary GLM-5.2
-experiment remain the next gates. Full replay evidence is archived under
-`data/evidence/kubernetes-constraint-interaction-admission-final-20260730`.
+benchmark family. The corrected exact-target execution control passes 12/13
+states (92.31%) in Actions run
+[`30522367760`](https://github.com/fengyw23/AftermathBench/actions/runs/30522367760)
+at commit `54e48ab0b0686f103dd1b33b780401d6f2d0a64f`. The single failure is a
+genuine execution-scope omission: the model left a candidate Deployment and
+Secret that the explicit discard scope required it to remove. There were no
+provider, runtime, tool, contract, external-key, or protocol errors, and the
+corrected evaluator changed zero outcomes on deterministic rescore.
+
+The complete ordinary GLM-5.2 condition scores 1/13, compared with the
+control's 12/13. The primary exact-head run
+[`30527525012`](https://github.com/fengyw23/AftermathBench/actions/runs/30527525012)
+produced 11 trajectories; bounded timeout and SSE transport retries supplied
+the two trajectories that had been missing because of provider read timeouts.
+All selected trajectories share the same task-state projection and
+deterministic evaluator. All 13 queried every registered evidence group, while
+12 finished in a scope failure. This is evidence for a state-composition and
+recovery-scope gap, not a hidden-evidence or basic tool-execution gap.
+
+Full construction, control, and ordinary evidence are archived under
+`data/evidence/kubernetes-constraint-interaction-admission-final-20260730` and
+`data/evidence/kubernetes-interaction-{control-valid,ordinary-composite}-20260730`.
