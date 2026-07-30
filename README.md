@@ -92,6 +92,28 @@ benchmark release.
 
 ## Cross-model native results
 
+### Current hard-family development result
+
+The current ERPNext sales-return family has a valid paired GLM-5.2 experiment
+at the same source commit:
+
+| Condition | Recovery Integrity | Matched-group | Goal completion | Tool/provider/runtime errors |
+|---|---:|---:|---:|---:|
+| Explicit correct scope | 4/4 | 1/1 | 4/4 | 0 |
+| Ordinary recovery | 2/4 | 0/1 | 4/4 | 0 |
+
+The two ordinary failures both created one duplicate replacement invoice, but
+the causal errors differed. In one state the invoice already existed at the
+failure boundary and the model never queried it. In the no-commit state, the
+model submitted a Delivery Note that triggered invoice creation, then failed
+to refresh state before executing its previously planned create call. This
+second pattern is a recovery-time plan-invalidation failure, not merely an
+incorrect initial diagnosis. These are four development trials, not a stable
+model ranking. Evidence is archived under
+`data/evidence/erpnext-sales-return-{control,ordinary}-20260730`.
+
+### Historical candidate-family comparison
+
 Two valid GitHub Actions jobs ran the same easy pilot and frozen hard holdout
 with ordinary public tools and a 15-turn budget:
 

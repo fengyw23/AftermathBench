@@ -48,7 +48,7 @@ promoted into the final native-runtime benchmark.
 - [x] Validate the sales-return family with a four-state explicit-scope
   execution control (4/4 Recovery Integrity Pass, zero provider/runtime
   errors).
-- [ ] Audit the corresponding ordinary model condition and separate
+- [x] Audit the corresponding ordinary model condition and separate
   investigation, state-inference, scope, execution, and verification errors.
 - [ ] Construct independent public-development and frozen hidden instances;
   the consumed development scenario is not a release case.

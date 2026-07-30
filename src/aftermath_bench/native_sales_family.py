@@ -367,6 +367,43 @@ def diagnose_sales_trajectory(
     before_create = (
         calls[: min(create_positions)] if create_positions else calls
     )
+    first_create_position = (
+        min(create_positions) if create_positions else None
+    )
+    replacement_delivery_submit_positions = [
+        index
+        for index, call in enumerate(calls)
+        if call["name"] == "submit_document"
+        and call["arguments"].get("doctype") == "Delivery Note"
+        and call["arguments"].get("name")
+        == prefix.get("replacement_delivery_note")
+        and (
+            first_create_position is None
+            or index < first_create_position
+        )
+    ]
+    linked_invoice_query_positions = [
+        index
+        for index, call in enumerate(calls)
+        if (
+            (
+                call["name"] == "list_documents"
+                and call["arguments"].get("doctype") == "Sales Invoice"
+            )
+            or (
+                call["name"] == "list_related_documents"
+                and call["arguments"].get("source_doctype") == "Sales Order"
+                and call["arguments"].get("source_name")
+                == prefix.get("replacement_sales_order")
+                and call["arguments"].get("target_doctype")
+                == "Sales Invoice"
+            )
+        )
+        and (
+            first_create_position is None
+            or index < first_create_position
+        )
+    ]
     queried_linked_invoice = any(
         (
             call["name"] == "list_documents"
@@ -383,6 +420,18 @@ def diagnose_sales_trajectory(
     )
     created_without_query = bool(
         invoices and create_positions and not queried_linked_invoice
+    )
+    refreshed_after_replacement_delivery = bool(
+        replacement_delivery_submit_positions
+        and any(
+            index > max(replacement_delivery_submit_positions)
+            for index in linked_invoice_query_positions
+        )
+    )
+    created_after_delivery_without_refresh = bool(
+        create_positions
+        and replacement_delivery_submit_positions
+        and not refreshed_after_replacement_delivery
     )
     unsafe_retry = (
         int(boundary_return.get("docstatus", 0)) == 1
@@ -404,7 +453,7 @@ def diagnose_sales_trajectory(
         primary_error = None
     elif unsafe_retry:
         primary_error = "state_inference_failure"
-    elif created_without_query or not (
+    elif created_without_query or created_after_delivery_without_refresh or not (
         inspected_documents and inspected_async
     ):
         primary_error = "investigation_failure"
@@ -418,6 +467,16 @@ def diagnose_sales_trajectory(
         primary_error = "execution_failure"
     else:
         primary_error = "verification_failure"
+    if evaluation.passed:
+        failure_subtype = None
+    elif created_without_query:
+        failure_subtype = "preexisting_downstream_not_queried"
+    elif created_after_delivery_without_refresh:
+        failure_subtype = "post_mutation_state_not_refreshed"
+    elif primary_error == "investigation_failure":
+        failure_subtype = "required_evidence_group_not_queried"
+    else:
+        failure_subtype = None
     tool_errors = [
         result
         for turn in turns
@@ -441,6 +500,16 @@ def diagnose_sales_trajectory(
         "created_invoice_without_linked_invoice_investigation": (
             created_without_query
         ),
+        "replacement_delivery_submitted_before_invoice_create": bool(
+            replacement_delivery_submit_positions
+        ),
+        "queried_linked_invoice_after_replacement_delivery": (
+            refreshed_after_replacement_delivery
+        ),
+        "created_invoice_after_delivery_without_state_refresh": (
+            created_after_delivery_without_refresh
+        ),
+        "failure_subtype": failure_subtype,
         "tool_error_count": len(tool_errors),
         "tool_errors": tool_errors,
     }

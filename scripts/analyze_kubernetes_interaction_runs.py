@@ -28,7 +28,7 @@ def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
             or "evaluation" not in report
         ):
             continue
-        report["_path"] = str(path)
+        report["_path"] = path.relative_to(root).as_posix()
         reports.append(report)
     return reports, errors
 
