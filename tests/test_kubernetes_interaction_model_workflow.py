@@ -27,6 +27,14 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
         self.assertLess(retry_loop, boundary)
         self.assertLess(boundary, model)
 
+    def test_provider_timeout_override_is_bounded_and_non_semantic(self) -> None:
+        self.assertIn("model_timeout_seconds:", self.text)
+        self.assertIn("600|1200|1800", self.text)
+        self.assertIn(
+            '--model-timeout-seconds "$MODEL_TIMEOUT_SECONDS"',
+            self.text,
+        )
+
     def test_control_and_ordinary_conditions_have_distinct_push_branches(self) -> None:
         self.assertIn("interaction-model-control", self.text)
         self.assertIn("interaction-model-eval", self.text)

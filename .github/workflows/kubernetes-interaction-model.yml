@@ -30,6 +30,11 @@ on:
         required: false
         default: ""
         type: string
+      model_timeout_seconds:
+        description: Provider read timeout; increase only for infrastructure retries
+        required: true
+        default: "600"
+        type: string
 
 permissions:
   contents: read
@@ -60,8 +65,14 @@ jobs:
           requested_repetitions="${{ inputs.repetitions }}"
           requested_control="${{ inputs.execution_control }}"
           requested_variants="${{ inputs.variants }}"
+          requested_timeout="${{ inputs.model_timeout_seconds }}"
           test -n "$requested_model" || requested_model=glm-5.2
           test -n "$requested_repetitions" || requested_repetitions=1
+          test -n "$requested_timeout" || requested_timeout=600
+          case "$requested_timeout" in
+            600|1200|1800) ;;
+            *) echo "unsupported provider timeout: $requested_timeout" >&2; exit 2 ;;
+          esac
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             if [ "$GITHUB_REF_NAME" = "interaction-model-control" ]; then
               requested_control=true
@@ -74,6 +85,7 @@ jobs:
           echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
           echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
           echo "VARIANT_SUBSET=$requested_variants" >> "$GITHUB_ENV"
+          echo "MODEL_TIMEOUT_SECONDS=$requested_timeout" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -p 'test_kubernetes_interaction*.py' -v
           python -m unittest discover -s tests -p 'test_native_kubernetes_interaction_family.py' -v
 
@@ -165,7 +177,7 @@ jobs:
                     --credentials "$run_root/credentials.json" \
                     --prefix "$run_root/prefix.json" \
                     --failure-report "$run_dir/${variant}-failure.json" \
-                    --model-timeout-seconds 600 \
+                    --model-timeout-seconds "$MODEL_TIMEOUT_SECONDS" \
                     --max-turns 30 "${control_flag[@]}" \
                     --output "$run_dir/${variant}.json"; then
                   model_completed=true
