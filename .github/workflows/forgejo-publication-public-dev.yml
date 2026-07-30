@@ -104,14 +104,27 @@ jobs:
               "$BLUEPRINT"
           )
           test "${#variants[@]}" -eq 8
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::native replay command failed; sanitized log follows"
+            cat "$log_path"
+            return 1
+          }
           for variant in "${variants[@]}"
           do
+            echo "::group::capture-and-reference $variant"
             boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
             reset_evidence="$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json"
             boundary_evidence="$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$NATIVE_ROOT/bundles/prefix"
-            python scripts/capture_forgejo_publication_state_evidence.py \
+            run_logged "$RUN_ROOT/logs/$variant-reset.log" \
+              python scripts/capture_forgejo_publication_state_evidence.py \
               --phase reset \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$NATIVE_ROOT/runtime/prefix.json" \
@@ -120,18 +133,18 @@ jobs:
               --forgejo-archive "$NATIVE_ROOT/bundles/prefix/forgejo-data.tar.gz" \
               --webhook-sink-archive "$NATIVE_ROOT/bundles/prefix/webhook-sink-data.tar.gz" \
               --expected-projection "$NATIVE_ROOT/expected-reset-projection.json" \
-              --output "$reset_evidence" \
-              > "$RUN_ROOT/logs/$variant-reset.log" 2>&1
-            python scripts/run_forgejo_publication_boundary.py \
+              --output "$reset_evidence"
+            run_logged "$RUN_ROOT/logs/$variant-boundary.log" \
+              python scripts/run_forgejo_publication_boundary.py \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$NATIVE_ROOT/runtime/prefix.json" \
               --variant "$variant" \
-              --output "$NATIVE_ROOT/runtime/$variant-boundary.json" \
-              > "$RUN_ROOT/logs/$variant-boundary.log" 2>&1
-            python scripts/manage_forgejo_stack.py snapshot-bundle \
-              --snapshot "$boundary_bundle" \
-              > "$RUN_ROOT/logs/$variant-boundary-bundle.log" 2>&1
-            python scripts/capture_forgejo_publication_state_evidence.py \
+              --output "$NATIVE_ROOT/runtime/$variant-boundary.json"
+            run_logged "$RUN_ROOT/logs/$variant-boundary-bundle.log" \
+              python scripts/manage_forgejo_stack.py snapshot-bundle \
+              --snapshot "$boundary_bundle"
+            run_logged "$RUN_ROOT/logs/$variant-boundary-evidence.log" \
+              python scripts/capture_forgejo_publication_state_evidence.py \
               --phase boundary \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$NATIVE_ROOT/runtime/prefix.json" \
@@ -141,12 +154,12 @@ jobs:
               --webhook-sink-archive "$boundary_bundle/webhook-sink-data.tar.gz" \
               --reset-evidence "$reset_evidence" \
               --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
-              --output "$boundary_evidence" \
-              > "$RUN_ROOT/logs/$variant-boundary-evidence.log" 2>&1
+              --output "$boundary_evidence"
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$boundary_bundle"
             reference_start="$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
-            python scripts/capture_forgejo_publication_state_evidence.py \
+            run_logged "$RUN_ROOT/logs/$variant-reference-start.log" \
+              python scripts/capture_forgejo_publication_state_evidence.py \
               --phase boundary \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$NATIVE_ROOT/runtime/prefix.json" \
@@ -156,15 +169,19 @@ jobs:
               --webhook-sink-archive "$boundary_bundle/webhook-sink-data.tar.gz" \
               --reset-evidence "$reset_evidence" \
               --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
-              --output "$reference_start" \
-              > "$RUN_ROOT/logs/$variant-reference-start.log" 2>&1
-            cmp "$boundary_evidence" "$reference_start"
-            python scripts/run_forgejo_publication_control.py \
+              --output "$reference_start"
+            if ! cmp "$boundary_evidence" "$reference_start"
+            then
+              echo "::error::reference start differs from admitted boundary"
+              exit 2
+            fi
+            run_logged "$RUN_ROOT/logs/$variant-reference.log" \
+              python scripts/run_forgejo_publication_control.py \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$NATIVE_ROOT/runtime/prefix.json" \
               --variant "$variant" \
-              --output "$NATIVE_ROOT/runtime/$variant-reference.json" \
-              > "$RUN_ROOT/logs/$variant-reference.log" 2>&1
+              --output "$NATIVE_ROOT/runtime/$variant-reference.json"
+            echo "::endgroup::"
           done
 
       - name: Execute every fixed policy from each exact boundary

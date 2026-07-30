@@ -115,6 +115,22 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             self.text[reference_restore:reference],
         )
 
+    def test_native_replay_failure_identifies_variant_and_emits_log(self) -> None:
+        self.assertIn("run_logged() {", self.text)
+        self.assertIn(
+            'echo "::group::capture-and-reference $variant"',
+            self.text,
+        )
+        self.assertIn(
+            'echo "::error::native replay command failed; sanitized log follows"',
+            self.text,
+        )
+        self.assertIn('cat "$log_path"', self.text)
+        self.assertIn(
+            'echo "::error::reference start differs from admitted boundary"',
+            self.text,
+        )
+
     def test_all_consumers_restore_the_same_boundary_bundle(self) -> None:
         reference_section = self.text[
             self.text.index("Capture eight exact boundaries") : self.text.index(
