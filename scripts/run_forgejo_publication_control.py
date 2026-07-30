@@ -77,7 +77,8 @@ def main() -> int:
     }
     report = {
         "schema_version": "0.2",
-        "scenario_id": "forgejo-release-publication-dev-002",
+        "scenario_id": prefix["scenario_id"],
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "variant": args.variant,
         "control": "state_driven_reference_using_agent_visible_tools",
         "reference_trace": list(trace),

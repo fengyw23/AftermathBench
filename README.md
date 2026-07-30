@@ -96,6 +96,13 @@ control passes 8/8, while ordinary recovery passes 7/8 and fails the matched
 group after replaying two already-successful webhook deliveries. Complete
 native, control and ordinary evidence is under
 `data/evidence/forgejo-publication-*-final-20260731`.
+The 7/8 result is now labeled a pre-contract diagnostic because replay UUID
+and stored-payload semantics were not explicit in the original tool
+description. The current implementation publishes those stable semantics,
+supports parameterized independent instances, snapshots both Forgejo and
+receiver state, and freezes a salted evaluator-bundle commitment before any
+provider call. See
+`docs/FORGEJO_PUBLICATION_INSTANCE_AND_FREEZE.md`.
 
 AftermathBench does not yet claim a complete multi-domain benchmark release.
 

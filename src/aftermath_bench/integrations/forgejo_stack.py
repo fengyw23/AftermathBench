@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 import time
@@ -12,6 +13,13 @@ from typing import Any
 
 TOKEN_PATTERN = re.compile(
     r"Access token was successfully created\.\.\.\s+(\S+)"
+)
+BUNDLE_SERVICES = (
+    "api-fault-gateway",
+    "forgejo",
+    "webhook-fault-gateway",
+    "provenance-webhook-fault-gateway",
+    "webhook-sink",
 )
 
 
@@ -168,6 +176,110 @@ class ForgejoStack:
         for url in (
             "http://127.0.0.1:9091/admin/reset",
             "http://127.0.0.1:9092/admin/reset",
+            "http://127.0.0.1:9093/admin/reset",
+            "http://127.0.0.1:9094/admin/reset",
+        ):
+            self.reset_service(url)
+
+    def snapshot_bundle(self, destination: str | Path) -> dict[str, str]:
+        """Capture Forgejo and the downstream receiver's durable state."""
+
+        directory = Path(destination).resolve()
+        directory.mkdir(parents=True, exist_ok=True)
+        forgejo_archive = directory / "forgejo-data.tar.gz"
+        sink_archive = directory / "webhook-sink-data.tar.gz"
+        self.run("stop", *BUNDLE_SERVICES)
+        try:
+            for service, archive in (
+                ("forgejo", forgejo_archive),
+                ("webhook-sink", sink_archive),
+            ):
+                command = self.compose_command(
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "--entrypoint",
+                    "tar",
+                    service,
+                    "-C",
+                    "/data",
+                    "-czf",
+                    "-",
+                    ".",
+                )
+                with archive.open("wb") as handle:
+                    self.runner(command, check=True, stdout=handle)
+        finally:
+            self.run("start", *BUNDLE_SERVICES)
+            self.wait_ready()
+        result = {
+            "schema_version": "1.0",
+            "capture_mode": "simultaneous_service_quiescence",
+            "forgejo_sha256": hashlib.sha256(
+                forgejo_archive.read_bytes()
+            ).hexdigest(),
+            "webhook_sink_sha256": hashlib.sha256(
+                sink_archive.read_bytes()
+            ).hexdigest(),
+        }
+        (directory / "bundle.json").write_text(
+            json.dumps(result, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return result
+
+    def restore_bundle(self, source: str | Path) -> None:
+        """Restore the exact native repository and receiver ledger."""
+
+        directory = Path(source).resolve()
+        forgejo_archive = directory / "forgejo-data.tar.gz"
+        sink_archive = directory / "webhook-sink-data.tar.gz"
+        manifest = json.loads(
+            (directory / "bundle.json").read_text(encoding="utf-8")
+        )
+        observed = {
+            "schema_version": "1.0",
+            "capture_mode": "simultaneous_service_quiescence",
+            "forgejo_sha256": hashlib.sha256(
+                forgejo_archive.read_bytes()
+            ).hexdigest(),
+            "webhook_sink_sha256": hashlib.sha256(
+                sink_archive.read_bytes()
+            ).hexdigest(),
+        }
+        if observed != manifest:
+            raise RuntimeError(
+                "Forgejo state bundle hash mismatch: "
+                f"expected={manifest}, observed={observed}"
+            )
+        self.run("stop", *BUNDLE_SERVICES)
+        try:
+            for service, archive in (
+                ("forgejo", forgejo_archive),
+                ("webhook-sink", sink_archive),
+            ):
+                command = self.compose_command(
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "--entrypoint",
+                    "sh",
+                    service,
+                    "-c",
+                    (
+                        "find /data -mindepth 1 -maxdepth 1 "
+                        "-exec rm -rf -- {} +; tar -C /data -xzf -"
+                    ),
+                )
+                with archive.open("rb") as handle:
+                    self.runner(command, check=True, stdin=handle)
+        finally:
+            self.run("start", *BUNDLE_SERVICES)
+            self.wait_ready()
+        # Gateway audit databases are control-plane telemetry, not model or
+        # evaluator state. Every replay starts them from the same empty state.
+        for url in (
+            "http://127.0.0.1:9091/admin/reset",
             "http://127.0.0.1:9093/admin/reset",
             "http://127.0.0.1:9094/admin/reset",
         ):

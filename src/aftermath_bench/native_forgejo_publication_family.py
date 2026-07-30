@@ -107,19 +107,30 @@ FORGEJO_PUBLICATION_TOOL_DEFINITIONS = (
     ToolDefinition(
         "get_webhook_history",
         (
-            "Read native delivery UUIDs and terminal or pending statuses for "
-            "one repository webhook."
+            "List delivery attempts for one webhook. Each row's uuid is the "
+            "exact X-Forgejo-Delivery value used for that attempt. A replay "
+            "is recorded as a separate attempt with a newly generated UUID."
         ),
         _schema(_HOOK, ("hook_id",)),
     ),
     ToolDefinition(
         "list_external_deliveries",
-        "List full idempotent records applied by downstream receivers.",
+        (
+            "List downstream receiver audit records keyed by the exact "
+            "X-Forgejo-Delivery UUID. Idempotency is scoped to that key: "
+            "receipt of the same UUID increments its attempt count; a "
+            "different UUID represents a distinct receiver effect even when "
+            "body_sha256 is identical."
+        ),
         _schema({}),
     ),
     ToolDefinition(
         "get_external_delivery",
-        "Read one receiver record by its native delivery UUID.",
+        (
+            "Read the receiver audit record for one exact "
+            "X-Forgejo-Delivery UUID. body_sha256 is a payload-content "
+            "fingerprint and is not the receiver's idempotency identity."
+        ),
         _schema(
             {"delivery_key": {"type": "string"}},
             ("delivery_key",),
@@ -158,8 +169,12 @@ FORGEJO_PUBLICATION_TOOL_DEFINITIONS = (
     ToolDefinition(
         "replay_webhook",
         (
-            "Replay one existing Forgejo delivery UUID through that hook's "
-            "native history endpoint."
+            "Request redelivery of the payload stored for one historical "
+            "Forgejo delivery. Forgejo creates a new delivery attempt with "
+            "a new X-Forgejo-Delivery UUID; the payload is copied from the "
+            "historical delivery and is not rebuilt from current Release "
+            "state. HTTP 200 acknowledges the replay request, not its "
+            "downstream uniqueness."
         ),
         _schema(
             {
@@ -175,19 +190,28 @@ FORGEJO_PUBLICATION_TOOL_DEFINITIONS = (
         _schema(_MILESTONE, ("milestone_id",)),
     ),
     ToolDefinition(
-        "wait_for_release_delivery",
-        "Wait for one hook's effect for a named release to appear.",
+        "wait_for_webhook_history_change",
+        (
+            "Wait until one hook has a delivery UUID not present in "
+            "known_delivery_uuids and that exact UUID appears in the "
+            "receiver audit. This observes a history change; it does not "
+            "decide whether replay was appropriate."
+        ),
         _schema(
             {
                 **_HOOK,
                 "release_tag": {"type": "string"},
+                "known_delivery_uuids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
                 "timeout_seconds": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 30,
                 },
             },
-            ("hook_id", "release_tag"),
+            ("hook_id", "release_tag", "known_delivery_uuids"),
         ),
     ),
 )

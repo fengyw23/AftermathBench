@@ -127,8 +127,8 @@ def main() -> int:
             prefix["repository"],
             tag=prefix["release_tag"],
             target=prefix["base_branch"],
-            title="August 2026 production release",
-            body="Approved binary, checksum and SPDX SBOM publication.",
+            title=prefix["release_title"],
+            body=prefix["release_body"],
         )
         raise RuntimeError(
             "ambiguous publication unexpectedly returned success"
@@ -159,18 +159,18 @@ def main() -> int:
         ),
         None,
     )
+    assets_by_role = {
+        str(asset["role"]): asset
+        for asset in prefix["expected_assets"]
+    }
     if target is not None:
-        assets_by_name = {
-            str(asset["name"]): asset
-            for asset in prefix["expected_assets"]
-        }
-        for asset_name in specification.preloaded_assets:
-            asset = assets_by_name[asset_name]
+        for role in specification.preloaded_asset_roles:
+            asset = assets_by_role[role]
             api.create_release_attachment(
                 prefix["owner"],
                 prefix["repository"],
                 int(target["id"]),
-                name=asset_name,
+                name=asset["name"],
                 content=_source_bytes(api, prefix, asset["source_path"]),
             )
     assets = (
@@ -198,7 +198,10 @@ def main() -> int:
         ),
         "preloaded_assets_match_variant": (
             sorted(str(asset.get("name")) for asset in assets)
-            == sorted(specification.preloaded_assets)
+            == sorted(
+                str(assets_by_role[role]["name"])
+                for role in specification.preloaded_asset_roles
+            )
         ),
     }
     external_by_key = {
@@ -225,7 +228,8 @@ def main() -> int:
         )
     payload = {
         "schema_version": "0.2",
-        "scenario_id": "forgejo-release-publication-dev-002",
+        "scenario_id": prefix["scenario_id"],
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "variant": args.variant,
         "surface_result": (
             "HTTP connection lost before publication completion was "

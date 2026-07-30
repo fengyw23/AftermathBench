@@ -12,7 +12,7 @@ class PublicationBoundaryVariant:
     release_committed: bool
     coordinator_mode: str
     provenance_mode: str
-    preloaded_assets: tuple[str, ...] = ()
+    preloaded_asset_roles: tuple[str, ...] = ()
 
 
 PUBLICATION_VARIANTS: dict[str, PublicationBoundaryVariant] = {
@@ -45,9 +45,7 @@ PUBLICATION_VARIANTS: dict[str, PublicationBoundaryVariant] = {
             release_committed=True,
             coordinator_mode="suppress_request",
             provenance_mode="suppress_request",
-            preloaded_assets=(
-                "aftermath-agent_2026.08.0_linux_amd64.tar.gz",
-            ),
+            preloaded_asset_roles=("binary",),
         )
     ),
     "release_committed_coordinator_delivered_provenance_missing_checksum_present": (
@@ -55,9 +53,7 @@ PUBLICATION_VARIANTS: dict[str, PublicationBoundaryVariant] = {
             release_committed=True,
             coordinator_mode="normal",
             provenance_mode="suppress_request",
-            preloaded_assets=(
-                "aftermath-agent_2026.08.0_linux_amd64.tar.gz.sha256",
-            ),
+            preloaded_asset_roles=("checksum",),
         )
     ),
     "release_committed_coordinator_missing_provenance_delivered_sbom_present": (
@@ -65,9 +61,7 @@ PUBLICATION_VARIANTS: dict[str, PublicationBoundaryVariant] = {
             release_committed=True,
             coordinator_mode="suppress_request",
             provenance_mode="normal",
-            preloaded_assets=(
-                "aftermath-agent_2026.08.0.spdx.json",
-            ),
+            preloaded_asset_roles=("sbom",),
         )
     ),
     "release_committed_both_accepted_response_lost": (

@@ -11,9 +11,14 @@ from scripts.build_forgejo_publication_admission import _observed_graph
 
 def _prefix() -> dict:
     return {
+        "scenario_id": "forgejo-release-publication-test",
+        "instance_spec_sha256": "test-spec-sha",
         "repository": "artifact-publication",
         "base_branch": "release/2026.08",
         "feature_branch": "release/2026.08-publication",
+        "protected_branch": "work/next-release",
+        "manifest_path": "release/publication-manifest.json",
+        "branch_protection_rule": "release/*",
         "pull_request_index": 2,
         "linked_issue_index": 1,
         "milestone_id": 1,
@@ -26,16 +31,19 @@ def _prefix() -> dict:
         "protected_asset_name": "prior.sha256",
         "expected_assets": [
             {
+                "role": "binary",
                 "name": "aftermath-agent_2026.08.0_linux_amd64.tar.gz",
                 "source_path": "dist/binary",
             },
             {
+                "role": "checksum",
                 "name": (
                     "aftermath-agent_2026.08.0_linux_amd64.tar.gz.sha256"
                 ),
                 "source_path": "dist/checksum",
             },
             {
+                "role": "sbom",
                 "name": "aftermath-agent_2026.08.0.spdx.json",
                 "source_path": "dist/sbom",
             },
@@ -60,7 +68,7 @@ class ForgejoPublicationAdmissionBuilderTest(unittest.TestCase):
     def test_every_variant_requires_at_least_four_native_writes(self) -> None:
         signatures = set()
         for variant in PUBLICATION_VARIANTS.values():
-            missing_assets = 3 - len(variant.preloaded_assets)
+            missing_assets = 3 - len(variant.preloaded_asset_roles)
             missing_deliveries = sum(
                 mode == "suppress_request"
                 for mode in (

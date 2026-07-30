@@ -186,7 +186,7 @@ def analyze(root: Path) -> dict[str, Any]:
                     in {
                         "get_external_delivery",
                         "list_external_deliveries",
-                        "wait_for_release_delivery",
+                        "wait_for_webhook_history_change",
                     }
                     for call in calls[max(replay_indices) + 1 :]
                 )

@@ -9,9 +9,6 @@ from aftermath_bench.native_admission import validate_native_scenario
 from aftermath_bench.native_baseline_summary import summarize_baselines
 from aftermath_bench.native_scenario import load_native_scenario
 
-SCENARIO_ID = "forgejo-release-publication-dev-002"
-
-
 def _read(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -54,14 +51,15 @@ def _named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
 
 def _asset_roles(prefix: dict[str, Any]) -> dict[str, dict[str, Any]]:
     assets = {
-        str(item["name"]): item for item in prefix["expected_assets"]
+        str(item["role"]): item for item in prefix["expected_assets"]
     }
-    binary = "aftermath-agent_2026.08.0_linux_amd64.tar.gz"
-    return {
-        "binary": assets[binary],
-        "checksum": assets[f"{binary}.sha256"],
-        "sbom": assets["aftermath-agent_2026.08.0.spdx.json"],
-    }
+    expected = {"binary", "checksum", "sbom"}
+    if set(assets) != expected:
+        raise RuntimeError(
+            "publication prefix must expose exactly the semantic asset "
+            f"roles {sorted(expected)}; observed={sorted(assets)}"
+        )
+    return assets
 
 
 def _compact_capture(
@@ -82,7 +80,7 @@ def _compact_capture(
     manifest = _tool_result(
         report,
         "get_repository_file",
-        path="release/publication-manifest.json",
+        path=prefix["manifest_path"],
         ref=prefix["base_branch"],
     )
     manifest_data = json.loads(manifest["content"])
@@ -287,7 +285,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         ("target_pull", "PullRequest", str(prefix["pull_request_index"])),
         ("linked_issue", "Issue", str(prefix["linked_issue_index"])),
         ("release_milestone", "Milestone", str(prefix["milestone_id"])),
-        ("manifest", "RepositoryFile", "release/publication-manifest.json"),
+        ("manifest", "RepositoryFile", prefix["manifest_path"]),
         (
             "binary_source",
             "RepositoryFile",
@@ -326,7 +324,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "PullRequest",
             str(prefix["protected_pull_request_index"]),
         ),
-        ("protected_branch", "GitRef", "work/next-release"),
+        ("protected_branch", "GitRef", prefix["protected_branch"]),
         (
             "protected_issue",
             "Issue",
@@ -342,7 +340,11 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "ReleaseAttachment",
             prefix["protected_asset_name"],
         ),
-        ("branch_protection", "BranchProtection", "release/*"),
+        (
+            "branch_protection",
+            "BranchProtection",
+            prefix["branch_protection_rule"],
+        ),
     ]
     relations = [
         _relation(
@@ -390,7 +392,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "manifest",
             "approves",
             _equals(
-                "manifest.path", "release/publication-manifest.json"
+                "manifest.path", prefix["manifest_path"]
             ),
         ),
         _relation(
@@ -541,7 +543,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "protected_branch",
             "protected_pull",
             "head_of",
-            _equals("protected_pull.head", "work/next-release"),
+            _equals("protected_pull.head", prefix["protected_branch"]),
         ),
         _relation(
             "protected_pull",
@@ -578,12 +580,16 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             "branch_protection",
             "base_branch",
             "governs",
-            _equals("branch_protections.*", "release/*"),
+            _equals(
+                "branch_protections.*",
+                prefix["branch_protection_rule"],
+            ),
         ),
     ]
     return {
         "schema_version": "1.0",
-        "scenario_id": SCENARIO_ID,
+        "scenario_id": prefix["scenario_id"],
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "source": (
             "native Forgejo and downstream receiver replay with executable "
             "relation assertions"
@@ -627,7 +633,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
                     {
                         "tool": "get_repository_file",
                         "arguments": {
-                            "path": "release/publication-manifest.json"
+                            "path": prefix["manifest_path"]
                         },
                     }
                 ],
@@ -663,7 +669,7 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
                 "tools": [
                     "list_external_deliveries",
                     "get_external_delivery",
-                    "wait_for_release_delivery",
+                    "wait_for_webhook_history_change",
                 ],
             },
             {
@@ -709,13 +715,24 @@ def build_admission(
 ) -> dict[str, Any]:
     blueprint = _read(blueprint_path)
     prefix = _read(runtime_directory / "prefix.json")
+    scenario_id = str(blueprint["scenario_id"])
+    if str(prefix.get("scenario_id")) != scenario_id:
+        raise RuntimeError("blueprint and prefix scenario IDs do not match")
+    if (
+        str(blueprint.get("instance_spec_sha256"))
+        != str(prefix.get("instance_spec_sha256"))
+    ):
+        raise RuntimeError(
+            "blueprint and prefix instance specification hashes do not match"
+        )
     reports = [
         _read(runtime_directory / f"{variant['id']}-reference.json")
         for variant in blueprint["matched_variants"]
     ]
     reference = {
         "schema_version": "1.0",
-        "scenario_id": SCENARIO_ID,
+        "scenario_id": scenario_id,
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "source": "live native reference replay",
         "reports": [
             {
@@ -740,7 +757,8 @@ def build_admission(
     graph = _observed_graph(prefix)
     replay = {
         "schema_version": "1.0",
-        "scenario_id": SCENARIO_ID,
+        "scenario_id": scenario_id,
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "captures": [
             {
                 "variant": report["variant"],
@@ -756,7 +774,6 @@ def build_admission(
     for heuristic in baselines["heuristics"]:
         for report in heuristic["reports"]:
             report["path"] = Path(report["path"]).name
-    prefix["scenario_id"] = SCENARIO_ID
     prefix["trace"] = [
         {**event, "kind": "write", "status": "success"}
         for event in prefix["trace"]
@@ -764,6 +781,16 @@ def build_admission(
     scenario = {
         **blueprint,
         "schema_version": "1.0",
+        "fixture": {
+            **blueprint.get("fixture", {}),
+            "pull_request_index": prefix["pull_request_index"],
+            "linked_issue_index": prefix["linked_issue_index"],
+            "milestone_id": prefix["milestone_id"],
+            "protected_pull_request_index": prefix[
+                "protected_pull_request_index"
+            ],
+            "protected_issue_index": prefix["protected_issue_index"],
+        },
         "benchmark_tier": "hard",
         "implementation_status": (
             "native matched-boundary replay, reference control, fixed "

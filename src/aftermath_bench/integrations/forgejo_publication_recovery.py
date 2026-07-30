@@ -128,9 +128,16 @@ def evaluate_forgejo_publication_recovery(
             1 <= len(history) <= 2
             and len(keys) == len(set(keys))
         )
-        delivery_checks[f"{role}_effect_applied_once"] = (
+        delivery_checks[f"{role}_effect_present_once"] = len(matched) == 1
+        delivery_checks[f"{role}_no_redundant_delivery_attempts"] = (
             len(matched) == 1
             and int(matched[0].get("attempt_count", 0)) == 1
+        )
+        delivery_checks[f"{role}_effect_applied_once"] = (
+            delivery_checks[f"{role}_effect_present_once"]
+            and delivery_checks[
+                f"{role}_no_redundant_delivery_attempts"
+            ]
         )
 
     pull = evidence["target_pull"]
@@ -173,7 +180,7 @@ def evaluate_forgejo_publication_recovery(
         "both_downstream_effects_applied": (
             len(target_external) == 2
             and all(
-                delivery_checks[f"{role}_effect_applied_once"]
+                delivery_checks[f"{role}_effect_present_once"]
                 for role in histories
             )
         ),
@@ -194,7 +201,7 @@ def evaluate_forgejo_publication_recovery(
             == prefix["protected_asset_name"]
         ),
         "branch_protection_preserved": any(
-            rule.get("rule_name") == "release/*"
+            rule.get("rule_name") == prefix["branch_protection_rule"]
             for rule in evidence.get("branch_protections", [])
         ),
         "both_release_hooks_preserved": all(
@@ -270,7 +277,7 @@ class ForgejoPublicationEnvironment:
         "upload_release_asset_from_repository",
         "replay_webhook",
         "close_milestone",
-        "wait_for_release_delivery",
+        "wait_for_webhook_history_change",
     )
     MUTATION_TOOLS = (
         "create_release",
@@ -430,10 +437,17 @@ class ForgejoPublicationEnvironment:
                 int(kwargs["milestone_id"]),
                 state="closed",
             ),
-            "wait_for_release_delivery": lambda: (
-                self._wait_for_release_delivery(
+            "wait_for_webhook_history_change": lambda: (
+                self._wait_for_webhook_history_change(
                     int(kwargs["hook_id"]),
                     str(kwargs["release_tag"]),
+                    tuple(
+                        str(value)
+                        for value in kwargs.get(
+                            "known_delivery_uuids",
+                            (),
+                        )
+                    ),
                     int(kwargs.get("timeout_seconds", 15)),
                 )
             ),
@@ -455,13 +469,15 @@ class ForgejoPublicationEnvironment:
             )
         return records
 
-    def _wait_for_release_delivery(
+    def _wait_for_webhook_history_change(
         self,
         hook_id: int,
         release_tag: str,
+        known_delivery_uuids: tuple[str, ...],
         timeout_seconds: int,
     ) -> dict[str, Any]:
         deadline = time.monotonic() + timeout_seconds
+        known = set(known_delivery_uuids)
         while True:
             history = self.web.webhook_history(
                 self.owner, self.repository, hook_id
@@ -470,14 +486,22 @@ class ForgejoPublicationEnvironment:
                 self._external_records(), release_tag
             )
             by_key = {str(record.get("key")): record for record in records}
+            new_history = [
+                item for item in history if item.uuid not in known
+            ]
             matching = [
                 by_key[item.uuid]
-                for item in history
+                for item in new_history
                 if item.uuid in by_key
             ]
-            if matching:
+            if new_history and matching:
                 return {
                     "hook_id": hook_id,
+                    "known_delivery_uuids": sorted(known),
+                    "new_history": [
+                        {"uuid": item.uuid, "status": item.status}
+                        for item in new_history
+                    ],
                     "history": [
                         {"uuid": item.uuid, "status": item.status}
                         for item in history
@@ -486,7 +510,8 @@ class ForgejoPublicationEnvironment:
                 }
             if time.monotonic() >= deadline:
                 raise TimeoutError(
-                    f"no delivery for hook {hook_id} and release {release_tag}"
+                    "no new delivery and receiver record for hook "
+                    f"{hook_id} and release {release_tag}"
                 )
             time.sleep(0.25)
 
@@ -607,7 +632,7 @@ def reference_forgejo_publication_recovery(
     call("get_branch", branch=prefix["base_branch"])
     manifest = call(
         "get_repository_file",
-        path="release/publication-manifest.json",
+        path=prefix["manifest_path"],
         ref=prefix["base_branch"],
     )
     manifest_payload = json.loads(manifest["content"])
@@ -638,14 +663,17 @@ def reference_forgejo_publication_recovery(
             "create_release",
             tag=prefix["release_tag"],
             target=prefix["base_branch"],
-            title="August 2026 production release",
-            body="Approved binary, checksum and SPDX SBOM publication.",
+            title=prefix["release_title"],
+            body=prefix["release_body"],
         )
         for hook_id in histories:
             call(
-                "wait_for_release_delivery",
+                "wait_for_webhook_history_change",
                 hook_id=hook_id,
                 release_tag=prefix["release_tag"],
+                known_delivery_uuids=[
+                    str(item["uuid"]) for item in histories[hook_id]
+                ],
                 timeout_seconds=30,
             )
     else:
@@ -672,9 +700,12 @@ def reference_forgejo_publication_recovery(
                     delivery_uuid=delivery["uuid"],
                 )
                 call(
-                    "wait_for_release_delivery",
+                    "wait_for_webhook_history_change",
                     hook_id=hook_id,
                     release_tag=prefix["release_tag"],
+                    known_delivery_uuids=[
+                        str(item["uuid"]) for item in history
+                    ],
                     timeout_seconds=30,
                 )
 

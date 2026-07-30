@@ -7,6 +7,15 @@ This is a complete paired development experiment for
 family has one public development instance, one trial per matched boundary,
 and no independently frozen hidden instance.
 
+**Post-experiment contract audit.** The 7/8 ordinary result is retained as a
+pre-contract diagnostic, not as clean evidence of a recovery-reasoning
+failure. At the time of the run, the public tool contract did not state that
+native replay copies the stored historical payload, creates a new delivery
+UUID, and that the receiver keys idempotency by UUID rather than payload
+hash. The trajectory contains a genuine identity-inference error, but it is
+confounded by this missing operation semantics. The current interface now
+publishes those stable rules and waits for an actually new history UUID.
+
 ## What is being tested
 
 An approved release publication returns the same connection error in every
@@ -100,9 +109,10 @@ idempotent deduplication. It confused content identity with operation
 identity. The receiver's visible identity is the delivery UUID, not the
 payload hash.
 
-The failure is therefore attributed to **idempotency-identity inference and
-replay-scope selection**, not missing investigation, an unreachable target,
-tool execution or preservation.
+The historical failure is therefore attributed to **interface-semantic
+ambiguity plus idempotency-identity inference failure**. It must not be used
+as evidence that GLM-5.2 fails the task under a fully specified operation
+contract.
 
 ## What the result means
 

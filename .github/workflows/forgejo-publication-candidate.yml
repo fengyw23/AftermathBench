@@ -1,0 +1,281 @@
+name: forgejo-publication-candidate
+
+on:
+  push:
+    branches:
+      - forgejo-publication-candidate
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Execution-control model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      run_execution_control:
+        description: Consume the frozen candidate with an execution control
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-then-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: src
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Materialize private candidate without model credentials
+        env:
+          HIDDEN_INSTANCE_B64: ${{ secrets.FORGEJO_PUBLICATION_HIDDEN_INSTANCE_B64 }}
+        run: |
+          test -n "$HIDDEN_INSTANCE_B64"
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          mkdir -p "$run_root/private/runtime" \
+            "$run_root/private/baselines" \
+            "$run_root/private/snapshots" \
+            "$run_root/public"
+          printf '%s' "$HIDDEN_INSTANCE_B64" \
+            | base64 --decode > "$run_root/private/instance.json"
+          python scripts/verify_forgejo_instance_novelty.py \
+            --instance-spec "$run_root/private/instance.json"
+          python scripts/render_forgejo_publication_blueprint.py \
+            --instance-spec "$run_root/private/instance.json" \
+            --output "$run_root/private/blueprint.json" \
+            --benchmark-split hidden_test
+          python -m unittest discover -s tests -v
+
+      - name: Build pinned Forgejo from source
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$run_root/private/source-verification.json"
+
+      - name: Build the independent native prefix
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          runtime_root="runtimes/forgejo/.runtime"
+          mkdir -p "$runtime_root" "$run_root/private/logs"
+          owner="$(
+            python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' \
+              "$run_root/private/instance.json"
+          )"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
+          python scripts/build_forgejo_publication_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$run_root/private/instance.json" \
+            --output "$run_root/private/runtime/prefix.json" \
+            > "$run_root/private/logs/prefix.log" 2>&1
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$run_root/private/prefix.tar.gz"
+
+      - name: Freeze exact matched boundaries and run references
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          runtime_root="runtimes/forgejo/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$run_root/private/blueprint.json"
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore \
+              --snapshot "$run_root/private/prefix.tar.gz"
+            python scripts/run_forgejo_publication_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/private/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$run_root/private/runtime/$variant-boundary.json" \
+              > "$run_root/private/logs/$variant-boundary.log" 2>&1
+            python scripts/manage_forgejo_stack.py snapshot-bundle \
+              --snapshot "$run_root/private/snapshots/$variant"
+            python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$run_root/private/snapshots/$variant"
+            python scripts/run_forgejo_publication_control.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/private/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$run_root/private/runtime/$variant-reference.json" \
+              > "$run_root/private/logs/$variant-reference.log" 2>&1
+          done
+
+      - name: Execute fixed policies from the same state bundles
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          runtime_root="runtimes/forgejo/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$run_root/private/blueprint.json"
+          )
+          baselines=(
+            no_op
+            blind_publish
+            assume_release_exists
+            repair_assets_only
+            replay_all_failed
+            compact_release_tree
+          )
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-bundle \
+                --snapshot "$run_root/private/snapshots/$variant"
+              python scripts/run_forgejo_publication_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/private/runtime/prefix.json" \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --output "$run_root/private/baselines/$baseline-$variant.json" \
+                > "$run_root/private/logs/$baseline-$variant.log" 2>&1
+            done
+          done
+
+      - name: Admit and freeze before any provider request
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          python scripts/build_forgejo_publication_admission.py \
+            --runtime-directory "$run_root/private/runtime" \
+            --baseline-directory "$run_root/private/baselines" \
+            --blueprint "$run_root/private/blueprint.json" \
+            --output-directory "$run_root/private/scenario" \
+            > "$run_root/private/logs/admission.log" 2>&1
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            > "$run_root/private/logs/scenario-validation.log" 2>&1
+          runtime_revision="$(
+            python -c 'import json; print(json.load(open("runtimes/forgejo/runtime.lock.json"))["source"]["revision"])'
+          )"
+          python scripts/freeze_native_bundle.py \
+            --bundle-root "$run_root/private" \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --instance-spec "$run_root/private/instance.json" \
+            --source-commit "$GITHUB_SHA" \
+            --runtime-revision "$runtime_revision" \
+            --private-attestation "$run_root/private/freeze.json" \
+            --public-commitment "$run_root/private/public-commitment.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json"
+          python scripts/verify_hidden_test_eligibility.py \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --freeze "$run_root/private/freeze.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            > "$RUNNER_TEMP/forgejo-hidden-eligibility.log" 2>&1
+          cp "$run_root/private/public-commitment.json" \
+            "$run_root/public/pre-model-commitment.json"
+
+      - name: Lock and run execution control on frozen state
+        if: ${{ github.event_name == 'push' || inputs.run_execution_control }}
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          runtime_root="runtimes/forgejo/.runtime"
+          python scripts/verify_frozen_bundle.py \
+            --bundle-root "$run_root/private" \
+            --private-attestation "$run_root/private/freeze.json" \
+            --public-commitment "$run_root/private/public-commitment.json" \
+            --allow-unbound usage-ledger.json \
+            > "$RUNNER_TEMP/forgejo-pre-provider-freeze-check.log" 2>&1
+          python scripts/record_native_bundle_usage.py \
+            --ledger "$run_root/private/usage-ledger.json" \
+            --event evaluation_locked \
+            --details-json "{\"condition\":\"execution_control\",\"model\":\"$MODEL_ID\"}"
+          python scripts/record_native_bundle_usage.py \
+            --ledger "$run_root/private/usage-ledger.json" \
+            --event consumed \
+            --details-json "{\"condition\":\"execution_control\",\"model\":\"$MODEL_ID\",\"before_first_request\":true}"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$run_root/private/blueprint.json"
+          )
+          mkdir -p "$run_root/private/control/repetition-01"
+          run_status=0
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$run_root/private/snapshots/$variant"
+            if python -m aftermath_bench run-native-model \
+                --provider openai-compatible \
+                --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                --model "$MODEL_ID" \
+                --scenario "$run_root/private/scenario/scenario.json" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/private/runtime/prefix.json" \
+                --failure-report "$run_root/private/runtime/$variant-boundary.json" \
+                --max-turns 25 \
+                --execution-control \
+                --output "$run_root/private/control/repetition-01/$variant.json" \
+                > "$run_root/private/control/repetition-01/$variant.log" 2>&1
+            then
+              true
+            elif [ ! -s "$run_root/private/control/repetition-01/$variant.json" ]
+            then
+              run_status=1
+            fi
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/private/control" \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --output "$run_root/private/control/summary.json" \
+            --expected-execution-control true \
+            > "$run_root/private/control/summary.log" 2>&1 \
+            || run_status=1
+          expected_cases="${#variants[@]}"
+          python scripts/validate_native_control_summary.py \
+            --summary "$run_root/private/control/summary.json" \
+            --expected-cases "$expected_cases" \
+            --minimum-pass-rate 0.8 \
+            > "$run_root/private/control/gate.log" 2>&1 \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Build non-sensitive result
+        if: always()
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          control_args=()
+          if [ -f "$run_root/private/control/summary.json" ]
+          then
+            control_args=(
+              --control-summary "$run_root/private/control/summary.json"
+            )
+          fi
+          python scripts/summarize_frozen_candidate.py \
+            --commitment "$run_root/private/public-commitment.json" \
+            --admission "$run_root/private/scenario/artifacts/admission.json" \
+            --reference "$run_root/private/scenario/artifacts/reference.json" \
+            --baselines "$run_root/private/scenario/artifacts/baselines.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            "${control_args[@]}" \
+            --output "$run_root/public/result.json"
+
+      - name: Upload commitment and aggregate only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-publication-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-candidate/public/
+          if-no-files-found: error
+
+      - name: Purge all private state
+        if: always()
+        run: |
+          rm -f runtimes/forgejo/.runtime/credentials.json
+          python scripts/manage_forgejo_stack.py purge || true
+          rm -rf "$RUNNER_TEMP/forgejo-candidate/private"

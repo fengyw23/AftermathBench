@@ -19,6 +19,7 @@ def _prefix() -> dict:
         "coordinator_hook_id": 7,
         "provenance_hook_id": 8,
         "base_branch": "release/2026.08",
+        "branch_protection_rule": "release/*",
         "release_tag": "v2026.08.0",
         "protected_release_tag": "v2026.07.3",
         "protected_asset_name": "prior.sha256",

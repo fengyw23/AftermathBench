@@ -57,7 +57,8 @@ def main() -> int:
     )
     report = {
         "schema_version": "0.2",
-        "scenario_id": "forgejo-release-publication-dev-002",
+        "scenario_id": prefix["scenario_id"],
+        "instance_spec_sha256": prefix["instance_spec_sha256"],
         "variant": args.variant,
         "baseline": args.baseline,
         "source": "executed against the native failure state",

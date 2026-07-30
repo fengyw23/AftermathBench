@@ -175,5 +175,7 @@ class ForgejoWebSession:
             return {
                 "status": response.status,
                 "url": response.geturl(),
-                "delivery_uuid": delivery_uuid,
+                "replay_request_accepted": True,
+                "source_delivery_uuid": delivery_uuid,
+                "new_delivery_state": "not_checked",
             }

@@ -15,13 +15,32 @@ def main() -> int:
     )
     parser.add_argument(
         "action",
-        choices=("up", "setup", "snapshot", "restore", "down", "purge"),
+        choices=(
+            "up",
+            "setup",
+            "snapshot",
+            "restore",
+            "snapshot-bundle",
+            "restore-bundle",
+            "down",
+            "purge",
+        ),
     )
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument(
         "--container-cli",
         choices=("docker", "podman"),
         default="docker",
+    )
+    parser.add_argument(
+        "--username",
+        default="aftermath",
+        help="administrator/login owner created by the setup action",
+    )
+    parser.add_argument(
+        "--email",
+        default="admin@aftermath.invalid",
+        help="administrator email created by the setup action",
     )
     args = parser.parse_args()
     runtime = repository_root() / "runtimes" / "forgejo"
@@ -33,10 +52,12 @@ def main() -> int:
         stack.up()
     elif args.action == "setup":
         credentials = stack.create_administrator(
+            username=args.username,
             password=os.environ.get(
                 "AFTERMATH_FORGEJO_ADMIN_PASSWORD",
                 "aftermath-admin",
-            )
+            ),
+            email=args.email,
         )
         path = runtime / ".runtime" / "credentials.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,6 +76,14 @@ def main() -> int:
         if not args.snapshot:
             parser.error("--snapshot is required")
         stack.restore(args.snapshot)
+    elif args.action == "snapshot-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        print(json.dumps(stack.snapshot_bundle(args.snapshot)))
+    elif args.action == "restore-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        stack.restore_bundle(args.snapshot)
     elif args.action == "down":
         stack.down()
     else:

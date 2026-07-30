@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Self
@@ -80,6 +81,52 @@ class ForgejoStackTest(unittest.TestCase):
         )
         self.assertEqual(opener.call_count, 2)
         sleeper.assert_called_once_with(0)
+
+    def test_bundle_snapshot_and_restore_quiesce_all_services_together(
+        self,
+    ) -> None:
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append(tuple(command))
+            output = kwargs.get("stdout")
+            if output is not None:
+                output.write(b"archive")
+            return subprocess.CompletedProcess(command, 0)
+
+        stack = ForgejoStack(
+            compose_file=Path("compose.yaml"),
+            runner=runner,
+        )
+        stack.wait_ready = Mock()  # type: ignore[method-assign]
+        stack.reset_service = Mock()  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "bundle"
+            stack.snapshot_bundle(bundle)
+            stack.restore_bundle(bundle)
+
+        stop_calls = [
+            call for call in calls if "stop" in call
+        ]
+        start_calls = [
+            call for call in calls if "start" in call
+        ]
+        self.assertEqual(len(stop_calls), 2)
+        self.assertEqual(len(start_calls), 2)
+        for call in (*stop_calls, *start_calls):
+            for service in (
+                "forgejo",
+                "api-fault-gateway",
+                "webhook-sink",
+                "webhook-fault-gateway",
+                "provenance-webhook-fault-gateway",
+            ):
+                self.assertIn(service, call)
+        reset_urls = {
+            call.args[0]
+            for call in stack.reset_service.call_args_list
+        }
+        self.assertNotIn("http://127.0.0.1:9092/admin/reset", reset_urls)
 
 
 if __name__ == "__main__":

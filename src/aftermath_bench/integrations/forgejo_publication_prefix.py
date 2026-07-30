@@ -7,10 +7,16 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .forgejo_api import ForgejoAPI
+from .forgejo_publication_instance import (
+    DEFAULT_FORGEJO_PUBLICATION_INSTANCE,
+    ForgejoPublicationInstanceSpec,
+)
 
 
 @dataclass(frozen=True)
 class ForgejoPublicationPrefix:
+    scenario_id: str
+    instance_spec_sha256: str
     owner: str
     repository: str
     milestone_id: int
@@ -22,8 +28,14 @@ class ForgejoPublicationPrefix:
     provenance_hook_id: int
     base_branch: str
     feature_branch: str
+    protected_branch: str
     release_tag: str
     protected_release_tag: str
+    manifest_path: str
+    branch_protection_rule: str
+    release_title: str
+    release_body: str
+    required_consumers: tuple[str, str]
     expected_assets: tuple[dict[str, Any], ...]
     protected_asset_name: str
     trace: tuple[dict[str, Any], ...]
@@ -33,28 +45,20 @@ class ForgejoPublicationPrefix:
 
 
 class ForgejoPublicationPrefixBuilder:
-    """Create the successful, persistent prefix for the publication family."""
+    """Create the successful, persistent prefix for one publication instance."""
 
-    OWNER = "aftermath"
-    REPOSITORY = "artifact-publication"
-    BASE_BRANCH = "release/2026.08"
-    FEATURE_BRANCH = "release/2026.08-publication"
-    PROTECTED_BRANCH = "work/next-release"
-    RELEASE_TAG = "v2026.08.0"
-    PROTECTED_RELEASE_TAG = "v2026.07.3"
-    COORDINATOR_TARGET = (
-        "http://webhook-fault-gateway:8080/webhooks/events"
-    )
-    PROVENANCE_TARGET = (
-        "http://provenance-webhook-fault-gateway:8080/webhooks/events"
-    )
-    BINARY_NAME = "aftermath-agent_2026.08.0_linux_amd64.tar.gz"
-    CHECKSUM_NAME = f"{BINARY_NAME}.sha256"
-    SBOM_NAME = "aftermath-agent_2026.08.0.spdx.json"
-    PROTECTED_ASSET_NAME = "aftermath-agent_2026.07.3.sha256"
-
-    def __init__(self, client: ForgejoAPI):
+    def __init__(
+        self,
+        client: ForgejoAPI,
+        instance: ForgejoPublicationInstanceSpec | None = None,
+    ):
         self.client = client
+        self.instance = (
+            instance
+            if instance is not None
+            else DEFAULT_FORGEJO_PUBLICATION_INSTANCE
+        )
+        self.instance.validate()
         self.trace: list[dict[str, Any]] = []
 
     def _record(
@@ -81,14 +85,7 @@ class ForgejoPublicationPrefixBuilder:
         attempts: int = 30,
         interval_seconds: float = 0.5,
     ) -> dict[str, Any]:
-        """Wait for Forgejo's asynchronous pull-request patch check.
-
-        A newly created pull request is initially reported as non-mergeable
-        while Forgejo prepares and tests its merge patch.  Calling the merge
-        endpoint during that native transition returns HTTP 405 with
-        ``Please try again later``.  Prefix construction must wait for the
-        authoritative PR state instead of relying on runner speed.
-        """
+        """Wait for Forgejo's asynchronous pull-request patch check."""
 
         last: dict[str, Any] = {}
         for attempt in range(attempts):
@@ -102,25 +99,25 @@ class ForgejoPublicationPrefixBuilder:
             f"{attempts} authoritative reads: {last}"
         )
 
-    @classmethod
-    def _asset_sources(cls) -> tuple[dict[str, str], ...]:
+    def _asset_sources(self) -> tuple[dict[str, str], ...]:
+        spec = self.instance
         binary = (
-            "Aftermath Agent v2026.08.0\n"
-            "platform=linux-amd64\n"
-            "build=approved-release-2026-08\n"
+            f"{spec.package_name} v{spec.version}\n"
+            f"platform={spec.platform.replace('_', '-')}\n"
+            f"build={spec.build_id}\n"
         )
         checksum = hashlib.sha256(binary.encode("utf-8")).hexdigest()
         sbom = json.dumps(
             {
                 "spdxVersion": "SPDX-2.3",
-                "name": "aftermath-agent-v2026.08.0",
+                "name": f"{spec.package_slug}-v{spec.version}",
                 "documentNamespace": (
-                    "https://aftermath.invalid/spdx/v2026.08.0"
+                    f"https://{spec.owner}.invalid/spdx/v{spec.version}"
                 ),
                 "packages": [
                     {
-                        "name": "aftermath-agent",
-                        "versionInfo": "2026.08.0",
+                        "name": spec.package_slug,
+                        "versionInfo": spec.version,
                     }
                 ],
             },
@@ -129,25 +126,29 @@ class ForgejoPublicationPrefixBuilder:
         ) + "\n"
         return (
             {
-                "name": cls.BINARY_NAME,
-                "source_path": f"dist/{cls.BINARY_NAME}",
+                "role": "binary",
+                "name": spec.binary_name,
+                "source_path": f"dist/{spec.binary_name}",
                 "content": binary,
             },
             {
-                "name": cls.CHECKSUM_NAME,
-                "source_path": f"dist/{cls.CHECKSUM_NAME}",
-                "content": f"{checksum}  {cls.BINARY_NAME}\n",
+                "role": "checksum",
+                "name": spec.checksum_name,
+                "source_path": f"dist/{spec.checksum_name}",
+                "content": f"{checksum}  {spec.binary_name}\n",
             },
             {
-                "name": cls.SBOM_NAME,
-                "source_path": f"dist/{cls.SBOM_NAME}",
+                "role": "sbom",
+                "name": spec.sbom_name,
+                "source_path": f"dist/{spec.sbom_name}",
                 "content": sbom,
             },
         )
 
     def build(self) -> ForgejoPublicationPrefix:
-        owner = self.OWNER
-        repository = self.REPOSITORY
+        spec = self.instance
+        owner = spec.owner
+        repository = spec.repository
         repo = self._record(
             "create_repository",
             {"name": repository, "private": True, "auto_init": True},
@@ -155,21 +156,21 @@ class ForgejoPublicationPrefixBuilder:
         )
         milestone = self._record(
             "create_milestone",
-            {"title": "August 2026 production release"},
+            {"title": spec.milestone_title},
             self.client.create_milestone(
                 owner,
                 repository,
-                title="August 2026 production release",
-                description="Approved release train v2026.08.0",
+                title=spec.milestone_title,
+                description=f"Approved release train {spec.release_tag}",
             ),
         )
         issue = self._record(
             "create_issue",
-            {"title": "Publish the approved Linux release bundle"},
+            {"title": spec.target_issue_title},
             self.client.create_issue(
                 owner,
                 repository,
-                title="Publish the approved Linux release bundle",
+                title=spec.target_issue_title,
                 body=(
                     "The binary, checksum and SPDX SBOM must be published "
                     "together."
@@ -179,28 +180,28 @@ class ForgejoPublicationPrefixBuilder:
         )
         self._record(
             "create_branch",
-            {"name": self.BASE_BRANCH, "from_ref": "main"},
+            {"name": spec.base_branch, "from_ref": "main"},
             self.client.create_branch(
-                owner, repository, name=self.BASE_BRANCH
+                owner, repository, name=spec.base_branch
             ),
         )
         self._record(
             "edit_repository",
-            {"default_branch": self.BASE_BRANCH},
+            {"default_branch": spec.base_branch},
             self.client.edit_repository(
                 owner,
                 repository,
-                {"default_branch": self.BASE_BRANCH},
+                {"default_branch": spec.base_branch},
             ),
         )
         self._record(
             "create_branch",
-            {"name": self.FEATURE_BRANCH, "from_ref": self.BASE_BRANCH},
+            {"name": spec.feature_branch, "from_ref": spec.base_branch},
             self.client.create_branch(
                 owner,
                 repository,
-                name=self.FEATURE_BRANCH,
-                from_ref=self.BASE_BRANCH,
+                name=spec.feature_branch,
+                from_ref=spec.base_branch,
             ),
         )
         assets = self._asset_sources()
@@ -209,22 +210,23 @@ class ForgejoPublicationPrefixBuilder:
                 "create_file",
                 {
                     "path": asset["source_path"],
-                    "branch": self.FEATURE_BRANCH,
+                    "branch": spec.feature_branch,
                 },
                 self.client.create_file(
                     owner,
                     repository,
                     path=asset["source_path"],
                     content=asset["content"],
-                    branch=self.FEATURE_BRANCH,
+                    branch=spec.feature_branch,
                     message=f"Add approved artifact {asset['name']}",
                 ),
             )
         manifest = {
-            "release": self.RELEASE_TAG,
-            "target": self.BASE_BRANCH,
+            "release": spec.release_tag,
+            "target": spec.base_branch,
             "assets": [
                 {
+                    "role": asset["role"],
                     "name": asset["name"],
                     "source_path": asset["source_path"],
                     "sha256": hashlib.sha256(
@@ -233,106 +235,103 @@ class ForgejoPublicationPrefixBuilder:
                 }
                 for asset in assets
             ],
-            "required_consumers": [
-                "release-coordinator",
-                "provenance-registry",
-            ],
+            "required_consumers": list(spec.required_consumers),
         }
         self._record(
             "create_file",
             {
-                "path": "release/publication-manifest.json",
-                "branch": self.FEATURE_BRANCH,
+                "path": spec.manifest_path,
+                "branch": spec.feature_branch,
             },
             self.client.create_file(
                 owner,
                 repository,
-                path="release/publication-manifest.json",
+                path=spec.manifest_path,
                 content=json.dumps(manifest, indent=2) + "\n",
-                branch=self.FEATURE_BRANCH,
+                branch=spec.feature_branch,
                 message="Record the approved release publication manifest",
             ),
         )
         pull = self._record(
             "create_pull_request",
-            {"head": self.FEATURE_BRANCH, "base": self.BASE_BRANCH},
+            {"head": spec.feature_branch, "base": spec.base_branch},
             self.client.create_pull_request(
                 owner,
                 repository,
-                title="Approve the v2026.08.0 publication bundle",
+                title=f"Approve the {spec.release_tag} publication bundle",
                 body=(
-                    "Fixes #1\n\nBinary, checksum and SBOM were approved "
-                    "for publication."
+                    f"Fixes #{int(issue['number'])}\n\nBinary, checksum and "
+                    "SBOM were approved for publication."
                 ),
-                head=self.FEATURE_BRANCH,
-                base=self.BASE_BRANCH,
+                head=spec.feature_branch,
+                base=spec.base_branch,
             ),
         )
         self._record(
             "create_branch",
             {
-                "name": self.PROTECTED_BRANCH,
-                "from_ref": self.BASE_BRANCH,
+                "name": spec.protected_branch,
+                "from_ref": spec.base_branch,
             },
             self.client.create_branch(
                 owner,
                 repository,
-                name=self.PROTECTED_BRANCH,
-                from_ref=self.BASE_BRANCH,
+                name=spec.protected_branch,
+                from_ref=spec.base_branch,
             ),
         )
         self._record(
             "create_file",
             {
-                "path": "docs/next-release.md",
-                "branch": self.PROTECTED_BRANCH,
+                "path": spec.protected_file_path,
+                "branch": spec.protected_branch,
             },
             self.client.create_file(
                 owner,
                 repository,
-                path="docs/next-release.md",
+                path=spec.protected_file_path,
                 content="Work for the next release remains open.\n",
-                branch=self.PROTECTED_BRANCH,
+                branch=spec.protected_branch,
                 message="Start next release notes",
             ),
         )
         protected_pull = self._record(
             "create_pull_request",
             {
-                "head": self.PROTECTED_BRANCH,
-                "base": self.BASE_BRANCH,
+                "head": spec.protected_branch,
+                "base": spec.base_branch,
             },
             self.client.create_pull_request(
                 owner,
                 repository,
-                title="Prepare the next release notes",
-                body="Do not merge as part of v2026.08.0.",
-                head=self.PROTECTED_BRANCH,
-                base=self.BASE_BRANCH,
+                title=spec.protected_pull_title,
+                body=f"Do not merge as part of {spec.release_tag}.",
+                head=spec.protected_branch,
+                base=spec.base_branch,
             ),
         )
         protected_issue = self._record(
             "create_issue",
-            {"title": "Plan the September release"},
+            {"title": spec.protected_issue_title},
             self.client.create_issue(
                 owner,
                 repository,
-                title="Plan the September release",
-                body="This remains open after the August publication.",
+                title=spec.protected_issue_title,
+                body="This remains open after the target publication.",
             ),
         )
         protected_release = self._record(
             "create_release",
             {
-                "tag": self.PROTECTED_RELEASE_TAG,
+                "tag": spec.protected_release_tag,
                 "target": "main",
             },
             self.client.create_release(
                 owner,
                 repository,
-                tag=self.PROTECTED_RELEASE_TAG,
+                tag=spec.protected_release_tag,
                 target="main",
-                title="July maintenance release",
+                title=spec.protected_release_title,
                 body="Previously published and unrelated.",
             ),
         )
@@ -340,46 +339,48 @@ class ForgejoPublicationPrefixBuilder:
             "create_release_attachment",
             {
                 "release_id": int(protected_release["id"]),
-                "name": self.PROTECTED_ASSET_NAME,
+                "name": spec.protected_asset_name,
             },
             self.client.create_release_attachment(
                 owner,
                 repository,
                 int(protected_release["id"]),
-                name=self.PROTECTED_ASSET_NAME,
-                content=b"protected-july-checksum\n",
+                name=spec.protected_asset_name,
+                content=b"protected-prior-release-checksum\n",
             ),
         )
         self._record(
             "create_branch_protection",
-            {"rule": "release/*"},
+            {"rule": spec.branch_protection_rule},
             self.client.create_branch_protection(
-                owner, repository, rule="release/*"
+                owner,
+                repository,
+                rule=spec.branch_protection_rule,
             ),
         )
         coordinator = self._record(
             "create_hook",
             {
-                "target_url": self.COORDINATOR_TARGET,
+                "target_url": spec.coordinator_target,
                 "events": ["release"],
             },
             self.client.create_hook(
                 owner,
                 repository,
-                target_url=self.COORDINATOR_TARGET,
+                target_url=spec.coordinator_target,
                 events=["release"],
             ),
         )
         provenance = self._record(
             "create_hook",
             {
-                "target_url": self.PROVENANCE_TARGET,
+                "target_url": spec.provenance_target,
                 "events": ["release"],
             },
             self.client.create_hook(
                 owner,
                 repository,
-                target_url=self.PROVENANCE_TARGET,
+                target_url=spec.provenance_target,
                 events=["release"],
             ),
         )
@@ -397,8 +398,8 @@ class ForgejoPublicationPrefixBuilder:
                 int(pull["number"]),
             ),
         )
-        expected = {
-            "owner": repo["owner"]["login"],
+        observed = {
+            "owner": str(repo["owner"]["login"]),
             "linked_issue_index": int(issue["number"]),
             "pull_request_index": int(pull["number"]),
             "protected_pull_request_index": int(
@@ -406,32 +407,37 @@ class ForgejoPublicationPrefixBuilder:
             ),
             "protected_issue_index": int(protected_issue["number"]),
         }
-        if expected != {
-            "owner": owner,
-            "linked_issue_index": 1,
-            "pull_request_index": 2,
-            "protected_pull_request_index": 3,
-            "protected_issue_index": 4,
-        }:
+        if observed["owner"] != owner:
             raise RuntimeError(
-                f"Forgejo publication fixture indexes drifted: {expected}"
+                f"Forgejo publication fixture owner drifted: {observed}"
             )
         return ForgejoPublicationPrefix(
+            scenario_id=spec.scenario_id,
+            instance_spec_sha256=spec.sha256,
             owner=owner,
             repository=repository,
             milestone_id=int(milestone["id"]),
-            linked_issue_index=1,
-            pull_request_index=2,
-            protected_pull_request_index=3,
-            protected_issue_index=4,
+            linked_issue_index=observed["linked_issue_index"],
+            pull_request_index=observed["pull_request_index"],
+            protected_pull_request_index=observed[
+                "protected_pull_request_index"
+            ],
+            protected_issue_index=observed["protected_issue_index"],
             coordinator_hook_id=int(coordinator["id"]),
             provenance_hook_id=int(provenance["id"]),
-            base_branch=self.BASE_BRANCH,
-            feature_branch=self.FEATURE_BRANCH,
-            release_tag=self.RELEASE_TAG,
-            protected_release_tag=self.PROTECTED_RELEASE_TAG,
+            base_branch=spec.base_branch,
+            feature_branch=spec.feature_branch,
+            protected_branch=spec.protected_branch,
+            release_tag=spec.release_tag,
+            protected_release_tag=spec.protected_release_tag,
+            manifest_path=spec.manifest_path,
+            branch_protection_rule=spec.branch_protection_rule,
+            release_title=spec.release_title,
+            release_body=spec.release_body,
+            required_consumers=spec.required_consumers,
             expected_assets=tuple(
                 {
+                    "role": item["role"],
                     "name": item["name"],
                     "source_path": item["source_path"],
                     "sha256": hashlib.sha256(
@@ -440,6 +446,6 @@ class ForgejoPublicationPrefixBuilder:
                 }
                 for item in assets
             ),
-            protected_asset_name=self.PROTECTED_ASSET_NAME,
+            protected_asset_name=spec.protected_asset_name,
             trace=tuple(self.trace),
         )

@@ -37,8 +37,8 @@ def _publish(
         "create_release",
         tag=prefix["release_tag"],
         target=prefix["base_branch"],
-        title="August 2026 production release",
-        body="Approved binary, checksum and SPDX SBOM publication.",
+        title=prefix["release_title"],
+        body=prefix["release_body"],
     )
 
 

@@ -32,9 +32,9 @@ jobs:
     timeout-minutes: 180
     env:
       PYTHONPATH: src
-      AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
       AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       SCENARIO: data/scenarios/forgejo-release-publication-dev-002/scenario.json
+      INSTANCE_SPEC: data/instance_specs/forgejo-release-publication-dev-002.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,7 +43,6 @@ jobs:
 
       - name: Select experiment condition
         run: |
-          test -n "$AFTERMATH_API_KEY"
           requested_model="${{ inputs.model }}"
           requested_repetitions="${{ inputs.repetitions }}"
           requested_control="${{ inputs.execution_control }}"
@@ -82,6 +81,7 @@ jobs:
           python scripts/manage_forgejo_stack.py setup
           python scripts/build_forgejo_publication_prefix.py \
             --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$INSTANCE_SPEC" \
             --output "$run_root/prefix.json"
           python scripts/manage_forgejo_stack.py snapshot \
             --snapshot "$runtime_root/publication-prefix.tar.gz"
@@ -95,7 +95,10 @@ jobs:
           } > "$run_root/model-runs/manifest.txt"
 
       - name: Run model on eight matched publication boundaries
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
         run: |
+          test -n "$AFTERMATH_API_KEY"
           run_status=0
           runtime_root="runtimes/forgejo/.runtime"
           run_root="$RUNNER_TEMP/forgejo-publication-model"

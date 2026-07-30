@@ -744,8 +744,13 @@ def run_live_native_agent(
     credentials = json.loads(Path(credentials_path).read_text(encoding="utf-8"))
     prefix = json.loads(Path(prefix_path).read_text(encoding="utf-8"))
     failure_report = json.loads(Path(failure_report_path).read_text(encoding="utf-8"))
-    if failure_report["scenario_id"] != scenario.scenario_id:
-        raise ValueError("failure report and scenario do not match")
+
+    validate_native_run_bindings(
+        scenario=scenario,
+        prefix=prefix,
+        failure_report=failure_report,
+        family_id=family.family_id,
+    )
     environment = family.build_environment(
         NativeRuntimeContext(
             scenario=scenario,
@@ -768,3 +773,51 @@ def run_live_native_agent(
         execution_control=execution_control,
         output_path=output_path,
     )
+
+
+def validate_native_run_bindings(
+    *,
+    scenario: NativeScenario,
+    prefix: dict[str, Any],
+    failure_report: dict[str, Any],
+    family_id: str,
+) -> None:
+    """Reject cross-wired native inputs before any provider request."""
+
+    if failure_report["scenario_id"] != scenario.scenario_id:
+        raise ValueError("failure report and scenario do not match")
+    prefix_scenario_id = prefix.get("scenario_id")
+    if (
+        prefix_scenario_id is not None
+        and str(prefix_scenario_id) != scenario.scenario_id
+    ):
+        raise ValueError("prefix and scenario do not match")
+    if str(failure_report.get("variant", "")) not in scenario.variants:
+        raise ValueError("failure report variant is not declared by scenario")
+    instance_hashes = {
+        str(value)
+        for value in (
+            scenario.raw.get("instance_spec_sha256"),
+            prefix.get("instance_spec_sha256"),
+            failure_report.get("instance_spec_sha256"),
+        )
+        if value is not None
+    }
+    if (
+        family_id == "forgejo-release-package-publication"
+        and any(
+            value is None
+            for value in (
+                scenario.raw.get("instance_spec_sha256"),
+                prefix.get("instance_spec_sha256"),
+                failure_report.get("instance_spec_sha256"),
+            )
+        )
+    ):
+        raise ValueError(
+            "Forgejo publication inputs must all bind the instance spec"
+        )
+    if len(instance_hashes) > 1:
+        raise ValueError(
+            "scenario, prefix and failure report instance specs do not match"
+        )
