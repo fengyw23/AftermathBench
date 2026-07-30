@@ -271,6 +271,19 @@ class ReleaseManifestTest(unittest.TestCase):
             )
             for variant in variants
         }
+        reference_start_states = {
+            variant: write_json(
+                f"reference-start-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "boundary",
+                    "reset_snapshot_sha256": reset_files[variant][1],
+                    "state": "failed",
+                },
+            )
+            for variant in variants
+        }
         terminal_states = {
             variant: write_json(
                 f"terminal-state-{variant}.json",
@@ -303,6 +316,12 @@ class ReleaseManifestTest(unittest.TestCase):
                             and variant == "a"
                             else boundary_states[variant][1]
                         ),
+                        "reference_start_state_path": (
+                            reference_start_states[variant][0]
+                        ),
+                        "reference_start_state_sha256": (
+                            reference_start_states[variant][1]
+                        ),
                         "reference_trace_path": reference_traces[variant][0],
                         "reference_trace_sha256": reference_traces[variant][1],
                         "terminal_state_path": terminal_states[variant][0],
@@ -313,6 +332,7 @@ class ReleaseManifestTest(unittest.TestCase):
                 ]
             },
             [
+                *reference_start_states.values(),
                 *reference_traces.values(),
                 *terminal_states.values(),
             ],

@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/formal-evidence-build-spec-v1.schema.json",
+  "title": "AftermathBench formal evidence build specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "benchmark_release_id",
+    "scenario_path",
+    "scenario_id",
+    "domain_id",
+    "family_id",
+    "instance_id",
+    "variant_ids",
+    "producer_commit",
+    "output_directory",
+    "roles"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "benchmark_release_id": {"$ref": "#/$defs/identifier"},
+    "scenario_path": {
+      "type": "string",
+      "pattern": "^data/scenarios/[A-Za-z0-9._-]+/scenario\\.json$"
+    },
+    "scenario_id": {"$ref": "#/$defs/identifier"},
+    "domain_id": {"$ref": "#/$defs/identifier"},
+    "family_id": {"$ref": "#/$defs/identifier"},
+    "instance_id": {"$ref": "#/$defs/identifier"},
+    "variant_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "producer_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "output_directory": {
+      "type": "string",
+      "pattern": "^data/[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$"
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary_bundle",
+        "reference_bundle",
+        "tool_contract",
+        "evaluator",
+        "reset_evidence",
+        "raw_run_archive",
+        "execution_control"
+      ],
+      "properties": {
+        "boundary_bundle": {"$ref": "#/$defs/role"},
+        "reference_bundle": {"$ref": "#/$defs/role"},
+        "tool_contract": {"$ref": "#/$defs/role"},
+        "evaluator": {"$ref": "#/$defs/role"},
+        "reset_evidence": {"$ref": "#/$defs/role"},
+        "raw_run_archive": {"$ref": "#/$defs/role"},
+        "execution_control": {"$ref": "#/$defs/role"}
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^(?:data|runtimes|schemas|scripts|src)/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+    },
+    "data_path": {
+      "type": "string",
+      "pattern": "^data/[A-Za-z0-9._/-]+$"
+    },
+    "primary_payload": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "schema_version",
+            "artifact_type",
+            "benchmark_release_id",
+            "scenario_id",
+            "domain_id",
+            "family_id",
+            "instance_id",
+            "variant_ids",
+            "producer_commit",
+            "input_envelope_sha256"
+          ]
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_payload", "support_files"],
+      "properties": {
+        "primary_payload": {"$ref": "#/$defs/primary_payload"},
+        "support_files": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/support_file"}
+        }
+      }
+    },
+    "support_file": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "source_path"],
+          "properties": {
+            "path": {"$ref": "#/$defs/data_path"},
+            "source_path": {"$ref": "#/$defs/repo_path"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "json_content"],
+          "properties": {
+            "path": {"$ref": "#/$defs/data_path"},
+            "json_content": true
+          }
+        }
+      ]
+    }
+  }
+}

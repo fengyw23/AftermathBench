@@ -96,9 +96,10 @@ Both pass structural admission, runtime admission, reference replay,
 fixed-policy rejection, artifact-hash verification, and a supplied-scope
 execution control of at least 80%. Together they contain 21 development cases.
 ERPNext customer return and exchange remains structurally hard-admitted, but
-its old runtime summaries reference raw boundary and recovery files that are
-not archived in the repository, so it is excluded until that evidence is
-reproduced.
+its recovered raw boundary and recovery files predate the current evidence
+contract: they do not contain per-variant reset snapshots or cross-bound
+formal envelopes. They are retained as historical evidence, while ERPNext
+remains excluded until a fresh native replay satisfies the current gate.
 Easy pilots, the consumed historical holdout, candidate-tier scenarios, and
 model-saturated scenarios are explicitly excluded from this set.
 

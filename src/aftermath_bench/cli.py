@@ -335,6 +335,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="supply the correct recovery scope to isolate tool execution",
     )
     native_model_run.add_argument(
+        "--formal-input-lock",
+        help=(
+            "verify the immutable five-role pre-provider evidence lock before "
+            "the first model request"
+        ),
+    )
+    native_model_run.add_argument(
+        "--pre-model-boundary-evidence",
+        help=(
+            "persisted live boundary recapture whose exact bytes must match "
+            "the selected formal input lock before provider access"
+        ),
+    )
+    native_model_run.add_argument(
         "--hidden-freeze",
         help=(
             "private freeze attestation; required when the scenario split is "
@@ -566,6 +580,10 @@ def main() -> int:
             hidden_usage_ledger_path=args.hidden_usage_ledger,
             hidden_evaluation_id=args.hidden_evaluation_id,
             hidden_finalize=args.hidden_finalize,
+            formal_input_lock_path=args.formal_input_lock,
+            pre_model_boundary_evidence_path=(
+                args.pre_model_boundary_evidence
+            ),
         )
         print(json.dumps(
             {

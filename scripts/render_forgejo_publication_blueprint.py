@@ -16,15 +16,17 @@ def main() -> int:
     )
     parser.add_argument("--instance-spec", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--instance-id", required=True)
     parser.add_argument(
         "--benchmark-split",
-        choices=("development", "hidden_test"),
+        choices=("development", "public_dev", "hidden_test"),
         required=True,
     )
     args = parser.parse_args()
     instance = ForgejoPublicationInstanceSpec.from_path(args.instance_spec)
     payload = publication_blueprint(
         instance,
+        instance_id=args.instance_id,
         benchmark_split=args.benchmark_split,
         hidden_test_eligible=args.benchmark_split == "hidden_test",
     )
@@ -37,6 +39,7 @@ def main() -> int:
         json.dumps(
             {
                 "scenario_id": instance.scenario_id,
+                "instance_id": args.instance_id,
                 "instance_spec_sha256": instance.sha256,
                 "benchmark_split": args.benchmark_split,
             }

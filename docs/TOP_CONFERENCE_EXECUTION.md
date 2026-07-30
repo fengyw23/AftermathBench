@@ -31,12 +31,13 @@ and the strongest fixed policy passes 2/8. The Kubernetes reference passes
 passes 1/13. Neither scenario occupies a formal release slot.
 
 ERPNext sales-return/exchange is structurally hard-admitted and has useful
-model trajectories, but its older CI summaries name raw boundary and reference
-files that were not archived in the repository. The stricter runtime gate now
-rejects that missing evidence, so ERPNext is not counted in the canonical
-development manifest until the native run is reproduced and archived. The
-historical purchase-return holdout remains a consumed regression instance and
-cannot support an unseen-test claim.
+model trajectories. Its older CI boundary and reference files have now been
+recovered byte-for-byte, but they use a legacy schema without per-variant
+reset snapshots or the current cross-bound formal envelopes. The stricter
+runtime gate therefore still rejects them. ERPNext is not counted in the
+canonical development manifest until a fresh native replay satisfies the
+current contract. The historical purchase-return holdout remains a consumed
+regression instance and cannot support an unseen-test claim.
 
 ## Hard Admission v2
 

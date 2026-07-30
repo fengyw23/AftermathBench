@@ -67,8 +67,10 @@ The current ERPNext scenarios have three distinct statuses:
   partial customer return, replacement fulfillment, credit-note
   reconciliation, a shared customer payment, stock/accounting consistency,
   and exactly-once pickup delivery. It is not selected by the canonical
-  release manifest because the older CI admission summaries reference raw
-  boundary and recovery files that are not archived in this repository.
+  release manifest. The older raw boundary and recovery files are now
+  preserved as historical evidence, but they lack per-variant reset snapshots
+  and the current cross-bound formal envelopes; only a fresh native replay can
+  satisfy the stricter runtime gate.
 
 The historical partial-return challenge has four matched hidden transition
 states behind the same

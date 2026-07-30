@@ -49,6 +49,7 @@ class ForgejoPublicationInstanceTests(unittest.TestCase):
         instance.validate()
         blueprint = publication_blueprint(
             instance,
+            instance_id="candidate-901",
             benchmark_split="hidden_test",
             hidden_test_eligible=True,
         )
@@ -58,6 +59,8 @@ class ForgejoPublicationInstanceTests(unittest.TestCase):
         serialized = repr((blueprint, assets))
 
         self.assertEqual(blueprint["scenario_id"], instance.scenario_id)
+        self.assertEqual(blueprint["domain_id"], "forgejo")
+        self.assertEqual(blueprint["instance_id"], "candidate-901")
         self.assertEqual(
             blueprint["instance_spec_sha256"], instance.sha256
         )
@@ -68,6 +71,50 @@ class ForgejoPublicationInstanceTests(unittest.TestCase):
             {asset["role"] for asset in assets},
             {"binary", "checksum", "sbom"},
         )
+        variants = blueprint["matched_variants"]
+        self.assertEqual(len(variants), 8)
+        self.assertEqual(
+            {
+                item["boundary_class_id"]
+                for item in variants
+            },
+            {
+                "no_primary_effect",
+                "downstream_effect_missing",
+                "downstream_effect_pending_or_accepted",
+            },
+        )
+        self.assertEqual(
+            len(
+                {
+                    item["recovery_signature_class"]
+                    for item in variants
+                }
+            ),
+            3,
+        )
+
+    def test_public_dev_blueprint_is_not_hidden_eligible(self) -> None:
+        blueprint = publication_blueprint(
+            self._alternate(),
+            instance_id="dev-002",
+            benchmark_split="public_dev",
+            hidden_test_eligible=False,
+        )
+
+        self.assertEqual(blueprint["benchmark_split"], "public_dev")
+        self.assertFalse(
+            blueprint["evaluation_status"]["hidden_test_eligible"]
+        )
+
+    def test_split_and_hidden_eligibility_must_agree(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must agree"):
+            publication_blueprint(
+                self._alternate(),
+                instance_id="test-001",
+                benchmark_split="hidden_test",
+                hidden_test_eligible=False,
+            )
 
     def test_observed_graph_uses_instance_paths_and_rules(self) -> None:
         instance = self._alternate()

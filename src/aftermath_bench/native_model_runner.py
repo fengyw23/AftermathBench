@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import asdict
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .core import canonical_fingerprint
+from .formal_evidence_builder import verify_formal_input_lock
 from .hidden_test_eligibility import (
     HiddenEvaluationSession,
     begin_hidden_test_evaluation,
@@ -547,6 +549,8 @@ def run_native_family_agent(
     output_path: str | Path | None = None,
     hidden_evaluation_session: HiddenEvaluationSession | None = None,
     hidden_freeze_path: str | Path | None = None,
+    formal_input_lock_verification: dict[str, Any] | None = None,
+    pre_model_boundary_evidence: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if scenario.split == "hidden_test":
         if hidden_evaluation_session is None or hidden_freeze_path is None:
@@ -629,6 +633,7 @@ def run_native_family_agent(
             f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%fZ')}"
         ),
         "scenario_id": scenario.scenario_id,
+        "instance_id": scenario.instance_id,
         "family": family.family_id,
         "domain": family.domain,
         "variant": failure_report["variant"],
@@ -658,6 +663,17 @@ def run_native_family_agent(
             prefix=prefix,
         ),
     }
+    instance_spec_sha256 = scenario.raw.get("instance_spec_sha256")
+    if isinstance(instance_spec_sha256, str) and instance_spec_sha256:
+        report["instance_spec_sha256"] = instance_spec_sha256
+    if formal_input_lock_verification is not None:
+        report["formal_input_lock"] = dict(
+            formal_input_lock_verification
+        )
+    if pre_model_boundary_evidence is not None:
+        report["pre_model_boundary_evidence"] = dict(
+            pre_model_boundary_evidence
+        )
     if hidden_evaluation_session is not None:
         report["hidden_evaluation"] = {
             "evaluation_id": hidden_evaluation_session.evaluation_id,
@@ -781,6 +797,8 @@ def run_live_native_agent(
     hidden_usage_ledger_path: str | Path | None = None,
     hidden_evaluation_id: str | None = None,
     hidden_finalize: bool = False,
+    formal_input_lock_path: str | Path | None = None,
+    pre_model_boundary_evidence_path: str | Path | None = None,
 ) -> dict[str, Any]:
     root = repository_root()
     scenario = load_native_scenario(scenario_path)
@@ -795,6 +813,50 @@ def run_live_native_agent(
         failure_report=failure_report,
         family_id=family.family_id,
     )
+    if (
+        pre_model_boundary_evidence_path is not None
+        and formal_input_lock_path is None
+    ):
+        raise ValueError(
+            "pre-model boundary evidence requires --formal-input-lock"
+        )
+    formal_input_lock_verification: dict[str, Any] | None = None
+    pre_model_boundary_evidence: dict[str, str] | None = None
+    if formal_input_lock_path is not None:
+        formal_input_lock_verification = verify_formal_input_lock(
+            formal_input_lock_path,
+            root=root,
+            scenario_id=scenario.scenario_id,
+            domain_id=scenario.domain_id,
+            family_id=scenario.family_id,
+            instance_id=scenario.instance_id,
+            variant_id=str(failure_report["variant"]),
+            failure_report_path=failure_report_path,
+            prefix_path=prefix_path,
+        ).as_dict()
+        if pre_model_boundary_evidence_path is None:
+            raise ValueError(
+                "formal input lock requires "
+                "--pre-model-boundary-evidence"
+            )
+        evidence_path = Path(pre_model_boundary_evidence_path)
+        if not evidence_path.is_file() or evidence_path.is_symlink():
+            raise ValueError(
+                "pre-model boundary evidence must be a regular file"
+            )
+        digest = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+        if digest != formal_input_lock_verification[
+            "boundary_state_sha256"
+        ]:
+            raise ValueError(
+                "pre-model live boundary evidence does not match "
+                "the formal input lock"
+            )
+        pre_model_boundary_evidence = {
+            "variant_id": str(failure_report["variant"]),
+            "source_basename": evidence_path.name,
+            "sha256": digest,
+        }
     environment = family.build_environment(
         NativeRuntimeContext(
             scenario=scenario,
@@ -849,6 +911,8 @@ def run_live_native_agent(
         output_path=output_path,
         hidden_evaluation_session=hidden_session,
         hidden_freeze_path=hidden_freeze_path,
+        formal_input_lock_verification=formal_input_lock_verification,
+        pre_model_boundary_evidence=pre_model_boundary_evidence,
     )
     if hidden_session is not None and hidden_finalize:
         consumed = consume_hidden_test_evaluation(

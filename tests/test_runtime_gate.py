@@ -137,7 +137,7 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertFalse(report.source_audit_passed)
         self.assertFalse(report.execution_admitted)
 
-    def test_erpnext_source_passes_but_unarchived_raw_evidence_is_rejected(
+    def test_erpnext_source_passes_but_legacy_raw_contract_is_rejected(
         self,
     ) -> None:
         report = next(
@@ -147,6 +147,23 @@ class RuntimeGateTest(unittest.TestCase):
         )
         self.assertTrue(report.source_audit_passed)
         self.assertFalse(report.execution_admitted)
+        evidence_root = (
+            repository_root()
+            / "data"
+            / "evidence"
+            / "erpnext-native-20260728"
+        )
+        self.assertTrue(
+            all(
+                (evidence_root / name).is_file()
+                for name in (
+                    "request_not_reached.json",
+                    "database_committed_response_lost.json",
+                    "after_commit_enqueue_failed.json",
+                    "async_job_pending.json",
+                )
+            )
+        )
         self.assertFalse(
             report.execution_checks["boundary_evidence_files_verified"]
         )
@@ -203,6 +220,29 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertTrue(
             all(len(report["sha256"]) == 64 for report in reports)
         )
+
+    def test_erpnext_recovered_legacy_artifacts_have_provenance(self) -> None:
+        root = repository_root()
+        provenance_path = (
+            root
+            / "data"
+            / "evidence"
+            / "erpnext-legacy-runtime-recovery-20260731.json"
+        )
+        provenance = json.loads(
+            provenance_path.read_text(encoding="utf-8")
+        )
+        self.assertTrue(provenance["historical_only"])
+        self.assertFalse(provenance["formal_evidence"])
+        self.assertFalse(provenance["current_gate_compatible"])
+        self.assertFalse(provenance["release_eligibility_changed"])
+        self.assertEqual(len(provenance["archives"]), 2)
+        for archive in provenance["archives"]:
+            manifest = root / archive["restored_manifest"]
+            self.assertEqual(
+                hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                archive["restored_manifest_sha256"],
+            )
 
     def test_runtime_gate_rejects_mismatched_evidence_identity(self) -> None:
         path = next(

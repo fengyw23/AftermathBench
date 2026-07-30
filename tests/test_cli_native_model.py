@@ -29,6 +29,10 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             "--failure-report",
             "failure.json",
             "--execution-control",
+            "--formal-input-lock",
+            "formal-input-lock.json",
+            "--pre-model-boundary-evidence",
+            "state-1-boundary.json",
             "--hidden-freeze",
             "freeze.json",
             "--hidden-usage-ledger",
@@ -72,6 +76,14 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             "evaluation-001",
         )
         self.assertIs(runner.call_args.kwargs["hidden_finalize"], True)
+        self.assertEqual(
+            runner.call_args.kwargs["formal_input_lock_path"],
+            "formal-input-lock.json",
+        )
+        self.assertEqual(
+            runner.call_args.kwargs["pre_model_boundary_evidence_path"],
+            "state-1-boundary.json",
+        )
 
     def test_easy_model_command_does_not_forward_native_only_control(
         self,

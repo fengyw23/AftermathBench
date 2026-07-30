@@ -1,0 +1,477 @@
+name: forgejo-publication-public-dev-formal
+
+on:
+  push:
+    branches:
+      - forgejo-publication-public-dev
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Execution-control model identifier
+        required: true
+        default: glm-5.2
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  replay-freeze-control-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: src
+      INSTANCE_SPEC: data/instance_specs/forgejo-release-publication-public-dev-002.json
+      BLUEPRINT: data/scenario_blueprints/forgejo-release-publication-public-dev-002/scenario.json
+      SCENARIO_DIRECTORY: data/scenarios/forgejo-release-publication-public-dev-002-r1
+      RUN_ROOT: data/generated/forgejo-release-publication-public-dev-002-r1
+      NATIVE_ROOT: data/generated/forgejo-release-publication-public-dev-002-r1/native
+      CONTROL_ROOT: data/generated/forgejo-release-publication-public-dev-002-r1/control
+      FORMAL_OUTPUT: data/evidence/formal/aftermathbench-2026.08-r1/forgejo/forgejo-release-package-publication/dev-002
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify and materialize the fresh public-development instance
+        run: |
+          test ! -e "$RUN_ROOT"
+          mkdir -p "$RUN_ROOT/logs" \
+            "$RUN_ROOT/specs" \
+            "$NATIVE_ROOT/runtime/state-evidence" \
+            "$NATIVE_ROOT/baselines" \
+            "$NATIVE_ROOT/bundles" \
+            "$CONTROL_ROOT/model-runs/repetition-01"
+          python scripts/verify_forgejo_instance_novelty.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --bound-blueprint "$BLUEPRINT"
+          python scripts/render_forgejo_publication_blueprint.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$RUN_ROOT/rendered-blueprint.json" \
+            --instance-id dev-002 \
+            --benchmark-split public_dev
+          cmp "$BLUEPRINT" "$RUN_ROOT/rendered-blueprint.json"
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned Forgejo from audited source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Create the native prefix and establish its reset projection
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          owner="$(
+            python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' \
+              "$INSTANCE_SPEC"
+          )"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
+          python scripts/build_forgejo_publication_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$NATIVE_ROOT/runtime/prefix.json" \
+            > "$RUN_ROOT/logs/prefix.log" 2>&1
+          python scripts/manage_forgejo_stack.py snapshot-bundle \
+            --snapshot "$NATIVE_ROOT/bundles/prefix" \
+            > "$RUN_ROOT/logs/prefix-bundle.log" 2>&1
+          python scripts/capture_forgejo_publication_state_evidence.py \
+            --phase reset \
+            --credentials "$runtime_root/credentials.json" \
+            --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+            --variant release_request_not_reached \
+            --bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json" \
+            --forgejo-archive "$NATIVE_ROOT/bundles/prefix/forgejo-data.tar.gz" \
+            --webhook-sink-archive "$NATIVE_ROOT/bundles/prefix/webhook-sink-data.tar.gz" \
+            --establish-expected-projection "$NATIVE_ROOT/expected-reset-projection.json" \
+            --output "$NATIVE_ROOT/reset-projection-establishment.json" \
+            > "$RUN_ROOT/logs/reset-projection-establishment.log" 2>&1
+
+      - name: Capture eight exact boundaries and replay references
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          test "${#variants[@]}" -eq 8
+          for variant in "${variants[@]}"
+          do
+            boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
+            reset_evidence="$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json"
+            boundary_evidence="$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"
+            python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$NATIVE_ROOT/bundles/prefix"
+            python scripts/capture_forgejo_publication_state_evidence.py \
+              --phase reset \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json" \
+              --forgejo-archive "$NATIVE_ROOT/bundles/prefix/forgejo-data.tar.gz" \
+              --webhook-sink-archive "$NATIVE_ROOT/bundles/prefix/webhook-sink-data.tar.gz" \
+              --expected-projection "$NATIVE_ROOT/expected-reset-projection.json" \
+              --output "$reset_evidence" \
+              > "$RUN_ROOT/logs/$variant-reset.log" 2>&1
+            python scripts/run_forgejo_publication_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              > "$RUN_ROOT/logs/$variant-boundary.log" 2>&1
+            python scripts/manage_forgejo_stack.py snapshot-bundle \
+              --snapshot "$boundary_bundle" \
+              > "$RUN_ROOT/logs/$variant-boundary-bundle.log" 2>&1
+            python scripts/capture_forgejo_publication_state_evidence.py \
+              --phase boundary \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$boundary_bundle/bundle.json" \
+              --forgejo-archive "$boundary_bundle/forgejo-data.tar.gz" \
+              --webhook-sink-archive "$boundary_bundle/webhook-sink-data.tar.gz" \
+              --reset-evidence "$reset_evidence" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$boundary_evidence" \
+              > "$RUN_ROOT/logs/$variant-boundary-evidence.log" 2>&1
+            python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$boundary_bundle"
+            reference_start="$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
+            python scripts/capture_forgejo_publication_state_evidence.py \
+              --phase boundary \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$boundary_bundle/bundle.json" \
+              --forgejo-archive "$boundary_bundle/forgejo-data.tar.gz" \
+              --webhook-sink-archive "$boundary_bundle/webhook-sink-data.tar.gz" \
+              --reset-evidence "$reset_evidence" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$reference_start" \
+              > "$RUN_ROOT/logs/$variant-reference-start.log" 2>&1
+            cmp "$boundary_evidence" "$reference_start"
+            python scripts/run_forgejo_publication_control.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$NATIVE_ROOT/runtime/$variant-reference.json" \
+              > "$RUN_ROOT/logs/$variant-reference.log" 2>&1
+          done
+
+      - name: Execute every fixed policy from each exact boundary
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          baselines=(
+            no_op
+            blind_publish
+            assume_release_exists
+            repair_assets_only
+            replay_all_failed
+            compact_release_tree
+          )
+          mkdir -p "$NATIVE_ROOT/baselines/pre-state"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-bundle \
+                --snapshot "$NATIVE_ROOT/bundles/boundary-$variant"
+              baseline_start="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant.json"
+              python scripts/capture_forgejo_publication_state_evidence.py \
+                --phase boundary \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+                --variant "$variant" \
+                --bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json" \
+                --forgejo-archive "$NATIVE_ROOT/bundles/boundary-$variant/forgejo-data.tar.gz" \
+                --webhook-sink-archive "$NATIVE_ROOT/bundles/boundary-$variant/webhook-sink-data.tar.gz" \
+                --reset-evidence "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+                --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+                --output "$baseline_start" \
+                > "$RUN_ROOT/logs/$baseline-$variant-pre-state.log" 2>&1
+              cmp \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+                "$baseline_start"
+              python scripts/run_forgejo_publication_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --output "$NATIVE_ROOT/baselines/$baseline-$variant.json" \
+                > "$RUN_ROOT/logs/$baseline-$variant.log" 2>&1
+            done
+          done
+
+      - name: Admit the active scenario and freeze the native evidence bundle
+        run: |
+          python scripts/build_forgejo_publication_admission.py \
+            --runtime-directory "$NATIVE_ROOT/runtime" \
+            --baseline-directory "$NATIVE_ROOT/baselines" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$RUN_ROOT/scenario-staging" \
+            > "$RUN_ROOT/logs/admission.log" 2>&1
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/scenario-staging/scenario.json" \
+            > "$RUN_ROOT/logs/scenario-validation.log" 2>&1
+          if [ -d "$SCENARIO_DIRECTORY" ]
+          then
+            diff --recursive \
+              "$SCENARIO_DIRECTORY" \
+              "$RUN_ROOT/scenario-staging"
+          else
+            mkdir -p "$(dirname "$SCENARIO_DIRECTORY")"
+            mv "$RUN_ROOT/scenario-staging" "$SCENARIO_DIRECTORY"
+          fi
+          cp -R "$SCENARIO_DIRECTORY" "$NATIVE_ROOT/scenario"
+          cp "$INSTANCE_SPEC" "$NATIVE_ROOT/instance-spec.json"
+          cp "$BLUEPRINT" "$NATIVE_ROOT/blueprint.json"
+          cp \
+            "$RUN_ROOT/source-verification.json" \
+            "$NATIVE_ROOT/runtime/source-verification.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$NATIVE_ROOT" \
+            --output "$NATIVE_ROOT/files.json" \
+            > "$RUN_ROOT/logs/native-files.log" 2>&1
+
+      - name: Freeze the five formal input roles before provider access
+        run: |
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          capture_args=(
+            --capture-bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in "${variants[@]}"
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_forgejo_formal_build_spec.py \
+            --phase inputs \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            > "$RUN_ROOT/logs/formal-input-spec.log" 2>&1
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            --phase inputs \
+            > "$RUN_ROOT/logs/formal-input-build.log" 2>&1
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+
+      - name: Run execution controls from the locked exact boundaries
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          runtime_root="runtimes/forgejo/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          mkdir -p "$CONTROL_ROOT/pre-model-boundaries"
+          run_status=0
+          for variant in "${variants[@]}"
+          do
+            boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
+            pre_model_capture="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$boundary_bundle"
+            python scripts/capture_forgejo_publication_state_evidence.py \
+              --phase boundary \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$boundary_bundle/bundle.json" \
+              --forgejo-archive "$boundary_bundle/forgejo-data.tar.gz" \
+              --webhook-sink-archive "$boundary_bundle/webhook-sink-data.tar.gz" \
+              --reset-evidence "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$pre_model_capture" \
+              > "$RUN_ROOT/logs/pre-model-$variant.log" 2>&1
+            cmp \
+              "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              "$pre_model_capture"
+            if python -m aftermath_bench run-native-model \
+                --provider openai-compatible \
+                --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                --model "$MODEL_ID" \
+                --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+                --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+                --max-turns 25 \
+                --execution-control \
+                --formal-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+                --pre-model-boundary-evidence "$pre_model_capture" \
+                --output "$CONTROL_ROOT/model-runs/repetition-01/$variant.json" \
+                > "$RUN_ROOT/logs/control-$variant.log" 2>&1
+            then
+              true
+            elif [ ! -s "$CONTROL_ROOT/model-runs/repetition-01/$variant.json" ]
+            then
+              run_status=1
+            fi
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$CONTROL_ROOT/model-runs" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --expected-execution-control true \
+            --output "$CONTROL_ROOT/model-runs/summary.json" \
+            > "$RUN_ROOT/logs/control-summary.log" 2>&1 \
+            || run_status=1
+          if python scripts/validate_native_control_summary.py \
+              --summary "$CONTROL_ROOT/model-runs/summary.json" \
+              --expected-cases 8 \
+              --minimum-pass-rate 0.8 \
+              > "$RUN_ROOT/logs/control-gate.log" 2>&1
+          then
+            touch "$RUN_ROOT/control-gate-passed"
+          fi
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives \
+            --secret-env AFTERMATH_API_KEY \
+            > "$RUN_ROOT/logs/provider-secret-scan.log" 2>&1
+          touch "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok"
+          printf '%s\n' "$run_status" \
+            > "$RUN_ROOT/control-collection-status.txt"
+
+      - name: Complete and validate the seven-role formal package
+        id: formal_completion
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/build_evidence_file_manifest.py \
+            --root "$CONTROL_ROOT" \
+            --output "$CONTROL_ROOT/files.json" \
+            > "$RUN_ROOT/logs/control-files.log" 2>&1
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          capture_args=(
+            --capture-bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in "${variants[@]}"
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_forgejo_formal_build_spec.py \
+            --phase complete \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --control-manifest "$CONTROL_ROOT/files.json" \
+            --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            > "$RUN_ROOT/logs/formal-complete-spec.log" 2>&1
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            --phase complete \
+            > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+
+      - name: Seal the public evidence archive and reject credentials
+        id: seal
+        if: always()
+        run: |
+          test -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok"
+          test -s "$SCENARIO_DIRECTORY/scenario.json"
+          python scripts/build_forgejo_publication_status.py \
+            --summary "$CONTROL_ROOT/model-runs/summary.json" \
+            --formal-declarations "$FORMAL_OUTPUT/completion/declarations.json" \
+            --provider-scan-sentinel "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --expected-cases 8 \
+            --minimum-pass-rate 0.8 \
+            --output "$RUN_ROOT/publication-status.json"
+          runtime_root="runtimes/forgejo/.runtime"
+          safety_args=(--root "$RUN_ROOT" --root "$FORMAL_OUTPUT")
+          if [ -d "$SCENARIO_DIRECTORY" ]
+          then
+            safety_args+=(--root "$SCENARIO_DIRECTORY")
+          fi
+          if [ -f "$runtime_root/credentials.json" ]
+          then
+            safety_args+=(
+              --credentials-json "$runtime_root/credentials.json"
+            )
+          fi
+          python scripts/verify_public_evidence_safe.py \
+            "${safety_args[@]}" \
+            --allow-native-restore-archives
+          rm -f "$runtime_root/credentials.json"
+          if [ -f "$SCENARIO_DIRECTORY/scenario.json" ]
+          then
+            mkdir -p \
+              "$RUN_ROOT/repo-ready/$(dirname "$SCENARIO_DIRECTORY")"
+            cp -R \
+              "$SCENARIO_DIRECTORY" \
+              "$RUN_ROOT/repo-ready/$SCENARIO_DIRECTORY"
+          fi
+          if [ -s "$FORMAL_OUTPUT/completion/declarations.json" ]
+          then
+            mkdir -p \
+              "$RUN_ROOT/repo-ready/$(dirname "$FORMAL_OUTPUT")"
+            cp -R \
+              "$FORMAL_OUTPUT" \
+              "$RUN_ROOT/repo-ready/$FORMAL_OUTPUT"
+          else
+            mkdir -p "$RUN_ROOT/diagnostics/formal-output"
+            cp -R \
+              "$FORMAL_OUTPUT" \
+              "$RUN_ROOT/diagnostics/formal-output/"
+          fi
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" \
+            --output "$RUN_ROOT/files.json"
+          python scripts/build_forgejo_public_evidence_archive.py \
+            --source-root "$RUN_ROOT" \
+            --output-root "$RUNNER_TEMP/forgejo-public-dev-public" \
+            --expected-restore-bundle-count 9
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUNNER_TEMP/forgejo-public-dev-public"
+
+      - name: Upload safe public evidence
+        if: ${{ always() && steps.seal.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-publication-public-dev-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-public-dev-public/
+          if-no-files-found: error
+
+      - name: Purge native services and local credentials
+        if: always()
+        run: |
+          rm -f runtimes/forgejo/.runtime/credentials.json
+          python scripts/manage_forgejo_stack.py purge || true

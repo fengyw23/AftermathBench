@@ -59,6 +59,14 @@ archived. The runtime gate therefore rejects it and the release manifest lists
 it as an explicit exclusion. The checkpoint contains 21, not 25, verified
 development cases.
 
+The subsequently recovered GitHub Actions JSON is preserved under
+`data/evidence/erpnext-sales-return-native-historical-30425865276/` for
+scientific auditability. Its machine-readable provenance deliberately marks it
+as historical-only and non-formal: the legacy reports document four native
+boundaries and successful deterministic recoveries, but lack the reset
+snapshots and cross-bound formal evidence envelope required by the current
+gate. Archiving them does not change ERPNext's release eligibility.
+
 The manifest is valid, but its release state is `development_only`. It binds
 zero formal slots, has zero hidden tests, and leaves all 36 target slots open.
 
@@ -89,6 +97,16 @@ archive. Distinct filenames are not sufficient: each role has a typed payload
 contract, and the verifier recomputes the reset-to-boundary, boundary-to-
 reference, raw-run-to-summary, and execution-control relationships. Empty or
 role-renamed payloads therefore cannot satisfy a formal slot.
+
+The seven envelopes are necessary but no longer sufficient. A formal slot
+also binds the completed declarations manifest by path and SHA-256. That
+manifest binds the immutable five-role pre-provider lock, the one common
+model-visible prefix, the exact native failure report per variant, each
+unabridged control trajectory, and the execution-control summary. Promotion
+recomputes a registered pure family evaluator from each reference terminal
+state and raw control trajectory. Consequently, self-consistent but fabricated
+`passed: true` fields cannot promote a task; an unknown evaluator family is
+also rejected.
 
 A hidden binding also needs a fully verified active freeze. The attestation
 must hash the exact active scenario and instance specification; its usage

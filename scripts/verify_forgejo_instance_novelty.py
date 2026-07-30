@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from aftermath_bench.integrations.forgejo_publication_instance import (
+    ForgejoPublicationInstanceSpec,
+)
 
 IDENTITY_FIELDS = (
     "scenario_id",
@@ -47,6 +50,55 @@ def tracked_paths(root: Path) -> list[Path]:
     ]
 
 
+def validate_bound_blueprint(
+    instance: ForgejoPublicationInstanceSpec,
+    path: Path,
+) -> Path:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            "bound blueprint must be a readable JSON object"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise TypeError("bound blueprint must be a JSON object")
+    if (
+        not isinstance(payload.get("scenario_id"), str)
+        or payload["scenario_id"] != instance.scenario_id
+    ):
+        raise ValueError(
+            "bound blueprint scenario_id does not match instance spec"
+        )
+    if (
+        not isinstance(payload.get("instance_spec_sha256"), str)
+        or payload["instance_spec_sha256"] != instance.sha256
+    ):
+        raise ValueError(
+            "bound blueprint instance_spec_sha256 does not match "
+            "instance spec"
+        )
+    return path.resolve()
+
+
+def novelty_scan_paths(
+    paths: list[Path],
+    *,
+    instance_spec_path: Path,
+    instance: ForgejoPublicationInstanceSpec,
+    bound_blueprint_path: Path | None = None,
+) -> list[Path]:
+    excluded = {instance_spec_path.resolve()}
+    if bound_blueprint_path is not None:
+        excluded.add(
+            validate_bound_blueprint(instance, bound_blueprint_path)
+        )
+    return [
+        path
+        for path in paths
+        if path.resolve() not in excluded
+    ]
+
+
 def find_overlaps(
     instance: dict[str, Any],
     paths: list[Path],
@@ -83,16 +135,47 @@ def main() -> int:
         type=Path,
         default=Path("."),
     )
+    parser.add_argument(
+        "--bound-blueprint",
+        type=Path,
+        help=(
+            "Exclude exactly one blueprint only after its scenario_id and "
+            "instance_spec_sha256 are verified against --instance-spec."
+        ),
+    )
     args = parser.parse_args()
     root = args.repository_root.resolve()
-    instance = json.loads(
-        args.instance_spec.read_text(encoding="utf-8")
-    )
-    overlaps = find_overlaps(instance, tracked_paths(root))
+    try:
+        instance = ForgejoPublicationInstanceSpec.from_path(
+            args.instance_spec
+        )
+        all_tracked_paths = tracked_paths(root)
+        scan_paths = novelty_scan_paths(
+            all_tracked_paths,
+            instance_spec_path=args.instance_spec,
+            instance=instance,
+            bound_blueprint_path=args.bound_blueprint,
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        print(
+            json.dumps(
+                {
+                    "passed": False,
+                    "error": str(exc),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 2
+    overlaps = find_overlaps(instance.as_dict(), scan_paths)
     report = {
         "passed": not overlaps,
         "checked_field_count": len(IDENTITY_FIELDS),
-        "tracked_file_count": len(tracked_paths(root)),
+        "tracked_file_count": len(all_tracked_paths),
+        "scanned_file_count": len(scan_paths),
+        "excluded_tracked_file_count": (
+            len(all_tracked_paths) - len(scan_paths)
+        ),
         "overlaps": overlaps,
     }
     print(json.dumps(report, ensure_ascii=False))

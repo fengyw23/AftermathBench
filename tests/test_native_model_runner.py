@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -178,6 +179,370 @@ class NativeModelRunnerTest(unittest.TestCase):
         )
         self.assertEqual(len(calls), 1)
         self.assertTrue(report["evaluation"]["passed"])
+
+    def test_formal_input_lock_is_verified_before_provider_access(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            credentials = root / "credentials.json"
+            prefix = root / "prefix.json"
+            failure = root / "failure.json"
+            scenario_raw = {
+                "schema_version": "1.0",
+                "scenario_id": "public-dev-001",
+                "domain_id": "forgejo",
+                "instance_id": "instance-001",
+                "instance_spec_sha256": "e" * 64,
+                "family": "test-family",
+                "benchmark_split": "public_dev",
+                "benchmark_tier": "hard",
+                "matched_variants": [{"id": "state-1"}],
+            }
+            scenario_path.write_text(
+                json.dumps(scenario_raw),
+                encoding="utf-8",
+            )
+            credentials.write_text("{}", encoding="utf-8")
+            prefix.write_text(
+                json.dumps({"scenario_id": "public-dev-001"}),
+                encoding="utf-8",
+            )
+            failure.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "public-dev-001",
+                        "variant": "state-1",
+                        "visible_failure": {"error": "connection lost"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            family.build_environment = lambda _: environment
+            with (
+                patch.object(
+                    NATIVE_FAMILY_REGISTRY,
+                    "get",
+                    return_value=family,
+                ),
+                patch(
+                    "aftermath_bench.native_model_runner."
+                    "verify_formal_input_lock",
+                    side_effect=ValueError("formal evidence drift"),
+                ) as verifier,
+                self.assertRaisesRegex(
+                    ValueError,
+                    "formal evidence drift",
+                ),
+            ):
+                run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    formal_input_lock_path="data/formal-lock.json",
+                )
+            self.assertEqual(calls, [])
+            verifier.assert_called_once()
+            self.assertEqual(
+                verifier.call_args.kwargs["prefix_path"],
+                prefix,
+            )
+
+    def test_verified_formal_input_lock_is_recorded_in_trajectory(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            credentials = root / "credentials.json"
+            prefix = root / "prefix.json"
+            failure = root / "failure.json"
+            pre_model = root / "state-1-boundary.json"
+            scenario_raw = {
+                "schema_version": "1.0",
+                "scenario_id": "public-dev-001",
+                "domain_id": "forgejo",
+                "instance_id": "instance-001",
+                "instance_spec_sha256": "e" * 64,
+                "family": "test-family",
+                "benchmark_split": "public_dev",
+                "benchmark_tier": "hard",
+                "matched_variants": [{"id": "state-1"}],
+            }
+            scenario_path.write_text(
+                json.dumps(scenario_raw),
+                encoding="utf-8",
+            )
+            credentials.write_text("{}", encoding="utf-8")
+            prefix.write_text(
+                json.dumps({"scenario_id": "public-dev-001"}),
+                encoding="utf-8",
+            )
+            failure.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "public-dev-001",
+                        "variant": "state-1",
+                        "visible_failure": {"error": "connection lost"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pre_model.write_text(
+                '{"phase":"boundary","state":"live"}\n',
+                encoding="utf-8",
+            )
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            family.build_environment = lambda _: environment
+            verification = SimpleNamespace(
+                as_dict=lambda: {
+                    "lock_sha256": "a" * 64,
+                    "input_envelope_sha256": {
+                        "tool_contract": "b" * 64,
+                    },
+                    "variant_id": "state-1",
+                    "boundary_state_sha256": hashlib.sha256(
+                        pre_model.read_bytes()
+                    ).hexdigest(),
+                    "failure_report_sha256": "d" * 64,
+                    "prefix_sha256": "f" * 64,
+                }
+            )
+            with (
+                patch.object(
+                    NATIVE_FAMILY_REGISTRY,
+                    "get",
+                    return_value=family,
+                ),
+                patch(
+                    "aftermath_bench.native_model_runner."
+                    "verify_formal_input_lock",
+                    return_value=verification,
+                ),
+            ):
+                report = run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    formal_input_lock_path="data/formal-lock.json",
+                    pre_model_boundary_evidence_path=pre_model,
+                )
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(
+                report["formal_input_lock"]["variant_id"],
+                "state-1",
+            )
+            self.assertEqual(report["instance_id"], "instance-001")
+            self.assertEqual(
+                report["instance_spec_sha256"],
+                "e" * 64,
+            )
+            self.assertEqual(
+                report["formal_input_lock"]["prefix_sha256"],
+                "f" * 64,
+            )
+            self.assertEqual(
+                report["pre_model_boundary_evidence"],
+                {
+                    "variant_id": "state-1",
+                    "source_basename": "state-1-boundary.json",
+                    "sha256": hashlib.sha256(
+                        pre_model.read_bytes()
+                    ).hexdigest(),
+                },
+            )
+
+    def test_drifted_pre_model_boundary_is_rejected_before_provider(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            credentials = root / "credentials.json"
+            prefix = root / "prefix.json"
+            failure = root / "failure.json"
+            pre_model = root / "state-1-boundary.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "scenario_id": "public-dev-001",
+                        "domain_id": "forgejo",
+                        "instance_id": "instance-001",
+                        "instance_spec_sha256": "e" * 64,
+                        "family": "test-family",
+                        "benchmark_split": "public_dev",
+                        "benchmark_tier": "hard",
+                        "matched_variants": [{"id": "state-1"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            credentials.write_text("{}", encoding="utf-8")
+            prefix.write_text(
+                json.dumps({"scenario_id": "public-dev-001"}),
+                encoding="utf-8",
+            )
+            failure.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "public-dev-001",
+                        "variant": "state-1",
+                        "visible_failure": {"error": "connection lost"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pre_model.write_text('{"state":"drifted"}\n', encoding="utf-8")
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            family.build_environment = lambda _: environment
+            verification = SimpleNamespace(
+                as_dict=lambda: {
+                    "lock_sha256": "a" * 64,
+                    "input_envelope_sha256": {
+                        "tool_contract": "b" * 64,
+                    },
+                    "variant_id": "state-1",
+                    "boundary_state_sha256": "c" * 64,
+                    "failure_report_sha256": "d" * 64,
+                    "prefix_sha256": "f" * 64,
+                }
+            )
+            with (
+                patch.object(
+                    NATIVE_FAMILY_REGISTRY,
+                    "get",
+                    return_value=family,
+                ),
+                patch(
+                    "aftermath_bench.native_model_runner."
+                    "verify_formal_input_lock",
+                    return_value=verification,
+                ),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "does not match the formal input lock",
+                ),
+            ):
+                run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    formal_input_lock_path="data/formal-lock.json",
+                    pre_model_boundary_evidence_path=pre_model,
+                )
+            self.assertEqual(calls, [])
+            verification = SimpleNamespace(
+                as_dict=lambda: {
+                    "lock_sha256": "a" * 64,
+                    "input_envelope_sha256": {
+                        "tool_contract": "b" * 64,
+                    },
+                    "variant_id": "state-1",
+                    "boundary_state_sha256": "c" * 64,
+                    "failure_report_sha256": "d" * 64,
+                    "prefix_sha256": "f" * 64,
+                }
+            )
+            with (
+                patch.object(
+                    NATIVE_FAMILY_REGISTRY,
+                    "get",
+                    return_value=family,
+                ),
+                patch(
+                    "aftermath_bench.native_model_runner."
+                    "verify_formal_input_lock",
+                    return_value=verification,
+                ),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "requires --pre-model-boundary-evidence",
+                ),
+            ):
+                run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    formal_input_lock_path="data/formal-lock.json",
+                )
+            self.assertEqual(calls, [])
+
+    def test_pre_model_boundary_requires_formal_input_lock(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            credentials = root / "credentials.json"
+            prefix = root / "prefix.json"
+            failure = root / "failure.json"
+            pre_model = root / "state-1-boundary.json"
+            scenario_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "scenario_id": "public-dev-001",
+                        "domain_id": "forgejo",
+                        "instance_id": "instance-001",
+                        "instance_spec_sha256": "e" * 64,
+                        "family": "test-family",
+                        "benchmark_split": "public_dev",
+                        "benchmark_tier": "hard",
+                        "matched_variants": [{"id": "state-1"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            credentials.write_text("{}", encoding="utf-8")
+            prefix.write_text(
+                json.dumps({"scenario_id": "public-dev-001"}),
+                encoding="utf-8",
+            )
+            failure.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "public-dev-001",
+                        "variant": "state-1",
+                        "visible_failure": {"error": "connection lost"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pre_model.write_text('{"state":"live"}\n', encoding="utf-8")
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            family.build_environment = lambda _: environment
+            with (
+                patch.object(
+                    NATIVE_FAMILY_REGISTRY,
+                    "get",
+                    return_value=family,
+                ),
+                self.assertRaisesRegex(
+                    ValueError,
+                    "requires --formal-input-lock",
+                ),
+            ):
+                run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    pre_model_boundary_evidence_path=pre_model,
+                )
+            self.assertEqual(calls, [])
 
     def test_locked_hidden_family_run_may_access_provider(self) -> None:
         with TemporaryDirectory() as directory:

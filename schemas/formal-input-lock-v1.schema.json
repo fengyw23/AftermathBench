@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/formal-input-lock-v1.schema.json",
+  "title": "AftermathBench pre-provider formal input lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "benchmark_release_id",
+    "scenario_id",
+    "domain_id",
+    "family_id",
+    "instance_id",
+    "variant_ids",
+    "producer_commit",
+    "scenario_path",
+    "scenario_sha256",
+    "input_role_declarations",
+    "input_projection_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "formal_input_lock"},
+    "benchmark_release_id": {"$ref": "#/$defs/identifier"},
+    "scenario_id": {"$ref": "#/$defs/identifier"},
+    "domain_id": {"$ref": "#/$defs/identifier"},
+    "family_id": {"$ref": "#/$defs/identifier"},
+    "instance_id": {"$ref": "#/$defs/identifier"},
+    "variant_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "producer_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "scenario_path": {
+      "type": "string",
+      "pattern": "^data/scenarios/[A-Za-z0-9._-]+/scenario\\.json$"
+    },
+    "scenario_sha256": {"$ref": "#/$defs/sha256"},
+    "input_projection_sha256": {"$ref": "#/$defs/sha256"},
+    "input_role_declarations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_contract",
+        "evaluator",
+        "reset_evidence",
+        "boundary_bundle",
+        "reference_bundle"
+      ],
+      "properties": {
+        "tool_contract": {"$ref": "#/$defs/declaration"},
+        "evaluator": {"$ref": "#/$defs/declaration"},
+        "reset_evidence": {"$ref": "#/$defs/declaration"},
+        "boundary_bundle": {"$ref": "#/$defs/declaration"},
+        "reference_bundle": {"$ref": "#/$defs/declaration"}
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^data/[A-Za-z0-9._/-]+/envelope\\.json$"
+        },
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

@@ -109,7 +109,7 @@ class ForgejoPublicationInstanceSpec:
         source = Path(path)
         payload = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
-            raise ValueError("instance specification must be a JSON object")
+            raise TypeError("instance specification must be a JSON object")
         return cls.from_dict(payload)
 
     def validate(self) -> None:
@@ -180,15 +180,75 @@ DEFAULT_FORGEJO_PUBLICATION_INSTANCE.validate()
 def publication_blueprint(
     instance: ForgejoPublicationInstanceSpec,
     *,
+    instance_id: str,
     benchmark_split: str,
     hidden_test_eligible: bool,
 ) -> dict[str, Any]:
     """Render the model-facing scenario shell from an instance spec."""
 
+    if not instance_id.strip():
+        raise ValueError("instance_id must be non-empty")
+    if benchmark_split not in {"development", "public_dev", "hidden_test"}:
+        raise ValueError(f"unsupported benchmark split: {benchmark_split}")
+    if hidden_test_eligible is not (benchmark_split == "hidden_test"):
+        raise ValueError(
+            "hidden_test_eligible must agree with benchmark_split"
+        )
+
     binary = instance.binary_name
+    variants = (
+        (
+            "release_request_not_reached",
+            "no_primary_effect",
+            "create_missing_release",
+        ),
+        (
+            "release_committed_both_delivered",
+            "downstream_effect_missing",
+            "preserve_release_and_upload_selected_assets",
+        ),
+        (
+            "release_committed_coordinator_accepted_provenance_missing",
+            "downstream_effect_pending_or_accepted",
+            "repair_only_missing_receiver_effects",
+        ),
+        (
+            "release_committed_coordinator_missing_provenance_accepted",
+            "downstream_effect_pending_or_accepted",
+            "repair_only_missing_receiver_effects",
+        ),
+        (
+            "release_committed_both_missing_binary_present",
+            "downstream_effect_missing",
+            "repair_only_missing_receiver_effects",
+        ),
+        (
+            (
+                "release_committed_coordinator_delivered_"
+                "provenance_missing_checksum_present"
+            ),
+            "downstream_effect_missing",
+            "repair_only_missing_receiver_effects",
+        ),
+        (
+            (
+                "release_committed_coordinator_missing_"
+                "provenance_delivered_sbom_present"
+            ),
+            "downstream_effect_missing",
+            "repair_only_missing_receiver_effects",
+        ),
+        (
+            "release_committed_both_accepted_response_lost",
+            "downstream_effect_pending_or_accepted",
+            "preserve_release_and_upload_selected_assets",
+        ),
+    )
     return {
         "schema_version": "0.3-draft",
         "scenario_id": instance.scenario_id,
+        "domain_id": "forgejo",
+        "instance_id": instance_id,
         "instance_spec_sha256": instance.sha256,
         "family": "forgejo-release-package-publication",
         "runtime_id": "forgejo-main",
@@ -246,34 +306,16 @@ def publication_blueprint(
             ),
         },
         "matched_variants": [
-            {"id": "release_request_not_reached"},
-            {"id": "release_committed_both_delivered"},
             {
-                "id": (
-                    "release_committed_coordinator_accepted_"
-                    "provenance_missing"
-                )
-            },
-            {
-                "id": (
-                    "release_committed_coordinator_missing_"
-                    "provenance_accepted"
-                )
-            },
-            {"id": "release_committed_both_missing_binary_present"},
-            {
-                "id": (
-                    "release_committed_coordinator_delivered_"
-                    "provenance_missing_checksum_present"
-                )
-            },
-            {
-                "id": (
-                    "release_committed_coordinator_missing_"
-                    "provenance_delivered_sbom_present"
-                )
-            },
-            {"id": "release_committed_both_accepted_response_lost"},
+                "id": variant_id,
+                "boundary_class_id": boundary_class_id,
+                "recovery_signature_class": recovery_signature_class,
+            }
+            for (
+                variant_id,
+                boundary_class_id,
+                recovery_signature_class,
+            ) in variants
         ],
         "required_public_evidence": [
             "approved Pull Request, linked issue and release branch state",

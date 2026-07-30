@@ -74,6 +74,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             "render_forgejo_publication_blueprint.py"
         )
         self.assertLess(novelty, rendering)
+        self.assertIn("--instance-id candidate-001", self.text)
 
     def test_private_reports_and_model_diagnostics_are_not_logged(self) -> None:
         for fragment in (

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +15,9 @@ from .benchmark_matrix import (
     validate_benchmark_matrix,
 )
 from .hidden_test_eligibility import verify_hidden_test_eligibility
+from .integrations.forgejo_publication_recovery import (
+    evaluate_forgejo_publication_recovery,
+)
 from .native_admission import validate_native_scenario
 from .native_freeze import verify_frozen_bundle
 from .native_scenario import (
@@ -59,6 +62,14 @@ FORMAL_EVIDENCE_DEPENDENCIES = {
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 MIN_EXECUTION_CONTROL_PASS_RATE = 0.8
+TRUSTED_FORMAL_EVALUATORS: dict[
+    str,
+    Callable[..., Any],
+] = {
+    "forgejo-release-package-publication": (
+        evaluate_forgejo_publication_recovery
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -300,6 +311,571 @@ def _formal_payload_identity_matches(
     )
 
 
+def _formal_json_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _stored_evaluation_matches(
+    stored: Any,
+    recomputed: Any,
+) -> bool:
+    if not isinstance(stored, dict):
+        return False
+    expected = {
+        "passed": recomputed.passed,
+        "components": recomputed.components,
+        "checks": recomputed.checks,
+        "diagnostics": recomputed.diagnostics,
+    }
+    if any(stored.get(key) != value for key, value in expected.items()):
+        return False
+    failures = stored.get("failures")
+    return failures is None or failures == list(recomputed.failures)
+
+
+def _validate_completed_formal_chain(
+    *,
+    root: Path,
+    declarations: dict[str, Any],
+    benchmark_release_id: str,
+    scenario_id: str,
+    domain_id: str,
+    family_id: str,
+    instance_id: str,
+    variants: tuple[str, ...],
+    control_evidence_path: str,
+    control_evidence_sha256: str,
+    declarations_manifest_path: str,
+    declarations_manifest_sha256: str,
+    role_payloads: dict[str, dict[str, Any]],
+    role_file_hashes: dict[str, dict[str, str]],
+    envelopes: dict[str, dict[str, Any]],
+    envelope_hashes: dict[str, str],
+    require_trusted_evaluator: bool,
+) -> bool:
+    """Validate the immutable input lock through the raw control reports.
+
+    This is deliberately independent of the evidence generator.  A caller
+    cannot promote a release by presenting seven mutually consistent
+    envelopes while omitting the completed declarations manifest, swapping
+    the model-visible prefix, or replacing a raw trajectory with a summary
+    wrapper.
+    """
+
+    try:
+        manifest_path = safe_relative_path(
+            root,
+            declarations_manifest_path,
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        if (
+            _SHA256.fullmatch(declarations_manifest_sha256) is None
+            or file_sha256(manifest_path) != declarations_manifest_sha256
+        ):
+            return False
+        manifest = load_json_strict(manifest_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    manifest_fields = {
+        "schema_version",
+        "artifact_type",
+        "benchmark_release_id",
+        "scenario_id",
+        "domain_id",
+        "family_id",
+        "instance_id",
+        "variant_ids",
+        "producer_commit",
+        "scenario_path",
+        "formal_input_lock",
+        "formal_evidence",
+        "control_evidence",
+    }
+    producer_commits = {
+        str(envelope.get("producer_commit", ""))
+        for envelope in envelopes.values()
+    }
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest) != manifest_fields
+        or manifest.get("schema_version") != "1.0"
+        or manifest.get("artifact_type")
+        != "formal_evidence_declarations"
+        or (
+            manifest.get("benchmark_release_id"),
+            manifest.get("scenario_id"),
+            manifest.get("domain_id"),
+            manifest.get("family_id"),
+            manifest.get("instance_id"),
+        )
+        != (
+            benchmark_release_id,
+            scenario_id,
+            domain_id,
+            family_id,
+            instance_id,
+        )
+        or tuple(map(str, manifest.get("variant_ids", ()))) != variants
+        or len(producer_commits) != 1
+        or manifest.get("producer_commit") not in producer_commits
+        or manifest.get("formal_evidence") != declarations
+        or manifest.get("control_evidence")
+        != {
+            "path": control_evidence_path,
+            "sha256": control_evidence_sha256,
+            "minimum_task_pass_rate": (
+                MIN_EXECUTION_CONTROL_PASS_RATE
+            ),
+        }
+    ):
+        return False
+
+    lock_declaration = manifest.get("formal_input_lock")
+    if (
+        not isinstance(lock_declaration, dict)
+        or set(lock_declaration) != {"path", "sha256"}
+    ):
+        return False
+    try:
+        lock_path = safe_relative_path(
+            root,
+            str(lock_declaration["path"]),
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        lock_sha256 = file_sha256(lock_path)
+        lock = load_json_strict(lock_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    lock_fields = {
+        "schema_version",
+        "artifact_type",
+        "benchmark_release_id",
+        "scenario_id",
+        "domain_id",
+        "family_id",
+        "instance_id",
+        "variant_ids",
+        "producer_commit",
+        "scenario_path",
+        "scenario_sha256",
+        "input_role_declarations",
+        "input_projection_sha256",
+    }
+    input_roles = {
+        role
+        for role in FORMAL_EVIDENCE_ROLES
+        if role not in {"raw_run_archive", "execution_control"}
+    }
+    if (
+        not isinstance(lock, dict)
+        or set(lock) != lock_fields
+        or lock.get("schema_version") != "1.0"
+        or lock.get("artifact_type") != "formal_input_lock"
+        or (
+            lock.get("benchmark_release_id"),
+            lock.get("scenario_id"),
+            lock.get("domain_id"),
+            lock.get("family_id"),
+            lock.get("instance_id"),
+        )
+        != (
+            benchmark_release_id,
+            scenario_id,
+            domain_id,
+            family_id,
+            instance_id,
+        )
+        or tuple(map(str, lock.get("variant_ids", ()))) != variants
+        or lock.get("producer_commit") != manifest.get("producer_commit")
+        or lock.get("input_role_declarations")
+        != {role: declarations[role] for role in input_roles}
+        or lock_sha256 != lock_declaration.get("sha256")
+    ):
+        return False
+    projection = {
+        key: lock[key]
+        for key in (
+            "schema_version",
+            "benchmark_release_id",
+            "scenario_id",
+            "domain_id",
+            "family_id",
+            "instance_id",
+            "variant_ids",
+            "producer_commit",
+            "scenario_path",
+            "scenario_sha256",
+            "input_role_declarations",
+        )
+    }
+    if (
+        hashlib.sha256(_formal_json_bytes(projection)).hexdigest()
+        != lock.get("input_projection_sha256")
+    ):
+        return False
+
+    try:
+        scenario_path = safe_relative_path(
+            root,
+            str(lock["scenario_path"]),
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        scenario = load_native_scenario(scenario_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    if (
+        str(manifest.get("scenario_path"))
+        != scenario_path.relative_to(root).as_posix()
+        or file_sha256(scenario_path) != lock.get("scenario_sha256")
+        or (
+            scenario.scenario_id,
+            scenario.domain_id,
+            scenario.family_id,
+            scenario.instance_id,
+            scenario.variants,
+        )
+        != (scenario_id, domain_id, family_id, instance_id, variants)
+    ):
+        return False
+
+    reset_payload = role_payloads["reset_evidence"]
+    reset_files = role_file_hashes["reset_evidence"]
+    prefix_relative = str(reset_payload.get("prefix_path", ""))
+    prefix_sha256 = str(reset_payload.get("prefix_sha256", ""))
+    prefix = _load_bound_json_payload(
+        root,
+        reset_payload,
+        path_field="prefix_path",
+        sha_field="prefix_sha256",
+        file_hashes=reset_files,
+    )
+    try:
+        active_prefix = scenario.resolve_artifact("prefix")
+    except (KeyError, OSError, ValueError):
+        return False
+    if (
+        prefix is None
+        or not prefix
+        or _SHA256.fullmatch(prefix_sha256) is None
+        or reset_files.get(prefix_relative) != prefix_sha256
+        or not active_prefix.is_file()
+        or file_sha256(active_prefix) != prefix_sha256
+    ):
+        return False
+
+    resets = _variant_payload_index(reset_payload, variants=variants)
+    boundaries = _variant_payload_index(
+        role_payloads["boundary_bundle"],
+        variants=variants,
+    )
+    references = _variant_payload_index(
+        role_payloads["reference_bundle"],
+        variants=variants,
+    )
+    if resets is None or boundaries is None or references is None:
+        return False
+    expected_locks: dict[str, dict[str, Any]] = {}
+    for variant_id in variants:
+        reset_snapshot = _load_bound_json_payload(
+            root,
+            resets[variant_id],
+            path_field="reset_snapshot_path",
+            sha_field="reset_snapshot_sha256",
+            file_hashes=reset_files,
+        )
+        boundary = boundaries[variant_id]
+        raw_failure = _load_bound_json_payload(
+            root,
+            boundary,
+            path_field="raw_failure_report_path",
+            sha_field="raw_failure_report_sha256",
+            file_hashes=role_file_hashes["boundary_bundle"],
+        )
+        if (
+            reset_snapshot is None
+            or reset_snapshot.get("prefix_file_sha256") != prefix_sha256
+            or raw_failure is None
+            or not raw_failure
+        ):
+            return False
+        expected_locks[variant_id] = {
+            "lock_sha256": lock_sha256,
+            "input_envelope_sha256": {
+                role: envelope_hashes[role] for role in input_roles
+            },
+            "variant_id": variant_id,
+            "boundary_state_sha256": boundary.get(
+                "boundary_state_sha256"
+            ),
+            "failure_report_sha256": boundary.get(
+                "raw_failure_report_sha256"
+            ),
+            "prefix_sha256": prefix_sha256,
+        }
+
+    evaluator = TRUSTED_FORMAL_EVALUATORS.get(family_id)
+    if require_trusted_evaluator and evaluator is None:
+        return False
+    if evaluator is not None and require_trusted_evaluator:
+        for variant_id in variants:
+            terminal = _load_bound_json_payload(
+                root,
+                references[variant_id],
+                path_field="terminal_state_path",
+                sha_field="terminal_state_sha256",
+                file_hashes=role_file_hashes["reference_bundle"],
+            )
+            if (
+                terminal is None
+                or not isinstance(terminal.get("final_evidence"), dict)
+            ):
+                return False
+            try:
+                recomputed = evaluator(
+                    terminal["final_evidence"],
+                    prefix=prefix,
+                )
+            except (KeyError, TypeError, ValueError):
+                return False
+            if (
+                not _stored_evaluation_matches(
+                    terminal.get("evaluation"),
+                    recomputed,
+                )
+                or references[variant_id].get("evaluator_passed")
+                is not recomputed.passed
+            ):
+                return False
+
+    raw_payload = role_payloads["raw_run_archive"]
+    raw_files = role_file_hashes["raw_run_archive"]
+    runs = raw_payload.get("runs")
+    if not isinstance(runs, list) or not runs:
+        return False
+    recomputed_runs: dict[str, tuple[dict[str, Any], bool]] = {}
+    observed_variants: set[str] = set()
+    for run in runs:
+        if not isinstance(run, dict):
+            return False
+        run_id = str(run.get("run_id", ""))
+        variant_id = str(run.get("variant_id", ""))
+        wrapper = _load_bound_json_payload(
+            root,
+            run,
+            path_field="run_path",
+            sha_field="run_sha256",
+            file_hashes=raw_files,
+        )
+        trajectory = _load_bound_json_payload(
+            root,
+            run,
+            path_field="raw_trajectory_path",
+            sha_field="raw_trajectory_sha256",
+            file_hashes=raw_files,
+        )
+        pre_model_boundary = _load_bound_json_payload(
+            root,
+            run,
+            path_field="pre_model_boundary_evidence_path",
+            sha_field="pre_model_boundary_evidence_sha256",
+            file_hashes=raw_files,
+        )
+        boundary_state = _load_bound_json_payload(
+            root,
+            boundaries.get(variant_id, {}),
+            path_field="boundary_state_path",
+            sha_field="boundary_state_sha256",
+            file_hashes=role_file_hashes["boundary_bundle"],
+        )
+        evaluation = (
+            trajectory.get("evaluation")
+            if isinstance(trajectory, dict)
+            else None
+        )
+        trajectory_pre_model = (
+            trajectory.get("pre_model_boundary_evidence")
+            if isinstance(trajectory, dict)
+            else None
+        )
+        source_basename = (
+            trajectory_pre_model.get("source_basename")
+            if isinstance(trajectory_pre_model, dict)
+            else None
+        )
+        pre_model_sha256 = run.get(
+            "pre_model_boundary_evidence_sha256"
+        )
+        if (
+            not run_id
+            or run_id in recomputed_runs
+            or variant_id not in expected_locks
+            or variant_id in observed_variants
+            or run.get("formal_input_lock_sha256") != lock_sha256
+            or run.get("execution_control") is not True
+            or wrapper is None
+            or wrapper.get("scenario_id") != scenario_id
+            or wrapper.get("variant_id") != variant_id
+            or wrapper.get("run_id") != run_id
+            or wrapper.get("formal_input_lock_sha256") != lock_sha256
+            or wrapper.get("raw_trajectory_path")
+            != run.get("raw_trajectory_path")
+            or wrapper.get("raw_trajectory_sha256")
+            != run.get("raw_trajectory_sha256")
+            or wrapper.get("pre_model_boundary_evidence_path")
+            != run.get("pre_model_boundary_evidence_path")
+            or wrapper.get("pre_model_boundary_evidence_sha256")
+            != pre_model_sha256
+            or wrapper.get("execution_control") is not True
+            or trajectory is None
+            or trajectory.get("scenario_id") != scenario_id
+            or trajectory.get("instance_id") != instance_id
+            or trajectory.get("variant") != variant_id
+            or trajectory.get("run_id") != run_id
+            or trajectory.get("execution_control") is not True
+            or not isinstance(evaluation, dict)
+            or type(evaluation.get("passed")) is not bool
+            or trajectory.get("formal_input_lock")
+            != expected_locks[variant_id]
+            or run.get("boundary_state_sha256")
+            != expected_locks[variant_id]["boundary_state_sha256"]
+            or pre_model_sha256 != run.get("boundary_state_sha256")
+            or pre_model_boundary is None
+            or boundary_state is None
+            or pre_model_boundary != boundary_state
+            or not isinstance(trajectory_pre_model, dict)
+            or set(trajectory_pre_model)
+            != {"variant_id", "source_basename", "sha256"}
+            or trajectory_pre_model.get("variant_id") != variant_id
+            or trajectory_pre_model.get("sha256")
+            != pre_model_sha256
+            or not isinstance(source_basename, str)
+            or not source_basename
+            or Path(source_basename).name != source_basename
+            or run.get("summary_report_path")
+            != run.get("raw_trajectory_path")
+            or wrapper.get("summary_report_path")
+            != run.get("raw_trajectory_path")
+        ):
+            return False
+        instance_spec_sha256 = scenario.raw.get("instance_spec_sha256")
+        if (
+            isinstance(instance_spec_sha256, str)
+            and instance_spec_sha256
+            and trajectory.get("instance_spec_sha256")
+            != instance_spec_sha256
+        ):
+            return False
+        recomputed_passed = bool(evaluation["passed"])
+        if evaluator is not None and require_trusted_evaluator:
+            if not isinstance(trajectory.get("final_evidence"), dict):
+                return False
+            try:
+                recomputed = evaluator(
+                    trajectory["final_evidence"],
+                    prefix=prefix,
+                )
+            except (KeyError, TypeError, ValueError):
+                return False
+            if not _stored_evaluation_matches(evaluation, recomputed):
+                return False
+            recomputed_passed = bool(recomputed.passed)
+        if (
+            run.get("passed") is not recomputed_passed
+            or wrapper.get("passed") is not recomputed_passed
+        ):
+            return False
+        recomputed_runs[run_id] = (run, recomputed_passed)
+        observed_variants.add(variant_id)
+    if observed_variants != set(variants):
+        return False
+
+    control = role_payloads["execution_control"]
+    if control.get("formal_input_lock_sha256") != lock_sha256:
+        return False
+    run_ids = control.get("run_ids")
+    if (
+        not isinstance(run_ids, list)
+        or len(run_ids) != len(variants)
+        or len(set(map(str, run_ids))) != len(run_ids)
+    ):
+        return False
+    selected: list[tuple[dict[str, Any], bool]] = []
+    for run_id in map(str, run_ids):
+        run = recomputed_runs.get(run_id)
+        if run is None:
+            return False
+        selected.append(run)
+    recomputed_passed_count = sum(passed for _, passed in selected)
+    recomputed_rate = recomputed_passed_count / len(selected)
+    try:
+        completed_runs = int(control.get("completed_runs", -1))
+        passed_runs = int(control.get("passed_runs", -1))
+        task_pass_rate = float(control.get("task_pass_rate", -1))
+    except (TypeError, ValueError):
+        return False
+    if (
+        completed_runs != len(selected)
+        or passed_runs != recomputed_passed_count
+        or abs(task_pass_rate - recomputed_rate) > 1e-12
+        or task_pass_rate < MIN_EXECUTION_CONTROL_PASS_RATE
+    ):
+        return False
+
+    try:
+        summary = load_json_strict(
+            safe_relative_path(
+                root,
+                control_evidence_path,
+                required_prefix="data",
+                must_exist=True,
+                require_file=True,
+            )
+        )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    if not isinstance(summary, dict):
+        return False
+    reports = summary.get("reports")
+    if not isinstance(reports, list) or len(reports) != len(selected):
+        return False
+    by_variant = {
+        str(run["variant_id"]): (run, passed)
+        for run, passed in selected
+    }
+    observed_summary_variants: set[str] = set()
+    for report in reports:
+        if not isinstance(report, dict):
+            return False
+        variant_id = str(report.get("variant", ""))
+        selected_run = by_variant.get(variant_id)
+        if (
+            selected_run is None
+            or variant_id in observed_summary_variants
+            or report.get("scenario_id") != scenario_id
+            or report.get("path")
+            != selected_run[0].get("raw_trajectory_path")
+            or report.get("passed") is not selected_run[1]
+        ):
+            return False
+        observed_summary_variants.add(variant_id)
+    return observed_summary_variants == set(variants)
+
+
 def validate_formal_evidence_roles(
     *,
     root: Path,
@@ -312,7 +888,14 @@ def validate_formal_evidence_roles(
     variants: tuple[str, ...],
     control_evidence_path: str,
     control_evidence_sha256: str,
+    declarations_manifest_path: str | None = None,
+    declarations_manifest_sha256: str | None = None,
+    require_trusted_evaluator: bool = False,
 ) -> bool:
+    if (declarations_manifest_path is None) is not (
+        declarations_manifest_sha256 is None
+    ):
+        return False
     if set(declarations) != FORMAL_EVIDENCE_ROLES:
         return False
     envelope_paths: list[str] = []
@@ -551,6 +1134,13 @@ def validate_formal_evidence_roles(
             sha_field="failure_surface_sha256",
             file_hashes=role_file_hashes["boundary_bundle"],
         )
+        reference_start = _load_bound_json_payload(
+            root,
+            reference,
+            path_field="reference_start_state_path",
+            sha_field="reference_start_state_sha256",
+            file_hashes=role_file_hashes["reference_bundle"],
+        )
         reference_trace = _load_bound_json_payload(
             root,
             reference,
@@ -595,6 +1185,10 @@ def validate_formal_evidence_roles(
             or reference.get("evaluator_passed") is not True
             or reference.get("boundary_state_sha256")
             != boundary.get("boundary_state_sha256")
+            or reference.get("reference_start_state_sha256")
+            != boundary.get("boundary_state_sha256")
+            or reference_start is None
+            or reference_start != boundary_state
             or reference_trace is None
             or reference_trace.get("scenario_id") != scenario_id
             or reference_trace.get("variant_id") != variant_id
@@ -767,11 +1361,35 @@ def validate_formal_evidence_roles(
         )
     except (AttributeError, TypeError, ValueError):
         return False
-    return not (
+    base_valid = not (
         summary_completed_runs != completed_runs
         or abs(summary_task_pass_rate - task_pass_rate) > 1e-12
         or summary.get("run_errors") != []
         or summary_control_runs != completed_runs
+    )
+    if not base_valid:
+        return False
+    if declarations_manifest_path is None:
+        return True
+    assert declarations_manifest_sha256 is not None
+    return _validate_completed_formal_chain(
+        root=root,
+        declarations=declarations,
+        benchmark_release_id=benchmark_release_id,
+        scenario_id=scenario_id,
+        domain_id=domain_id,
+        family_id=family_id,
+        instance_id=instance_id,
+        variants=variants,
+        control_evidence_path=control_evidence_path,
+        control_evidence_sha256=control_evidence_sha256,
+        declarations_manifest_path=declarations_manifest_path,
+        declarations_manifest_sha256=declarations_manifest_sha256,
+        role_payloads=role_payloads,
+        role_file_hashes=role_file_hashes,
+        envelopes=envelopes,
+        envelope_hashes=envelope_hashes,
+        require_trusted_evaluator=require_trusted_evaluator,
     )
 
 
@@ -1127,6 +1745,9 @@ def validate_release_manifest(
             control_evidence = dict(
                 declaration.get("control_evidence", {})
             )
+            formal_declarations = dict(
+                declaration.get("formal_evidence_declarations", {})
+            )
             formal_evidence_ready = validate_formal_evidence_roles(
                 root=root,
                 declarations=dict(declaration.get("formal_evidence", {})),
@@ -1142,6 +1763,13 @@ def validate_release_manifest(
                 control_evidence_sha256=str(
                     control_evidence.get("sha256", "")
                 ),
+                declarations_manifest_path=str(
+                    formal_declarations.get("path", "")
+                ),
+                declarations_manifest_sha256=str(
+                    formal_declarations.get("sha256", "")
+                ),
+                require_trusted_evaluator=True,
             )
         else:
             formal_evidence_ready = quality_role != "release_slot"
