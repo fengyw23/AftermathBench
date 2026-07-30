@@ -11,7 +11,6 @@ from typing import Any
 from aftermath_bench.integrations.forgejo_api import ForgejoAPI
 from aftermath_bench.integrations.forgejo_publication_faults import (
     FORGEJO_PUBLICATION_VARIANTS,
-    PUBLICATION_VARIANTS,
     ForgejoPublicationFaultController,
 )
 from aftermath_bench.integrations.forgejo_web import ForgejoWebSession
@@ -92,6 +91,59 @@ def _source_bytes(
     )
 
 
+def _capture_release_and_assets(
+    api: ForgejoAPI,
+    prefix: dict[str, Any],
+    *,
+    preloaded_asset_roles: tuple[str, ...],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    releases = api.list_releases(prefix["owner"], prefix["repository"])
+    target = next(
+        (
+            release
+            for release in releases
+            if release.get("tag_name") == prefix["release_tag"]
+        ),
+        None,
+    )
+    assets_by_role = {
+        str(asset["role"]): asset
+        for asset in prefix["expected_assets"]
+    }
+    if target is not None:
+        for role in preloaded_asset_roles:
+            asset = assets_by_role[role]
+            api.create_release_attachment(
+                prefix["owner"],
+                prefix["repository"],
+                int(target["id"]),
+                name=asset["name"],
+                content=_source_bytes(api, prefix, asset["source_path"]),
+            )
+
+    # A Release representation embeds its current attachment list.  Re-read
+    # it after every injected attachment write so the failure report and the
+    # independently captured native boundary describe the same committed
+    # state.
+    releases = api.list_releases(prefix["owner"], prefix["repository"])
+    target = next(
+        (
+            release
+            for release in releases
+            if release.get("tag_name") == prefix["release_tag"]
+        ),
+        None,
+    )
+    assets = (
+        api.list_release_attachments(
+            prefix["owner"], prefix["repository"], int(target["id"])
+        )
+        if target is not None
+        else []
+    )
+    return target, assets
+
+
 def main() -> int:
     import argparse
 
@@ -150,35 +202,14 @@ def main() -> int:
         required=specification.release_committed,
     )
     faults.disarm_webhooks_after_attempt()
-    releases = api.list_releases(prefix["owner"], prefix["repository"])
-    target = next(
-        (
-            release
-            for release in releases
-            if release.get("tag_name") == prefix["release_tag"]
-        ),
-        None,
-    )
     assets_by_role = {
         str(asset["role"]): asset
         for asset in prefix["expected_assets"]
     }
-    if target is not None:
-        for role in specification.preloaded_asset_roles:
-            asset = assets_by_role[role]
-            api.create_release_attachment(
-                prefix["owner"],
-                prefix["repository"],
-                int(target["id"]),
-                name=asset["name"],
-                content=_source_bytes(api, prefix, asset["source_path"]),
-            )
-    assets = (
-        api.list_release_attachments(
-            prefix["owner"], prefix["repository"], int(target["id"])
-        )
-        if target is not None
-        else []
+    target, assets = _capture_release_and_assets(
+        api,
+        prefix,
+        preloaded_asset_roles=specification.preloaded_asset_roles,
     )
     external = _external_records()
     expected_status = {

@@ -461,6 +461,66 @@ class ForgejoPublicationStateEvidenceTests(unittest.TestCase):
                     ),
                 )
 
+    def test_boundary_requires_release_embedded_assets_to_be_fresh(self) -> None:
+        state = self._state()
+        embedded_asset = {
+            key: value
+            for key, value in state["target_release_assets"][0].items()
+            if key not in {"content_sha256", "content_size"}
+        }
+        state["releases"][0]["assets"] = [embedded_asset]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reset, inputs = self._capture_reset(
+                root,
+                state=state,
+                expected=deterministic_state_projection(state),
+            )
+            reset_path = root / "reset.json"
+            write_state_evidence(reset_path, reset)
+
+            fresh_report = self._failure_report(state)
+            fresh_path = root / "failure-fresh-release.json"
+            self._write_json(fresh_path, fresh_report)
+            boundary = capture_forgejo_publication_state_evidence(
+                phase="boundary",
+                credentials_path=inputs["credentials"],
+                prefix_path=inputs["prefix"],
+                variant_id=self.variant,
+                bundle_manifest_path=inputs["manifest"],
+                forgejo_archive_path=inputs["forgejo"],
+                webhook_sink_archive_path=inputs["sink"],
+                reset_evidence_path=reset_path,
+                failure_report_path=fresh_path,
+                environment_factory=(
+                    lambda _credentials, _prefix: _Environment(state)
+                ),
+            )
+            self.assertTrue(boundary["boundary_validation_passed"])
+
+            stale_report = deepcopy(fresh_report)
+            stale_report["failure_boundary_evidence"]["release"]["assets"] = []
+            stale_path = root / "failure-stale-release.json"
+            self._write_json(stale_path, stale_report)
+            with self.assertRaisesRegex(
+                ForgejoPublicationStateEvidenceError,
+                "captured native state: release",
+            ):
+                capture_forgejo_publication_state_evidence(
+                    phase="boundary",
+                    credentials_path=inputs["credentials"],
+                    prefix_path=inputs["prefix"],
+                    variant_id=self.variant,
+                    bundle_manifest_path=inputs["manifest"],
+                    forgejo_archive_path=inputs["forgejo"],
+                    webhook_sink_archive_path=inputs["sink"],
+                    reset_evidence_path=reset_path,
+                    failure_report_path=stale_path,
+                    environment_factory=(
+                        lambda _credentials, _prefix: _Environment(state)
+                    ),
+                )
+
     def test_output_is_immutable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "evidence.json"
