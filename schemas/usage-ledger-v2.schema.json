@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/usage-ledger-v2.schema.json",
+  "title": "AftermathBench hidden-instance usage ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "events",
+    "head_event_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "public_commitment_sha256": {"type": "string", "minLength": 1},
+    "head_event_sha256": {"$ref": "#/$defs/sha256"},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "event",
+          "recorded_at",
+          "previous_event_sha256",
+          "details",
+          "event_sha256"
+        ],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1},
+          "event": {
+            "enum": [
+              "generated",
+              "frozen",
+              "evaluation_locked",
+              "consumed",
+              "retired"
+            ]
+          },
+          "recorded_at": {"type": "string", "minLength": 1},
+          "previous_event_sha256": {"$ref": "#/$defs/sha256"},
+          "details": {"type": "object"},
+          "event_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

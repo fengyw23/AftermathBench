@@ -1,8 +1,12 @@
 import hashlib
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from aftermath_bench.runtime_gate import (
+    _evidence_manifest_consistent,
+    _report_passed,
     load_runtime_manifest,
     runtime_manifest_paths,
     validate_runtime_manifest,
@@ -31,18 +35,22 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertFalse(report.source_audit_passed)
         self.assertFalse(report.execution_admitted)
 
-    def test_erpnext_passes_source_and_execution_gates(self) -> None:
+    def test_erpnext_source_passes_but_unarchived_raw_evidence_is_rejected(
+        self,
+    ) -> None:
         report = next(
             validate_runtime_manifest(load_runtime_manifest(path))
             for path in runtime_manifest_paths()
             if path.parent.name == "erpnext-v15"
         )
         self.assertTrue(report.source_audit_passed)
-        self.assertTrue(report.execution_admitted)
-        self.assertTrue(
-            report.execution_checks["admission_evidence_recorded"]
+        self.assertFalse(report.execution_admitted)
+        self.assertFalse(
+            report.execution_checks["boundary_evidence_files_verified"]
         )
-        self.assertFalse(report.failures)
+        self.assertFalse(
+            report.execution_checks["reference_evidence_files_verified"]
+        )
 
     def test_forgejo_passes_source_and_execution_gates(self) -> None:
         report = next(
@@ -110,6 +118,92 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertFalse(
             report.execution_checks["admission_evidence_recorded"]
         )
+
+    def test_report_requires_every_named_pass_field(self) -> None:
+        self.assertFalse(
+            _report_passed(
+                {"passed": True},
+                ("passed", "reference_recovery_passed"),
+            )
+        )
+
+    def test_runtime_gate_rejects_evidence_path_escape(self) -> None:
+        path = next(
+            path
+            for path in runtime_manifest_paths()
+            if path.parent.name == "erpnext-v15"
+        )
+        manifest = load_runtime_manifest(path)
+        manifest["admission_evidence"] = dict(
+            manifest["admission_evidence"],
+            evidence_manifest="../outside.json",
+        )
+        report = validate_runtime_manifest(manifest)
+        self.assertFalse(
+            report.execution_checks["admission_evidence_recorded"]
+        )
+
+    def test_runtime_gate_replays_both_boundary_and_reference_hashes(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            reports = []
+            for index in range(4):
+                boundary = root / f"boundary-{index}.json"
+                reference = root / f"reference-{index}.json"
+                boundary.write_text("{}", encoding="utf-8")
+                reference.write_text("{}", encoding="utf-8")
+                reports.append(
+                    {
+                        "variant": f"v{index}",
+                        "boundary_file": boundary.name,
+                        "boundary_sha256": hashlib.sha256(
+                            boundary.read_bytes()
+                        ).hexdigest(),
+                        "reference_file": reference.name,
+                        "reference_sha256": hashlib.sha256(
+                            reference.read_bytes()
+                        ).hexdigest(),
+                        "boundary_validation_passed": True,
+                        "reference_recovery_passed": False,
+                    }
+                )
+            manifest = root / "admission.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "runtime_id": "runtime-1",
+                        "head_sha": "a" * 40,
+                        "workflow_run_url": (
+                            "https://github.com/example/repo/actions/runs/1"
+                        ),
+                        "credentials_present": False,
+                        "reports": reports,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            common = {
+                "path": manifest,
+                "runtime_id": "runtime-1",
+                "head_sha": "a" * 40,
+                "workflow_run": (
+                    "https://github.com/example/repo/actions/runs/1"
+                ),
+            }
+            self.assertTrue(
+                _evidence_manifest_consistent(
+                    **common,
+                    phase="boundary",
+                )
+            )
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    **common,
+                    phase="reference",
+                )
+            )
 
     def test_forgejo_admission_manifest_records_replayable_reports(self) -> None:
         root = (

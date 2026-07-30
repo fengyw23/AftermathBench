@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .path_safety import safe_relative_path
 from .schema import repository_root
-
+from .strict_json import load_json_strict
 
 SOURCE_REQUIREMENTS = (
     "server_implementation_source",
@@ -36,6 +38,14 @@ class RuntimeAdmissionReport:
     failures: tuple[str, ...]
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def runtime_manifest_paths() -> tuple[Path, ...]:
     return tuple(
         sorted((repository_root() / "data" / "runtimes").glob("*/runtime.json"))
@@ -43,16 +53,16 @@ def runtime_manifest_paths() -> tuple[Path, ...]:
 
 
 def load_runtime_manifest(path: str | Path) -> dict[str, Any]:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    return load_json_strict(path)
 
 
 def _report_passed(
     report: dict[str, Any],
     fields: tuple[str, ...],
 ) -> bool:
-    observed = [report[field] for field in fields if field in report]
-    return bool(observed) and all(value is True for value in observed)
+    return bool(fields) and all(
+        field in report and report[field] is True for field in fields
+    )
 
 
 def _evidence_manifest_consistent(
@@ -61,15 +71,76 @@ def _evidence_manifest_consistent(
     runtime_id: str,
     head_sha: str | None,
     workflow_run: str | None,
-    report_pass_fields: tuple[str, ...],
+    phase: str,
 ) -> bool:
     if path is None or not path.is_file():
         return False
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        manifest = load_json_strict(path)
+    except (OSError, ValueError, json.JSONDecodeError):
         return False
     reports = manifest.get("reports", ())
+    if not isinstance(reports, list) or len(reports) < 4:
+        return False
+    variants = [
+        str(report.get("variant", ""))
+        for report in reports
+        if isinstance(report, dict)
+    ]
+    if (
+        len(variants) != len(reports)
+        or not all(variants)
+        or len(variants) != len(set(variants))
+    ):
+        return False
+
+    def report_file_is_verified(report: dict[str, Any]) -> bool:
+        if phase == "boundary":
+            passed = report.get("boundary_validation_passed") is True
+            relative = report.get("boundary_file", report.get("file"))
+            expected_sha = report.get(
+                "boundary_sha256",
+                report.get("sha256"),
+            )
+        elif phase == "reference":
+            passed = (
+                report.get("reference_recovery_passed") is True
+                or report.get("passed") is True
+            )
+            relative = report.get("reference_file", report.get("file"))
+            expected_sha = report.get(
+                "reference_sha256",
+                report.get("sha256"),
+            )
+        else:
+            return False
+        if (
+            not passed
+            or not isinstance(relative, str)
+            or not relative
+            or not isinstance(expected_sha, str)
+            or len(expected_sha) != 64
+        ):
+            return False
+        try:
+            evidence_file = safe_relative_path(
+                path.parent,
+                relative,
+                must_exist=True,
+                require_file=True,
+            )
+        except (OSError, ValueError):
+            return False
+        if file_sha256(evidence_file) != expected_sha:
+            return False
+        declared_bytes = report.get("bytes")
+        if declared_bytes is None:
+            return True
+        try:
+            return evidence_file.stat().st_size == int(declared_bytes)
+        except (TypeError, ValueError):
+            return False
+
     observed_head_sha = str(manifest.get("head_sha", ""))
     observed_workflow_run = str(manifest.get("workflow_run_url", ""))
     return bool(
@@ -82,11 +153,7 @@ def _evidence_manifest_consistent(
             or observed_workflow_run == workflow_run
         )
         and manifest.get("credentials_present") is False
-        and len(reports) >= 4
-        and all(
-            _report_passed(report, report_pass_fields)
-            for report in reports
-        )
+        and all(report_file_is_verified(report) for report in reports)
     )
 
 
@@ -114,19 +181,33 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
     }
     admission_evidence = raw.get("admission_evidence", {})
     evidence_manifest = admission_evidence.get("evidence_manifest")
-    evidence_path = (
-        repository_root() / str(evidence_manifest)
-        if evidence_manifest
-        else None
-    )
+    try:
+        evidence_path = (
+            safe_relative_path(
+                repository_root(),
+                str(evidence_manifest),
+                required_prefix="data",
+            )
+            if evidence_manifest
+            else None
+        )
+    except ValueError:
+        evidence_path = None
     recovery_manifest = admission_evidence.get(
         "recovery_control_evidence_manifest"
     )
-    recovery_evidence_path = (
-        repository_root() / str(recovery_manifest)
-        if recovery_manifest
-        else None
-    )
+    try:
+        recovery_evidence_path = (
+            safe_relative_path(
+                repository_root(),
+                str(recovery_manifest),
+                required_prefix="data",
+            )
+            if recovery_manifest
+            else None
+        )
+    except ValueError:
+        recovery_evidence_path = None
     runtime_id = str(raw["runtime_id"])
     head_sha = str(admission_evidence.get("head_sha", ""))
     workflow_run = str(admission_evidence.get("workflow_run", ""))
@@ -135,20 +216,21 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         runtime_id=runtime_id,
         head_sha=head_sha,
         workflow_run=workflow_run,
-        report_pass_fields=(
-            "boundary_validation_passed",
-            "reference_recovery_passed",
-        ),
+        phase="boundary",
     )
-    recovery_manifest_valid = (
-        recovery_evidence_path is None
-        or _evidence_manifest_consistent(
-            recovery_evidence_path,
-            runtime_id=runtime_id,
-            head_sha=None,
-            workflow_run=None,
-            report_pass_fields=("passed", "reference_recovery_passed"),
-        )
+    recovery_evidence_source = recovery_evidence_path or evidence_path
+    recovery_manifest_valid = _evidence_manifest_consistent(
+        recovery_evidence_source,
+        runtime_id=runtime_id,
+        head_sha=None,
+        workflow_run=None,
+        phase="reference",
+    )
+    execution_checks["boundary_evidence_files_verified"] = (
+        boundary_manifest_valid
+    )
+    execution_checks["reference_evidence_files_verified"] = (
+        recovery_manifest_valid
     )
     execution_checks["admission_evidence_recorded"] = bool(
         admission_evidence.get("validated_at")

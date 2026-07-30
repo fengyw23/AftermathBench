@@ -342,6 +342,8 @@ def validate_native_scenario(
         "observed_graph": graph_path,
         "baselines": baseline_path,
     }
+    if "admission" in scenario.raw.get("admission_artifacts", {}):
+        paths["admission"] = scenario.resolve_artifact("admission")
     constraint_profile = scenario.raw.get("admission_profile", {}).get(
         "constraint_derived_scope", {}
     )
@@ -378,6 +380,13 @@ def validate_native_scenario(
         _load_json(paths["projection_witnesses"])
         if "projection_witnesses" in paths
         else None
+    )
+    artifact_payloads = {
+        name: _load_json(path) for name, path in paths.items()
+    }
+    artifact_scenario_ids_match = all(
+        str(payload.get("scenario_id", "")) == scenario.scenario_id
+        for payload in artifact_payloads.values()
     )
 
     trace = prefix.get("trace", ())
@@ -434,6 +443,18 @@ def validate_native_scenario(
     replay_results = (
         replay_graph(graph, replay_evidence) if replay_evidence is not None else ()
     )
+    replay_capture_variants = (
+        [
+            str(capture.get("variant", ""))
+            for capture in replay_evidence.get("captures", ())
+        ]
+        if replay_evidence is not None
+        else []
+    )
+    replay_capture_coverage_complete = bool(replay_evidence) and (
+        len(replay_capture_variants) == len(set(replay_capture_variants))
+        and set(replay_capture_variants) == expected_variants
+    )
     relations_observed = bool(replay_results) and all(
         result.passed for result in replay_results
     )
@@ -471,6 +492,7 @@ def validate_native_scenario(
         "minimum_boundary_query_groups": minimum_boundary_query_groups,
         "all_relations_observed": relations_observed,
         "replayed_relation_count": replayed_relation_count,
+        "replay_capture_count": len(replay_capture_variants),
         "minimum_repair_mutations": minimum_mutations,
         "minimum_downstream_repairs": minimum_downstream_repairs,
         "unsafe_action_count": len(unsafe_actions),
@@ -481,6 +503,7 @@ def validate_native_scenario(
         "required_semantic_recovery_direction_count": (required_semantic_directions),
         "varying_action_branch_count": varying_branches,
         "maximum_heuristic_pass_rate": maximum_heuristic_pass_rate,
+        "artifact_identity_count": len(artifact_payloads),
     }
     checks = {
         "variant_coverage_complete": variant_ids == expected_variants,
@@ -497,6 +520,9 @@ def validate_native_scenario(
         "no_single_query_is_decisive": not single_query_decisive,
         "minimum_boundary_query_groups>=2": (minimum_boundary_query_groups >= 2),
         "all_relations_have_replay_evidence": relations_observed,
+        "replay_captures_cover_variants_exactly_once": (
+            replay_capture_coverage_complete
+        ),
         "minimum_mutations>=4": minimum_mutations >= 4,
         "downstream_repairs>=2": minimum_downstream_repairs >= 2,
         "shared_dependencies>=2": shared_dependencies >= 2,
@@ -510,6 +536,7 @@ def validate_native_scenario(
         "varying_action_branches>=2": varying_branches >= 2,
         "heuristic_pass_rate<0.5": maximum_heuristic_pass_rate < 0.5,
         "heuristic_matched_group_zero": not any(matched_heuristic_successes),
+        "artifact_scenario_ids_match": artifact_scenario_ids_match,
     }
     if prompt_audit is not None:
         prompt_checks, prompt_observed = _constraint_prompt_admission(

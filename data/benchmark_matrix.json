@@ -1,22 +1,29 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "target_release": "top-conference-full",
-  "matched_error_states": [
+  "release_requirements": {
+    "domain_count": 3,
+    "families_per_domain": 4,
+    "instances_per_family": 3,
+    "public_dev_per_family": 1,
+    "hidden_test_per_family": 2
+  },
+  "boundary_taxonomy": [
     {
-      "id": "request_rejected_or_not_reached",
-      "semantic_scope": "The attempted operation has no durable effect."
+      "id": "no_primary_effect",
+      "semantic_scope": "The attempted operation has no durable primary effect."
     },
     {
-      "id": "primary_effect_committed_response_lost",
-      "semantic_scope": "The primary effect is durable but the caller received an error."
+      "id": "primary_effect_uncertain",
+      "semantic_scope": "The primary effect may be durable, but the caller did not receive an authoritative acknowledgement."
     },
     {
-      "id": "primary_effect_committed_downstream_missing",
+      "id": "downstream_effect_missing",
       "semantic_scope": "The primary effect is durable and at least one required downstream branch is absent."
     },
     {
-      "id": "primary_effect_committed_async_pending",
-      "semantic_scope": "The primary effect is durable and an asynchronous continuation exists but has not completed."
+      "id": "downstream_effect_pending_or_accepted",
+      "semantic_scope": "A downstream continuation may be queued, delivered, or accepted despite a stale local status."
     }
   ],
   "domains": [
@@ -25,12 +32,17 @@
       "runtime": "ERPNext v15 + Frappe",
       "families": [
         {
-          "family_id": "erp-purchase-return-replacement",
+          "family_id": "erpnext-partial-return-replacement-reconciliation",
           "error_operation": "Submit a partial Purchase Return.",
           "native_entities": ["Purchase Order", "Purchase Receipt", "Quality Inspection", "Purchase Invoice", "Payment Entry", "Stock Ledger Entry", "GL Entry", "RQ Job"],
           "independent_branches": ["inventory_return_and_replacement", "supplier_credit_and_payment_reconciliation", "external_pickup_delivery"],
           "protected_effects": ["accepted quantity", "unaffected invoice", "shared supplier payment"],
           "required_recovery_signatures": ["submit_main_then_close_downstream", "preserve_main_and_repair_missing_downstream", "resume_existing_async_work", "verify_only_when_complete"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -38,12 +50,17 @@
           ]
         },
         {
-          "family_id": "erp-sales-return-exchange",
+          "family_id": "erpnext-sales-return-exchange-reconciliation",
           "error_operation": "Submit a partial customer Sales Return against a delivered order.",
           "native_entities": ["Sales Order", "Delivery Note", "Sales Invoice", "Payment Entry", "Credit Note", "Stock Ledger Entry", "GL Entry", "Delivery Trip"],
           "independent_branches": ["customer_return_and_exchange_shipment", "customer_credit_and_shared_receipt", "reverse_logistics_notification"],
           "protected_effects": ["accepted sold quantity", "unrelated paid invoice", "shared customer receipt"],
           "required_recovery_signatures": ["submit_return_and_continue_exchange", "preserve_return_and_create_missing_credit", "resume_delivery_or_notification", "verify_completed_exchange"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -51,12 +68,17 @@
           ]
         },
         {
-          "family_id": "erp-manufacturing-rework",
+          "family_id": "erpnext-manufacturing-rework",
           "error_operation": "Complete a partially produced Work Order after quality rejection.",
           "native_entities": ["Work Order", "Job Card", "Stock Entry", "Quality Inspection", "BOM", "Batch", "Stock Ledger Entry", "GL Entry"],
           "independent_branches": ["finished_goods_and_scrap_inventory", "quality_rework_and_batch_traceability", "material_consumption_accounting"],
           "protected_effects": ["accepted finished quantity", "consumed valid material", "unrelated batch"],
           "required_recovery_signatures": ["complete_missing_manufacture_then_rework", "preserve_completion_and_repair_quality_branch", "resume_existing_rework_job", "verify_all_postings"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -64,12 +86,17 @@
           ]
         },
         {
-          "family_id": "erp-multiwarehouse-transfer",
+          "family_id": "erpnext-multiwarehouse-transfer",
           "error_operation": "Submit the second leg of an inter-warehouse Stock Entry.",
           "native_entities": ["Stock Entry", "Warehouse", "Pick List", "Material Request", "Serial Number", "Batch", "Stock Reservation Entry", "Stock Ledger Entry"],
           "independent_branches": ["in_transit_and_destination_stock", "serial_batch_traceability", "downstream_reservations"],
           "protected_effects": ["unrelated reserved stock", "completed first transfer leg", "other warehouse balances"],
           "required_recovery_signatures": ["submit_missing_transfer_leg", "preserve_transfer_and_restore_reservations", "resume_existing_reposting_job", "verify_balances_without_write"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -83,12 +110,17 @@
       "runtime": "Forgejo",
       "families": [
         {
-          "family_id": "forgejo-pr-merge-ci-deploy",
-          "error_operation": "Merge an approved pull request.",
-          "native_entities": ["Repository", "Pull Request", "Git Ref", "Commit Status", "Actions Run", "Deployment", "Webhook Delivery"],
-          "independent_branches": ["git_ref_and_pull_request_state", "ci_and_artifact_pipeline", "deployment_and_webhook"],
-          "protected_effects": ["protected branch history", "unrelated workflow run", "existing deployment"],
-          "required_recovery_signatures": ["retry_merge_then_continue", "preserve_merge_and_start_missing_ci", "resume_pending_pipeline", "verify_completed_release"],
+          "family_id": "forgejo-pr-merge-release-webhook",
+          "error_operation": "Merge an approved pull request and advance its release workflow.",
+          "native_entities": ["Repository", "Pull Request", "Git Ref", "Commit Status", "Actions Run", "Release", "Webhook Delivery"],
+          "independent_branches": ["git_ref_and_pull_request_state", "release_publication", "webhook_receiver_state"],
+          "protected_effects": ["protected branch history", "unrelated pull request", "existing release"],
+          "required_recovery_signatures": ["retry_merge_then_continue", "preserve_merge_and_start_missing_release", "repair_missing_delivery", "verify_completed_release"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -96,14 +128,19 @@
           ]
         },
         {
-          "family_id": "forgejo-release-publication",
-          "error_operation": "Publish a release from an existing tag.",
-          "native_entities": ["Repository", "Git Tag", "Release", "Release Asset", "Package", "Webhook Delivery", "Actions Run"],
-          "independent_branches": ["tag_and_release_metadata", "asset_and_package_publication", "announcement_webhook"],
-          "protected_effects": ["existing signed tag", "unrelated release asset", "prior package version"],
-          "required_recovery_signatures": ["create_missing_release", "preserve_release_and_upload_missing_asset", "resume_publish_job", "verify_external_delivery"],
+          "family_id": "forgejo-release-package-publication",
+          "error_operation": "Publish a release, its approved assets, and two external effects from an existing tag.",
+          "native_entities": ["Repository", "Git Tag", "Release", "Release Asset", "Milestone", "Webhook Delivery", "External Receiver Record"],
+          "independent_branches": ["tag_and_release_metadata", "asset_publication", "coordinator_and_provenance_delivery"],
+          "protected_effects": ["existing signed tag", "unrelated release asset", "prior release and package version"],
+          "required_recovery_signatures": ["create_missing_release", "preserve_release_and_upload_selected_assets", "repair_only_missing_receiver_effects", "verify_complete_publication"],
+          "variant_profile": {
+            "required_variant_count": 8,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
-            {"id": "dev-001", "split": "public_dev"},
+            {"id": "dev-002", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
             {"id": "test-002", "split": "hidden_test"}
           ]
@@ -114,7 +151,12 @@
           "native_entities": ["Package", "Package File", "Signature", "SBOM", "Repository Release", "Index Entry", "Webhook Delivery"],
           "independent_branches": ["package_blob_and_version", "signature_and_sbom", "index_and_notification"],
           "protected_effects": ["previous package versions", "valid signature", "unrelated index entry"],
-          "required_recovery_signatures": ["publish_missing_version", "preserve_blob_and attach_metadata", "resume_indexing", "verify_complete_package"],
+          "required_recovery_signatures": ["publish_missing_version", "preserve_blob_and_attach_metadata", "resume_indexing", "verify_complete_package"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -127,7 +169,12 @@
           "native_entities": ["Repository", "Commit", "Actions Run", "Artifact", "Environment", "Deployment", "Migration Record", "Issue"],
           "independent_branches": ["schema_and_migration_record", "application_artifact_and_deployment", "change_tracking_and_notification"],
           "protected_effects": ["committed schema migration", "prior production artifact", "unrelated environment"],
-          "required_recovery_signatures": ["apply_missing_migration_then_deploy", "preserve_migration_and rebuild_artifact", "resume deployment job", "verify deployed version"],
+          "required_recovery_signatures": ["apply_missing_migration_then_deploy", "preserve_migration_and_rebuild_artifact", "resume_deployment_job", "verify_deployed_version"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
             {"id": "dev-001", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
@@ -138,56 +185,76 @@
     },
     {
       "domain_id": "kubernetes",
-      "runtime": "Kubernetes",
+      "runtime": "Kubernetes v1.34",
       "families": [
         {
-          "family_id": "k8s-deployment-rollout",
-          "error_operation": "Patch a Deployment to a new image digest.",
-          "native_entities": ["Deployment", "ReplicaSet", "Pod", "Service", "EndpointSlice", "ConfigMap", "HorizontalPodAutoscaler", "Event"],
-          "independent_branches": ["desired_state_and_replicasets", "traffic_readiness", "autoscaling_and_configuration"],
-          "protected_effects": ["healthy old ReplicaSet", "service selector", "unrelated workload"],
-          "required_recovery_signatures": ["apply_missing_patch", "preserve_patch_and repair_service", "resume rollout", "verify converged deployment"],
+          "family_id": "k8s-schema-rollout-recovery",
+          "error_operation": "Advance a schema migration and coordinated application rollout.",
+          "native_entities": ["Deployment", "Job", "Pod", "Service", "ConfigMap", "Secret", "Lease", "External Registry"],
+          "independent_branches": ["schema_and_migration_record", "application_rollout", "traffic_and_publication"],
+          "protected_effects": ["committed schema migration", "healthy prior workload", "shared credentials"],
+          "required_recovery_signatures": ["run_missing_migration_then_update", "preserve_migration_and_continue_rollout", "resume_pending_job", "verify_schema_and_revision"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
-            {"id": "dev-001", "split": "public_dev"},
+            {"id": "dev-003", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
             {"id": "test-002", "split": "hidden_test"}
           ]
         },
         {
-          "family_id": "k8s-stateful-migration",
-          "error_operation": "Advance a StatefulSet after a data-migration Job.",
-          "native_entities": ["StatefulSet", "Pod", "PersistentVolumeClaim", "Job", "ConfigMap", "Secret", "Service", "Event"],
-          "independent_branches": ["persistent_data_and_migration_marker", "statefulset_revision", "service_readiness"],
-          "protected_effects": ["persistent volume data", "completed migration", "stable ordinal identities"],
-          "required_recovery_signatures": ["run_missing_migration_then_update", "preserve_migration_and continue_rollout", "resume pending job", "verify data and revision"],
-          "instances": [
-            {"id": "dev-001", "split": "public_dev"},
-            {"id": "test-001", "split": "hidden_test"},
-            {"id": "test-002", "split": "hidden_test"}
-          ]
-        },
-        {
-          "family_id": "k8s-cronjob-exactly-once",
-          "error_operation": "Create a Job for a scheduled external settlement.",
+          "family_id": "k8s-settlement-orchestrated",
+          "error_operation": "Run a controller-owned Job for an exactly-once external settlement.",
           "native_entities": ["CronJob", "Job", "Pod", "Lease", "ConfigMap", "Secret", "Event", "External Delivery"],
           "independent_branches": ["job_and_pod_execution", "idempotency_lease", "external_settlement_delivery"],
           "protected_effects": ["prior successful settlement", "unrelated schedule", "existing idempotency record"],
-          "required_recovery_signatures": ["create_missing_job", "preserve_job_and deliver_missing_effect", "resume pending pod", "verify exactly_once_completion"],
+          "required_recovery_signatures": ["create_missing_job", "preserve_job_and_deliver_missing_effect", "resume_pending_controller_work", "verify_exactly_once_completion"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
           "instances": [
-            {"id": "dev-001", "split": "public_dev"},
+            {"id": "dev-002", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
             {"id": "test-002", "split": "hidden_test"}
           ]
         },
         {
-          "family_id": "k8s-finalizer-cleanup",
-          "error_operation": "Delete a custom resource with dependent native resources.",
-          "native_entities": ["Custom Resource", "Finalizer", "Owner Reference", "Deployment", "Service", "PersistentVolumeClaim", "Job", "Event"],
-          "independent_branches": ["owner_reference_garbage_collection", "external_cleanup_finalizer", "shared_resource_preservation"],
-          "protected_effects": ["shared persistent volume", "unrelated owner", "completed external cleanup"],
-          "required_recovery_signatures": ["retry_missing_delete", "preserve_deletion_and finish_finalizer", "resume cleanup job", "verify garbage collection"],
+          "family_id": "k8s-constraint-interaction-recovery",
+          "error_operation": "Execute a two-consumer schema change whose native constraints determine the valid recovery scope.",
+          "native_entities": ["Deployment", "Service", "Job", "ConfigMap", "Secret", "Lease", "Controller Owner", "External Registry"],
+          "independent_branches": ["database_and_compatibility_state", "api_and_worker_transition", "publication_and_audit"],
+          "protected_effects": ["valid prior consumer", "shared credential", "immutable controller evidence"],
+          "required_recovery_signatures": ["discard_failed_change", "compensate_and_discard_failed_change", "create_deferred_transition_owner", "preserve_deferred_transition_owner", "renew_bridge_and_preserve_transition_owner", "resume_worker_transition", "create_publication_owner", "resume_publication_owner", "reconcile_completed_publication", "close_accepted_publication", "repair_api_consumer_before_publication", "create_worker_transition", "rotate_shared_credential"],
+          "variant_profile": {
+            "required_variant_count": 13,
+            "minimum_recovery_signatures": 8,
+            "minimum_boundary_classes": 4
+          },
           "instances": [
-            {"id": "dev-001", "split": "public_dev"},
+            {"id": "dev-005", "split": "public_dev"},
+            {"id": "test-001", "split": "hidden_test"},
+            {"id": "test-002", "split": "hidden_test"}
+          ]
+        },
+        {
+          "family_id": "k8s-constraint-scope-recovery",
+          "error_operation": "Execute a schema rollout whose visible native constraints imply four distinct recovery directions.",
+          "native_entities": ["Deployment", "Service", "Job", "ConfigMap", "Secret", "Lease", "Change Record", "External Registry"],
+          "independent_branches": ["schema_and_candidate_state", "service_and_release_state", "registry_and_audit_state"],
+          "protected_effects": ["stable workload", "immutable backup", "accepted external event"],
+          "required_recovery_signatures": ["discard_uncommitted_candidate", "compensate_then_discard_candidate", "publish_committed_cutover", "close_already_published_cutover"],
+          "variant_profile": {
+            "required_variant_count": 4,
+            "minimum_recovery_signatures": 3,
+            "minimum_boundary_classes": 3
+          },
+          "instances": [
+            {"id": "dev-004", "split": "public_dev"},
             {"id": "test-001", "split": "hidden_test"},
             {"id": "test-002", "split": "hidden_test"}
           ]

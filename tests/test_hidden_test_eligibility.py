@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from aftermath_bench.native_freeze import append_usage_event
 from aftermath_bench.schema import repository_root
 from scripts.verify_hidden_test_eligibility import (
     verify_hidden_test_eligibility,
@@ -28,19 +29,21 @@ class HiddenTestEligibilityTest(unittest.TestCase):
             ledger = root / "usage-ledger.json"
             scenario.write_bytes(source_scenario.read_bytes())
             freeze.write_bytes(source_freeze.read_bytes())
-            ledger.write_text(
-                json.dumps(
-                    {
-                        "public_commitment_sha256": "commitment-001",
-                        "events": [
-                            {
-                                "event": "consumed",
-                                "details": {},
-                            }
-                        ]
-                    }
-                ),
-                encoding="utf-8",
+            commitment = "historical-commitment"
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": commitment},
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="evaluation_locked",
+                details={"model": "historical"},
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="consumed",
+                details={},
             )
             with self.assertRaisesRegex(RuntimeError, "not eligible"):
                 verify_hidden_test_eligibility(
@@ -78,23 +81,10 @@ class HiddenTestEligibilityTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            ledger.write_text(
-                json.dumps(
-                    {
-                        "public_commitment_sha256": "commitment-001",
-                        "events": [
-                            {
-                                "event": "frozen",
-                                "details": {
-                                    "public_commitment_sha256": (
-                                        "commitment-001"
-                                    )
-                                },
-                            }
-                        ]
-                    }
-                ),
-                encoding="utf-8",
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment-001"},
             )
             result = verify_hidden_test_eligibility(
                 scenario_path=scenario,
@@ -132,41 +122,66 @@ class HiddenTestEligibilityTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            ledger.write_text(
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment-002"},
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="evaluation_locked",
+                details={"model": "test"},
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="consumed",
+                details={},
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "not eligible"):
+                verify_hidden_test_eligibility(
+                    scenario_path=scenario,
+                    freeze_path=freeze,
+                    usage_ledger_path=ledger,
+                )
+
+    def test_rewritten_usage_event_is_rejected(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario = root / "scenario.json"
+            freeze = root / "freeze.json"
+            ledger = root / "usage-ledger.json"
+            scenario.write_text(
                 json.dumps(
                     {
-                        "public_commitment_sha256": "commitment-002",
-                        "events": [
-                            {
-                                "event": "frozen",
-                                "details": {
-                                    "public_commitment_sha256": (
-                                        "commitment-002"
-                                    )
-                                },
-                            },
-                            {
-                                "event": "evaluation_locked",
-                                "details": {
-                                    "public_commitment_sha256": (
-                                        "commitment-002"
-                                    )
-                                },
-                            },
-                            {
-                                "event": "consumed",
-                                "details": {
-                                    "public_commitment_sha256": (
-                                        "commitment-002"
-                                    )
-                                },
-                            },
-                        ]
+                        "scenario_id": "hidden-001",
+                        "benchmark_split": "hidden_test",
+                        "benchmark_tier": "hard",
+                        "evaluation_status": {
+                            "hidden_test_eligible": True,
+                        },
                     }
                 ),
                 encoding="utf-8",
             )
-
+            freeze.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "hidden-001",
+                        "status": "active",
+                        "public_commitment_sha256": "commitment-003",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment-003"},
+            )
+            payload = json.loads(ledger.read_text(encoding="utf-8"))
+            payload["events"][0]["details"]["rewritten"] = True
+            ledger.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "not eligible"):
                 verify_hidden_test_eligibility(
                     scenario_path=scenario,

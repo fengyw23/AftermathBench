@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/native-scenario-v1.schema.json",
+  "title": "AftermathBench native scenario",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scenario_id",
+    "domain_id",
+    "instance_id",
+    "family",
+    "runtime_id",
+    "benchmark_split",
+    "benchmark_tier",
+    "title",
+    "user_instruction",
+    "ambiguous_operation",
+    "matched_variants",
+    "admission_artifacts"
+  ],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "scenario_id": {"$ref": "#/$defs/identifier"},
+    "domain_id": {
+      "enum": ["erpnext", "forgejo", "kubernetes"]
+    },
+    "instance_id": {"$ref": "#/$defs/identifier"},
+    "family": {"$ref": "#/$defs/identifier"},
+    "runtime_id": {"$ref": "#/$defs/identifier"},
+    "benchmark_split": {
+      "enum": [
+        "pilot",
+        "development",
+        "development_regression",
+        "public_dev",
+        "hidden_test"
+      ]
+    },
+    "benchmark_tier": {
+      "enum": ["easy", "candidate", "hard"]
+    },
+    "title": {"type": "string", "minLength": 1},
+    "user_instruction": {"type": "string", "minLength": 1},
+    "ambiguous_operation": {
+      "type": "object",
+      "required": ["operation", "surface_result"],
+      "properties": {
+        "operation": {"type": "string", "minLength": 1},
+        "surface_result": {"type": "string", "minLength": 1}
+      }
+    },
+    "matched_variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {"$ref": "#/$defs/identifier"},
+          "boundary_class_id": {"$ref": "#/$defs/identifier"},
+          "recovery_signature_class": {"$ref": "#/$defs/identifier"}
+        }
+      }
+    },
+    "admission_artifacts": {
+      "type": "object",
+      "required": [
+        "prefix",
+        "reference",
+        "observed_graph",
+        "baselines"
+      ],
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^artifacts/[A-Za-z0-9._/-]+$"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    }
+  }
+}

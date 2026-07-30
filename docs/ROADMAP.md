@@ -116,12 +116,15 @@ evidence for production realism.
 
 ## Current release boundary
 
-The planned portfolio remains 144 cases, but the repository is still
+The planned portfolio contains 183 family-profiled cases, but the repository is still
 development-only. At the latest machine-readable status checkpoint:
 
 - nine scenarios and 49 matched post-error states are implemented;
 - five scenarios and 33 matched states pass structural hard admission;
-- all five structurally hard scenarios run on execution-admitted runtimes;
+- four of the five structurally hard scenarios run on execution-admitted
+  runtimes; ERPNext is pending archival of the raw files named by its runtime
+  evidence manifests;
+- the canonical development manifest verifies two candidates and 21 cases;
 - no scenario belongs to a formal `public_dev` or `hidden_test` release split.
 
 These counts must be generated with `python -m aftermath_bench status`; they

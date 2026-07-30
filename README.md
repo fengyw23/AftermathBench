@@ -1,9 +1,11 @@
 # AftermathBench
 
-> Current status: five hard development scenarios run on execution-admitted
-> ERPNext, Forgejo, and Kubernetes runtimes. Forgejo now includes both an easy
-> four-state pilot and a hard eight-state package-publication family; the
-> strict 144-case cross-domain release is still under construction. See
+> Current status: the canonical development manifest verifies two selected
+> hard candidates and 21 matched cases across the execution-admitted Forgejo
+> and Kubernetes runtimes. The family-specific target matrix contains 36
+> instances and 183 cases; no formal slot or hidden test is released yet.
+> ERPNext remains structurally validated but is excluded until its referenced
+> raw runtime evidence is archived. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
@@ -60,11 +62,13 @@ The current ERPNext scenarios have three distinct statuses:
   for the published cross-model experiment. Under the current stricter gate it
   is a `candidate`, because its shortest valid recovery has three rather than
   four mutations;
-- `erpnext-sales-return-dev-001` is the current structurally hard-admitted
-  development family for
+- `erpnext-sales-return-dev-001` is a structurally hard-admitted development
+  family for
   partial customer return, replacement fulfillment, credit-note
   reconciliation, a shared customer payment, stock/accounting consistency,
-  and exactly-once pickup delivery.
+  and exactly-once pickup delivery. It is not selected by the canonical
+  release manifest because the older CI admission summaries reference raw
+  boundary and recovery files that are not archived in this repository.
 
 The historical partial-return challenge has four matched hidden transition
 states behind the same
@@ -73,14 +77,14 @@ its reference recovery passes all variants, seven fixed heuristics have zero
 matched-group success, and the holdout scenario and prefix were frozen before
 any model access.
 
-The Kubernetes constraint-derived development family also passes replayed hard
-admission: four matched failure boundaries, four state-driven references, 26
-replayed semantic relations, zero fixed-policy matched-group solvers, and a
-zero-leak audit over the complete ordinary input. It remains a development
-family, not evidence of broad benchmark coverage. At the fully revalidated
-Job-identity contract revision, GLM-5.2 passes its supplied-scope control 4/4
-but the ordinary condition 3/4: it closes the failed migration correctly while
-leaving an unused candidate Deployment and Secret, so the matched group fails.
+The selected Kubernetes constraint-interaction development family passes
+replayed hard admission across 13 matched states and 13 named recovery
+directions. Its reference recovery passes 13/13, the strongest fixed policy
+passes 6/13 without solving the matched group, and the zero-leak prompt audit
+covers the complete ordinary input. At the revalidated exact-target revision,
+GLM-5.2 passes the supplied-scope control 12/13 but ordinary recovery only
+1/13, with zero matched-group success. It remains development evidence, not a
+formal benchmark release.
 
 The first Forgejo PR/merge/release family has a real source-built runtime,
 native reset, fault boundaries and terminal checks, but a compact state tree
@@ -112,13 +116,20 @@ result. Its public aggregate is archived under
 `docs/FORGEJO_PUBLICATION_INSTANCE_AND_FREEZE.md`.
 
 AftermathBench does not yet claim a complete multi-domain benchmark release.
+`data/release_manifest.json` is the authoritative development checkpoint. It
+binds each selected scenario, every admission artifact, and its supplied-scope
+execution-control summary by SHA-256. `validate-release` verifies these inputs
+again instead of trusting a status label. The current manifest is valid but
+reports `development_only`: all 36 formal matrix slots remain unverified.
+See [Release governance](docs/RELEASE_GOVERNANCE.md).
 
 ## Cross-model native results
 
 ### Current hard-family development result
 
-The current ERPNext sales-return family has a valid paired GLM-5.2 experiment
-at the same source commit:
+The ERPNext sales-return family has a valid paired GLM-5.2 experiment at the
+same source commit, but is currently excluded from the canonical manifest
+until its referenced raw runtime evidence is archived:
 
 | Condition | Recovery Integrity | Matched-group | Goal completion | Tool/provider/runtime errors |
 |---|---:|---:|---:|---:|
@@ -172,6 +183,9 @@ Python 3.12 or newer is required.
 python -m unittest discover -s tests -v
 python -m aftermath_bench validate
 python -m aftermath_bench status
+python -m aftermath_bench validate-release
+# Expected to fail until every formal slot is closed:
+python -m aftermath_bench validate-release --require-full
 python -m aftermath_bench validate-runtimes
 python -m aftermath_bench validate-native-scenario --help
 python -m aftermath_bench demo --all
@@ -242,7 +256,7 @@ The native hard-task recipe and experiment audit are documented in
 [GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md).
 
 `python -m aftermath_bench status` is the machine-derived source of truth for
-the boundary between the 144-case target matrix and locally implemented
+the boundary between the 183-case target matrix and locally implemented
 scenarios. In particular, a replay-admitted development scenario is not
 reported as a formal release case unless it also uses an execution-admitted
 runtime and belongs to a `public_dev` or `hidden_test` split.

@@ -30,19 +30,23 @@ For a native task family to enter the hard split, every claim below must be
 derived from a replayed prefix, failure boundary, reference recovery, or fixed
 baseline. Author-written complexity numbers do not count.
 
-- at least 6 successful prefix writes;
+- at least 8 successful prefix writes;
 - at least 3 protected persistent prefix effects;
-- at least 4 relation types;
-- dependency depth of at least 4;
-- at least 3 independent evidence groups;
-- the reference recovery must actually use all 3 evidence groups;
+- at least 20 relevant native entities and 8 relation types;
+- dependency depth of at least 5;
+- at least 4 independent evidence groups;
+- the reference recovery must actually use all 4 evidence groups;
 - no single boundary query may determine every required action;
 - at least 2 boundary query groups must be required;
 - every semantic relation must have replay evidence in a native field or
   audit record;
-- at least 3 mutations in the shortest valid recovery;
+- at least 4 mutations in the shortest valid recovery;
 - at least 2 downstream dependencies repaired;
-- at least 2 executable actions that are unsafe in some matched variant;
+- at least 2 protected shared dependencies;
+- at least 3 executable actions that are unsafe in some matched variant;
+- at least 3 independent action branches, with at least 2 varying across
+  matched variants;
+- at least 3 distinct recovery signatures;
 - every fixed heuristic must remain below 50% task pass; and
 - every fixed heuristic must have zero matched-group success.
 
@@ -83,20 +87,26 @@ failures.
 
 ## Current release boundary
 
-The current repository has one ERPNext sales-return development scenario that
-passes the replay-derived structural hard gate and a four-state explicit-scope
-execution control. It is still a consumed development scenario, not a public
-or hidden release instance. The earlier ERPNext partial-return
-development/holdout pair remains valuable historical model evidence, but is
-classified as `candidate` by the current four-mutation threshold. The
-Kubernetes runtime is execution-admitted from archived source-build, reset,
-boundary, and reference-recovery evidence. Its hard-admitted scenarios
-nevertheless remain development evidence until their task-specific controls
-and model experiments are complete. Forgejo has an execution-admitted runtime,
-but its first replay-derived scenario is retained as an easy pilot because a
-compact decision tree solves all matched states.
+The canonical development manifest selects two hard candidates:
 
-No implemented scenario currently belongs to a formal `public_dev` or
-`hidden_test` release split. The 144-case matrix is a target design, not a
-released dataset. `python -m aftermath_bench status` derives this boundary
-directly from scenario admissions and runtime manifests.
+- Forgejo multi-consumer release publication: 8 variants;
+- Kubernetes constraint-interaction recovery: 13 variants.
+
+Both pass structural admission, runtime admission, reference replay,
+fixed-policy rejection, artifact-hash verification, and a supplied-scope
+execution control of at least 80%. Together they contain 21 development cases.
+ERPNext customer return and exchange remains structurally hard-admitted, but
+its old runtime summaries reference raw boundary and recovery files that are
+not archived in the repository, so it is excluded until that evidence is
+reproduced.
+Easy pilots, the consumed historical holdout, candidate-tier scenarios, and
+model-saturated scenarios are explicitly excluded from this set.
+
+The target matrix no longer multiplies every instance by one global four-state
+list. Each family declares its own required variant count, producing 183
+planned cases across 36 instances. No implemented scenario currently belongs
+to a formal `public_dev` or `hidden_test` release slot, and no unconsumed hidden
+instance exists. `python -m aftermath_bench status` and
+`python -m aftermath_bench validate-release` derive this boundary from the
+matrix, scenario identities, admission artifacts, runtime evidence, hashes,
+and execution-control summaries.

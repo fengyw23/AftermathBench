@@ -9,6 +9,7 @@ from aftermath_bench.native_freeze import (
     append_usage_event,
     build_frozen_bundle,
     file_sha256,
+    validate_usage_ledger,
     verify_frozen_bundle,
 )
 
@@ -117,6 +118,15 @@ class NativeBundleFreezeTests(unittest.TestCase):
                 second.private_attestation["bundle_root_sha256"],
             )
             self.assertTrue(file_sha256(ledger))
+            ledger_payload = json.loads(ledger.read_text(encoding="utf-8"))
+            self.assertEqual(ledger_payload["schema_version"], "2.0")
+            self.assertEqual(validate_usage_ledger(ledger_payload), ())
+
+            ledger_payload["events"][0]["details"]["tampered"] = True
+            self.assertIn(
+                "event_hash:1",
+                validate_usage_ledger(ledger_payload),
+            )
 
     def test_rejects_scenario_spec_hash_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -185,6 +195,38 @@ class NativeBundleFreezeTests(unittest.TestCase):
                     private_attestation_path=freeze,
                     public_commitment_path=public,
                     allowed_unbound_relative_paths=("usage-ledger.json",),
+                )
+
+    def test_verifier_rejects_manifest_path_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario, instance = self._bundle(root)
+            bundle = build_frozen_bundle(
+                bundle_root=root,
+                scenario_path=scenario,
+                instance_spec_path=instance,
+                source_commit="abc",
+                runtime_revision="forgejo-revision",
+                salt="fixed-salt",
+                excluded_relative_paths=("freeze.json", "public.json"),
+            )
+            private = dict(bundle.private_attestation)
+            private["files"] = [
+                dict(private["files"][0], path="../outside.json"),
+                *private["files"][1:],
+            ]
+            freeze = root / "freeze.json"
+            public = root / "public.json"
+            freeze.write_text(json.dumps(private), encoding="utf-8")
+            public.write_text(
+                json.dumps(bundle.public_commitment),
+                encoding="utf-8",
+            )
+            with self.assertRaises(RuntimeError):
+                verify_frozen_bundle(
+                    bundle_root=root,
+                    private_attestation_path=freeze,
+                    public_commitment_path=public,
                 )
 
 

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/formal-evidence-envelope-v1.schema.json",
+  "title": "AftermathBench formal evidence envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "benchmark_release_id",
+    "scenario_id",
+    "domain_id",
+    "family_id",
+    "instance_id",
+    "variant_ids",
+    "producer_commit",
+    "depends_on",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {
+      "enum": [
+        "boundary_bundle",
+        "reference_bundle",
+        "tool_contract",
+        "evaluator",
+        "reset_evidence",
+        "raw_run_archive",
+        "execution_control"
+      ]
+    },
+    "benchmark_release_id": {"$ref": "#/$defs/identifier"},
+    "scenario_id": {"$ref": "#/$defs/identifier"},
+    "domain_id": {"$ref": "#/$defs/identifier"},
+    "family_id": {"$ref": "#/$defs/identifier"},
+    "instance_id": {"$ref": "#/$defs/identifier"},
+    "variant_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "producer_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "depends_on": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/sha256"}
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^data/[A-Za-z0-9._/-]+$"
+          },
+          "sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

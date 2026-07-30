@@ -10,13 +10,21 @@ class BenchmarkStatusTest(unittest.TestCase):
     def test_status_keeps_planned_and_implemented_counts_separate(self) -> None:
         report = build_benchmark_status()
 
-        self.assertEqual(report["planned"]["target_case_count"], 144)
+        self.assertEqual(report["planned"]["target_case_count"], 183)
         self.assertTrue(report["planned"]["matrix_valid"])
         self.assertEqual(report["implemented"]["scenario_count"], 9)
         self.assertEqual(
             report["implemented"]["formal_release_scenario_count"], 0
         )
         self.assertEqual(report["release_state"], "development_only")
+        self.assertEqual(
+            report["implemented"]["hard_development_candidate_count"], 2
+        )
+        self.assertEqual(
+            report["implemented"]["hard_development_candidate_case_count"],
+            21,
+        )
+        self.assertTrue(report["release_manifest"]["passed"])
 
     def test_status_is_derived_from_admission_and_runtime_evidence(self) -> None:
         report = build_benchmark_status()
@@ -28,7 +36,7 @@ class BenchmarkStatusTest(unittest.TestCase):
             scenarios["erpnext-sales-return-dev-001"]["admitted_tier"],
             "hard",
         )
-        self.assertTrue(
+        self.assertFalse(
             scenarios["erpnext-sales-return-dev-001"][
                 "runtime_execution_admitted"
             ]
@@ -66,6 +74,13 @@ class BenchmarkStatusTest(unittest.TestCase):
     def test_cli_exposes_status_command(self) -> None:
         args = build_parser().parse_args(["status"])
         self.assertEqual(args.command, "status")
+
+    def test_cli_exposes_strict_release_validation(self) -> None:
+        args = build_parser().parse_args(
+            ["validate-release", "--require-full"]
+        )
+        self.assertEqual(args.command, "validate-release")
+        self.assertTrue(args.require_full)
 
 
 if __name__ == "__main__":

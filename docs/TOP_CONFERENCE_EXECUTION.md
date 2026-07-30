@@ -15,31 +15,28 @@ pending.
 
 ## What is executable today
 
-The repository currently contains one ERPNext purchase-return family with a
-public development instance and a consumed historical holdout instance. Both
-instances have four matched post-error states and deterministic terminal-state
-evaluation. The historical holdout still anchors the already published
-experiments, but it is now explicitly classified as a development regression
-instance: its model failures informed a later relation-query improvement, so
-it cannot support a new unseen-test claim.
+The repository has nine active development scenarios and 49 matched states.
+Five scenarios (33 states) pass structural hard admission. After replaying the
+files named by each runtime manifest, four hard scenarios remain on
+execution-admitted runtimes.
 
-The family now has:
+The canonical development manifest deliberately selects only two of them:
 
-- a one-hop relation query that exposes native ERPNext link fields without
-  returning a hidden graph or recommended action;
-- a tool-provenance manifest for every model-visible read, write, and runtime
-  control;
-- executable relation assertions replayed over captured native evidence;
-- 21 relevant entities, 23 replayed relations, 13 relation types, dependency
-  depth 7, four evidence sources, and four distinct recovery signatures;
-- reference recovery, fixed baselines, component-level evaluation, and raw
-  model trajectories.
+- Forgejo release/package publication: 8 matched states;
+- Kubernetes constraint-interaction recovery: 13 matched states.
 
-Under Hard Admission v2 the family is classified as `candidate`, not `hard`.
-It passes every structural and evidence gate, but one matched state requires
-only three state-changing operations. The formal hard split requires at least
-four in every state. This status is intentional: historical model scores are
-not used to override a failed construction gate.
+They supply 21 verified development cases. The Forgejo reference passes 8/8
+and the strongest fixed policy passes 2/8. The Kubernetes reference passes
+13/13, its explicit-scope control passes 12/13, and ordinary GLM-5.2 recovery
+passes 1/13. Neither scenario occupies a formal release slot.
+
+ERPNext sales-return/exchange is structurally hard-admitted and has useful
+model trajectories, but its older CI summaries name raw boundary and reference
+files that were not archived in the repository. The stricter runtime gate now
+rejects that missing evidence, so ERPNext is not counted in the canonical
+development manifest until the native run is reproduced and archived. The
+historical purchase-return holdout remains a consumed regression instance and
+cannot support an unseen-test claim.
 
 ## Hard Admission v2
 
@@ -64,39 +61,64 @@ The graph file can no longer satisfy admission with an author-written
 `observed: true`. Each edge must contain selectors and deterministic
 assertions, and each assertion is replayed across all captured states.
 
-## Dataset matrix
+## Dataset matrix and release control
 
 `data/benchmark_matrix.json` fixes the target portfolio:
 
 - ERPNext, Forgejo, and Kubernetes;
 - four task families per domain;
 - one public development instance and two hidden instances per family;
-- four matched post-error states per instance;
-- 144 executable cases in total.
+- an explicit family-specific matched-state count for every family;
+- 183 executable cases in the current target (most families use four states,
+  Forgejo publication uses eight, and Kubernetes constraint interaction uses
+  thirteen).
 
 Every family declares a real native operation that reports an error, the
 native objects involved, protected prior effects, at least two independent
 downstream branches, and at least three expected recovery signatures. The
-matrix validator prevents silent scale drift and simple one-state or
-one-branch tasks from being counted toward the release target.
+matrix validator prevents silent scale drift, duplicate canonical slots, and
+simple one-state or one-branch tasks from being counted toward the release
+target. The `top-conference-full` scale and exact slots are fixed in verifier
+code rather than trusted from matrix self-declarations. A bound scenario must
+also annotate every variant with a known boundary class and recovery-signature
+class, then meet the family-specific diversity minimum.
+
+`data/release_manifest.json` is separate from this design matrix. It binds
+implemented scenario identities, variant sets, admission artifacts and
+execution-control evidence by hash. Release state is:
+
+- `development_only` when no formal slot is bound;
+- `partial_release` when some but not all formal slots are verified;
+- `full_release_ready` only when every matrix slot is bound exactly once and
+  all runtime, hard-admission, evidence-closure and hidden-test lifecycle gates
+  pass.
+
+One hard `public_dev` scenario can therefore never make the whole benchmark
+appear release-ready.
 
 ## Immediate build order
 
-1. Re-run the ERPNext candidate with the repaired one-hop query and separate
-   interface errors from recovery errors.
-2. Implement the ERPNext sales-return/exchange family as the first formal hard
-   family, using a different downstream structure from purchase returns.
-3. Add the manufacturing-rework and multi-warehouse-transfer families.
-4. Freeze the generic native-family runner and evidence schema.
-5. Implement Forgejo and Kubernetes runtimes against their public APIs and
-   native audit records.
-6. Freeze private test instances before any main-model evaluation.
+1. Re-run ERPNext sales-return/exchange and archive every boundary/reference
+   file named by its runtime manifest; only then restore it to the canonical
+   development manifest.
+2. Convert the Forgejo and Kubernetes candidates to the formal evidence
+   envelope contract, including distinct boundary, reference, tool, evaluator,
+   reset, raw-run, and execution-control artifacts with dependency hashes.
+3. Materialize fresh `public_dev` instances rather than relabeling model-seen
+   development scenarios.
+4. Add ERPNext manufacturing-rework and multi-warehouse-transfer, Forgejo
+   package-provenance and migration/deployment, and the remaining Kubernetes
+   families under the same semantic-profile gate.
+5. Generate two independent hidden instances per family, freeze their exact
+   bundles, and commit the hash-chained usage ledger before provider access.
+6. Run the complete 36-slot release validator and publish only when every
+   formal slot is independently verified.
 
 Any scenario used for hidden-test reporting must declare `hidden_test`,
 `hard`, and `hidden_test_eligible: true`, and must have an active freeze.
 Workflows reject historical, consumed, or development instances before the
 expensive runtime build.
 
-The release target remains 144 cases, but a family enters the formal score
+The release target is currently 183 cases, but a family enters the formal score
 only after its reference program, execution control, evidence replay, reset,
 and hard-admission checks all pass.

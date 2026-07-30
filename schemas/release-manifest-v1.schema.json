@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/release-manifest-v1.schema.json",
+  "title": "AftermathBench release manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "benchmark_release_id",
+    "release_stage",
+    "benchmark_matrix_path",
+    "benchmark_matrix_sha256",
+    "scenario_bindings"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "benchmark_release_id": {"type": "string", "minLength": 1},
+    "release_stage": {"enum": ["development", "formal"]},
+    "benchmark_matrix_path": {
+      "type": "string",
+      "pattern": "^data/[A-Za-z0-9._/-]+$"
+    },
+    "benchmark_matrix_sha256": {"$ref": "#/$defs/sha256"},
+    "scenario_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/binding"}
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "quality_role",
+        "scenario_path",
+        "scenario_sha256",
+        "scenario_id",
+        "domain_id",
+        "family_id",
+        "instance_id",
+        "split",
+        "variant_ids",
+        "admission_artifact_sha256",
+        "control_evidence"
+      ],
+      "properties": {
+        "quality_role": {
+          "enum": ["hard_development_candidate", "release_slot"]
+        },
+        "scenario_path": {
+          "type": "string",
+          "pattern": "^data/scenarios/[A-Za-z0-9._-]+/scenario\\.json$"
+        },
+        "scenario_sha256": {"$ref": "#/$defs/sha256"},
+        "scenario_id": {"$ref": "#/$defs/identifier"},
+        "domain_id": {"$ref": "#/$defs/identifier"},
+        "family_id": {"$ref": "#/$defs/identifier"},
+        "instance_id": {"$ref": "#/$defs/identifier"},
+        "split": {
+          "enum": [
+            "development",
+            "public_dev",
+            "hidden_test"
+          ]
+        },
+        "variant_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "admission_artifact_sha256": {
+          "type": "object",
+          "minProperties": 4,
+          "additionalProperties": {"$ref": "#/$defs/sha256"}
+        },
+        "control_evidence": {
+          "type": "object",
+          "required": [
+            "path",
+            "sha256",
+            "minimum_task_pass_rate"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "pattern": "^data/[A-Za-z0-9._/-]+$"
+            },
+            "sha256": {"$ref": "#/$defs/sha256"},
+            "minimum_task_pass_rate": {
+              "type": "number",
+              "minimum": 0.8,
+              "maximum": 1.0
+            }
+          }
+        },
+        "formal_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "boundary_bundle",
+            "reference_bundle",
+            "tool_contract",
+            "evaluator",
+            "reset_evidence",
+            "raw_run_archive",
+            "execution_control"
+          ],
+          "properties": {
+            "boundary_bundle": {"$ref": "#/$defs/fileDeclaration"},
+            "reference_bundle": {"$ref": "#/$defs/fileDeclaration"},
+            "tool_contract": {"$ref": "#/$defs/fileDeclaration"},
+            "evaluator": {"$ref": "#/$defs/fileDeclaration"},
+            "reset_evidence": {"$ref": "#/$defs/fileDeclaration"},
+            "raw_run_archive": {"$ref": "#/$defs/fileDeclaration"},
+            "execution_control": {"$ref": "#/$defs/fileDeclaration"}
+          }
+        },
+        "hidden_test_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bundle_root",
+            "private_attestation",
+            "private_attestation_sha256",
+            "public_commitment",
+            "public_commitment_file_sha256",
+            "usage_ledger",
+            "usage_ledger_sha256"
+          ],
+          "properties": {
+            "bundle_root": {"type": "string", "pattern": "^data/[A-Za-z0-9._/-]+$"},
+            "private_attestation": {"type": "string", "pattern": "^data/[A-Za-z0-9._/-]+$"},
+            "private_attestation_sha256": {"$ref": "#/$defs/sha256"},
+            "public_commitment": {"type": "string", "pattern": "^data/[A-Za-z0-9._/-]+$"},
+            "public_commitment_file_sha256": {"$ref": "#/$defs/sha256"},
+            "usage_ledger": {"type": "string", "pattern": "^data/[A-Za-z0-9._/-]+$"},
+            "usage_ledger_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
+      }
+    },
+    "fileDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^data/[A-Za-z0-9._/-]+$"
+        },
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

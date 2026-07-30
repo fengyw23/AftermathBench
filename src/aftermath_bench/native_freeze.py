@@ -2,12 +2,73 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
+from .path_safety import safe_relative_path
+
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_ZERO_SHA256 = "0" * 64
+
+
+def _usage_event_digest(record: dict[str, Any]) -> str:
+    payload = {
+        key: record[key]
+        for key in (
+            "sequence",
+            "event",
+            "recorded_at",
+            "previous_event_sha256",
+            "details",
+        )
+    }
+    return hashlib.sha256(_canonical(payload)).hexdigest()
+
+
+def validate_usage_ledger(ledger: dict[str, Any]) -> tuple[str, ...]:
+    failures: list[str] = []
+    if ledger.get("schema_version") != "2.0":
+        failures.append("schema_version")
+    events = ledger.get("events")
+    if not isinstance(events, list):
+        return (*failures, "events")
+    previous = _ZERO_SHA256
+    previous_name: str | None = None
+    transitions = {
+        None: {"generated", "frozen"},
+        "generated": {"frozen"},
+        "frozen": {"evaluation_locked", "retired"},
+        "evaluation_locked": {"consumed", "retired"},
+        "consumed": {"retired"},
+        "retired": set(),
+    }
+    for index, record in enumerate(events, start=1):
+        if not isinstance(record, dict):
+            failures.append(f"event_object:{index}")
+            continue
+        name = str(record.get("event", ""))
+        if record.get("sequence") != index:
+            failures.append(f"event_sequence:{index}")
+        if record.get("previous_event_sha256") != previous:
+            failures.append(f"event_previous_hash:{index}")
+        if name not in transitions.get(previous_name, set()):
+            failures.append(f"event_transition:{index}")
+        observed_hash = str(record.get("event_sha256", ""))
+        if (
+            _SHA256.fullmatch(observed_hash) is None
+            or observed_hash != _usage_event_digest(record)
+        ):
+            failures.append(f"event_hash:{index}")
+        previous = observed_hash
+        previous_name = name
+    if str(ledger.get("head_event_sha256", "")) != previous:
+        failures.append("head_event_sha256")
+    return tuple(failures)
 
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -51,18 +112,38 @@ def verify_frozen_bundle(
     allowed = {
         private_path.relative_to(root).as_posix(),
         public_path.relative_to(root).as_posix(),
-        *(Path(value).as_posix() for value in allowed_unbound_relative_paths),
     }
+    for value in allowed_unbound_relative_paths:
+        allowed_path = safe_relative_path(root, str(value))
+        allowed.add(allowed_path.relative_to(root).as_posix())
+    file_entries = list(private.get("files", []))
+    declared_paths = [str(item.get("path", "")) for item in file_entries]
     declared_files = {
-        str(item["path"]): item
-        for item in private.get("files", [])
+        path: item for path, item in zip(declared_paths, file_entries)
     }
     failures = []
+    if len(declared_paths) != len(set(declared_paths)):
+        failures.append("duplicate_declared_path")
+    if declared_paths != sorted(declared_paths):
+        failures.append("declared_paths_not_sorted")
+    for observed_path in root.rglob("*"):
+        if observed_path.is_symlink():
+            failures.append(
+                "symlink:" + observed_path.relative_to(root).as_posix()
+            )
     for relative, item in declared_files.items():
-        path = root / relative
-        if not path.is_file():
+        try:
+            path = safe_relative_path(
+                root,
+                relative,
+                must_exist=True,
+                require_file=True,
+            )
+        except (OSError, ValueError):
             failures.append(f"missing:{relative}")
             continue
+        if _SHA256.fullmatch(str(item.get("sha256", ""))) is None:
+            failures.append(f"invalid_sha256:{relative}")
         if path.stat().st_size != int(item["bytes"]):
             failures.append(f"bytes:{relative}")
         if file_sha256(path) != str(item["sha256"]):
@@ -93,7 +174,7 @@ def verify_frozen_bundle(
         (
             f"{private.get('commitment_salt', '')}:"
             f"{private.get('bundle_root_sha256', '')}"
-        ).encode("utf-8")
+        ).encode()
     ).hexdigest()
     if commitment != str(private.get("public_commitment_sha256", "")):
         failures.append("private_public_commitment")
@@ -145,10 +226,20 @@ def build_frozen_bundle(
     for path in (scenario, instance):
         path.relative_to(root)
     excluded = {
-        Path(value).as_posix() for value in excluded_relative_paths
+        safe_relative_path(root, str(value))
+        .relative_to(root)
+        .as_posix()
+        for value in excluded_relative_paths
     }
     files = []
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+    discovered = sorted(root.rglob("*"))
+    symlinks = [path for path in discovered if path.is_symlink()]
+    if symlinks:
+        raise ValueError(
+            "native bundle contains symbolic links: "
+            + ", ".join(path.relative_to(root).as_posix() for path in symlinks)
+        )
+    for path in (item for item in discovered if item.is_file()):
         relative = path.relative_to(root).as_posix()
         if relative in excluded:
             continue
@@ -183,7 +274,7 @@ def build_frozen_bundle(
     root_sha = hashlib.sha256(_canonical(manifest)).hexdigest()
     secret_salt = salt or secrets.token_hex(32)
     commitment = hashlib.sha256(
-        f"{secret_salt}:{root_sha}".encode("utf-8")
+        f"{secret_salt}:{root_sha}".encode()
     ).hexdigest()
     frozen_at = datetime.now(UTC).isoformat()
     private = {
@@ -229,8 +320,17 @@ def append_usage_event(
         raise ValueError(f"unsupported usage event: {event}")
     if ledger_path.exists():
         ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        ledger_failures = validate_usage_ledger(ledger)
+        if ledger_failures:
+            raise ValueError(
+                f"invalid usage ledger before append: {ledger_failures}"
+            )
     else:
-        ledger = {"schema_version": "1.0", "events": []}
+        ledger = {
+            "schema_version": "2.0",
+            "events": [],
+            "head_event_sha256": _ZERO_SHA256,
+        }
     previous = (
         str(ledger["events"][-1]["event"])
         if ledger["events"]
@@ -262,16 +362,31 @@ def append_usage_event(
             raise ValueError("usage ledger is missing its public commitment")
         event_details["public_commitment_sha256"] = commitment
     record = {
+        "sequence": len(ledger["events"]) + 1,
         "event": event,
         "recorded_at": datetime.now(UTC).isoformat(),
+        "previous_event_sha256": str(
+            ledger.get("head_event_sha256", _ZERO_SHA256)
+        ),
         "details": event_details,
     }
+    record["event_sha256"] = _usage_event_digest(record)
     ledger["events"].append(record)
+    ledger["head_event_sha256"] = record["event_sha256"]
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    ledger_path.write_text(
-        json.dumps(ledger, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    temporary = ledger_path.with_name(
+        f".{ledger_path.name}.{secrets.token_hex(8)}.tmp"
     )
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(ledger, ensure_ascii=False, indent=2) + "\n"
+            )
+            handle.flush()
+        temporary.replace(ledger_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     return record
 
 
@@ -280,5 +395,6 @@ __all__ = [
     "append_usage_event",
     "build_frozen_bundle",
     "file_sha256",
+    "validate_usage_ledger",
     "verify_frozen_bundle",
 ]

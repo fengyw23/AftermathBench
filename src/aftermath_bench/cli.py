@@ -17,16 +17,20 @@ from .model_runner import (
 from .native_admission import validate_native_scenario
 from .native_model_runner import run_live_native_agent
 from .native_scenario import load_native_scenario, native_scenario_paths
+from .release_manifest import (
+    default_release_manifest_path,
+    load_release_manifest,
+    validate_release_manifest,
+)
+from .runtime_gate import (
+    load_runtime_manifest,
+    runtime_manifest_paths,
+    validate_runtime_manifest,
+)
 from .scenarios.enterprise_transfer import (
     VARIANTS,
     build_enterprise_failure_state,
     reference_recovery,
-)
-from .scenarios.release_migration import (
-    RELEASE_VARIANTS,
-    build_release_failure_state,
-    evaluate_release,
-    reference_release_recovery,
 )
 from .scenarios.itsm_major_incident import (
     ITSM_VARIANTS,
@@ -34,12 +38,13 @@ from .scenarios.itsm_major_incident import (
     evaluate_itsm,
     reference_itsm_recovery,
 )
-from .schema import load_task, task_paths
-from .runtime_gate import (
-    load_runtime_manifest,
-    runtime_manifest_paths,
-    validate_runtime_manifest,
+from .scenarios.release_migration import (
+    RELEASE_VARIANTS,
+    build_release_failure_state,
+    evaluate_release,
+    reference_release_recovery,
 )
+from .schema import load_task, task_paths
 
 
 def _validate() -> int:
@@ -198,6 +203,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "status",
         help="report the evidence-derived implemented/planned release boundary",
+    )
+    release_validation = subparsers.add_parser(
+        "validate-release",
+        help="verify the canonical release manifest and every bound scenario",
+    )
+    release_validation.add_argument(
+        "--manifest",
+        default=str(default_release_manifest_path()),
+    )
+    release_validation.add_argument(
+        "--require-full",
+        action="store_true",
+        help="fail unless all formal matrix slots and gates are closed",
     )
     native_validation = subparsers.add_parser(
         "validate-native-scenario",
@@ -372,6 +390,27 @@ def main() -> int:
     if args.command == "status":
         print(json.dumps(build_benchmark_status(), indent=2))
         return 0
+    if args.command == "validate-release":
+        report = validate_release_manifest(
+            load_release_manifest(args.manifest)
+        )
+        print(
+            json.dumps(
+                {
+                    "benchmark_release_id": report.benchmark_release_id,
+                    "passed": report.passed,
+                    "release_state": report.release_state,
+                    "checks": report.checks,
+                    "failures": report.failures,
+                    "observed": report.observed,
+                    "bindings": report.bindings,
+                },
+                indent=2,
+            )
+        )
+        if args.require_full:
+            return 0 if report.release_state == "full_release_ready" else 1
+        return 0 if report.passed else 1
     if args.command == "validate-native-scenario":
         return _validate_native_scenarios(args.scenario)
     if args.command == "baselines":
@@ -527,3 +566,7 @@ def main() -> int:
         return _run_release_demo(variants)
     variants = VARIANTS if args.all else (args.variant or VARIANTS[0],)
     return _run_demo(variants)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
