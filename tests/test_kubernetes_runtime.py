@@ -39,7 +39,7 @@ class KubernetesRuntimeTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(self.lock["kubernetes"]["node_image"], config)
 
-    def test_source_audit_is_complete_and_execution_remains_pending(self) -> None:
+    def test_source_and_execution_admission_are_complete(self) -> None:
         audit = json.loads(
             (
                 self.root
@@ -66,7 +66,11 @@ class KubernetesRuntimeTest(unittest.TestCase):
         )
         report = validate_runtime_manifest(manifest)
         self.assertTrue(report.source_audit_passed)
-        self.assertFalse(report.execution_admitted)
+        self.assertTrue(report.execution_admitted)
+        self.assertTrue(
+            report.execution_checks["admission_evidence_recorded"]
+        )
+        self.assertFalse(report.failures)
         self.assertNotIn("source_status_truthful", report.failures)
         self.assertNotIn("execution_status_truthful", report.failures)
 

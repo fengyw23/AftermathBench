@@ -47,6 +47,49 @@ def load_runtime_manifest(path: str | Path) -> dict[str, Any]:
         return json.load(handle)
 
 
+def _report_passed(
+    report: dict[str, Any],
+    fields: tuple[str, ...],
+) -> bool:
+    observed = [report[field] for field in fields if field in report]
+    return bool(observed) and all(value is True for value in observed)
+
+
+def _evidence_manifest_consistent(
+    path: Path | None,
+    *,
+    runtime_id: str,
+    head_sha: str | None,
+    workflow_run: str | None,
+    report_pass_fields: tuple[str, ...],
+) -> bool:
+    if path is None or not path.is_file():
+        return False
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    reports = manifest.get("reports", ())
+    observed_head_sha = str(manifest.get("head_sha", ""))
+    observed_workflow_run = str(manifest.get("workflow_run_url", ""))
+    return bool(
+        manifest.get("runtime_id") == runtime_id
+        and len(observed_head_sha) == 40
+        and (head_sha is None or observed_head_sha == head_sha)
+        and observed_workflow_run.startswith("https://github.com/")
+        and (
+            workflow_run is None
+            or observed_workflow_run == workflow_run
+        )
+        and manifest.get("credentials_present") is False
+        and len(reports) >= 4
+        and all(
+            _report_passed(report, report_pass_fields)
+            for report in reports
+        )
+    )
+
+
 def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
     capabilities = raw.get("open_runtime_evidence", {})
     source_checks = {
@@ -84,18 +127,39 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         if recovery_manifest
         else None
     )
+    runtime_id = str(raw["runtime_id"])
+    head_sha = str(admission_evidence.get("head_sha", ""))
+    workflow_run = str(admission_evidence.get("workflow_run", ""))
+    boundary_manifest_valid = _evidence_manifest_consistent(
+        evidence_path,
+        runtime_id=runtime_id,
+        head_sha=head_sha,
+        workflow_run=workflow_run,
+        report_pass_fields=(
+            "boundary_validation_passed",
+            "reference_recovery_passed",
+        ),
+    )
+    recovery_manifest_valid = (
+        recovery_evidence_path is None
+        or _evidence_manifest_consistent(
+            recovery_evidence_path,
+            runtime_id=runtime_id,
+            head_sha=None,
+            workflow_run=None,
+            report_pass_fields=("passed", "reference_recovery_passed"),
+        )
+    )
     execution_checks["admission_evidence_recorded"] = bool(
         admission_evidence.get("validated_at")
-        and len(str(admission_evidence.get("head_sha", ""))) == 40
-        and str(admission_evidence.get("workflow_run", "")).startswith(
+        and len(head_sha) == 40
+        and workflow_run.startswith(
             "https://github.com/"
         )
         and evidence_path is not None
         and evidence_path.is_file()
-        and (
-            recovery_evidence_path is None
-            or recovery_evidence_path.is_file()
-        )
+        and boundary_manifest_valid
+        and recovery_manifest_valid
     )
     source_passed = all(source_checks.values())
     execution_admitted = source_passed and all(execution_checks.values())
@@ -118,7 +182,7 @@ def validate_runtime_manifest(raw: dict[str, Any]) -> RuntimeAdmissionReport:
         if not passed
     )
     return RuntimeAdmissionReport(
-        runtime_id=str(raw["runtime_id"]),
+        runtime_id=runtime_id,
         source_audit_passed=source_passed,
         execution_admitted=execution_admitted,
         source_checks=source_checks,

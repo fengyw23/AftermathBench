@@ -1,8 +1,11 @@
 # AftermathBench
 
-> Current status: one native ERPNext hard family and one hard-admitted
-> Kubernetes development family are executable; Forgejo remains a native
-> pilot. The strict 144-case cross-domain release is under construction. See
+> Current status: one native ERPNext hard development family runs on an
+> execution-admitted runtime; three Kubernetes development scenarios pass
+> structural hard admission on an execution-admitted runtime, while the newest
+> 13-state family still awaits its task-specific execution-control audit;
+> Forgejo is execution-admitted but its first scenario remains an easy pilot.
+> The strict 144-case cross-domain release is under construction. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
@@ -52,14 +55,21 @@ Forgejo and Kubernetes/kind runtimes are also executable development
 substrates; they are admitted independently rather than counted merely because
 their services run.
 
-Two native task levels are retained:
+The current ERPNext scenarios have three distinct statuses:
 
 - `erpnext-procurement-payment-001` is the frozen easy pilot;
-- `erpnext-partial-return-{dev,holdout}-001` is the hard vertical slice for
-  partial return, replacement procurement, supplier credit, shared payment,
-  stock/accounting consistency, and exactly-once pickup delivery.
+- `erpnext-partial-return-{dev,holdout}-001` is the historical challenge used
+  for the published cross-model experiment. Under the current stricter gate it
+  is a `candidate`, because its shortest valid recovery has three rather than
+  four mutations;
+- `erpnext-sales-return-dev-001` is the current structurally hard-admitted
+  development family for
+  partial customer return, replacement fulfillment, credit-note
+  reconciliation, a shared customer payment, stock/accounting consistency,
+  and exactly-once pickup delivery.
 
-The hard family has four matched hidden transition states behind the same
+The historical partial-return challenge has four matched hidden transition
+states behind the same
 connection-loss observation. Its complexity is derived from replay artifacts,
 its reference recovery passes all variants, seven fixed heuristics have zero
 matched-group success, and the holdout scenario and prefix were frozen before
@@ -82,6 +92,28 @@ benchmark release.
 
 ## Cross-model native results
 
+### Current hard-family development result
+
+The current ERPNext sales-return family has a valid paired GLM-5.2 experiment
+at the same source commit:
+
+| Condition | Recovery Integrity | Matched-group | Goal completion | Tool/provider/runtime errors |
+|---|---:|---:|---:|---:|
+| Explicit correct scope | 4/4 | 1/1 | 4/4 | 0 |
+| Ordinary recovery | 2/4 | 0/1 | 4/4 | 0 |
+
+The two ordinary failures both created one duplicate replacement invoice, but
+the causal errors differed. In one state the invoice already existed at the
+failure boundary and the model never queried it. In the no-commit state, the
+model submitted a Delivery Note that triggered invoice creation, then failed
+to refresh state before executing its previously planned create call. This
+second pattern is a recovery-time plan-invalidation failure, not merely an
+incorrect initial diagnosis. These are four development trials, not a stable
+model ranking. Evidence is archived under
+`data/evidence/erpnext-sales-return-{control,ordinary}-20260730`.
+
+### Historical candidate-family comparison
+
 Two valid GitHub Actions jobs ran the same easy pilot and frozen hard holdout
 with ordinary public tools and a 15-turn budget:
 
@@ -99,9 +131,10 @@ an invalid direct filter, received an explicit tool error, and then created a
 new invoice anyway.
 
 The replayed reference recovery and explicit-scope execution control both pass
-all four variants. The cross-model result therefore isolates a reproducible
+all four variants. This historical cross-model result therefore isolates a reproducible
 post-commit downstream-effect investigation failure rather than inability to
-execute the tools. Valid experiment runs:
+execute the tools, but it is not counted as a current hard-split result. Valid
+experiment runs:
 
 - [GLM-5.2 `30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921);
 - [DeepSeek-V4-Pro `30415045805`](https://github.com/fengyw23/AftermathBench/actions/runs/30415045805).
@@ -115,6 +148,7 @@ Python 3.12 or newer is required.
 ```bash
 python -m unittest discover -s tests -v
 python -m aftermath_bench validate
+python -m aftermath_bench status
 python -m aftermath_bench validate-runtimes
 python -m aftermath_bench validate-native-scenario --help
 python -m aftermath_bench demo --all
@@ -132,6 +166,7 @@ When running directly from a checkout without installing the package:
 ```bash
 set PYTHONPATH=src
 python -m aftermath_bench validate
+python -m aftermath_bench status
 python -m aftermath_bench validate-runtimes
 python -m aftermath_bench validate-native-scenario --help
 ```
@@ -182,3 +217,9 @@ The substrate decision and source evidence are documented in
 The native hard-task recipe and experiment audit are documented in
 [Hard Task Construction](docs/HARD_TASK_CONSTRUCTION.md) and
 [GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md).
+
+`python -m aftermath_bench status` is the machine-derived source of truth for
+the boundary between the 144-case target matrix and locally implemented
+scenarios. In particular, a replay-admitted development scenario is not
+reported as a formal release case unless it also uses an execution-admitted
+runtime and belongs to a `public_dev` or `hidden_test` split.

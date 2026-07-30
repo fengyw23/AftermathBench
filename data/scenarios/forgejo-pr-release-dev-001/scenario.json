@@ -1,0 +1,72 @@
+{
+  "schema_version": "0.1",
+  "scenario_id": "forgejo-pr-release-dev-001",
+  "family": "forgejo-pr-merge-release-webhook",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "development",
+  "benchmark_tier": "easy",
+  "implementation_status": "native runtime and four matched boundaries validated; compact state tree solves 4/4, so retained as an easy pilot",
+  "title": "Recover an ambiguous release Pull Request merge without duplicating its external webhook effect",
+  "user_instruction": "Complete the approved July maintenance release: merge Pull Request #2 into release/2026.07, ensure its linked regression issue #1 is closed, publish release v2026.07.1 from the merged release branch, and make sure the release-coordinator webhook effect is applied exactly once. Preserve unrelated hotfix Pull Request #3, its open issue #4, the existing v2026.06.4 release, and all branch-protection rules.",
+  "fixture": {
+    "owner": "aftermath",
+    "repository": "release-control",
+    "base_branch": "release/2026.07",
+    "feature_branch": "fix/customer-export-timeout",
+    "pull_request_index": 2,
+    "linked_issue_index": 1,
+    "release_tag": "v2026.07.1",
+    "protected_pull_request_index": 3,
+    "protected_issue_index": 4,
+    "protected_release_tag": "v2026.06.4",
+    "webhook_target": "http://webhook-fault-gateway:8080/webhooks/events"
+  },
+  "ambiguous_operation": {
+    "operation": "merge Pull Request #2 through Forgejo's native REST merge endpoint",
+    "surface_result": "HTTP connection lost before a success response"
+  },
+  "matched_variants": [
+    {
+      "id": "merge_request_not_reached",
+      "hidden_state": "The merge request never reached Forgejo."
+    },
+    {
+      "id": "merge_committed_delivery_succeeded",
+      "hidden_state": "The merge and webhook delivery committed, but the merge response was lost."
+    },
+    {
+      "id": "merge_committed_receiver_accepted_response_lost",
+      "hidden_state": "Forgejo recorded a failed webhook attempt, but the external receiver already applied it."
+    },
+    {
+      "id": "merge_committed_delivery_request_not_reached",
+      "hidden_state": "Forgejo recorded a failed webhook attempt and the external receiver has no event."
+    }
+  ],
+  "required_public_evidence": [
+    "Pull Request state and merged commit",
+    "base branch head",
+    "linked issue state",
+    "repository webhook configuration and delivery history",
+    "external receiver delivery ledger keyed by X-Forgejo-Delivery",
+    "existing releases and target commit",
+    "protected unrelated Pull Request, issue, release, and branch rules"
+  ],
+  "public_tool_policy": {
+    "forgejo_api_reads": true,
+    "forgejo_webhook_history_reads": true,
+    "external_delivery_audit_reads": true,
+    "native_merge_and_release_mutations": true,
+    "native_webhook_replay": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_easy_pilot",
+  "admission_artifacts": {
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json"
+  }
+}

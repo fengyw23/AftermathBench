@@ -1,13 +1,13 @@
 # Roadmap
 
-## Phase 0 — executable recovery scaffold (complete)
+## Phase 0 - executable recovery scaffold (complete)
 
 - Hard-task schema and structural admission validator.
 - Deterministic integrity evaluator.
 - Matched no-commit, response-loss, partial-commit, and asynchronous variants.
 - Enterprise transfer and release/database-migration prototypes.
 
-## Phase 1 — full-seed ITSM concept slice (frozen)
+## Phase 1 - full-seed ITSM concept slice (frozen)
 
 - Pinned and verified the EnterpriseOps-Gym ITSM seed.
 - Materialized all 24 upstream tables and 241 seed rows.
@@ -19,16 +19,16 @@ This phase is a concept prototype. EnterpriseOps-Gym does not publish the
 domain server and native transaction implementation, so it will not be
 promoted into the final native-runtime benchmark.
 
-## Phase 2 — fully open runtime gate and source audit (complete)
+## Phase 2 - fully open runtime gate and source audit (complete)
 
 - Require public server, schema, transaction, build, reset, fault, and evaluator
   evidence.
 - Mark EnterpriseOps and the local release environment as legacy prototypes.
 - Select ERPNext/Frappe as the primary enterprise runtime.
-- Select Forgejo as the primary coding/DevOps runtime candidate.
-- Retain τ³-bench as a possible lightweight control substrate.
+- Select Forgejo as the primary coding/DevOps runtime.
+- Select Kubernetes as a native infrastructure-runtime stress-test substrate.
 
-## Phase 3 — native ERPNext vertical slice (current)
+## Phase 3 - native ERPNext vertical slices (active)
 
 - [x] Define the digest-pinned ERPNext/Frappe/MariaDB/Redis stack.
 - [x] Create the seven-write procurement prefix through public APIs.
@@ -42,27 +42,77 @@ promoted into the final native-runtime benchmark.
 - [x] Pass scripted end-to-end recovery controls.
 - [x] Connect the native environment to the provider-agnostic model loop.
 - [x] Run the first four-state GLM pilot and attribute model behavior.
-- [ ] Add a harder ERPNext family that cannot be solved by the first pilot's
-  compact payment/job/delivery decision tree.
+- [x] Add the sales-return/exchange family, which passes Hard Admission v2 and
+  requires customer-return, credit, replacement, receipt-preservation, and
+  reverse-logistics closure.
+- [x] Validate the sales-return family with a four-state explicit-scope
+  execution control (4/4 Recovery Integrity Pass, zero provider/runtime
+  errors).
+- [x] Audit the corresponding ordinary model condition and separate
+  investigation, state-inference, scope, execution, and verification errors.
+- [ ] Construct independent public-development and frozen hidden instances;
+  the consumed development scenario is not a release case.
 
-## Phase 4 — Forgejo coding/DevOps vertical slice
+## Phase 4 - Forgejo coding/DevOps vertical slice (active)
 
-- Build Forgejo from pinned source.
-- Select package publication, release/attachment, Actions, or post-receive
-  transitions with source-supported transactional and asynchronous effects.
-- Require persistent consequences beyond repository files.
+- [x] Build Forgejo from pinned source and archive successful four-state
+  boundary and reference replay evidence.
+- [x] Admit the Forgejo runtime from source and execution evidence.
+- [x] Register the first PR/merge/release/webhook scenario from archived native
+  replay evidence.
+- [x] Demonstrate that the first scenario is an easy pilot: a compact decision
+  tree solves all four matched states.
+- [ ] Add a hard Forgejo family with at least two independently repairable
+  downstream branches and no family-wide fixed decision tree.
 
-## Phase 5 — hard-task expansion
+## Phase 5 - Kubernetes interaction stress test (active)
+
+- [x] Build source-audited native Kubernetes state, query, mutation, and
+  evaluator layers.
+- [x] Admit the Kubernetes runtime from archived source-build, reset, boundary,
+  and reference-recovery evidence.
+- [x] Construct a 13-state constraint-interaction family with distinct
+  boundary-relative recovery directions.
+- [x] Reject an invalid first execution control whose target omitted the exact
+  external-event envelope.
+- [ ] Complete and audit the corrected execution control.
+- [ ] Accept the 13-state task-specific execution control only if it passes at
+  least 80% with zero infrastructure and interface failures.
+- [ ] Run the ordinary condition only after that gate passes.
+
+The Kubernetes interaction family uses native Kubernetes objects and public
+tools, but some cross-system contracts are benchmark-authored ConfigMaps and
+external-event records. It is therefore a reasoning stress test, not the sole
+evidence for production realism.
+
+## Phase 6 - hard-task expansion
 
 - Add clean-state and explicitly provided-target-state controls.
 - Add automatic failure attribution and trajectory comparison.
 - Reject task families solved by one fixed retry/no-retry heuristic.
 - Expand only through source-admitted runtimes.
+- Add ERPNext manufacturing-rework and multi-warehouse-transfer families.
+- Add a hard Forgejo publication or package-provenance family.
+- Freeze generic evidence, runtime, model-run, and archive schemas before
+  generating release instances.
 
-## Phase 6 — benchmark-scale evaluation
+## Phase 7 - benchmark-scale evaluation
 
 - Freeze development and hidden test splits.
 - Evaluate GPT, Claude, Qwen, DeepSeek, and open-weight agents.
 - Report task pass, matched-group success, component pass rates, query coverage,
   unsafe retries, preservation failures, and verification omissions.
 - Release generation, contamination, and reproducibility documentation.
+
+## Current release boundary
+
+The planned portfolio remains 144 cases, but the repository is still
+development-only. At the latest machine-readable status checkpoint:
+
+- eight scenarios and 41 matched post-error states are implemented;
+- four scenarios pass structural hard admission;
+- all four structurally hard scenarios run on execution-admitted runtimes;
+- no scenario belongs to a formal `public_dev` or `hidden_test` release split.
+
+These counts must be generated with `python -m aftermath_bench status`; they
+must not be inferred from the target matrix or workflow success badges.

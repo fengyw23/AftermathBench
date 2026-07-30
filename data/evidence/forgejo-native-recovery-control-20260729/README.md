@@ -26,3 +26,9 @@ matched-group success were both `100%`; `baselines/summary.json` therefore
 rejects this family from the hard split. GLM-5.2 independently passed `4/4`.
 The task remains an executable native easy/candidate control and a regression
 fixture for the harder Forgejo families, not a formal hard benchmark case.
+
+The eight sanitized boundary and reference reports recovered from the immutable
+Actions artifact are retained under `raw/`. `admission.json` records their
+SHA-256 hashes, the source commit, workflow run and artifact identity. Runtime
+execution admission means the Forgejo substrate is reproducibly executable; it
+does not change this particular task family's easy/candidate classification.

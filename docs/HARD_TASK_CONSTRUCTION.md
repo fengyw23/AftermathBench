@@ -135,6 +135,45 @@ The valid GLM-5.2 execution control passed all four variants in 5–8 model
 turns with zero provider or tool errors. This result is archived separately
 from the main benchmark runs because the correct scope is explicitly supplied.
 
+## Recovery-time state invalidation
+
+Boundary reconstruction alone is not sufficient for the hardest tasks. A
+repair mutation can activate native hooks, controllers, or queued work and
+thereby invalidate facts collected before that mutation. Any later decision
+that depends on those facts must use the mutation result or refresh the
+authoritative state.
+
+The sales-return development run exposed both forms of the same safety
+failure:
+
+- a downstream invoice already existed at the ambiguous failure boundary, but
+  the agent did not enumerate linked invoices before creating another;
+- no invoice existed at the boundary, but submitting the replacement Delivery
+  Note caused native automation to create one, and the agent continued an
+  already planned create call without refreshing state.
+
+The second case is not a sequence-format puzzle. The write has an authentic
+persistent downstream effect, the effect is observable through ordinary
+relation queries, and multiple tool orders are legal. The terminal evaluator
+still accepts any safe trajectory; trajectory analysis separately records
+whether a stale post-mutation belief caused the failure.
+
+Future hard families should therefore include replay-witnessed
+**state-invalidation edges** when the native system supports them:
+
+- a public write can create or advance a downstream object without returning
+  the complete new dependency closure;
+- a subsequent mutation is safe only after inspecting the relevant result or
+  authoritative relation;
+- the necessary observation is available through an ordinary public tool;
+- the reference and explicit-scope control demonstrate a valid recovery
+  within the same turn budget; and
+- the evaluator rejects duplicate or conflicting effects, not the omission of
+  a particular query sequence.
+
+This dimension tests adaptive recovery rather than a one-shot plan computed
+from the initial failure snapshot.
+
 ## Snapshot discipline
 
 The database, Redis cache, Redis queue, fault-gateway audit state, and external

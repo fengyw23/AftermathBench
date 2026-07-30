@@ -85,7 +85,13 @@ The selected mutations were:
 All four final states passed. Each produced exactly one remittance delivery
 attempt and zero unfinished relevant jobs.
 
-## Native hard vertical slice
+## Historical native challenge vertical slice
+
+This section records the experiment under the gate used at the time. The
+current stricter admission rule requires at least four recovery mutations;
+the partial-return family has three and is now reported as `candidate`.
+The result remains valid historical model evidence but is not counted as a
+current hard-split release result.
 
 The first native model pilot completed in GitHub Actions run
 [`30382460087`](https://github.com/fengyw23/AftermathBench/actions/runs/30382460087)

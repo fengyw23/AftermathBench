@@ -83,7 +83,20 @@ failures.
 
 ## Current release boundary
 
-The current native result is one ERPNext procurement-return family with a
-development instance and a pre-model-frozen holdout instance. It establishes
-an executable hard-task construction method; it is not yet a multi-domain
-benchmark release.
+The current repository has one ERPNext sales-return development scenario that
+passes the replay-derived structural hard gate and a four-state explicit-scope
+execution control. It is still a consumed development scenario, not a public
+or hidden release instance. The earlier ERPNext partial-return
+development/holdout pair remains valuable historical model evidence, but is
+classified as `candidate` by the current four-mutation threshold. The
+Kubernetes runtime is execution-admitted from archived source-build, reset,
+boundary, and reference-recovery evidence. Its hard-admitted scenarios
+nevertheless remain development evidence until their task-specific controls
+and model experiments are complete. Forgejo has an execution-admitted runtime,
+but its first replay-derived scenario is retained as an easy pilot because a
+compact decision tree solves all matched states.
+
+No implemented scenario currently belongs to a formal `public_dev` or
+`hidden_test` release split. The 144-case matrix is a target design, not a
+released dataset. `python -m aftermath_bench status` derives this boundary
+directly from scenario admissions and runtime manifests.

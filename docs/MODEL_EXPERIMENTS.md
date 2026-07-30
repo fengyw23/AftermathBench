@@ -1,15 +1,19 @@
 # Model Experiment Protocol
 
-## Primary native ERPNext experiments
+## Native ERPNext experiments
 
-The formal experiments run against source-built, version-pinned
-ERPNext/Frappe. Two levels use the same model API and 15-turn budget:
+The experiments run against source-built, version-pinned ERPNext/Frappe.
+Three development levels use the same provider-compatible model loop:
 
 1. the frozen easy procurement-payment pilot, with seven successful prefix
    writes and one payment/remittance recovery boundary;
-2. the partial-return hard family, with 17 successful prefix writes, a shared
+2. the historical partial-return candidate family, with 17 successful prefix
+   writes, a shared
    payment, partial return and supplier credit, replacement procurement,
-   stock/accounting effects, and an exactly-once pickup event.
+   stock/accounting effects, and an exactly-once pickup event;
+3. the current structurally hard sales-return/exchange family, with customer
+   return and credit, replacement fulfillment and invoice, shared receipt,
+   stock/accounting closure, and an exactly-once reverse-pickup event.
 
 Every run restores the corresponding database and queue snapshot before
 injecting one of four matched hidden transition states:
@@ -78,6 +82,35 @@ Three controls must be interpreted alongside model scores:
 The primary result reports Recovery Integrity Pass, matched-group success,
 each evaluator component, failure attribution, and the easy-to-holdout
 absolute pass-rate drop.
+
+## Current ERPNext sales-return paired experiment
+
+The valid paired runs use the same scenario, commit, model, public tools, and
+one trial per matched state:
+
+- explicit-scope execution control:
+  [run `30518617941`](https://github.com/fengyw23/AftermathBench/actions/runs/30518617941),
+  4/4 Recovery Integrity;
+- ordinary recovery:
+  [run `30519698310`](https://github.com/fengyw23/AftermathBench/actions/runs/30519698310),
+  2/4 Recovery Integrity and zero matched-group success.
+
+Both ordinary failures achieved the remaining business goal and closed the
+accounting, fulfillment, and reverse-logistics branches. Both nevertheless
+left a duplicate replacement invoice, so `protocol_safety` was 2/4. The
+replay audit distinguishes:
+
+- `preexisting_downstream_not_queried`: the invoice existed at the failure
+  boundary, but the model did not query linked Sales Invoices before creating
+  another;
+- `post_mutation_state_not_refreshed`: no invoice existed initially, but
+  submitting the replacement Delivery Note caused native automation to create
+  one, and the model continued its stale pre-mutation plan.
+
+The paired control rules out basic inability to execute the necessary tools.
+The ordinary run is still a development probe with four trials, not a
+leaderboard estimate. Complete hash-bound artifacts are under
+`data/evidence/erpnext-sales-return-{control,ordinary}-20260730`.
 
 ## Legacy ITSM concept experiment
 
