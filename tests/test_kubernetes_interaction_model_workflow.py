@@ -34,6 +34,8 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
             '--model-timeout-seconds "$MODEL_TIMEOUT_SECONDS"',
             self.text,
         )
+        self.assertIn("model_stream:", self.text)
+        self.assertIn("stream_flag=(--model-stream)", self.text)
 
     def test_control_and_ordinary_conditions_have_distinct_push_branches(self) -> None:
         self.assertIn("interaction-model-control", self.text)

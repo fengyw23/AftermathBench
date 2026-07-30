@@ -174,6 +174,70 @@ class ModelRunnerTest(unittest.TestCase):
             {"incident_id": "inc-major-001"},
         )
 
+    def test_openai_compatible_streamed_tool_call_is_normalized(self) -> None:
+        client = OpenAICompatibleClient(
+            model="test-model",
+            base_url="https://example.invalid/v1",
+            api_key="not-a-real-key",
+            stream=True,
+        )
+        events = [
+            {
+                "id": "response-1",
+                "model": "test-model",
+                "choices": [
+                    {
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "find_incident",
+                                        "arguments": '{"incident_',
+                                    },
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "choices": [
+                    {
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "function": {
+                                        "arguments": 'id":"inc-major-001"}',
+                                    },
+                                }
+                            ]
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        ]
+        client._post_sse = lambda *_args, **_kwargs: iter(events)
+        turn = client.complete(
+            system="test",
+            messages=[{"role": "user", "content": "test"}],
+            tools=ITSM_TOOL_DEFINITIONS,
+        )
+        self.assertEqual(turn.tool_calls[0].call_id, "call-1")
+        self.assertEqual(turn.tool_calls[0].name, "find_incident")
+        self.assertEqual(
+            turn.tool_calls[0].arguments,
+            {"incident_id": "inc-major-001"},
+        )
+        self.assertTrue(turn.raw_response["streamed"])
+        self.assertEqual(turn.stop_reason, "tool_calls")
+
     def test_anthropic_tool_call_is_normalized(self) -> None:
         client = AnthropicClient(
             model="test-model",

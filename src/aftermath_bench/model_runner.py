@@ -8,7 +8,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterable, Iterator, Protocol
 
 from .core import canonical_fingerprint
 from .scenarios.itsm_major_incident import (
@@ -310,6 +310,109 @@ class _HTTPJSONClient:
                 f"model endpoint returned HTTP {error.code}: {body[:2000]}"
             ) from error
 
+    def _post_sse(
+        self,
+        url: str,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+        timeout: int,
+    ) -> Iterator[dict[str, Any]]:
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Accept": "text/event-stream",
+                "Content-Type": "application/json",
+                **headers,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or line.startswith(":"):
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        return
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError as error:
+                        raise RuntimeError(
+                            "model endpoint returned malformed SSE JSON"
+                        ) from error
+                    if isinstance(event, dict):
+                        yield event
+        except urllib.error.HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"model endpoint returned HTTP {error.code}: {body[:2000]}"
+            ) from error
+
+
+def _assemble_openai_stream(
+    events: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    content: list[str] = []
+    calls: dict[int, dict[str, Any]] = {}
+    usage: dict[str, Any] = {}
+    finish_reason: str | None = None
+    response_id: str | None = None
+    model: str | None = None
+    for event in events:
+        response_id = event.get("id") or response_id
+        model = event.get("model") or model
+        if isinstance(event.get("usage"), dict):
+            usage = dict(event["usage"])
+        choices = event.get("choices") or ()
+        if not choices:
+            continue
+        choice = choices[0]
+        if choice.get("finish_reason") is not None:
+            finish_reason = choice["finish_reason"]
+        delta = choice.get("delta") or {}
+        text = delta.get("content")
+        if isinstance(text, str):
+            content.append(text)
+        for item in delta.get("tool_calls") or ():
+            index = int(item.get("index", len(calls)))
+            aggregate = calls.setdefault(
+                index,
+                {
+                    "id": "",
+                    "type": item.get("type") or "function",
+                    "function": {"name": "", "arguments": ""},
+                },
+            )
+            if item.get("id"):
+                aggregate["id"] += item["id"]
+            function = item.get("function") or {}
+            if function.get("name"):
+                aggregate["function"]["name"] += function["name"]
+            if function.get("arguments"):
+                aggregate["function"]["arguments"] += function["arguments"]
+    message = {
+        "role": "assistant",
+        "content": "".join(content),
+        "tool_calls": [calls[index] for index in sorted(calls)],
+    }
+    return {
+        "id": response_id,
+        "model": model,
+        "streamed": True,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": finish_reason,
+                "message": message,
+            }
+        ],
+        "usage": usage,
+    }
+
 
 class OpenAICompatibleClient(_HTTPJSONClient):
     provider = "openai-compatible"
@@ -323,6 +426,7 @@ class OpenAICompatibleClient(_HTTPJSONClient):
         timeout: int = 120,
         extra_headers: dict[str, str] | None = None,
         temperature: float = 0.0,
+        stream: bool = False,
     ) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
@@ -330,6 +434,7 @@ class OpenAICompatibleClient(_HTTPJSONClient):
         self.timeout = timeout
         self.extra_headers = extra_headers or {}
         self.temperature = temperature
+        self.stream = stream
 
     def complete(
         self,
@@ -345,15 +450,18 @@ class OpenAICompatibleClient(_HTTPJSONClient):
             "tool_choice": "auto",
             "temperature": self.temperature,
         }
-        raw = self._post(
-            f"{self.base_url}/chat/completions",
-            payload,
-            {
-                "Authorization": f"Bearer {self.api_key}",
-                **self.extra_headers,
-            },
-            self.timeout,
-        )
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            **self.extra_headers,
+        }
+        url = f"{self.base_url}/chat/completions"
+        if self.stream:
+            payload["stream"] = True
+            raw = _assemble_openai_stream(
+                self._post_sse(url, payload, headers, self.timeout)
+            )
+        else:
+            raw = self._post(url, payload, headers, self.timeout)
         choice = raw["choices"][0]
         message = choice["message"]
         calls: list[ToolCall] = []
@@ -762,6 +870,7 @@ def client_from_environment(
     base_url: str | None,
     api_key_env: str,
     timeout_seconds: int | None = None,
+    stream: bool = False,
 ) -> ChatClient:
     api_key = os.environ.get(api_key_env)
     if not api_key:
@@ -776,6 +885,7 @@ def client_from_environment(
             model=model,
             base_url=base_url,
             api_key=api_key,
+            stream=stream,
             **kwargs,
         )
     if provider == "anthropic":

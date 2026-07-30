@@ -307,6 +307,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-response provider timeout; native reasoning calls may be long",
     )
     native_model_run.add_argument(
+        "--model-stream",
+        action="store_true",
+        help="use OpenAI-compatible SSE streaming to keep long responses alive",
+    )
+    native_model_run.add_argument(
         "--execution-control",
         action="store_true",
         help="supply the correct recovery scope to isolate tool execution",
@@ -480,6 +485,7 @@ def main() -> int:
             base_url=args.base_url,
             api_key_env=args.api_key_env,
             timeout_seconds=args.model_timeout_seconds,
+            stream=args.model_stream,
         )
         report = run_live_native_agent(
             client,

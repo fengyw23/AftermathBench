@@ -35,6 +35,11 @@ on:
         required: true
         default: "600"
         type: string
+      model_stream:
+        description: Use provider SSE streaming for long-response retries
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -66,12 +71,18 @@ jobs:
           requested_control="${{ inputs.execution_control }}"
           requested_variants="${{ inputs.variants }}"
           requested_timeout="${{ inputs.model_timeout_seconds }}"
+          requested_stream="${{ inputs.model_stream }}"
           test -n "$requested_model" || requested_model=glm-5.2
           test -n "$requested_repetitions" || requested_repetitions=1
           test -n "$requested_timeout" || requested_timeout=600
+          test -n "$requested_stream" || requested_stream=false
           case "$requested_timeout" in
             600|1200|1800) ;;
             *) echo "unsupported provider timeout: $requested_timeout" >&2; exit 2 ;;
+          esac
+          case "$requested_stream" in
+            true|false) ;;
+            *) echo "unsupported stream flag: $requested_stream" >&2; exit 2 ;;
           esac
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             if [ "$GITHUB_REF_NAME" = "interaction-model-control" ]; then
@@ -86,6 +97,7 @@ jobs:
           echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
           echo "VARIANT_SUBSET=$requested_variants" >> "$GITHUB_ENV"
           echo "MODEL_TIMEOUT_SECONDS=$requested_timeout" >> "$GITHUB_ENV"
+          echo "MODEL_STREAM=$requested_stream" >> "$GITHUB_ENV"
           python -m unittest discover -s tests -p 'test_kubernetes_interaction*.py' -v
           python -m unittest discover -s tests -p 'test_native_kubernetes_interaction_family.py' -v
 
@@ -156,8 +168,12 @@ jobs:
             mkdir -p "$run_dir"
             for variant in "${variants[@]}"; do
               control_flag=()
+              stream_flag=()
               if [ "$EXECUTION_CONTROL" = "true" ]; then
                 control_flag=(--execution-control)
+              fi
+              if [ "$MODEL_STREAM" = "true" ]; then
+                stream_flag=(--model-stream)
               fi
               model_completed=false
               for attempt in 1 2 3; do
@@ -178,7 +194,7 @@ jobs:
                     --prefix "$run_root/prefix.json" \
                     --failure-report "$run_dir/${variant}-failure.json" \
                     --model-timeout-seconds "$MODEL_TIMEOUT_SECONDS" \
-                    --max-turns 30 "${control_flag[@]}" \
+                    --max-turns 30 "${control_flag[@]}" "${stream_flag[@]}" \
                     --output "$run_dir/${variant}.json"; then
                   model_completed=true
                   break
