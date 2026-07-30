@@ -476,6 +476,12 @@ class ReleaseManifestTest(unittest.TestCase):
         for binding in manifest["scenario_bindings"]:
             scenario = root / str(binding["scenario_path"])
             self.assertNotIn(b"\r", scenario.read_bytes())
+            scenario_payload = json.loads(
+                scenario.read_text(encoding="utf-8")
+            )
+            for relative in scenario_payload["admission_artifacts"].values():
+                artifact = scenario.parent / str(relative)
+                self.assertNotIn(b"\r", artifact.read_bytes())
 
     def test_scenario_hash_drift_invalidates_manifest(self) -> None:
         raw = copy.deepcopy(
