@@ -6,6 +6,14 @@ from pathlib import Path
 from aftermath_bench.integrations.forgejo_publication_faults import (
     FORGEJO_PUBLICATION_VARIANTS,
 )
+from aftermath_bench.integrations.forgejo_publication_instance import (
+    ForgejoPublicationInstanceSpec,
+)
+from scripts.verify_forgejo_instance_novelty import (
+    find_overlaps,
+    novelty_scan_paths,
+    tracked_paths,
+)
 
 
 class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
@@ -19,7 +27,7 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         self.assertIn("forgejo-publication-public-dev", self.text)
         self.assertIn("workflow_dispatch:", self.text)
         self.assertIn(
-            "forgejo-release-publication-public-dev-002.json",
+            "public-dev-slot-002.json",
             self.text,
         )
         self.assertIn("--instance-id dev-002", self.text)
@@ -35,6 +43,24 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         self.assertIn(
             'cmp "$BLUEPRINT" "$RUN_ROOT/rendered-blueprint.json"',
             self.text,
+        )
+
+    def test_committed_workflow_does_not_leak_instance_identity(self) -> None:
+        root = Path.cwd()
+        instance_path = root / "data/instance_specs/public-dev-slot-002.json"
+        blueprint_path = (
+            root / "data/scenario_blueprints/public-dev-slot-002/scenario.json"
+        )
+        instance = ForgejoPublicationInstanceSpec.from_path(instance_path)
+        scan_paths = novelty_scan_paths(
+            tracked_paths(root),
+            instance_spec_path=instance_path,
+            instance=instance,
+            bound_blueprint_path=blueprint_path,
+        )
+        self.assertEqual(
+            find_overlaps(instance.as_dict(), scan_paths),
+            [],
         )
 
     def test_reset_and_boundary_evidence_bind_exact_state_bundles(self) -> None:
@@ -256,7 +282,7 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
                 variant,
                 Path(
                     "data/scenario_blueprints/"
-                    "forgejo-release-publication-public-dev-002/scenario.json"
+                    "public-dev-slot-002/scenario.json"
                 ).read_text(encoding="utf-8"),
             )
         self.assertIn("--expected-execution-control true", self.text)
