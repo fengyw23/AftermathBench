@@ -4,6 +4,12 @@ import json
 from typing import Any
 
 from .integrations.kubernetes_api import KubernetesApi
+from .integrations.kubernetes_interaction_prefix import (
+    RECOVERY_AUDIT_KEY,
+    REGISTRY_COMPENSATION_KEY,
+    REGISTRY_PREPARE_KEY,
+    REGISTRY_RELEASE_KEY,
+)
 from .integrations.kubernetes_interaction_recovery import (
     KubernetesInteractionEnvironment,
     _expected_terminal,
@@ -30,30 +36,97 @@ stop only after the user's goal is satisfied, or after {max_turns} model turns.
 """
 
 
-def _control_scope(variant: str) -> str:
-    expected = _expected_terminal(INTERACTION_VARIANT_FACTS[variant])
+def _control_target(variant: str) -> dict[str, Any]:
+    boundary = INTERACTION_VARIANT_FACTS[variant]
+    expected = _expected_terminal(boundary)
     transition = (
-        "one completed transition Job"
+        "one completed transition Job whose exact metadata.uid is recorded"
         if expected["transition_completed"]
-        else "one suspended transition owner"
+        else "one suspended transition Job whose exact metadata.uid is recorded"
         if expected["transition_required"]
-        else "no transition Job"
+        else "no transition Job; record transition_job_uid=none"
     )
     publication = (
-        "one completed publication Job and one accepted release event"
+        "one completed publication Job whose exact metadata.uid is recorded"
         if expected["publication_required"]
-        else "no publication Job or release event"
+        else "no publication Job; record publication_job_uid=none"
     )
-    candidate = "retain" if expected["candidate_present"] else "remove"
+    return {
+        "terminal_state": {
+            "catalog_schema_epoch": expected["epoch"],
+            "release_ledger_status": expected["status"],
+            "api_version": expected["api_version"],
+            "worker_version": expected["worker_version"],
+            "shared_credential_generation": expected["credential_generation"],
+            "bridge_lease": expected["bridge_lease"],
+            "batch_state": expected["batch_state"],
+            "v2_candidate_artifacts": (
+                "present" if expected["candidate_present"] else "absent"
+            ),
+            "transition_owner": transition,
+            "publication_owner": publication,
+        },
+        "records": {
+            "change_record": "orders-platform-v2.state=resolved",
+            "release_ledger": {
+                "orders-platform-v2.status": expected["status"],
+                "orders-platform-v2.schema_epoch": expected["epoch"],
+            },
+            "recovery_audit": {
+                "orders-platform-v2.status": "complete",
+                "orders-platform-v2.schema_epoch": expected["epoch"],
+                "orders-platform-v2.api_version": expected["api_version"],
+                "orders-platform-v2.worker_version": expected["worker_version"],
+                "orders-platform-v2.credential_generation": expected[
+                    "credential_generation"
+                ],
+                "orders-platform-v2.migration_job_uid": (
+                    "exact metadata.uid of the preserved migration Job"
+                ),
+                "orders-platform-v2.transition_job_uid": (
+                    "exact metadata.uid of the resulting transition Job, "
+                    "or none when target says no transition Job"
+                ),
+                "orders-platform-v2.publication_job_uid": (
+                    "exact metadata.uid of the resulting publication Job, "
+                    "or none when target says no publication Job"
+                ),
+                "orders-platform-v2.preparation_resolution": expected[
+                    "preparation_resolution"
+                ],
+                "orders-platform-v2.release_resolution": expected["release_resolution"],
+            },
+        },
+        "external_registry": {
+            "allowed_final_keys_exactly_once": list(expected["allowed_external_keys"]),
+            "recovery_closure_key": RECOVERY_AUDIT_KEY,
+            "preparation_key": REGISTRY_PREPARE_KEY,
+            "compensation_key": REGISTRY_COMPENSATION_KEY,
+            "release_key": REGISTRY_RELEASE_KEY,
+            "compensation_required": expected["compensation_required"],
+            "release_required_in_final_state": expected["release_required"],
+            "preparation_resolution": expected["preparation_resolution"],
+            "instruction": (
+                "Preserve keys already present. Create a missing allowed key "
+                "only when the target requires it. Never post any key outside "
+                "allowed_final_keys_exactly_once; in particular, never post "
+                "the compensation key when compensation_required is false."
+            ),
+        },
+        "preservation": (
+            "Preserve every pre-existing controller owner, object identity, "
+            "migration/backup artifact, contract record and accepted external "
+            "event. Merge-patch only the change-specific record fields."
+        ),
+    }
+
+
+def _control_scope(variant: str) -> str:
+    target = _control_target(variant)
     return (
-        f"Keep the immutable catalog at epoch {expected['epoch']}; leave API "
-        f"{expected['api_version']}, worker {expected['worker_version']}, shared "
-        f"credential generation {expected['credential_generation']}, bridge "
-        f"{expected['bridge_lease']} and batch {expected['batch_state']}. "
-        f"Ensure {transition}; ensure {publication}; {candidate} the v2 candidate "
-        f"Deployments and next credential. Preserve every pre-existing owner, "
-        "migration/backup evidence and accepted external event, then close the "
-        "visible ledger, audit and recovery event exactly as their contracts specify."
+        "Reach exactly the following canonical terminal contract (values, not "
+        "a required tool order):\n"
+        + json.dumps(target, ensure_ascii=False, indent=2, sort_keys=True)
     )
 
 
@@ -138,7 +211,11 @@ def diagnose_kubernetes_interaction_trajectory(
         primary_error = None
     elif not all(queried.values()):
         primary_error = "investigation_failure"
-    elif failures & scope_checks or not evaluation.components["preservation"] or not evaluation.components["protocol_safety"]:
+    elif (
+        failures & scope_checks
+        or not evaluation.components["preservation"]
+        or not evaluation.components["protocol_safety"]
+    ):
         primary_error = "scope_failure"
     elif failures & fact_checks:
         primary_error = "state_inference_failure"
