@@ -465,6 +465,18 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertEqual(report.observed["formal_verified_slot_count"], 0)
         self.assertEqual(report.observed["missing_formal_slot_count"], 36)
 
+    def test_manifest_bound_scenarios_have_cross_platform_lf_bytes(
+        self,
+    ) -> None:
+        root = repository_root()
+        manifest = load_release_manifest(default_release_manifest_path())
+        attributes = (root / ".gitattributes").read_text(encoding="utf-8")
+        self.assertIn("data/scenarios/**/*.json text eol=lf", attributes)
+        self.assertIn("data/release_manifest.json text eol=lf", attributes)
+        for binding in manifest["scenario_bindings"]:
+            scenario = root / str(binding["scenario_path"])
+            self.assertNotIn(b"\r", scenario.read_bytes())
+
     def test_scenario_hash_drift_invalidates_manifest(self) -> None:
         raw = copy.deepcopy(
             load_release_manifest(default_release_manifest_path())
