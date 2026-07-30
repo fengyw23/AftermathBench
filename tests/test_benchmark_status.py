@@ -12,7 +12,7 @@ class BenchmarkStatusTest(unittest.TestCase):
 
         self.assertEqual(report["planned"]["target_case_count"], 144)
         self.assertTrue(report["planned"]["matrix_valid"])
-        self.assertEqual(report["implemented"]["scenario_count"], 8)
+        self.assertEqual(report["implemented"]["scenario_count"], 9)
         self.assertEqual(
             report["implemented"]["formal_release_scenario_count"], 0
         )
@@ -48,6 +48,17 @@ class BenchmarkStatusTest(unittest.TestCase):
         )
         self.assertTrue(
             scenarios["forgejo-pr-release-dev-001"][
+                "runtime_execution_admitted"
+            ]
+        )
+        self.assertEqual(
+            scenarios["forgejo-release-publication-dev-002"][
+                "admitted_tier"
+            ],
+            "hard",
+        )
+        self.assertTrue(
+            scenarios["forgejo-release-publication-dev-002"][
                 "runtime_execution_admitted"
             ]
         )
