@@ -103,14 +103,22 @@ def _compact_capture(
 
     def delivery(role: str) -> dict[str, Any]:
         history = state[f"{role}_history"]
-        uuid = str(history[0]["uuid"])
+        uuid = next(
+            str(item["uuid"])
+            for item in history
+            if str(item["uuid"]) in external
+        )
+        native = next(
+            item for item in history if str(item["uuid"]) == uuid
+        )
         record = external[uuid]
         return {
             "uuid": uuid,
-            "status": history[0]["status"],
+            "status": native["status"],
             "external_key": record["key"],
             "attempt_count": record["attempt_count"],
             "release_tag": record["payload"]["release"]["tag_name"],
+            "history_count": len(history),
         }
 
     hooks = {

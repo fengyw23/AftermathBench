@@ -111,6 +111,40 @@ class ForgejoPublicationEvaluationTest(unittest.TestCase):
             result.checks["coordinator_effect_applied_once"]
         )
 
+    def test_one_failed_then_one_successful_native_replay_passes(self) -> None:
+        evidence = _evidence()
+        evidence["coordinator_history"] = [
+            {"uuid": "delivery-a-retry", "status": "succeeded"},
+            {"uuid": "delivery-a", "status": "failed"},
+        ]
+        evidence["external_deliveries"][0]["key"] = "delivery-a-retry"
+        result = evaluate_forgejo_publication_recovery(
+            evidence, prefix=_prefix()
+        )
+        self.assertTrue(result.passed, result.failures)
+
+    def test_unnecessary_replay_creates_a_second_effect_and_fails(
+        self,
+    ) -> None:
+        evidence = _evidence()
+        evidence["coordinator_history"].append(
+            {"uuid": "delivery-a-retry", "status": "succeeded"}
+        )
+        evidence["external_deliveries"].append(
+            {
+                "key": "delivery-a-retry",
+                "attempt_count": 1,
+                "payload": {"release": {"tag_name": "v2026.08.0"}},
+            }
+        )
+        result = evaluate_forgejo_publication_recovery(
+            evidence, prefix=_prefix()
+        )
+        self.assertFalse(result.passed)
+        self.assertFalse(
+            result.checks["coordinator_effect_applied_once"]
+        )
+
     def test_missing_or_wrong_asset_is_goal_failure(self) -> None:
         evidence = _evidence()
         evidence["target_release_assets"][1]["content_sha256"] = "wrong"

@@ -124,7 +124,10 @@ def evaluate_forgejo_publication_recovery(
             for key in keys
             if key in external_by_key
         ]
-        delivery_checks[f"{role}_history_is_unique"] = len(history) == 1
+        delivery_checks[f"{role}_history_chain_is_bounded"] = (
+            1 <= len(history) <= 2
+            and len(keys) == len(set(keys))
+        )
         delivery_checks[f"{role}_effect_applied_once"] = (
             len(matched) == 1
             and int(matched[0].get("attempt_count", 0)) == 1
