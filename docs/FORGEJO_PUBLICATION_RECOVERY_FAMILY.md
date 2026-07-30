@@ -2,12 +2,13 @@
 
 ## Status
 
-`forgejo-release-publication-dev-002` is a development family implemented
-against the pinned `forgejo-main` runtime. Its source-level implementation,
-closed tool schemas and deterministic evaluator are covered by local tests.
-Live container replay and strict hard admission are produced by
-`.github/workflows/forgejo-publication-runtime.yml`; the blueprint remains
-`unvalidated` until those artifacts are archived in `data/scenarios/`.
+`forgejo-release-publication-dev-002` is a hard-admitted development family
+implemented against the pinned `forgejo-main` runtime. The source-level
+implementation, closed tool schemas and deterministic evaluator are covered
+by tests. Native replay produced 21 successful prefix writes, eight passing
+reference recoveries, 30/30 replayed semantic relations and a maximum fixed
+policy pass rate of 2/8. The admitted scenario is archived under
+`data/scenarios/forgejo-release-publication-dev-002`.
 
 ## Recovery question
 

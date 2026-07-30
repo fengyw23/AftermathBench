@@ -1,11 +1,9 @@
 # AftermathBench
 
-> Current status: one native ERPNext hard development family runs on an
-> execution-admitted runtime; three Kubernetes development scenarios pass
-> structural hard admission on an execution-admitted runtime, while the newest
-> 13-state family still awaits its task-specific execution-control audit;
-> Forgejo is execution-admitted but its first scenario remains an easy pilot.
-> The strict 144-case cross-domain release is under construction. See
+> Current status: five hard development scenarios run on execution-admitted
+> ERPNext, Forgejo, and Kubernetes runtimes. Forgejo now includes both an easy
+> four-state pilot and a hard eight-state package-publication family; the
+> strict 144-case cross-domain release is still under construction. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
@@ -84,11 +82,17 @@ Job-identity contract revision, GLM-5.2 passes its supplied-scope control 4/4
 but the ordinary condition 3/4: it closes the failed migration correctly while
 leaving an unused candidate Deployment and Secret, so the matched group fails.
 
-The Forgejo release family has a real source-built runtime, native reset,
-fault boundaries and terminal checks, but a compact state tree solves its
-matched group. It is therefore retained as a pilot and is not counted as a
-hard family. AftermathBench does not yet claim a complete multi-domain
-benchmark release.
+The first Forgejo PR/merge/release family has a real source-built runtime,
+native reset, fault boundaries and terminal checks, but a compact state tree
+solves its matched group. It is therefore retained as an easy pilot. The
+second Forgejo package-publication family contains eight matched boundaries,
+two independently faultable downstream consumers, three manifest-bound
+attachments, a release milestone and protected unrelated work. Its reference
+recovery passes 8/8, all 30 semantic relations replay, and the strongest fixed
+policy passes only 2/8 with zero matched-group success. It is hard-admitted as
+a development family, not a formal release instance.
+
+AftermathBench does not yet claim a complete multi-domain benchmark release.
 
 ## Cross-model native results
 

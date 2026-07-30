@@ -62,8 +62,11 @@ promoted into the final native-runtime benchmark.
   replay evidence.
 - [x] Demonstrate that the first scenario is an easy pilot: a compact decision
   tree solves all four matched states.
-- [ ] Add a hard Forgejo family with at least two independently repairable
-  downstream branches and no family-wide fixed decision tree.
+- [x] Add a hard package-publication family with two independently repairable
+  downstream consumers, three independently repairable assets, and no
+  family-wide fixed decision tree.
+- [ ] Complete and archive its task-specific model execution control and
+  ordinary model condition.
 
 ## Phase 5 - Kubernetes interaction stress test (active)
 
@@ -96,7 +99,8 @@ evidence for production realism.
 - Reject task families solved by one fixed retry/no-retry heuristic.
 - Expand only through source-admitted runtimes.
 - Add ERPNext manufacturing-rework and multi-warehouse-transfer families.
-- Add a hard Forgejo publication or package-provenance family.
+- Add an independent hidden Forgejo instance and a second native family
+  outside release publication.
 - Freeze generic evidence, runtime, model-run, and archive schemas before
   generating release instances.
 
@@ -113,9 +117,9 @@ evidence for production realism.
 The planned portfolio remains 144 cases, but the repository is still
 development-only. At the latest machine-readable status checkpoint:
 
-- eight scenarios and 41 matched post-error states are implemented;
-- four scenarios pass structural hard admission;
-- all four structurally hard scenarios run on execution-admitted runtimes;
+- nine scenarios and 49 matched post-error states are implemented;
+- five scenarios and 33 matched states pass structural hard admission;
+- all five structurally hard scenarios run on execution-admitted runtimes;
 - no scenario belongs to a formal `public_dev` or `hidden_test` release split.
 
 These counts must be generated with `python -m aftermath_bench status`; they

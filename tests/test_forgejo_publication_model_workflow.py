@@ -18,6 +18,12 @@ class ForgejoPublicationModelWorkflowTests(unittest.TestCase):
         self.assertIn("glm-5.2", text)
         self.assertIn("forgejo-publication-model-control", text)
         self.assertIn("forgejo-publication-model-eval", text)
+        self.assertIn(
+            "data/scenarios/forgejo-release-publication-dev-002/"
+            "scenario.json",
+            text,
+        )
+        self.assertIn("validate-native-scenario", text)
         self.assertIn("--max-turns 25", text)
         self.assertIn("--expected-execution-control", text)
         for variant in FORGEJO_PUBLICATION_VARIANTS:

@@ -157,12 +157,28 @@ post-commit downstream-effect investigation failure rather than an interface
 failure. Sanitized raw trajectories and the independent post-hoc analysis are
 stored under `data/evidence/erpnext-glm52-final-valid-20260729`.
 
-## Coding/DevOps candidate
+## Coding/DevOps vertical slice
 
-Forgejo is the selected fully open candidate. The first source-backed task will
-be chosen from package publication, releases and attachments, Actions runs, or
-post-receive processing. Every coding workflow must include a durable effect
-beyond repository files.
+Forgejo is the selected fully open coding/DevOps runtime. The first
+PR/merge/release task remains an easy pilot because one compact decision tree
+solves all four states.
+
+`forgejo-release-publication-dev-002` is the first hard-admitted Forgejo
+development family. Its prefix contains 21 successful native writes. Eight
+matched boundaries hide whether the target Release exists, which of three
+manifest-approved attachments already exist, and whether either of two
+downstream receivers committed an effect despite a failed native delivery.
+The terminal evaluator additionally protects an unrelated Pull Request and
+issue, a prior Release and attachment, both hook configurations, and branch
+protection.
+
+The public-tool reference passes 8/8. The admission graph contains 26
+entities, 30 replayed relations across 19 relation types, dependency depth 6,
+six required boundary-query groups, four action branches, five distinct
+recovery signatures, and a minimum of four repair writes. Six fixed policies
+have zero matched-group success; the strongest passes 2/8. The model
+execution control and ordinary condition remain development experiments, not
+leaderboard results.
 
 ## Kubernetes constraint-interaction vertical slice
 
