@@ -32,6 +32,16 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
         self.assertIn("interaction-model-eval", self.text)
         self.assertIn("--expected-execution-control", self.text)
 
+    def test_full_control_run_enforces_the_scientific_gate(self) -> None:
+        self.assertIn('CONTROL_MIN_PASS_RATE: "0.8"', self.text)
+        self.assertIn(
+            'if [ "$EXECUTION_CONTROL" = "true" ] && '
+            '[ -z "$VARIANT_SUBSET" ]',
+            self.text,
+        )
+        self.assertIn('summary["task_pass_rate"]', self.text)
+        self.assertIn("observed < threshold", self.text)
+
     def test_all_thirteen_neutral_variants_are_declared(self) -> None:
         for index in range(1, 14):
             self.assertIn(f"state_{index:02d}", self.text)

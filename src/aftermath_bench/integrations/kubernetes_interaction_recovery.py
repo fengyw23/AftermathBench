@@ -38,7 +38,6 @@ from .kubernetes_migration_recovery import (
 )
 from .kubernetes_settlement_recovery import _complete, _find
 
-
 DEFERRED_SCOPES = frozenset(
     {
         "create_deferred_transition_owner",
@@ -47,9 +46,7 @@ DEFERRED_SCOPES = frozenset(
         "renew_bridge_and_create_transition_owner",
     }
 )
-TRANSITION_SCOPES = frozenset(
-    {"resume_worker_transition", "create_worker_transition"}
-)
+TRANSITION_SCOPES = frozenset({"resume_worker_transition", "create_worker_transition"})
 
 
 @dataclass(frozen=True)
@@ -64,26 +61,17 @@ class KubernetesInteractionEvaluation:
         return tuple(name for name, value in self.checks.items() if not value)
 
 
-def _active_version(
-    deployments: list[dict[str, Any]], component: str
-) -> str:
+def _active_version(deployments: list[dict[str, Any]], component: str) -> str:
     versions = [
         version
         for version in ("v1", "v2")
-        if _replicas(
-            _find(deployments, f"orders-{component}-{version}") or {}
-        )
-        > 0
+        if _replicas(_find(deployments, f"orders-{component}-{version}") or {}) > 0
     ]
     return versions[0] if len(versions) == 1 else "invalid"
 
 
 def _job_uid(jobs: list[dict[str, Any]]) -> str:
-    return (
-        str(jobs[0].get("metadata", {}).get("uid", ""))
-        if len(jobs) == 1
-        else "none"
-    )
+    return str(jobs[0].get("metadata", {}).get("uid", "")) if len(jobs) == 1 else "none"
 
 
 def _job_completed(jobs: list[dict[str, Any]]) -> bool:
@@ -100,6 +88,29 @@ def _expected_terminal(boundary: dict[str, Any]) -> dict[str, Any]:
     aborted = epoch == "1"
     deferred = scope in DEFERRED_SCOPES
     active = not aborted and not deferred
+    compensation_required = aborted and bool(boundary.get("preparation_present"))
+    release_required = active
+    boundary_keys = set(map(str, boundary.get("external_keys", ())))
+    if not boundary_keys:
+        boundary_keys = {REGISTRY_STABLE_KEY}
+        if bool(boundary.get("preparation_present")):
+            boundary_keys.add(REGISTRY_PREPARE_KEY)
+        if bool(boundary.get("release_accepted")):
+            boundary_keys.add(REGISTRY_RELEASE_KEY)
+    required_new_keys = {RECOVERY_AUDIT_KEY}
+    if compensation_required:
+        required_new_keys.add(REGISTRY_COMPENSATION_KEY)
+    if release_required:
+        required_new_keys.add(REGISTRY_RELEASE_KEY)
+    final_external_keys = boundary_keys | required_new_keys
+    preparation_resolution = (
+        "compensated"
+        if compensation_required
+        else "released"
+        if bool(boundary.get("preparation_present"))
+        and REGISTRY_RELEASE_KEY in final_external_keys
+        else "not-created"
+    )
     return {
         "scope": scope,
         "epoch": epoch,
@@ -107,14 +118,29 @@ def _expected_terminal(boundary: dict[str, Any]) -> dict[str, Any]:
         "api_version": "v1" if aborted else "v2",
         "worker_version": "v1" if aborted or deferred else "v2",
         "credential_generation": "1" if aborted or deferred else "2",
-        "bridge_lease": "active" if deferred else "retired" if active else boundary["bridge_lease"],
-        "batch_state": "inflight" if deferred else "drained" if active else boundary["batch_state"],
+        "bridge_lease": "active"
+        if deferred
+        else "retired"
+        if active
+        else boundary["bridge_lease"],
+        "batch_state": "inflight"
+        if deferred
+        else "drained"
+        if active
+        else boundary["batch_state"],
         "transition_required": deferred or scope in TRANSITION_SCOPES,
         "transition_completed": scope in TRANSITION_SCOPES,
         "publication_required": active,
-        "release_required": active,
+        "release_required": release_required,
         "candidate_present": not aborted,
-        "release_resolution": "not-applicable" if aborted else "deferred" if deferred else "present",
+        "release_resolution": "not-applicable"
+        if aborted
+        else "deferred"
+        if deferred
+        else "present",
+        "compensation_required": compensation_required,
+        "preparation_resolution": preparation_resolution,
+        "allowed_external_keys": tuple(sorted(final_external_keys)),
     }
 
 
@@ -182,7 +208,11 @@ class KubernetesInteractionEnvironment(KubernetesMigrationEnvironment):
             name == "database-catalog" or name in CONTRACT_CONFIGMAPS
         ):
             self._protocol_violations.append(
-                {"type": "immutable_record_modified", "resource": resource, "name": name}
+                {
+                    "type": "immutable_record_modified",
+                    "resource": resource,
+                    "name": name,
+                }
             )
         return self.api.patch(
             resource,
@@ -279,15 +309,7 @@ def evaluate_kubernetes_interaction_recovery(
     ]
     external = evidence.get("external_deliveries", [])
     actual_keys = {str(item.get("key")) for item in external if item.get("key")}
-    boundary_keys = set(map(str, boundary.get("external_keys", ())))
-    required_new = {RECOVERY_AUDIT_KEY}
-    if str(boundary.get("schema_epoch")) == "1" and bool(
-        boundary.get("preparation_present")
-    ):
-        required_new.add(REGISTRY_COMPENSATION_KEY)
-    if expected["release_required"]:
-        required_new.add(REGISTRY_RELEASE_KEY)
-    allowed_keys = boundary_keys | required_new
+    allowed_keys = set(expected["allowed_external_keys"])
 
     active_api = _active_version(deployments, "api")
     active_worker = _active_version(deployments, "worker")
@@ -305,7 +327,8 @@ def evaluate_kubernetes_interaction_recovery(
         and next_credential is not None
     )
     goal_checks = {
-        "catalog_preserved": catalog.get("data", {}) == boundary.get("catalog_data", {}),
+        "catalog_preserved": catalog.get("data", {})
+        == boundary.get("catalog_data", {}),
         "api_consumer_matches_scope": active_api == expected["api_version"],
         "api_service_matches_consumer": service_version == expected["api_version"],
         "api_backend_available": _available(
@@ -356,13 +379,7 @@ def evaluate_kubernetes_interaction_recovery(
             "publication_job_uid"
         )
 
-    preparation_resolution = (
-        "compensated"
-        if REGISTRY_COMPENSATION_KEY in actual_keys
-        else "released"
-        if bool(boundary.get("preparation_present")) and REGISTRY_RELEASE_KEY in actual_keys
-        else "not-created"
-    )
+    preparation_resolution = expected["preparation_resolution"]
     audit_data = audit.get("data", {})
     ledger_data = ledger.get("data", {})
     closure = _delivery(evidence, RECOVERY_AUDIT_KEY)
@@ -380,8 +397,10 @@ def evaluate_kubernetes_interaction_recovery(
         "audit_records_observed_facts": (
             audit_data.get("orders-platform-v2.status") == "complete"
             and audit_data.get("orders-platform-v2.schema_epoch") == expected["epoch"]
-            and audit_data.get("orders-platform-v2.api_version") == expected["api_version"]
-            and audit_data.get("orders-platform-v2.worker_version") == expected["worker_version"]
+            and audit_data.get("orders-platform-v2.api_version")
+            == expected["api_version"]
+            and audit_data.get("orders-platform-v2.worker_version")
+            == expected["worker_version"]
             and audit_data.get("orders-platform-v2.credential_generation")
             == expected["credential_generation"]
             and audit_data.get("orders-platform-v2.migration_job_uid")
@@ -405,7 +424,8 @@ def evaluate_kubernetes_interaction_recovery(
             == expected["worker_version"]
             and closure.get("payload", {}).get("credential_generation")
             == expected["credential_generation"]
-            and closure.get("payload", {}).get("migration_job_uid") == _job_uid(migration)
+            and closure.get("payload", {}).get("migration_job_uid")
+            == _job_uid(migration)
             and closure.get("payload", {}).get("transition_job_uid") == transition_uid
             and closure.get("payload", {}).get("publication_job_uid") == publication_uid
         ),
@@ -413,13 +433,14 @@ def evaluate_kubernetes_interaction_recovery(
             compensation.get("attempt_count") == 1
             and compensation.get("payload", {}).get("compensates")
             == REGISTRY_PREPARE_KEY
-            if REGISTRY_COMPENSATION_KEY in required_new
+            if expected["compensation_required"]
             else not compensation
         ),
         "release_obligation_closed": (
             release.get("attempt_count") == 1
             and release.get("payload", {}).get("schema_epoch") == "2"
-            and release.get("payload", {}).get("migration_job_uid") == _job_uid(migration)
+            and release.get("payload", {}).get("migration_job_uid")
+            == _job_uid(migration)
             and release.get("payload", {}).get("publication_job_uid") == publication_uid
             if expected["release_required"]
             else not release
@@ -445,7 +466,9 @@ def evaluate_kubernetes_interaction_recovery(
         "stable_consumer_identity_preserved": (
             str((_find(deployments, API_V1) or {}).get("metadata", {}).get("uid", ""))
             == boundary.get("api_v1_uid")
-            and str((_find(deployments, WORKER_V1) or {}).get("metadata", {}).get("uid", ""))
+            and str(
+                (_find(deployments, WORKER_V1) or {}).get("metadata", {}).get("uid", "")
+            )
             == boundary.get("worker_v1_uid")
         ),
         "shared_identity_preserved": (
@@ -575,6 +598,7 @@ def reference_kubernetes_interaction_recovery(
         if not transition:
             call("create_object", manifest=transition_job_manifest(suspend=True))
     else:
+
         def activate(component: str, version: str) -> None:
             target = f"orders-{component}-{version}"
             other = f"orders-{component}-{'v1' if version == 'v2' else 'v2'}"
@@ -628,7 +652,15 @@ def reference_kubernetes_interaction_recovery(
                 "patch_object",
                 resource="service",
                 name=API_SERVICE,
-                patch={"spec": {"selector": {"app": "orders", "component": "api", "version": "v2"}}},
+                patch={
+                    "spec": {
+                        "selector": {
+                            "app": "orders",
+                            "component": "api",
+                            "version": "v2",
+                        }
+                    }
+                },
             )
         credential = call("get_object", resource="secret", name=CURRENT_CREDENTIAL)
         if (
@@ -714,13 +746,7 @@ def reference_kubernetes_interaction_recovery(
     ]
     transition_uid = _job_uid(transition)
     publication_uid = _job_uid(publication)
-    preparation_resolution = (
-        "compensated"
-        if REGISTRY_COMPENSATION_KEY in names
-        else "released"
-        if REGISTRY_PREPARE_KEY in names and REGISTRY_RELEASE_KEY in names
-        else "not-created"
-    )
+    preparation_resolution = expected["preparation_resolution"]
     call(
         "patch_object",
         resource="configmap",
