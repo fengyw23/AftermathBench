@@ -5,6 +5,7 @@ import json
 
 from .admission import validate_task
 from .baselines import run_itsm_baselines, run_release_baselines
+from .benchmark_status import build_benchmark_status
 from .erpnext_model_runner import run_live_erpnext_agent
 from .evaluator import evaluate
 from .integrations.enterprise_ops_assets import fetch_enterpriseops_archive
@@ -194,6 +195,10 @@ def build_parser() -> argparse.ArgumentParser:
         "validate-runtimes",
         help="audit open-source and execution admission for every runtime",
     )
+    subparsers.add_parser(
+        "status",
+        help="report the evidence-derived implemented/planned release boundary",
+    )
     native_validation = subparsers.add_parser(
         "validate-native-scenario",
         help="validate replay-derived native scenario difficulty",
@@ -359,6 +364,9 @@ def main() -> int:
         return _validate()
     if args.command == "validate-runtimes":
         return _validate_runtimes()
+    if args.command == "status":
+        print(json.dumps(build_benchmark_status(), indent=2))
+        return 0
     if args.command == "validate-native-scenario":
         return _validate_native_scenarios(args.scenario)
     if args.command == "baselines":

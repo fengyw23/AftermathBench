@@ -115,6 +115,7 @@ Python 3.12 or newer is required.
 ```bash
 python -m unittest discover -s tests -v
 python -m aftermath_bench validate
+python -m aftermath_bench status
 python -m aftermath_bench validate-runtimes
 python -m aftermath_bench validate-native-scenario --help
 python -m aftermath_bench demo --all
@@ -132,6 +133,7 @@ When running directly from a checkout without installing the package:
 ```bash
 set PYTHONPATH=src
 python -m aftermath_bench validate
+python -m aftermath_bench status
 python -m aftermath_bench validate-runtimes
 python -m aftermath_bench validate-native-scenario --help
 ```
@@ -182,3 +184,9 @@ The substrate decision and source evidence are documented in
 The native hard-task recipe and experiment audit are documented in
 [Hard Task Construction](docs/HARD_TASK_CONSTRUCTION.md) and
 [GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md).
+
+`python -m aftermath_bench status` is the machine-derived source of truth for
+the boundary between the 144-case target matrix and locally implemented
+scenarios. In particular, a replay-admitted development scenario is not
+reported as a formal release case unless it also uses an execution-admitted
+runtime and belongs to a `public_dev` or `hidden_test` split.
