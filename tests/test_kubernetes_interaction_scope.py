@@ -10,10 +10,20 @@ from aftermath_bench.integrations.kubernetes_interaction_scope import (
     derive_interaction_scope,
     interaction_projection_report,
 )
+from aftermath_bench.integrations.kubernetes_interaction_recovery import (
+    _scalar_text,
+)
 from aftermath_bench.schema import repository_root
 
 
 class KubernetesInteractionScopeTest(unittest.TestCase):
+    def test_external_contract_scalars_do_not_hide_json_type_constraints(
+        self,
+    ) -> None:
+        self.assertEqual(_scalar_text(2), "2")
+        self.assertEqual(_scalar_text("2"), "2")
+        self.assertEqual(_scalar_text(True), "true")
+
     def test_blueprint_matches_implemented_matrix_and_projection_gate(self) -> None:
         path = (
             repository_root()

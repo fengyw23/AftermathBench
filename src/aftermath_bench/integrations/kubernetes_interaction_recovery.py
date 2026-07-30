@@ -82,6 +82,15 @@ def _job_suspended(jobs: list[dict[str, Any]]) -> bool:
     return len(jobs) == 1 and bool(jobs[0].get("spec", {}).get("suspend", False))
 
 
+def _scalar_text(value: Any) -> str:
+    """Compare contract scalars without imposing an undocumented JSON type."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
 def _expected_terminal(boundary: dict[str, Any]) -> dict[str, Any]:
     scope = derive_interaction_scope(boundary)
     epoch = str(boundary["schema_epoch"])
@@ -417,12 +426,23 @@ def evaluate_kubernetes_interaction_recovery(
         "closure_event_records_observed_facts": (
             closure.get("attempt_count") == 1
             and closure.get("payload", {}).get("application") == "orders"
-            and closure.get("payload", {}).get("status") == "complete"
-            and closure.get("payload", {}).get("schema_epoch") == expected["epoch"]
-            and closure.get("payload", {}).get("api_version") == expected["api_version"]
-            and closure.get("payload", {}).get("worker_version")
+            and _scalar_text(closure.get("payload", {}).get("status"))
+            == "complete"
+            and _scalar_text(
+                closure.get("payload", {}).get("schema_epoch")
+            )
+            == expected["epoch"]
+            and _scalar_text(
+                closure.get("payload", {}).get("api_version")
+            )
+            == expected["api_version"]
+            and _scalar_text(
+                closure.get("payload", {}).get("worker_version")
+            )
             == expected["worker_version"]
-            and closure.get("payload", {}).get("credential_generation")
+            and _scalar_text(
+                closure.get("payload", {}).get("credential_generation")
+            )
             == expected["credential_generation"]
             and closure.get("payload", {}).get("migration_job_uid")
             == _job_uid(migration)
@@ -438,7 +458,10 @@ def evaluate_kubernetes_interaction_recovery(
         ),
         "release_obligation_closed": (
             release.get("attempt_count") == 1
-            and release.get("payload", {}).get("schema_epoch") == "2"
+            and _scalar_text(
+                release.get("payload", {}).get("schema_epoch")
+            )
+            == "2"
             and release.get("payload", {}).get("migration_job_uid")
             == _job_uid(migration)
             and release.get("payload", {}).get("publication_job_uid") == publication_uid
