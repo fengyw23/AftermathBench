@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -70,6 +71,36 @@ class ForgejoPublicationPrefixBuilder:
             }
         )
         return result
+
+    def _wait_for_pull_mergeable(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+        *,
+        attempts: int = 30,
+        interval_seconds: float = 0.5,
+    ) -> dict[str, Any]:
+        """Wait for Forgejo's asynchronous pull-request patch check.
+
+        A newly created pull request is initially reported as non-mergeable
+        while Forgejo prepares and tests its merge patch.  Calling the merge
+        endpoint during that native transition returns HTTP 405 with
+        ``Please try again later``.  Prefix construction must wait for the
+        authoritative PR state instead of relying on runner speed.
+        """
+
+        last: dict[str, Any] = {}
+        for attempt in range(attempts):
+            last = self.client.get_pull_request(owner, repository, index)
+            if bool(last.get("mergeable")):
+                return last
+            if attempt + 1 < attempts:
+                time.sleep(interval_seconds)
+        raise RuntimeError(
+            "Forgejo pull request did not become mergeable within "
+            f"{attempts} authoritative reads: {last}"
+        )
 
     @classmethod
     def _asset_sources(cls) -> tuple[dict[str, str], ...]:
@@ -351,6 +382,11 @@ class ForgejoPublicationPrefixBuilder:
                 target_url=self.PROVENANCE_TARGET,
                 events=["release"],
             ),
+        )
+        self._wait_for_pull_mergeable(
+            owner,
+            repository,
+            int(pull["number"]),
         )
         self._record(
             "merge_pull_request",
