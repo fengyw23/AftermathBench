@@ -84,12 +84,17 @@ failures.
 ## Current release boundary
 
 The current repository has one ERPNext sales-return development scenario that
-passes the current replay-derived structural hard gate. Its execution-control
-and hidden-test release gates are not yet complete. The earlier ERPNext
-partial-return development/holdout pair remains valuable historical model
-evidence, but is classified as `candidate` by the current four-mutation
-threshold. Kubernetes hard-admitted scenarios remain development evidence
-until their runtime execution admission and model controls are complete.
+passes the replay-derived structural hard gate and a four-state explicit-scope
+execution control. It is still a consumed development scenario, not a public
+or hidden release instance. The earlier ERPNext partial-return
+development/holdout pair remains valuable historical model evidence, but is
+classified as `candidate` by the current four-mutation threshold. The
+Kubernetes runtime is execution-admitted from archived source-build, reset,
+boundary, and reference-recovery evidence. Its hard-admitted scenarios
+nevertheless remain development evidence until their task-specific controls
+and model experiments are complete. Forgejo has an execution-admitted runtime,
+but its first replay-derived scenario is retained as an easy pilot because a
+compact decision tree solves all matched states.
 
 No implemented scenario currently belongs to a formal `public_dev` or
 `hidden_test` release split. The 144-case matrix is a target design, not a

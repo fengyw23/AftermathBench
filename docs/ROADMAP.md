@@ -69,12 +69,14 @@ promoted into the final native-runtime benchmark.
 
 - [x] Build source-audited native Kubernetes state, query, mutation, and
   evaluator layers.
+- [x] Admit the Kubernetes runtime from archived source-build, reset, boundary,
+  and reference-recovery evidence.
 - [x] Construct a 13-state constraint-interaction family with distinct
   boundary-relative recovery directions.
 - [x] Reject an invalid first execution control whose target omitted the exact
   external-event envelope.
 - [ ] Complete and audit the corrected execution control.
-- [ ] Admit the Kubernetes runtime only if the corrected control passes at
+- [ ] Accept the 13-state task-specific execution control only if it passes at
   least 80% with zero infrastructure and interface failures.
 - [ ] Run the ordinary condition only after that gate passes.
 
@@ -109,8 +111,7 @@ development-only. At the latest machine-readable status checkpoint:
 
 - eight scenarios and 41 matched post-error states are implemented;
 - four scenarios pass structural hard admission;
-- only the ERPNext sales-return hard scenario also runs on an
-  execution-admitted runtime;
+- all four structurally hard scenarios run on execution-admitted runtimes;
 - no scenario belongs to a formal `public_dev` or `hidden_test` release split.
 
 These counts must be generated with `python -m aftermath_bench status`; they

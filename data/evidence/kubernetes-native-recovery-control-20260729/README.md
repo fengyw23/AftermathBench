@@ -27,3 +27,9 @@ family as a useful native easy/candidate control rather than a hard task.
 `baselines/summary.json` records the deterministic rejection.
 
 The archive contains no kubeconfig, cluster credential or runtime log.
+
+`admission.json` binds the four boundary/reference pairs, source-verification
+report, reset-verification report, workflow run, and source commit with
+SHA-256 hashes. This evidence admits the Kubernetes runtime itself. It does not
+promote the easy rollout family or any later development scenario into a
+formal benchmark release split.

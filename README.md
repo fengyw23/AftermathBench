@@ -1,8 +1,11 @@
 # AftermathBench
 
-> Current status: one native ERPNext hard family and one hard-admitted
-> Kubernetes development family are executable; Forgejo remains a native
-> pilot. The strict 144-case cross-domain release is under construction. See
+> Current status: one native ERPNext hard development family runs on an
+> execution-admitted runtime; three Kubernetes development scenarios pass
+> structural hard admission on an execution-admitted runtime, while the newest
+> 13-state family still awaits its task-specific execution-control audit;
+> Forgejo is execution-admitted but its first scenario remains an easy pilot.
+> The strict 144-case cross-domain release is under construction. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,

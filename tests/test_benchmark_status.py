@@ -37,7 +37,7 @@ class BenchmarkStatusTest(unittest.TestCase):
             scenarios["erpnext-partial-return-dev-001"]["admitted_tier"],
             "candidate",
         )
-        self.assertFalse(
+        self.assertTrue(
             scenarios["k8s-constraint-interactions-dev-005"][
                 "runtime_execution_admitted"
             ]

@@ -54,6 +54,19 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertTrue(report.execution_admitted)
         self.assertFalse(report.failures)
 
+    def test_kubernetes_passes_source_and_execution_gates(self) -> None:
+        report = next(
+            validate_runtime_manifest(load_runtime_manifest(path))
+            for path in runtime_manifest_paths()
+            if path.parent.name == "kubernetes-v1.34"
+        )
+        self.assertTrue(report.source_audit_passed)
+        self.assertTrue(report.execution_admitted)
+        self.assertTrue(
+            report.execution_checks["admission_evidence_recorded"]
+        )
+        self.assertFalse(report.failures)
+
     def test_erpnext_admission_manifest_records_all_four_reports(self) -> None:
         path = (
             repository_root()
@@ -124,6 +137,35 @@ class RuntimeGateTest(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(reference.read_bytes()).hexdigest(),
                 report["reference_sha256"],
+            )
+
+    def test_kubernetes_admission_manifest_is_hash_verified(self) -> None:
+        root = (
+            repository_root()
+            / "data"
+            / "evidence"
+            / "kubernetes-native-recovery-control-20260729"
+        )
+        evidence = json.loads(
+            (root / "admission.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["runtime_id"], "kubernetes-v1.34")
+        self.assertFalse(evidence["credentials_present"])
+        self.assertTrue(evidence["source_build"]["kind_built_from_source"])
+        self.assertEqual(len(evidence["reports"]), 4)
+        for report in evidence["reports"]:
+            self.assertTrue(report["boundary_validation_passed"])
+            self.assertTrue(report["reference_recovery_passed"])
+            for kind in ("boundary", "reference"):
+                path = root / report[f"{kind}_file"]
+                self.assertEqual(
+                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                    report[f"{kind}_sha256"],
+                )
+        for relative, expected_hash in evidence["supporting_files"].items():
+            self.assertEqual(
+                hashlib.sha256((root / relative).read_bytes()).hexdigest(),
+                expected_hash,
             )
 
 
