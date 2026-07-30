@@ -83,7 +83,15 @@ failures.
 
 ## Current release boundary
 
-The current native result is one ERPNext procurement-return family with a
-development instance and a pre-model-frozen holdout instance. It establishes
-an executable hard-task construction method; it is not yet a multi-domain
-benchmark release.
+The current repository has one ERPNext sales-return development scenario that
+passes the current replay-derived structural hard gate. Its execution-control
+and hidden-test release gates are not yet complete. The earlier ERPNext
+partial-return development/holdout pair remains valuable historical model
+evidence, but is classified as `candidate` by the current four-mutation
+threshold. Kubernetes hard-admitted scenarios remain development evidence
+until their runtime execution admission and model controls are complete.
+
+No implemented scenario currently belongs to a formal `public_dev` or
+`hidden_test` release split. The 144-case matrix is a target design, not a
+released dataset. `python -m aftermath_bench status` derives this boundary
+directly from scenario admissions and runtime manifests.

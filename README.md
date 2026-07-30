@@ -52,14 +52,21 @@ Forgejo and Kubernetes/kind runtimes are also executable development
 substrates; they are admitted independently rather than counted merely because
 their services run.
 
-Two native task levels are retained:
+The current ERPNext scenarios have three distinct statuses:
 
 - `erpnext-procurement-payment-001` is the frozen easy pilot;
-- `erpnext-partial-return-{dev,holdout}-001` is the hard vertical slice for
-  partial return, replacement procurement, supplier credit, shared payment,
-  stock/accounting consistency, and exactly-once pickup delivery.
+- `erpnext-partial-return-{dev,holdout}-001` is the historical challenge used
+  for the published cross-model experiment. Under the current stricter gate it
+  is a `candidate`, because its shortest valid recovery has three rather than
+  four mutations;
+- `erpnext-sales-return-dev-001` is the current structurally hard-admitted
+  development family for
+  partial customer return, replacement fulfillment, credit-note
+  reconciliation, a shared customer payment, stock/accounting consistency,
+  and exactly-once pickup delivery.
 
-The hard family has four matched hidden transition states behind the same
+The historical partial-return challenge has four matched hidden transition
+states behind the same
 connection-loss observation. Its complexity is derived from replay artifacts,
 its reference recovery passes all variants, seven fixed heuristics have zero
 matched-group success, and the holdout scenario and prefix were frozen before
@@ -99,9 +106,10 @@ an invalid direct filter, received an explicit tool error, and then created a
 new invoice anyway.
 
 The replayed reference recovery and explicit-scope execution control both pass
-all four variants. The cross-model result therefore isolates a reproducible
+all four variants. This historical cross-model result therefore isolates a reproducible
 post-commit downstream-effect investigation failure rather than inability to
-execute the tools. Valid experiment runs:
+execute the tools, but it is not counted as a current hard-split result. Valid
+experiment runs:
 
 - [GLM-5.2 `30407901921`](https://github.com/fengyw23/AftermathBench/actions/runs/30407901921);
 - [DeepSeek-V4-Pro `30415045805`](https://github.com/fengyw23/AftermathBench/actions/runs/30415045805).
