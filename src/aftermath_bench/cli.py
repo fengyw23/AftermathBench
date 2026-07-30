@@ -334,6 +334,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="supply the correct recovery scope to isolate tool execution",
     )
+    native_model_run.add_argument(
+        "--hidden-freeze",
+        help=(
+            "private freeze attestation; required when the scenario split is "
+            "hidden_test"
+        ),
+    )
+    native_model_run.add_argument(
+        "--hidden-usage-ledger",
+        help=(
+            "hash-chained usage ledger; required when the scenario split is "
+            "hidden_test"
+        ),
+    )
+    native_model_run.add_argument(
+        "--hidden-evaluation-id",
+        help=(
+            "stable identifier shared by every case in one hidden evaluation"
+        ),
+    )
+    native_model_run.add_argument(
+        "--hidden-finalize",
+        action="store_true",
+        help="append consumed after the final case in a hidden evaluation",
+    )
     native_model_run.add_argument("--output", required=True)
     native_model_run.add_argument(
         "--erpnext-base-url",
@@ -537,6 +562,10 @@ def main() -> int:
             output_path=args.output,
             erpnext_base_url=args.erpnext_base_url,
             container_cli=args.container_cli,
+            hidden_freeze_path=args.hidden_freeze,
+            hidden_usage_ledger_path=args.hidden_usage_ledger,
+            hidden_evaluation_id=args.hidden_evaluation_id,
+            hidden_finalize=args.hidden_finalize,
         )
         print(json.dumps(
             {

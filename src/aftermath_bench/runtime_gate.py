@@ -65,6 +65,92 @@ def _report_passed(
     )
 
 
+_COMBINED_PHASE_FIELDS = {
+    "boundary": (
+        "boundary_file",
+        "boundary_sha256",
+        "boundary_validation_passed",
+    ),
+    "reference": (
+        "reference_file",
+        "reference_sha256",
+        "reference_recovery_passed",
+    ),
+}
+_STANDALONE_PHASE_FIELDS = {
+    "boundary": ("file", "sha256", "boundary_validation_passed"),
+    "reference": ("file", "sha256", "passed"),
+}
+
+
+def _manifest_phase_contract(
+    manifest: dict[str, Any],
+    phase: str,
+) -> tuple[str, str, str, str] | None:
+    if phase not in _COMBINED_PHASE_FIELDS:
+        return None
+    contract = manifest.get("evidence_contract")
+    if not isinstance(contract, dict):
+        return None
+    scenario_id = contract.get("scenario_id")
+    phases = contract.get("phases")
+    if (
+        contract.get("schema_version") != "1.0"
+        or not isinstance(scenario_id, str)
+        or not scenario_id
+        or not isinstance(phases, dict)
+        or phase not in phases
+    ):
+        return None
+    declaration = phases[phase]
+    if not isinstance(declaration, dict):
+        return None
+    fields = (
+        declaration.get("file_field"),
+        declaration.get("sha256_field"),
+        declaration.get("pass_field"),
+    )
+    allowed = [_COMBINED_PHASE_FIELDS[phase]]
+    if set(phases) == {phase}:
+        allowed.append(_STANDALONE_PHASE_FIELDS[phase])
+    if not any(fields == candidate for candidate in allowed):
+        return None
+    return scenario_id, *fields
+
+
+def _payload_contract_matches(
+    payload: dict[str, Any],
+    *,
+    scenario_id: str,
+    variant_id: str,
+    phase: str,
+) -> bool:
+    if (
+        payload.get("scenario_id") != scenario_id
+        or payload.get("variant") != variant_id
+    ):
+        return False
+    if phase == "boundary":
+        return (
+            payload.get("passed") is True
+            and isinstance(payload.get("surface_result"), str)
+            and bool(payload["surface_result"])
+            and isinstance(payload.get("checks"), dict)
+            and bool(payload["checks"])
+        )
+    if phase == "reference":
+        evaluation = payload.get("evaluation")
+        return (
+            isinstance(payload.get("control"), str)
+            and bool(payload["control"])
+            and isinstance(payload.get("reference_trace"), list)
+            and bool(payload["reference_trace"])
+            and isinstance(evaluation, dict)
+            and evaluation.get("passed") is True
+        )
+    return False
+
+
 def _evidence_manifest_consistent(
     path: Path | None,
     *,
@@ -79,6 +165,8 @@ def _evidence_manifest_consistent(
         manifest = load_json_strict(path)
     except (OSError, ValueError, json.JSONDecodeError):
         return False
+    if not isinstance(manifest, dict):
+        return False
     reports = manifest.get("reports", ())
     if not isinstance(reports, list) or len(reports) < 4:
         return False
@@ -91,28 +179,49 @@ def _evidence_manifest_consistent(
         len(variants) != len(reports)
         or not all(variants)
         or len(variants) != len(set(variants))
+        or not all(isinstance(report, dict) for report in reports)
     ):
         return False
 
+    selected_contract = _manifest_phase_contract(manifest, phase)
+    if selected_contract is None:
+        return False
+    scenario_id, file_field, sha256_field, pass_field = selected_contract
+
+    phase_paths: dict[str, tuple[str, ...]] = {}
+    evidence_contract = manifest["evidence_contract"]
+    for declared_phase in evidence_contract["phases"]:
+        phase_contract = _manifest_phase_contract(manifest, declared_phase)
+        if phase_contract is None:
+            return False
+        _, declared_file_field, _, _ = phase_contract
+        paths = tuple(
+            str(report.get(declared_file_field, ""))
+            for report in reports
+        )
+        if (
+            not all(paths)
+            or len(paths) != len(set(paths))
+        ):
+            return False
+        phase_paths[declared_phase] = paths
+    all_paths = tuple(
+        relative
+        for paths in phase_paths.values()
+        for relative in paths
+    )
+    if len(all_paths) != len(set(all_paths)):
+        return False
+
     def report_file_is_verified(report: dict[str, Any]) -> bool:
-        if phase == "boundary":
-            passed = report.get("boundary_validation_passed") is True
-            relative = report.get("boundary_file", report.get("file"))
-            expected_sha = report.get(
-                "boundary_sha256",
-                report.get("sha256"),
-            )
-        elif phase == "reference":
-            passed = (
-                report.get("reference_recovery_passed") is True
-                or report.get("passed") is True
-            )
-            relative = report.get("reference_file", report.get("file"))
-            expected_sha = report.get(
-                "reference_sha256",
-                report.get("sha256"),
-            )
-        else:
+        passed = report.get(pass_field) is True
+        relative = report.get(file_field)
+        expected_sha = report.get(sha256_field)
+        explicit_phase_pass_field = _COMBINED_PHASE_FIELDS[phase][2]
+        if (
+            explicit_phase_pass_field in report
+            and report.get(explicit_phase_pass_field) is not True
+        ):
             return False
         if (
             not passed
@@ -132,6 +241,17 @@ def _evidence_manifest_consistent(
         except (OSError, ValueError):
             return False
         if file_sha256(evidence_file) != expected_sha:
+            return False
+        try:
+            payload = load_json_strict(evidence_file)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        if not isinstance(payload, dict) or not _payload_contract_matches(
+            payload,
+            scenario_id=scenario_id,
+            variant_id=str(report.get("variant", "")),
+            phase=phase,
+        ):
             return False
         declared_bytes = report.get("bytes")
         if declared_bytes is None:

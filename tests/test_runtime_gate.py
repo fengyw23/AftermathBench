@@ -14,6 +14,108 @@ from aftermath_bench.runtime_gate import (
 from aftermath_bench.schema import repository_root
 
 
+def _write_phase_payload(
+    path: Path,
+    *,
+    runtime_id: str,
+    scenario_id: str,
+    variant_id: str,
+    phase: str,
+    passed: bool = True,
+) -> None:
+    payload = {
+        "schema_version": "test",
+        "scenario_id": scenario_id,
+        "variant": variant_id,
+    }
+    if phase == "boundary":
+        payload.update(
+            {
+                "surface_result": "connection lost",
+                "checks": {"boundary_valid": passed},
+                "passed": passed,
+            }
+        )
+    else:
+        payload.update(
+            {
+                "control": "state_driven_reference",
+                "reference_trace": [{"tool": "inspect_state"}],
+                "evaluation": {"passed": passed},
+            }
+        )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_combined_manifest(
+    root: Path,
+) -> tuple[Path, dict]:
+    runtime_id = "runtime-1"
+    scenario_id = "scenario-1"
+    reports = []
+    for index in range(4):
+        variant = f"v{index}"
+        boundary = root / f"boundary-{index}.json"
+        reference = root / f"reference-{index}.json"
+        _write_phase_payload(
+            boundary,
+            runtime_id=runtime_id,
+            scenario_id=scenario_id,
+            variant_id=variant,
+            phase="boundary",
+        )
+        _write_phase_payload(
+            reference,
+            runtime_id=runtime_id,
+            scenario_id=scenario_id,
+            variant_id=variant,
+            phase="reference",
+        )
+        reports.append(
+            {
+                "variant": variant,
+                "boundary_file": boundary.name,
+                "boundary_sha256": hashlib.sha256(
+                    boundary.read_bytes()
+                ).hexdigest(),
+                "reference_file": reference.name,
+                "reference_sha256": hashlib.sha256(
+                    reference.read_bytes()
+                ).hexdigest(),
+                "boundary_validation_passed": True,
+                "reference_recovery_passed": True,
+            }
+        )
+    payload = {
+        "runtime_id": runtime_id,
+        "head_sha": "a" * 40,
+        "workflow_run_url": (
+            "https://github.com/example/repo/actions/runs/1"
+        ),
+        "credentials_present": False,
+        "evidence_contract": {
+            "schema_version": "1.0",
+            "scenario_id": scenario_id,
+            "phases": {
+                "boundary": {
+                    "file_field": "boundary_file",
+                    "sha256_field": "boundary_sha256",
+                    "pass_field": "boundary_validation_passed",
+                },
+                "reference": {
+                    "file_field": "reference_file",
+                    "sha256_field": "reference_sha256",
+                    "pass_field": "reference_recovery_passed",
+                },
+            },
+        },
+        "reports": reports,
+    }
+    manifest = root / "admission.json"
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    return manifest, payload
+
+
 class RuntimeGateTest(unittest.TestCase):
     def test_runtime_declarations_are_truthful(self) -> None:
         reports = [
@@ -148,42 +250,11 @@ class RuntimeGateTest(unittest.TestCase):
     ) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            reports = []
-            for index in range(4):
-                boundary = root / f"boundary-{index}.json"
-                reference = root / f"reference-{index}.json"
-                boundary.write_text("{}", encoding="utf-8")
-                reference.write_text("{}", encoding="utf-8")
-                reports.append(
-                    {
-                        "variant": f"v{index}",
-                        "boundary_file": boundary.name,
-                        "boundary_sha256": hashlib.sha256(
-                            boundary.read_bytes()
-                        ).hexdigest(),
-                        "reference_file": reference.name,
-                        "reference_sha256": hashlib.sha256(
-                            reference.read_bytes()
-                        ).hexdigest(),
-                        "boundary_validation_passed": True,
-                        "reference_recovery_passed": False,
-                    }
-                )
-            manifest = root / "admission.json"
-            manifest.write_text(
-                json.dumps(
-                    {
-                        "runtime_id": "runtime-1",
-                        "head_sha": "a" * 40,
-                        "workflow_run_url": (
-                            "https://github.com/example/repo/actions/runs/1"
-                        ),
-                        "credentials_present": False,
-                        "reports": reports,
-                    }
-                ),
-                encoding="utf-8",
-            )
+            manifest, payload = _write_combined_manifest(root)
+            for report in payload["reports"]:
+                report["reference_recovery_passed"] = False
+                report["passed"] = True
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
             common = {
                 "path": manifest,
                 "runtime_id": "runtime-1",
@@ -202,6 +273,148 @@ class RuntimeGateTest(unittest.TestCase):
                 _evidence_manifest_consistent(
                     **common,
                     phase="reference",
+                )
+            )
+
+    def test_runtime_gate_rejects_shared_or_empty_raw_evidence(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, payload = _write_combined_manifest(root)
+            first = payload["reports"][0]
+            second = payload["reports"][1]
+            second["boundary_file"] = first["boundary_file"]
+            second["boundary_sha256"] = first["boundary_sha256"]
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    manifest,
+                    runtime_id="runtime-1",
+                    head_sha="a" * 40,
+                    workflow_run=(
+                        "https://github.com/example/repo/actions/runs/1"
+                    ),
+                    phase="boundary",
+                )
+            )
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, payload = _write_combined_manifest(root)
+            empty = root / "empty.json"
+            empty.write_bytes(b"")
+            payload["reports"][0]["boundary_file"] = empty.name
+            payload["reports"][0]["boundary_sha256"] = hashlib.sha256(
+                empty.read_bytes()
+            ).hexdigest()
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    manifest,
+                    runtime_id="runtime-1",
+                    head_sha="a" * 40,
+                    workflow_run=(
+                        "https://github.com/example/repo/actions/runs/1"
+                    ),
+                    phase="boundary",
+                )
+            )
+
+    def test_runtime_gate_rejects_cross_variant_and_cross_phase_payloads(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, declaration = _write_combined_manifest(root)
+            source = root / declaration["reports"][0]["boundary_file"]
+            copied = root / "copied-from-v0.json"
+            copied.write_bytes(source.read_bytes())
+            report = declaration["reports"][1]
+            report["boundary_file"] = copied.name
+            report["boundary_sha256"] = hashlib.sha256(
+                copied.read_bytes()
+            ).hexdigest()
+            manifest.write_text(json.dumps(declaration), encoding="utf-8")
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    manifest,
+                    runtime_id="runtime-1",
+                    head_sha="a" * 40,
+                    workflow_run=(
+                        "https://github.com/example/repo/actions/runs/1"
+                    ),
+                    phase="boundary",
+                )
+            )
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, declaration = _write_combined_manifest(root)
+            report = declaration["reports"][0]
+            reference = root / report["reference_file"]
+            copied = root / "reference-used-as-boundary.json"
+            copied.write_bytes(reference.read_bytes())
+            report["boundary_file"] = copied.name
+            report["boundary_sha256"] = hashlib.sha256(
+                copied.read_bytes()
+            ).hexdigest()
+            manifest.write_text(json.dumps(declaration), encoding="utf-8")
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    manifest,
+                    runtime_id="runtime-1",
+                    head_sha="a" * 40,
+                    workflow_run=(
+                        "https://github.com/example/repo/actions/runs/1"
+                    ),
+                    phase="boundary",
+                )
+            )
+
+    def test_runtime_gate_binds_native_payload_identity_and_pass(self) -> None:
+        mutations = {
+            "scenario_id": "other-scenario",
+            "variant": "other-variant",
+            "passed": False,
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field), TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, declaration = _write_combined_manifest(root)
+                report = declaration["reports"][0]
+                evidence = root / report["boundary_file"]
+                payload = json.loads(evidence.read_text(encoding="utf-8"))
+                payload[field] = value
+                evidence.write_text(json.dumps(payload), encoding="utf-8")
+                report["boundary_sha256"] = hashlib.sha256(
+                    evidence.read_bytes()
+                ).hexdigest()
+                manifest.write_text(
+                    json.dumps(declaration),
+                    encoding="utf-8",
+                )
+                self.assertFalse(
+                    _evidence_manifest_consistent(
+                        manifest,
+                        runtime_id="runtime-1",
+                        head_sha="a" * 40,
+                        workflow_run=(
+                            "https://github.com/example/repo/actions/runs/1"
+                        ),
+                        phase="boundary",
+                    )
+                )
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, _ = _write_combined_manifest(root)
+            self.assertFalse(
+                _evidence_manifest_consistent(
+                    manifest,
+                    runtime_id="other-runtime",
+                    head_sha="a" * 40,
+                    workflow_run=(
+                        "https://github.com/example/repo/actions/runs/1"
+                    ),
+                    phase="boundary",
                 )
             )
 

@@ -33,6 +33,401 @@ from aftermath_bench.schema import repository_root
 
 
 class ReleaseManifestTest(unittest.TestCase):
+    def _build_formal_evidence_fixture(
+        self,
+        root: Path,
+        *,
+        mutation: str | None = None,
+    ) -> dict[str, object]:
+        release_id = "release-1"
+        scenario_id = "scenario-1"
+        domain_id = "forgejo"
+        family_id = "family-1"
+        instance_id = "dev-001"
+        variants = ("a", "b")
+        producer_commit = "a" * 40
+        evidence = root / "data" / "evidence"
+        evidence.mkdir(parents=True)
+
+        def write_json(
+            name: str,
+            payload: object,
+        ) -> tuple[str, str]:
+            path = evidence / name
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            return (
+                path.relative_to(root).as_posix(),
+                file_sha256(path),
+            )
+
+        declarations: dict[str, dict[str, str]] = {}
+
+        def emit_role(
+            role: str,
+            specific_payload: dict[str, object],
+            support_files: list[tuple[str, str]],
+        ) -> None:
+            dependencies = {
+                dependency: declarations[dependency]["sha256"]
+                for dependency in FORMAL_EVIDENCE_DEPENDENCIES[role]
+            }
+            primary_payload: dict[str, object] = {
+                "schema_version": "1.0",
+                "artifact_type": role,
+                "benchmark_release_id": release_id,
+                "scenario_id": scenario_id,
+                "domain_id": domain_id,
+                "family_id": family_id,
+                "instance_id": instance_id,
+                "variant_ids": list(variants),
+                "producer_commit": producer_commit,
+                "input_envelope_sha256": dependencies,
+                **specific_payload,
+            }
+            if mutation == f"empty:{role}":
+                primary_payload = {"role": role}
+            primary_relative, primary_sha = write_json(
+                f"{role}-payload.json",
+                primary_payload,
+            )
+            envelope_relative, _ = write_json(
+                f"{role}-envelope.json",
+                {
+                    "schema_version": "1.0",
+                    "artifact_type": role,
+                    "benchmark_release_id": release_id,
+                    "scenario_id": scenario_id,
+                    "domain_id": domain_id,
+                    "family_id": family_id,
+                    "instance_id": instance_id,
+                    "variant_ids": list(variants),
+                    "producer_commit": producer_commit,
+                    "depends_on": dependencies,
+                    "primary_payload_path": primary_relative,
+                    "files": [
+                        {
+                            "path": primary_relative,
+                            "sha256": primary_sha,
+                        },
+                        *(
+                            {
+                                "path": relative,
+                                "sha256": sha256,
+                            }
+                            for relative, sha256 in support_files
+                        ),
+                    ],
+                },
+            )
+            envelope_path = root / envelope_relative
+            declarations[role] = {
+                "path": envelope_relative,
+                "sha256": file_sha256(envelope_path),
+            }
+
+        tool_schema = write_json(
+            "tool-schema.json",
+            {"type": "object", "properties": {}},
+        )
+        tool_implementation = write_json(
+            "tool-implementation.json",
+            {"symbol": "invoke"},
+        )
+        emit_role(
+            "tool_contract",
+            {
+                "tools": [
+                    {
+                        "name": "inspect_state",
+                        "input_schema_path": tool_schema[0],
+                        "input_schema_sha256": tool_schema[1],
+                        "implementation_path": tool_implementation[0],
+                        "implementation_sha256": tool_implementation[1],
+                    }
+                ]
+            },
+            [tool_schema, tool_implementation],
+        )
+
+        evaluator_implementation = write_json(
+            "evaluator-implementation.json",
+            {"symbol": "evaluate"},
+        )
+        emit_role(
+            "evaluator",
+            {
+                "checks": [
+                    {
+                        "id": "goal-complete",
+                        "implementation_path": evaluator_implementation[0],
+                        "implementation_sha256": evaluator_implementation[1],
+                    }
+                ],
+                "scored_state_fields": ["status"],
+            },
+            [evaluator_implementation],
+        )
+
+        reset_files = {
+            variant: write_json(
+                f"reset-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "reset",
+                    "reset_verified": True,
+                    "state": "clean",
+                },
+            )
+            for variant in variants
+        }
+        emit_role(
+            "reset_evidence",
+            {
+                "variants": [
+                    {
+                        "variant_id": variant,
+                        "reset_snapshot_path": reset_files[variant][0],
+                        "reset_snapshot_sha256": reset_files[variant][1],
+                        "reset_verified": True,
+                    }
+                    for variant in variants
+                ]
+            },
+            list(reset_files.values()),
+        )
+
+        boundary_states = {
+            variant: write_json(
+                f"boundary-state-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "boundary",
+                    "reset_snapshot_sha256": reset_files[variant][1],
+                    "state": "failed",
+                },
+            )
+            for variant in variants
+        }
+        failure_surfaces = {
+            variant: write_json(
+                f"failure-surface-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "failure_surface",
+                    "operation": "submit",
+                    "surface_result": "timeout",
+                },
+            )
+            for variant in variants
+        }
+        emit_role(
+            "boundary_bundle",
+            {
+                "variants": [
+                    {
+                        "variant_id": variant,
+                        "boundary_state_path": boundary_states[variant][0],
+                        "boundary_state_sha256": boundary_states[variant][1],
+                        "failure_surface_path": failure_surfaces[variant][0],
+                        "failure_surface_sha256": failure_surfaces[variant][1],
+                        "reset_snapshot_sha256": (
+                            "f" * 64
+                            if mutation == "boundary_reset_mismatch"
+                            and variant == "a"
+                            else reset_files[variant][1]
+                        ),
+                        "boundary_validation_passed": True,
+                    }
+                    for variant in variants
+                ]
+            },
+            [
+                *boundary_states.values(),
+                *failure_surfaces.values(),
+            ],
+        )
+
+        reference_traces = {
+            variant: write_json(
+                f"reference-trace-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "reference_trace",
+                    "boundary_state_sha256": boundary_states[variant][1],
+                    "input_envelope_sha256": {
+                        dependency: declarations[dependency]["sha256"]
+                        for dependency in (
+                            FORMAL_EVIDENCE_DEPENDENCIES[
+                                "reference_bundle"
+                            ]
+                        )
+                    },
+                    "steps": ["repair"],
+                },
+            )
+            for variant in variants
+        }
+        terminal_states = {
+            variant: write_json(
+                f"terminal-state-{variant}.json",
+                {
+                    "scenario_id": scenario_id,
+                    "variant_id": variant,
+                    "phase": "terminal",
+                    "boundary_state_sha256": boundary_states[variant][1],
+                    "evaluator_envelope_sha256": (
+                        "d" * 64
+                        if mutation == "terminal_evaluator_mismatch"
+                        and variant == "a"
+                        else declarations["evaluator"]["sha256"]
+                    ),
+                    "evaluation": {"passed": True},
+                    "status": "complete",
+                },
+            )
+            for variant in variants
+        }
+        emit_role(
+            "reference_bundle",
+            {
+                "variants": [
+                    {
+                        "variant_id": variant,
+                        "boundary_state_sha256": (
+                            "e" * 64
+                            if mutation == "reference_boundary_mismatch"
+                            and variant == "a"
+                            else boundary_states[variant][1]
+                        ),
+                        "reference_trace_path": reference_traces[variant][0],
+                        "reference_trace_sha256": reference_traces[variant][1],
+                        "terminal_state_path": terminal_states[variant][0],
+                        "terminal_state_sha256": terminal_states[variant][1],
+                        "evaluator_passed": True,
+                    }
+                    for variant in variants
+                ]
+            },
+            [
+                *reference_traces.values(),
+                *terminal_states.values(),
+            ],
+        )
+
+        summary_report_paths = {
+            variant: f"archived/control-{variant}.json"
+            for variant in variants
+        }
+        raw_dependencies = {
+            dependency: declarations[dependency]["sha256"]
+            for dependency in FORMAL_EVIDENCE_DEPENDENCIES[
+                "raw_run_archive"
+            ]
+        }
+        raw_run_files = {
+            variant: write_json(
+                f"raw-run-{variant}.json",
+                {
+                    "scenario_id": (
+                        "other-scenario"
+                        if mutation == "raw_run_identity_mismatch"
+                        and variant == "a"
+                        else scenario_id
+                    ),
+                    "variant_id": variant,
+                    "run_id": f"control-{variant}",
+                    "boundary_state_sha256": boundary_states[variant][1],
+                    "input_envelope_sha256": raw_dependencies,
+                    "summary_report_path": (
+                        "archived/wrong.json"
+                        if mutation == "raw_summary_mismatch"
+                        and variant == "a"
+                        else summary_report_paths[variant]
+                    ),
+                    "execution_control": True,
+                    "passed": True,
+                },
+            )
+            for variant in variants
+        }
+        emit_role(
+            "raw_run_archive",
+            {
+                "runs": [
+                    {
+                        "run_id": f"control-{variant}",
+                        "variant_id": variant,
+                        "run_path": raw_run_files[variant][0],
+                        "run_sha256": raw_run_files[variant][1],
+                        "summary_report_path": (
+                            "archived/wrong.json"
+                            if mutation == "raw_summary_mismatch"
+                            and variant == "a"
+                            else summary_report_paths[variant]
+                        ),
+                        "boundary_state_sha256": boundary_states[variant][1],
+                        "execution_control": True,
+                        "passed": True,
+                    }
+                    for variant in variants
+                ]
+            },
+            list(raw_run_files.values()),
+        )
+
+        control_summary = write_json(
+            "control-summary.json",
+            {
+                "completed_runs": len(variants),
+                "run_errors": [],
+                "task_pass_rate": 1.0,
+                "execution_control_counts": {"true": len(variants)},
+                "reports": [
+                    {
+                        "scenario_id": scenario_id,
+                        "variant": variant,
+                        "passed": not (
+                            mutation == "control_summary_result_mismatch"
+                            and variant == "a"
+                        ),
+                        "path": summary_report_paths[variant],
+                    }
+                    for variant in variants
+                ],
+            },
+        )
+        control_run_ids = [f"control-{variant}" for variant in variants]
+        if mutation == "control_run_mismatch":
+            control_run_ids = control_run_ids[:1]
+        emit_role(
+            "execution_control",
+            {
+                "run_ids": control_run_ids,
+                "completed_runs": len(variants),
+                "passed_runs": len(variants),
+                "task_pass_rate": 1.0,
+                "control_summary_path": control_summary[0],
+                "control_summary_sha256": control_summary[1],
+            },
+            [control_summary],
+        )
+        return {
+            "root": root,
+            "declarations": declarations,
+            "benchmark_release_id": release_id,
+            "scenario_id": scenario_id,
+            "domain_id": domain_id,
+            "family_id": family_id,
+            "instance_id": instance_id,
+            "variants": variants,
+            "control_evidence_path": control_summary[0],
+            "control_evidence_sha256": control_summary[1],
+        }
+
     def test_current_checkpoint_binds_only_verified_development_candidates(
         self,
     ) -> None:
@@ -176,80 +571,15 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertTrue(checks["control_summary_recomputed"])
         self.assertFalse(checks["control_pass_rate_meets_threshold"])
 
-    def test_formal_evidence_requires_distinct_cross_bound_envelopes(
+    def test_formal_evidence_requires_role_specific_cross_bound_payloads(
         self,
     ) -> None:
-        release_id = "release-1"
-        variants = ("a", "b")
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            evidence = root / "data" / "evidence"
-            evidence.mkdir(parents=True)
-            declarations: dict[str, dict[str, str]] = {}
-            role_order = (
-                "tool_contract",
-                "evaluator",
-                "reset_evidence",
-                "boundary_bundle",
-                "reference_bundle",
-                "raw_run_archive",
-                "execution_control",
-            )
-            for role in role_order:
-                payload = evidence / f"{role}-payload.json"
-                payload.write_text(
-                    json.dumps({"role": role}),
-                    encoding="utf-8",
-                )
-                envelope = evidence / f"{role}-envelope.json"
-                envelope.write_text(
-                    json.dumps(
-                        {
-                            "schema_version": "1.0",
-                            "artifact_type": role,
-                            "benchmark_release_id": release_id,
-                            "scenario_id": "scenario-1",
-                            "domain_id": "forgejo",
-                            "family_id": "family-1",
-                            "instance_id": "dev-001",
-                            "variant_ids": list(variants),
-                            "producer_commit": "a" * 40,
-                            "depends_on": {
-                                dependency: declarations[dependency][
-                                    "sha256"
-                                ]
-                                for dependency in (
-                                    FORMAL_EVIDENCE_DEPENDENCIES[role]
-                                )
-                            },
-                            "files": [
-                                {
-                                    "path": (
-                                        "data/evidence/"
-                                        f"{role}-payload.json"
-                                    ),
-                                    "sha256": file_sha256(payload),
-                                }
-                            ],
-                        }
-                    ),
-                    encoding="utf-8",
-                )
-                declarations[role] = {
-                    "path": f"data/evidence/{role}-envelope.json",
-                    "sha256": file_sha256(envelope),
-                }
-            arguments = {
-                "root": root,
-                "declarations": declarations,
-                "benchmark_release_id": release_id,
-                "scenario_id": "scenario-1",
-                "domain_id": "forgejo",
-                "family_id": "family-1",
-                "instance_id": "dev-001",
-                "variants": variants,
-            }
+            arguments = self._build_formal_evidence_fixture(root)
             self.assertTrue(validate_formal_evidence_roles(**arguments))
+            declarations = arguments["declarations"]
+            assert isinstance(declarations, dict)
             repeated = {
                 role: dict(declarations["boundary_bundle"])
                 for role in FORMAL_EVIDENCE_ROLES
@@ -259,6 +589,39 @@ class ReleaseManifestTest(unittest.TestCase):
                     **{**arguments, "declarations": repeated}
                 )
             )
+
+    def test_formal_evidence_rejects_empty_role_payloads(self) -> None:
+        for role in FORMAL_EVIDENCE_ROLES:
+            with self.subTest(role=role), TemporaryDirectory() as directory:
+                arguments = self._build_formal_evidence_fixture(
+                    Path(directory),
+                    mutation=f"empty:{role}",
+                )
+                self.assertFalse(
+                    validate_formal_evidence_roles(**arguments)
+                )
+
+    def test_formal_evidence_rejects_cross_role_mismatches(self) -> None:
+        for mutation in (
+            "boundary_reset_mismatch",
+            "reference_boundary_mismatch",
+            "raw_summary_mismatch",
+            "control_run_mismatch",
+            "raw_run_identity_mismatch",
+            "terminal_evaluator_mismatch",
+            "control_summary_result_mismatch",
+        ):
+            with (
+                self.subTest(mutation=mutation),
+                TemporaryDirectory() as directory,
+            ):
+                arguments = self._build_formal_evidence_fixture(
+                    Path(directory),
+                    mutation=mutation,
+                )
+                self.assertFalse(
+                    validate_formal_evidence_roles(**arguments)
+                )
 
     def test_hidden_bundle_is_bound_to_active_scenario_bytes(self) -> None:
         with TemporaryDirectory() as directory:

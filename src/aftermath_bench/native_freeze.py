@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 from collections.abc import Iterable
@@ -307,7 +308,13 @@ def append_usage_event(
     event: str,
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Append lifecycle state without modifying the frozen task bundle."""
+    """Atomically append lifecycle state outside the frozen task bundle.
+
+    The sibling ``.lock`` file is acquired with ``O_EXCL`` before the ledger is
+    read.  Competing evaluation processes therefore cannot both observe a
+    ``frozen`` head and independently append ``evaluation_locked``.  A stale
+    lock fails closed and must be investigated rather than silently removed.
+    """
 
     allowed = {
         "generated",
@@ -318,76 +325,99 @@ def append_usage_event(
     }
     if event not in allowed:
         raise ValueError(f"unsupported usage event: {event}")
-    if ledger_path.exists():
-        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
-        ledger_failures = validate_usage_ledger(ledger)
-        if ledger_failures:
-            raise ValueError(
-                f"invalid usage ledger before append: {ledger_failures}"
-            )
-    else:
-        ledger = {
-            "schema_version": "2.0",
-            "events": [],
-            "head_event_sha256": _ZERO_SHA256,
-        }
-    previous = (
-        str(ledger["events"][-1]["event"])
-        if ledger["events"]
-        else None
-    )
-    transitions = {
-        None: {"generated", "frozen"},
-        "generated": {"frozen"},
-        "frozen": {"evaluation_locked", "retired"},
-        "evaluation_locked": {"consumed", "retired"},
-        "consumed": {"retired"},
-        "retired": set(),
-    }
-    if event not in transitions.get(previous, set()):
-        raise ValueError(
-            f"invalid usage-ledger transition: {previous!r} -> {event!r}"
-        )
-    event_details = dict(details or {})
-    if event == "frozen":
-        commitment = str(
-            event_details.get("public_commitment_sha256", "")
-        )
-        if not commitment:
-            raise ValueError("frozen event must bind a public commitment")
-        ledger["public_commitment_sha256"] = commitment
-    elif previous is not None and previous != "generated":
-        commitment = str(ledger.get("public_commitment_sha256", ""))
-        if not commitment:
-            raise ValueError("usage ledger is missing its public commitment")
-        event_details["public_commitment_sha256"] = commitment
-    record = {
-        "sequence": len(ledger["events"]) + 1,
-        "event": event,
-        "recorded_at": datetime.now(UTC).isoformat(),
-        "previous_event_sha256": str(
-            ledger.get("head_event_sha256", _ZERO_SHA256)
-        ),
-        "details": event_details,
-    }
-    record["event_sha256"] = _usage_event_digest(record)
-    ledger["events"].append(record)
-    ledger["head_event_sha256"] = record["event_sha256"]
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = ledger_path.with_name(
-        f".{ledger_path.name}.{secrets.token_hex(8)}.tmp"
-    )
+    lock_path = ledger_path.with_name(f".{ledger_path.name}.lock")
+    lock_fd: int | None = None
     try:
-        with temporary.open("x", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(ledger, ensure_ascii=False, indent=2) + "\n"
+        try:
+            lock_fd = os.open(
+                lock_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
             )
-            handle.flush()
-        temporary.replace(ledger_path)
+        except FileExistsError as error:
+            raise RuntimeError(
+                f"usage ledger is locked by another process: {lock_path}"
+            ) from error
+        os.write(lock_fd, f"{os.getpid()}\n".encode())
+        os.fsync(lock_fd)
+
+        if ledger_path.exists():
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            ledger_failures = validate_usage_ledger(ledger)
+            if ledger_failures:
+                raise ValueError(
+                    f"invalid usage ledger before append: {ledger_failures}"
+                )
+        else:
+            ledger = {
+                "schema_version": "2.0",
+                "events": [],
+                "head_event_sha256": _ZERO_SHA256,
+            }
+        previous = (
+            str(ledger["events"][-1]["event"])
+            if ledger["events"]
+            else None
+        )
+        transitions = {
+            None: {"generated", "frozen"},
+            "generated": {"frozen"},
+            "frozen": {"evaluation_locked", "retired"},
+            "evaluation_locked": {"consumed", "retired"},
+            "consumed": {"retired"},
+            "retired": set(),
+        }
+        if event not in transitions.get(previous, set()):
+            raise ValueError(
+                f"invalid usage-ledger transition: {previous!r} -> {event!r}"
+            )
+        event_details = dict(details or {})
+        if event == "frozen":
+            commitment = str(
+                event_details.get("public_commitment_sha256", "")
+            )
+            if not commitment:
+                raise ValueError("frozen event must bind a public commitment")
+            ledger["public_commitment_sha256"] = commitment
+        elif previous is not None and previous != "generated":
+            commitment = str(ledger.get("public_commitment_sha256", ""))
+            if not commitment:
+                raise ValueError(
+                    "usage ledger is missing its public commitment"
+                )
+            event_details["public_commitment_sha256"] = commitment
+        record = {
+            "sequence": len(ledger["events"]) + 1,
+            "event": event,
+            "recorded_at": datetime.now(UTC).isoformat(),
+            "previous_event_sha256": str(
+                ledger.get("head_event_sha256", _ZERO_SHA256)
+            ),
+            "details": event_details,
+        }
+        record["event_sha256"] = _usage_event_digest(record)
+        ledger["events"].append(record)
+        ledger["head_event_sha256"] = record["event_sha256"]
+        temporary = ledger_path.with_name(
+            f".{ledger_path.name}.{secrets.token_hex(8)}.tmp"
+        )
+        try:
+            with temporary.open("x", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps(ledger, ensure_ascii=False, indent=2) + "\n"
+                )
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(ledger_path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        return record
     finally:
-        if temporary.exists():
-            temporary.unlink()
-    return record
+        if lock_fd is not None:
+            os.close(lock_fd)
+            lock_path.unlink(missing_ok=True)
 
 
 __all__ = [

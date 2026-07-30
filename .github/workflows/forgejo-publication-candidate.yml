@@ -192,22 +192,22 @@ jobs:
             --public-commitment "$run_root/private/public-commitment.json" \
             --allow-unbound usage-ledger.json \
             > "$RUNNER_TEMP/forgejo-pre-provider-freeze-check.log" 2>&1
-          python scripts/record_native_bundle_usage.py \
-            --ledger "$run_root/private/usage-ledger.json" \
-            --event evaluation_locked \
-            --details-json "{\"condition\":\"execution_control\",\"model\":\"$MODEL_ID\"}"
-          python scripts/record_native_bundle_usage.py \
-            --ledger "$run_root/private/usage-ledger.json" \
-            --event consumed \
-            --details-json "{\"condition\":\"execution_control\",\"model\":\"$MODEL_ID\",\"before_first_request\":true}"
           mapfile -t variants < <(
             python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$run_root/private/blueprint.json"
           )
           mkdir -p "$run_root/private/control/repetition-01"
           run_status=0
-          for variant in "${variants[@]}"
+          evaluation_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-execution-control"
+          last_index=$((${#variants[@]} - 1))
+          for index in "${!variants[@]}"
           do
+            variant="${variants[$index]}"
+            finalize_args=()
+            if [ "$index" -eq "$last_index" ]
+            then
+              finalize_args=(--hidden-finalize)
+            fi
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$run_root/private/snapshots/$variant"
             if python -m aftermath_bench run-native-model \
@@ -220,6 +220,10 @@ jobs:
                 --failure-report "$run_root/private/runtime/$variant-boundary.json" \
                 --max-turns 25 \
                 --execution-control \
+                --hidden-freeze "$run_root/private/freeze.json" \
+                --hidden-usage-ledger "$run_root/private/usage-ledger.json" \
+                --hidden-evaluation-id "$evaluation_id" \
+                "${finalize_args[@]}" \
                 --output "$run_root/private/control/repetition-01/$variant.json" \
                 > "$run_root/private/control/repetition-01/$variant.log" 2>&1
             then

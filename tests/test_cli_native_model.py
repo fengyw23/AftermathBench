@@ -29,6 +29,13 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             "--failure-report",
             "failure.json",
             "--execution-control",
+            "--hidden-freeze",
+            "freeze.json",
+            "--hidden-usage-ledger",
+            "usage-ledger.json",
+            "--hidden-evaluation-id",
+            "evaluation-001",
+            "--hidden-finalize",
             "--output",
             "trajectory.json",
         ]
@@ -52,6 +59,19 @@ class NativeModelCLIForwardingTest(unittest.TestCase):
             client_factory.call_args.kwargs["model"],
             "test-model",
         )
+        self.assertEqual(
+            runner.call_args.kwargs["hidden_freeze_path"],
+            "freeze.json",
+        )
+        self.assertEqual(
+            runner.call_args.kwargs["hidden_usage_ledger_path"],
+            "usage-ledger.json",
+        )
+        self.assertEqual(
+            runner.call_args.kwargs["hidden_evaluation_id"],
+            "evaluation-001",
+        )
+        self.assertIs(runner.call_args.kwargs["hidden_finalize"], True)
 
     def test_easy_model_command_does_not_forward_native_only_control(
         self,

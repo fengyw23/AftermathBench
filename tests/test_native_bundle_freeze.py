@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from aftermath_bench.native_freeze import (
@@ -126,6 +127,37 @@ class NativeBundleFreezeTests(unittest.TestCase):
             self.assertIn(
                 "event_hash:1",
                 validate_usage_ledger(ledger_payload),
+            )
+
+    def test_only_one_competing_evaluation_lock_can_be_appended(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "usage-ledger.json"
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment"},
+            )
+
+            def attempt(evaluation_id: str) -> bool:
+                try:
+                    append_usage_event(
+                        ledger_path=ledger,
+                        event="evaluation_locked",
+                        details={"evaluation_id": evaluation_id},
+                    )
+                except (RuntimeError, ValueError):
+                    return False
+                return True
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(attempt, ("eval-a", "eval-b")))
+
+            self.assertEqual(results.count(True), 1)
+            payload = json.loads(ledger.read_text(encoding="utf-8"))
+            self.assertEqual(validate_usage_ledger(payload), ())
+            self.assertEqual(
+                [item["event"] for item in payload["events"]],
+                ["frozen", "evaluation_locked"],
             )
 
     def test_rejects_scenario_spec_hash_drift(self) -> None:

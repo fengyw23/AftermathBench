@@ -1,15 +1,23 @@
 import json
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from aftermath_bench.hidden_test_eligibility import (
+    begin_hidden_test_evaluation,
+)
+from aftermath_bench.native_freeze import append_usage_event, file_sha256
 from aftermath_bench.native_model_runner import (
     NATIVE_FAMILY_REGISTRY,
     NATIVE_RETURN_TOOL_DEFINITIONS,
     _diagnose,
     native_initial_message,
+    run_live_native_agent,
+    run_native_family_agent,
 )
-from aftermath_bench.native_scenario import load_native_scenario
+from aftermath_bench.native_scenario import NativeScenario, load_native_scenario
 from aftermath_bench.schema import repository_root
 
 
@@ -73,6 +81,274 @@ class NativeModelRunnerTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "unsupported native family"):
             NATIVE_FAMILY_REGISTRY.get("nonexistent-family")
+
+    @staticmethod
+    def _stub_family_and_environment():
+        evaluation = SimpleNamespace(
+            passed=True,
+            components={},
+            checks={},
+            diagnostics={},
+            failures=[],
+        )
+        family = SimpleNamespace(
+            system_prompt="Use tools for at most {max_turns} turns.",
+            tool_definitions=(),
+            family_id="test-family",
+            domain="test",
+            build_initial_message=lambda **_: "Recover the task.",
+            evaluate=lambda *_: evaluation,
+            diagnose=lambda **_: {},
+        )
+        environment = SimpleNamespace(
+            snapshot=dict,
+            event_log=list,
+        )
+        return family, environment
+
+    @staticmethod
+    def _stub_client():
+        calls = []
+
+        def complete(**kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(
+                text="done",
+                tool_calls=(),
+                usage={},
+                stop_reason="stop",
+                raw_response={},
+            )
+
+        return (
+            SimpleNamespace(
+                provider="openai-compatible",
+                model="test-model",
+                complete=complete,
+            ),
+            calls,
+        )
+
+    def test_direct_hidden_family_run_fails_before_provider_access(self) -> None:
+        client, calls = self._stub_client()
+        scenario = NativeScenario(
+            path=Path("hidden-scenario.json"),
+            raw={
+                "scenario_id": "hidden-001",
+                "benchmark_split": "hidden_test",
+                "matched_variants": [{"id": "state-1"}],
+            },
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "runner-managed evaluation lock",
+        ):
+            run_native_family_agent(
+                client,
+                family=SimpleNamespace(),
+                scenario=scenario,
+                environment=SimpleNamespace(),
+                prefix={},
+                failure_report={},
+            )
+        self.assertEqual(calls, [])
+
+    def test_development_family_run_needs_no_hidden_lock(self) -> None:
+        client, calls = self._stub_client()
+        family, environment = self._stub_family_and_environment()
+        scenario = NativeScenario(
+            path=Path("development-scenario.json"),
+            raw={
+                "scenario_id": "development-001",
+                "benchmark_split": "development",
+                "matched_variants": [{"id": "state-1"}],
+            },
+        )
+        report = run_native_family_agent(
+            client,
+            family=family,
+            scenario=scenario,
+            environment=environment,
+            prefix={},
+            failure_report={
+                "variant": "state-1",
+                "visible_failure": {"error": "connection lost"},
+            },
+            max_turns=1,
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(report["evaluation"]["passed"])
+
+    def test_locked_hidden_family_run_may_access_provider(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            freeze = root / "freeze.json"
+            ledger = root / "usage-ledger.json"
+            scenario_raw = {
+                "scenario_id": "hidden-001",
+                "instance_spec_sha256": "instance-spec-sha",
+                "benchmark_split": "hidden_test",
+                "benchmark_tier": "hard",
+                "evaluation_status": {"hidden_test_eligible": True},
+                "matched_variants": [{"id": "state-1"}],
+            }
+            scenario_path.write_text(
+                json.dumps(scenario_raw),
+                encoding="utf-8",
+            )
+            freeze.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "hidden-001",
+                        "status": "active",
+                        "public_commitment_sha256": "commitment",
+                        "scenario_sha256": file_sha256(scenario_path),
+                        "instance_spec_semantic_sha256": "instance-spec-sha",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment"},
+            )
+            session = begin_hidden_test_evaluation(
+                scenario_path=scenario_path,
+                freeze_path=freeze,
+                usage_ledger_path=ledger,
+                evaluation_id="eval-001",
+                provider="openai-compatible",
+                model="test-model",
+                execution_control=False,
+            )
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            report = run_native_family_agent(
+                client,
+                family=family,
+                scenario=NativeScenario(
+                    path=scenario_path,
+                    raw=scenario_raw,
+                ),
+                environment=environment,
+                prefix={},
+                failure_report={
+                    "variant": "state-1",
+                    "visible_failure": {"error": "connection lost"},
+                },
+                max_turns=1,
+                hidden_evaluation_session=session,
+                hidden_freeze_path=freeze,
+            )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            report["hidden_evaluation"]["evaluation_id"],
+            "eval-001",
+        )
+
+    def test_live_hidden_runner_locks_and_finalizes_the_ledger(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_path = root / "scenario.json"
+            credentials = root / "credentials.json"
+            prefix = root / "prefix.json"
+            failure = root / "failure.json"
+            freeze = root / "freeze.json"
+            ledger = root / "usage-ledger.json"
+            output = root / "trajectory.json"
+            scenario_raw = {
+                "scenario_id": "hidden-live-001",
+                "family": "test-family",
+                "instance_spec_sha256": "instance-spec-sha",
+                "benchmark_split": "hidden_test",
+                "benchmark_tier": "hard",
+                "evaluation_status": {"hidden_test_eligible": True},
+                "matched_variants": [{"id": "state-1"}],
+            }
+            scenario_path.write_text(
+                json.dumps(scenario_raw),
+                encoding="utf-8",
+            )
+            credentials.write_text("{}", encoding="utf-8")
+            prefix.write_text(
+                json.dumps({"scenario_id": "hidden-live-001"}),
+                encoding="utf-8",
+            )
+            failure.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "hidden-live-001",
+                        "variant": "state-1",
+                        "visible_failure": {"error": "connection lost"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            freeze.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "hidden-live-001",
+                        "status": "active",
+                        "public_commitment_sha256": "commitment",
+                        "scenario_sha256": file_sha256(scenario_path),
+                        "instance_spec_semantic_sha256": "instance-spec-sha",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            append_usage_event(
+                ledger_path=ledger,
+                event="frozen",
+                details={"public_commitment_sha256": "commitment"},
+            )
+            client, calls = self._stub_client()
+            family, environment = self._stub_family_and_environment()
+            family.build_environment = lambda _: environment
+            with patch.object(
+                NATIVE_FAMILY_REGISTRY,
+                "get",
+                return_value=family,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "hidden-test runs require",
+                ):
+                    run_live_native_agent(
+                        client,
+                        scenario_path=scenario_path,
+                        credentials_path=credentials,
+                        prefix_path=prefix,
+                        failure_report_path=failure,
+                        max_turns=1,
+                    )
+                self.assertEqual(calls, [])
+                report = run_live_native_agent(
+                    client,
+                    scenario_path=scenario_path,
+                    credentials_path=credentials,
+                    prefix_path=prefix,
+                    failure_report_path=failure,
+                    max_turns=1,
+                    output_path=output,
+                    hidden_freeze_path=freeze,
+                    hidden_usage_ledger_path=ledger,
+                    hidden_evaluation_id="evaluation-001",
+                    hidden_finalize=True,
+                )
+            events = json.loads(ledger.read_text(encoding="utf-8"))["events"]
+            archived = json.loads(output.read_text(encoding="utf-8"))
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            [item["event"] for item in events],
+            ["frozen", "evaluation_locked", "consumed"],
+        )
+        self.assertEqual(
+            archived["hidden_evaluation"]["consumed_event_sha256"],
+            report["hidden_evaluation"]["consumed_event_sha256"],
+        )
 
     def test_execution_control_supplies_scope_but_not_hidden_state(self) -> None:
         message = native_initial_message(

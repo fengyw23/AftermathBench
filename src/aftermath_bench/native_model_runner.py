@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from .core import canonical_fingerprint
+from .hidden_test_eligibility import (
+    HiddenEvaluationSession,
+    begin_hidden_test_evaluation,
+    consume_hidden_test_evaluation,
+    validate_hidden_evaluation_session,
+)
 from .integrations.erpnext_faults import default_worker_control
 from .integrations.erpnext_return_agent import (
     ERPNextPartialReturnEnvironment,
@@ -35,8 +41,8 @@ from .native_family import (
 from .native_forgejo_family import FORGEJO_RELEASE_FAMILY
 from .native_forgejo_publication_family import FORGEJO_PUBLICATION_FAMILY
 from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
-from .native_kubernetes_interaction_family import KUBERNETES_INTERACTION_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
+from .native_kubernetes_interaction_family import KUBERNETES_INTERACTION_FAMILY
 from .native_kubernetes_migration_family import KUBERNETES_MIGRATION_FAMILY
 from .native_kubernetes_settlement_family import (
     KUBERNETES_SETTLEMENT_FAMILY,
@@ -539,7 +545,33 @@ def run_native_family_agent(
     max_turns: int = 25,
     execution_control: bool = False,
     output_path: str | Path | None = None,
+    hidden_evaluation_session: HiddenEvaluationSession | None = None,
+    hidden_freeze_path: str | Path | None = None,
 ) -> dict[str, Any]:
+    if scenario.split == "hidden_test":
+        if hidden_evaluation_session is None or hidden_freeze_path is None:
+            raise RuntimeError(
+                "hidden-test provider access requires a runner-managed "
+                "evaluation lock"
+            )
+        if (
+            hidden_evaluation_session.provider != str(client.provider)
+            or hidden_evaluation_session.model != str(client.model)
+            or hidden_evaluation_session.execution_control
+            is not execution_control
+        ):
+            raise RuntimeError(
+                "hidden evaluation lock does not match this model run"
+            )
+        validate_hidden_evaluation_session(
+            scenario_path=scenario.path,
+            freeze_path=Path(hidden_freeze_path),
+            session=hidden_evaluation_session,
+        )
+    elif hidden_evaluation_session is not None or hidden_freeze_path is not None:
+        raise ValueError(
+            "hidden evaluation evidence was supplied for a non-hidden scenario"
+        )
     system = family.system_prompt.format(max_turns=max_turns)
     initial = family.build_initial_message(
         scenario=scenario,
@@ -626,6 +658,14 @@ def run_native_family_agent(
             prefix=prefix,
         ),
     }
+    if hidden_evaluation_session is not None:
+        report["hidden_evaluation"] = {
+            "evaluation_id": hidden_evaluation_session.evaluation_id,
+            "lock_event_sha256": (
+                hidden_evaluation_session.lock_event_sha256
+            ),
+            "consumed_event_sha256": None,
+        }
     if output_path is not None:
         destination = Path(output_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -737,6 +777,10 @@ def run_live_native_agent(
     output_path: str | Path | None = None,
     erpnext_base_url: str = "http://127.0.0.1:8080",
     container_cli: str = "docker",
+    hidden_freeze_path: str | Path | None = None,
+    hidden_usage_ledger_path: str | Path | None = None,
+    hidden_evaluation_id: str | None = None,
+    hidden_finalize: bool = False,
 ) -> dict[str, Any]:
     root = repository_root()
     scenario = load_native_scenario(scenario_path)
@@ -762,7 +806,38 @@ def run_live_native_agent(
             container_cli=container_cli,
         )
     )
-    return run_native_family_agent(
+    hidden_session: HiddenEvaluationSession | None = None
+    if scenario.split == "hidden_test":
+        if (
+            hidden_freeze_path is None
+            or hidden_usage_ledger_path is None
+            or hidden_evaluation_id is None
+        ):
+            raise RuntimeError(
+                "hidden-test runs require --hidden-freeze, "
+                "--hidden-usage-ledger and --hidden-evaluation-id"
+            )
+        hidden_session = begin_hidden_test_evaluation(
+            scenario_path=scenario.path,
+            freeze_path=Path(hidden_freeze_path),
+            usage_ledger_path=Path(hidden_usage_ledger_path),
+            evaluation_id=hidden_evaluation_id,
+            provider=str(client.provider),
+            model=str(client.model),
+            execution_control=execution_control,
+        )
+    elif any(
+        value is not None
+        for value in (
+            hidden_freeze_path,
+            hidden_usage_ledger_path,
+            hidden_evaluation_id,
+        )
+    ) or hidden_finalize:
+        raise ValueError(
+            "hidden evaluation options are valid only for hidden_test scenarios"
+        )
+    report = run_native_family_agent(
         client,
         family=family,
         scenario=scenario,
@@ -772,7 +847,25 @@ def run_live_native_agent(
         max_turns=max_turns,
         execution_control=execution_control,
         output_path=output_path,
+        hidden_evaluation_session=hidden_session,
+        hidden_freeze_path=hidden_freeze_path,
     )
+    if hidden_session is not None and hidden_finalize:
+        consumed = consume_hidden_test_evaluation(
+            scenario_path=scenario.path,
+            freeze_path=Path(hidden_freeze_path),
+            session=hidden_session,
+        )
+        report["hidden_evaluation"]["consumed_event_sha256"] = consumed[
+            "event_sha256"
+        ]
+        if output_path is not None:
+            destination = Path(output_path)
+            destination.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+    return report
 
 
 def validate_native_run_bindings(

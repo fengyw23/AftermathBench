@@ -203,6 +203,103 @@ def _validate_control_summary(
     }
 
 
+def _payload_file_matches(
+    entry: dict[str, Any],
+    *,
+    path_field: str,
+    sha_field: str,
+    file_hashes: dict[str, str],
+) -> bool:
+    relative = entry.get(path_field)
+    expected_sha = entry.get(sha_field)
+    return bool(
+        isinstance(relative, str)
+        and relative
+        and isinstance(expected_sha, str)
+        and _SHA256.fullmatch(expected_sha)
+        and file_hashes.get(relative) == expected_sha
+    )
+
+
+def _load_bound_json_payload(
+    root: Path,
+    entry: dict[str, Any],
+    *,
+    path_field: str,
+    sha_field: str,
+    file_hashes: dict[str, str],
+) -> dict[str, Any] | None:
+    if not _payload_file_matches(
+        entry,
+        path_field=path_field,
+        sha_field=sha_field,
+        file_hashes=file_hashes,
+    ):
+        return None
+    try:
+        path = safe_relative_path(
+            root,
+            str(entry[path_field]),
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        payload = load_json_strict(path)
+    except (KeyError, OSError, ValueError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _variant_payload_index(
+    payload: dict[str, Any],
+    *,
+    variants: tuple[str, ...],
+) -> dict[str, dict[str, Any]] | None:
+    items = payload.get("variants")
+    if not isinstance(items, list):
+        return None
+    indexed: dict[str, dict[str, Any]] = {}
+    observed: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            return None
+        variant_id = str(item.get("variant_id", ""))
+        if not variant_id or variant_id in indexed:
+            return None
+        indexed[variant_id] = item
+        observed.append(variant_id)
+    if tuple(observed) != variants:
+        return None
+    return indexed
+
+
+def _formal_payload_identity_matches(
+    payload: dict[str, Any],
+    *,
+    role: str,
+    envelope: dict[str, Any],
+    benchmark_release_id: str,
+    scenario_id: str,
+    domain_id: str,
+    family_id: str,
+    instance_id: str,
+    variants: tuple[str, ...],
+) -> bool:
+    return bool(
+        payload.get("schema_version") == "1.0"
+        and payload.get("artifact_type") == role
+        and payload.get("benchmark_release_id") == benchmark_release_id
+        and payload.get("scenario_id") == scenario_id
+        and payload.get("domain_id") == domain_id
+        and payload.get("family_id") == family_id
+        and payload.get("instance_id") == instance_id
+        and tuple(map(str, payload.get("variant_ids", ()))) == variants
+        and payload.get("producer_commit") == envelope.get("producer_commit")
+        and payload.get("input_envelope_sha256")
+        == envelope.get("depends_on")
+    )
+
+
 def validate_formal_evidence_roles(
     *,
     root: Path,
@@ -213,6 +310,8 @@ def validate_formal_evidence_roles(
     family_id: str,
     instance_id: str,
     variants: tuple[str, ...],
+    control_evidence_path: str,
+    control_evidence_sha256: str,
 ) -> bool:
     if set(declarations) != FORMAL_EVIDENCE_ROLES:
         return False
@@ -220,6 +319,8 @@ def validate_formal_evidence_roles(
     payload_paths: list[str] = []
     envelopes: dict[str, dict[str, Any]] = {}
     envelope_hashes: dict[str, str] = {}
+    role_payloads: dict[str, dict[str, Any]] = {}
+    role_file_hashes: dict[str, dict[str, str]] = {}
     for role, value in declarations.items():
         if not isinstance(value, dict):
             return False
@@ -264,6 +365,7 @@ def validate_formal_evidence_roles(
         if not isinstance(files, list) or not files:
             return False
         local_paths: list[str] = []
+        local_hashes: dict[str, str] = {}
         for item in files:
             if not isinstance(item, dict):
                 return False
@@ -287,8 +389,27 @@ def validate_formal_evidence_roles(
             canonical_relative = payload_path.relative_to(root).as_posix()
             local_paths.append(canonical_relative)
             payload_paths.append(canonical_relative)
+            local_hashes[canonical_relative] = expected_sha
         if len(local_paths) != len(set(local_paths)):
             return False
+        primary_relative = str(envelope.get("primary_payload_path", ""))
+        if primary_relative not in local_hashes:
+            return False
+        try:
+            primary_path = safe_relative_path(
+                root,
+                primary_relative,
+                required_prefix="data",
+                must_exist=True,
+                require_file=True,
+            )
+            primary_payload = load_json_strict(primary_path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        if not isinstance(primary_payload, dict):
+            return False
+        role_payloads[role] = primary_payload
+        role_file_hashes[role] = local_hashes
     if (
         len(envelope_paths) != len(set(envelope_paths))
         or len(payload_paths) != len(set(payload_paths))
@@ -307,7 +428,351 @@ def validate_formal_evidence_roles(
             for dependency in required_roles
         ):
             return False
-    return True
+
+    for role, payload in role_payloads.items():
+        if not _formal_payload_identity_matches(
+            payload,
+            role=role,
+            envelope=envelopes[role],
+            benchmark_release_id=benchmark_release_id,
+            scenario_id=scenario_id,
+            domain_id=domain_id,
+            family_id=family_id,
+            instance_id=instance_id,
+            variants=variants,
+        ):
+            return False
+
+    tool_payload = role_payloads["tool_contract"]
+    tools = tool_payload.get("tools")
+    if not isinstance(tools, list) or not tools:
+        return False
+    tool_names: list[str] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            return False
+        name = str(tool.get("name", ""))
+        input_schema = _load_bound_json_payload(
+            root,
+            tool,
+            path_field="input_schema_path",
+            sha_field="input_schema_sha256",
+            file_hashes=role_file_hashes["tool_contract"],
+        )
+        if (
+            not name
+            or input_schema is None
+            or input_schema.get("type") != "object"
+            or not isinstance(input_schema.get("properties"), dict)
+            or not _payload_file_matches(
+                tool,
+                path_field="implementation_path",
+                sha_field="implementation_sha256",
+                file_hashes=role_file_hashes["tool_contract"],
+            )
+        ):
+            return False
+        tool_names.append(name)
+    if len(tool_names) != len(set(tool_names)):
+        return False
+
+    evaluator_payload = role_payloads["evaluator"]
+    checks = evaluator_payload.get("checks")
+    scored_fields = evaluator_payload.get("scored_state_fields")
+    if (
+        not isinstance(checks, list)
+        or not checks
+        or not isinstance(scored_fields, list)
+        or not scored_fields
+        or not all(
+            isinstance(value, str) and value for value in scored_fields
+        )
+    ):
+        return False
+    check_ids: list[str] = []
+    for check in checks:
+        if not isinstance(check, dict):
+            return False
+        check_id = str(check.get("id", ""))
+        if (
+            not check_id
+            or not _payload_file_matches(
+                check,
+                path_field="implementation_path",
+                sha_field="implementation_sha256",
+                file_hashes=role_file_hashes["evaluator"],
+            )
+        ):
+            return False
+        check_ids.append(check_id)
+    if len(check_ids) != len(set(check_ids)):
+        return False
+
+    reset_variants = _variant_payload_index(
+        role_payloads["reset_evidence"],
+        variants=variants,
+    )
+    boundary_variants = _variant_payload_index(
+        role_payloads["boundary_bundle"],
+        variants=variants,
+    )
+    reference_variants = _variant_payload_index(
+        role_payloads["reference_bundle"],
+        variants=variants,
+    )
+    if (
+        reset_variants is None
+        or boundary_variants is None
+        or reference_variants is None
+    ):
+        return False
+    for variant_id in variants:
+        reset = reset_variants[variant_id]
+        boundary = boundary_variants[variant_id]
+        reference = reference_variants[variant_id]
+        reset_snapshot = _load_bound_json_payload(
+            root,
+            reset,
+            path_field="reset_snapshot_path",
+            sha_field="reset_snapshot_sha256",
+            file_hashes=role_file_hashes["reset_evidence"],
+        )
+        boundary_state = _load_bound_json_payload(
+            root,
+            boundary,
+            path_field="boundary_state_path",
+            sha_field="boundary_state_sha256",
+            file_hashes=role_file_hashes["boundary_bundle"],
+        )
+        failure_surface = _load_bound_json_payload(
+            root,
+            boundary,
+            path_field="failure_surface_path",
+            sha_field="failure_surface_sha256",
+            file_hashes=role_file_hashes["boundary_bundle"],
+        )
+        reference_trace = _load_bound_json_payload(
+            root,
+            reference,
+            path_field="reference_trace_path",
+            sha_field="reference_trace_sha256",
+            file_hashes=role_file_hashes["reference_bundle"],
+        )
+        terminal_state = _load_bound_json_payload(
+            root,
+            reference,
+            path_field="terminal_state_path",
+            sha_field="terminal_state_sha256",
+            file_hashes=role_file_hashes["reference_bundle"],
+        )
+        if (
+            reset.get("reset_verified") is not True
+            or reset_snapshot is None
+            or reset_snapshot.get("scenario_id") != scenario_id
+            or reset_snapshot.get("variant_id") != variant_id
+            or reset_snapshot.get("phase") != "reset"
+            or reset_snapshot.get("reset_verified") is not True
+            or boundary.get("boundary_validation_passed") is not True
+            or boundary_state is None
+            or boundary_state.get("scenario_id") != scenario_id
+            or boundary_state.get("variant_id") != variant_id
+            or boundary_state.get("phase") != "boundary"
+            or boundary_state.get("reset_snapshot_sha256")
+            != reset.get("reset_snapshot_sha256")
+            or failure_surface is None
+            or failure_surface.get("scenario_id") != scenario_id
+            or failure_surface.get("variant_id") != variant_id
+            or failure_surface.get("phase") != "failure_surface"
+            or not isinstance(failure_surface.get("operation"), str)
+            or not failure_surface.get("operation")
+            or not isinstance(
+                failure_surface.get("surface_result"),
+                str,
+            )
+            or not failure_surface.get("surface_result")
+            or boundary.get("reset_snapshot_sha256")
+            != reset.get("reset_snapshot_sha256")
+            or reference.get("evaluator_passed") is not True
+            or reference.get("boundary_state_sha256")
+            != boundary.get("boundary_state_sha256")
+            or reference_trace is None
+            or reference_trace.get("scenario_id") != scenario_id
+            or reference_trace.get("variant_id") != variant_id
+            or reference_trace.get("phase") != "reference_trace"
+            or reference_trace.get("boundary_state_sha256")
+            != boundary.get("boundary_state_sha256")
+            or reference_trace.get("input_envelope_sha256")
+            != envelopes["reference_bundle"].get("depends_on")
+            or not isinstance(reference_trace.get("steps"), list)
+            or not reference_trace.get("steps")
+            or terminal_state is None
+            or terminal_state.get("scenario_id") != scenario_id
+            or terminal_state.get("variant_id") != variant_id
+            or terminal_state.get("phase") != "terminal"
+            or terminal_state.get("boundary_state_sha256")
+            != boundary.get("boundary_state_sha256")
+            or terminal_state.get("evaluator_envelope_sha256")
+            != envelope_hashes["evaluator"]
+            or not isinstance(terminal_state.get("evaluation"), dict)
+            or terminal_state["evaluation"].get("passed") is not True
+        ):
+            return False
+
+    raw_payload = role_payloads["raw_run_archive"]
+    runs = raw_payload.get("runs")
+    if not isinstance(runs, list) or not runs:
+        return False
+    raw_runs: dict[str, dict[str, Any]] = {}
+    observed_run_variants: set[str] = set()
+    for run in runs:
+        if not isinstance(run, dict):
+            return False
+        run_id = str(run.get("run_id", ""))
+        variant_id = str(run.get("variant_id", ""))
+        raw_run = _load_bound_json_payload(
+            root,
+            run,
+            path_field="run_path",
+            sha_field="run_sha256",
+            file_hashes=role_file_hashes["raw_run_archive"],
+        )
+        if (
+            not run_id
+            or run_id in raw_runs
+            or variant_id not in boundary_variants
+            or type(run.get("execution_control")) is not bool
+            or type(run.get("passed")) is not bool
+            or run.get("boundary_state_sha256")
+            != boundary_variants[variant_id].get("boundary_state_sha256")
+            or not isinstance(run.get("summary_report_path"), str)
+            or not run.get("summary_report_path")
+            or raw_run is None
+            or raw_run.get("scenario_id") != scenario_id
+            or raw_run.get("variant_id") != variant_id
+            or raw_run.get("run_id") != run_id
+            or raw_run.get("boundary_state_sha256")
+            != run.get("boundary_state_sha256")
+            or raw_run.get("input_envelope_sha256")
+            != envelopes["raw_run_archive"].get("depends_on")
+            or raw_run.get("execution_control")
+            is not run.get("execution_control")
+            or raw_run.get("passed") is not run.get("passed")
+            or raw_run.get("summary_report_path")
+            != run.get("summary_report_path")
+        ):
+            return False
+        raw_runs[run_id] = run
+        observed_run_variants.add(variant_id)
+    if observed_run_variants != set(variants):
+        return False
+
+    control_payload = role_payloads["execution_control"]
+    run_ids = control_payload.get("run_ids")
+    if (
+        not isinstance(run_ids, list)
+        or not run_ids
+        or len(run_ids) != len(set(map(str, run_ids)))
+    ):
+        return False
+    selected_runs: list[dict[str, Any]] = []
+    for value in run_ids:
+        run = raw_runs.get(str(value))
+        if run is None or run.get("execution_control") is not True:
+            return False
+        selected_runs.append(run)
+    if (
+        len(selected_runs) != len(variants)
+        or {str(run["variant_id"]) for run in selected_runs} != set(variants)
+    ):
+        return False
+    try:
+        completed_runs = int(control_payload.get("completed_runs", -1))
+        passed_runs = int(control_payload.get("passed_runs", -1))
+        task_pass_rate = float(control_payload.get("task_pass_rate", -1))
+    except (TypeError, ValueError):
+        return False
+    computed_passed = sum(run.get("passed") is True for run in selected_runs)
+    computed_rate = computed_passed / len(selected_runs)
+    if (
+        completed_runs != len(selected_runs)
+        or passed_runs != computed_passed
+        or abs(task_pass_rate - computed_rate) > 1e-12
+        or task_pass_rate < MIN_EXECUTION_CONTROL_PASS_RATE
+    ):
+        return False
+
+    declared_summary_path = str(
+        control_payload.get("control_summary_path", "")
+    )
+    declared_summary_sha = str(
+        control_payload.get("control_summary_sha256", "")
+    )
+    if (
+        declared_summary_path != control_evidence_path
+        or declared_summary_sha != control_evidence_sha256
+        or not _payload_file_matches(
+            control_payload,
+            path_field="control_summary_path",
+            sha_field="control_summary_sha256",
+            file_hashes=role_file_hashes["execution_control"],
+        )
+    ):
+        return False
+    try:
+        summary_path = safe_relative_path(
+            root,
+            declared_summary_path,
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        summary = load_json_strict(summary_path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+    if not isinstance(summary, dict):
+        return False
+    reports = summary.get("reports")
+    if not isinstance(reports, list):
+        return False
+    selected_by_summary_path = {
+        str(run["summary_report_path"]): run for run in selected_runs
+    }
+    if (
+        len(selected_by_summary_path) != len(selected_runs)
+        or len(reports) != len(selected_runs)
+    ):
+        return False
+    observed_summary_paths: set[str] = set()
+    for report in reports:
+        if not isinstance(report, dict):
+            return False
+        report_path = str(report.get("path", ""))
+        run = selected_by_summary_path.get(report_path)
+        if (
+            run is None
+            or report_path in observed_summary_paths
+            or report.get("scenario_id") != scenario_id
+            or report.get("variant") != run.get("variant_id")
+            or report.get("passed") != run.get("passed")
+        ):
+            return False
+        observed_summary_paths.add(report_path)
+    try:
+        summary_completed_runs = int(summary.get("completed_runs", -1))
+        summary_task_pass_rate = float(
+            summary.get("task_pass_rate", -1)
+        )
+        summary_control_runs = int(
+            summary.get("execution_control_counts", {}).get("true", -1)
+        )
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return not (
+        summary_completed_runs != completed_runs
+        or abs(summary_task_pass_rate - task_pass_rate) > 1e-12
+        or summary.get("run_errors") != []
+        or summary_control_runs != completed_runs
+    )
 
 
 def _validate_variant_semantics(
@@ -659,6 +1124,9 @@ def validate_release_manifest(
             formal_mapping if quality_role == "release_slot" else not formal_slot_id
         )
         if quality_role == "release_slot" and scenario is not None:
+            control_evidence = dict(
+                declaration.get("control_evidence", {})
+            )
             formal_evidence_ready = validate_formal_evidence_roles(
                 root=root,
                 declarations=dict(declaration.get("formal_evidence", {})),
@@ -668,6 +1136,12 @@ def validate_release_manifest(
                 family_id=family_id,
                 instance_id=instance_id,
                 variants=variants,
+                control_evidence_path=str(
+                    control_evidence.get("path", "")
+                ),
+                control_evidence_sha256=str(
+                    control_evidence.get("sha256", "")
+                ),
             )
         else:
             formal_evidence_ready = quality_role != "release_slot"

@@ -48,7 +48,8 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("snapshot-bundle", self.text)
         self.assertGreaterEqual(self.text.count("restore-bundle"), 3)
         self.assertIn("freeze_native_bundle.py", self.text)
-        self.assertIn("record_native_bundle_usage.py", self.text)
+        self.assertIn("--hidden-freeze", self.text)
+        self.assertIn("--hidden-usage-ledger", self.text)
 
     def test_candidate_branch_runs_the_default_execution_control(self) -> None:
         self.assertIn("forgejo-publication-candidate", self.text)
@@ -92,9 +93,9 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
     def test_execution_control_has_an_explicit_acceptance_gate(self) -> None:
         self.assertIn("validate_native_control_summary.py", self.text)
         self.assertIn("--minimum-pass-rate 0.8", self.text)
-        consumed = self.text.index("--event consumed")
-        model_call = self.text.index("run-native-model")
-        self.assertLess(consumed, model_call)
+        self.assertIn("--hidden-evaluation-id", self.text)
+        self.assertIn("--hidden-finalize", self.text)
+        self.assertNotIn("record_native_bundle_usage.py", self.text)
 
     def test_frozen_bundle_is_reverified_before_model_access(self) -> None:
         verification = self.text.index("verify_frozen_bundle.py")

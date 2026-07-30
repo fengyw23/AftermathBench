@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fengyw23/AftermathBench/schemas/formal-evidence-payload-v1.schema.json",
+  "title": "AftermathBench role-specific formal evidence payload",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "benchmark_release_id",
+    "scenario_id",
+    "domain_id",
+    "family_id",
+    "instance_id",
+    "variant_ids",
+    "producer_commit",
+    "input_envelope_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {
+      "enum": [
+        "boundary_bundle",
+        "reference_bundle",
+        "tool_contract",
+        "evaluator",
+        "reset_evidence",
+        "raw_run_archive",
+        "execution_control"
+      ]
+    },
+    "benchmark_release_id": {"$ref": "#/$defs/identifier"},
+    "scenario_id": {"$ref": "#/$defs/identifier"},
+    "domain_id": {"$ref": "#/$defs/identifier"},
+    "family_id": {"$ref": "#/$defs/identifier"},
+    "instance_id": {"$ref": "#/$defs/identifier"},
+    "variant_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "producer_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "input_envelope_sha256": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/sha256"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "tool_contract"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["tools"],
+        "properties": {
+          "tools": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/tool"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "evaluator"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["checks", "scored_state_fields"],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/evaluator_check"}
+          },
+          "scored_state_fields": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "reset_evidence"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["variants"],
+        "properties": {
+          "variants": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/reset_variant"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "boundary_bundle"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["variants"],
+        "properties": {
+          "variants": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/boundary_variant"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "reference_bundle"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["variants"],
+        "properties": {
+          "variants": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/reference_variant"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "raw_run_archive"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": ["runs"],
+        "properties": {
+          "runs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/raw_run"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"artifact_type": {"const": "execution_control"}},
+        "required": ["artifact_type"]
+      },
+      "then": {
+        "required": [
+          "run_ids",
+          "completed_runs",
+          "passed_runs",
+          "task_pass_rate",
+          "control_summary_path",
+          "control_summary_sha256"
+        ],
+        "properties": {
+          "run_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/identifier"}
+          },
+          "completed_runs": {"type": "integer", "minimum": 1},
+          "passed_runs": {"type": "integer", "minimum": 0},
+          "task_pass_rate": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 1.0
+          },
+          "control_summary_path": {"$ref": "#/$defs/file_path"},
+          "control_summary_sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file_path": {
+      "type": "string",
+      "pattern": "^data/[A-Za-z0-9._/-]+$"
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "input_schema_path",
+        "input_schema_sha256",
+        "implementation_path",
+        "implementation_sha256"
+      ],
+      "properties": {
+        "name": {"$ref": "#/$defs/identifier"},
+        "input_schema_path": {"$ref": "#/$defs/file_path"},
+        "input_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "implementation_path": {"$ref": "#/$defs/file_path"},
+        "implementation_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "evaluator_check": {
+      "type": "object",
+      "required": [
+        "id",
+        "implementation_path",
+        "implementation_sha256"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "implementation_path": {"$ref": "#/$defs/file_path"},
+        "implementation_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "reset_variant": {
+      "type": "object",
+      "required": [
+        "variant_id",
+        "reset_snapshot_path",
+        "reset_snapshot_sha256",
+        "reset_verified"
+      ],
+      "properties": {
+        "variant_id": {"$ref": "#/$defs/identifier"},
+        "reset_snapshot_path": {"$ref": "#/$defs/file_path"},
+        "reset_snapshot_sha256": {"$ref": "#/$defs/sha256"},
+        "reset_verified": {"const": true}
+      }
+    },
+    "boundary_variant": {
+      "type": "object",
+      "required": [
+        "variant_id",
+        "boundary_state_path",
+        "boundary_state_sha256",
+        "failure_surface_path",
+        "failure_surface_sha256",
+        "reset_snapshot_sha256",
+        "boundary_validation_passed"
+      ],
+      "properties": {
+        "variant_id": {"$ref": "#/$defs/identifier"},
+        "boundary_state_path": {"$ref": "#/$defs/file_path"},
+        "boundary_state_sha256": {"$ref": "#/$defs/sha256"},
+        "failure_surface_path": {"$ref": "#/$defs/file_path"},
+        "failure_surface_sha256": {"$ref": "#/$defs/sha256"},
+        "reset_snapshot_sha256": {"$ref": "#/$defs/sha256"},
+        "boundary_validation_passed": {"const": true}
+      }
+    },
+    "reference_variant": {
+      "type": "object",
+      "required": [
+        "variant_id",
+        "boundary_state_sha256",
+        "reference_trace_path",
+        "reference_trace_sha256",
+        "terminal_state_path",
+        "terminal_state_sha256",
+        "evaluator_passed"
+      ],
+      "properties": {
+        "variant_id": {"$ref": "#/$defs/identifier"},
+        "boundary_state_sha256": {"$ref": "#/$defs/sha256"},
+        "reference_trace_path": {"$ref": "#/$defs/file_path"},
+        "reference_trace_sha256": {"$ref": "#/$defs/sha256"},
+        "terminal_state_path": {"$ref": "#/$defs/file_path"},
+        "terminal_state_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluator_passed": {"const": true}
+      }
+    },
+    "raw_run": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "variant_id",
+        "run_path",
+        "run_sha256",
+        "summary_report_path",
+        "boundary_state_sha256",
+        "execution_control",
+        "passed"
+      ],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/identifier"},
+        "variant_id": {"$ref": "#/$defs/identifier"},
+        "run_path": {"$ref": "#/$defs/file_path"},
+        "run_sha256": {"$ref": "#/$defs/sha256"},
+        "summary_report_path": {"type": "string", "minLength": 1},
+        "boundary_state_sha256": {"$ref": "#/$defs/sha256"},
+        "execution_control": {"type": "boolean"},
+        "passed": {"type": "boolean"}
+      }
+    }
+  }
+}

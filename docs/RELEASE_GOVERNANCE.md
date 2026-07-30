@@ -85,21 +85,36 @@ raw-run archive, and execution-control record. Every envelope binds the same
 release/scenario/instance/variant identity and its payload files. Directed
 dependency hashes bind the reference and model runs to their boundary, tool,
 evaluator and reset inputs, and bind execution-control evidence to the raw-run
-archive.
+archive. Distinct filenames are not sufficient: each role has a typed payload
+contract, and the verifier recomputes the reset-to-boundary, boundary-to-
+reference, raw-run-to-summary, and execution-control relationships. Empty or
+role-renamed payloads therefore cannot satisfy a formal slot.
 
 A hidden binding also needs a fully verified active freeze. The attestation
 must hash the exact active scenario and instance specification; its usage
 ledger uses a sequence-numbered SHA-256 chain and the release manifest binds
-the exact ledger file hash. Any model access makes the instance ineligible.
+the exact ledger file hash. The formal native runner atomically appends
+`evaluation_locked` before its first provider request and fails closed when
+the freeze, ledger, model, condition, or evaluation identity does not match.
+The same locked evaluation may continue across the scenario's variants; its
+last run appends `consumed`. Hidden lifecycle changes are therefore enforced
+by the runner rather than an optional bookkeeping script.
+
+Runtime admission uses a separate versioned evidence contract. It fixes the
+phase-specific file, hash, and pass fields; requires unique boundary and
+reference paths; and rechecks each raw payload's scenario, variant, phase
+shape, and terminal pass result. In particular, a generic `passed: true`
+cannot override an explicit failed reference recovery.
 
 ## Known open evidence work
 
-The current replay projections are sufficient for the existing structural
-admission tests, but they are not yet a formal evidence closure. They must next
-be bound to frozen failure-boundary source trajectories, collector/tool
-contract hashes, and explicit phase labels. This prevents reference-terminal
-state from being mistaken for evidence that was visible before the first
-recovery write.
+The current replay projections are sufficient for structural admission and
+the Forgejo/Kubernetes runtime evidence now has explicit phase contracts, but
+the two selected scenarios still lack the seven-role formal evidence closure.
+They must next be emitted from frozen failure-boundary source trajectories and
+bound to the exact collector, tool contract, evaluator, reset, raw-run, and
+control artifacts. This prevents reference-terminal state from being mistaken
+for evidence that was visible before the first recovery write.
 
 Run:
 
