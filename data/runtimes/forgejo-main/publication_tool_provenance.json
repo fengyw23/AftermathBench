@@ -1,0 +1,138 @@
+{
+  "schema_version": "1.0",
+  "runtime_id": "forgejo-main",
+  "family_id": "forgejo-release-package-publication",
+  "policy": {
+    "read_wrappers_may_normalize_native_responses": true,
+    "write_wrappers_map_to_one_native_write": true,
+    "global_state_summary_forbidden": true,
+    "recommended_action_forbidden": true
+  },
+  "tools": [
+    {
+      "name": "get_pull_request",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/pulls/{index}"],
+      "audit_boundary": "One named repository Pull Request.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_issue",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/issues/{index}"],
+      "audit_boundary": "One named repository issue.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_milestone",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/milestones/{id}"],
+      "audit_boundary": "One named repository milestone.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_branch",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/branches/{branch}"],
+      "audit_boundary": "One branch and native head commit.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_repository_file",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/contents/{path}?ref={ref}"],
+      "audit_boundary": "One repository file at one named ref.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_releases",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/releases"],
+      "audit_boundary": "Releases in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_release_assets",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/releases/{id}/assets"],
+      "audit_boundary": "Native attachments for one release.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_branch_protections",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/branch_protections"],
+      "audit_boundary": "Branch-protection rules in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_hooks",
+      "kind": "read",
+      "native_sources": ["Forgejo REST API: GET /repos/{owner}/{repo}/hooks"],
+      "audit_boundary": "Webhook definitions in one repository.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_webhook_history",
+      "kind": "read",
+      "native_sources": ["Forgejo repository settings hook-history page"],
+      "audit_boundary": "Native delivery UUID and status rows for one webhook.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "list_external_deliveries",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent downstream receiver audit store"],
+      "audit_boundary": "External effects with native X-Forgejo-Delivery keys.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "get_external_delivery",
+      "kind": "read",
+      "native_sources": ["Aftermath idempotent downstream receiver audit store"],
+      "audit_boundary": "One external effect by public delivery UUID.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "create_release",
+      "kind": "write",
+      "native_sources": ["Forgejo REST API: POST /repos/{owner}/{repo}/releases"],
+      "audit_boundary": "One release tag and target ref.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "upload_release_asset_from_repository",
+      "kind": "write",
+      "native_sources": [
+        "Forgejo REST API: GET /repos/{owner}/{repo}/contents/{path}?ref={ref}",
+        "Forgejo REST API: POST /repos/{owner}/{repo}/releases/{id}/assets"
+      ],
+      "audit_boundary": "One source file attached once to one release.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "replay_webhook",
+      "kind": "write",
+      "native_sources": ["Forgejo repository settings native hook replay route"],
+      "audit_boundary": "One already-recorded native delivery UUID.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "close_milestone",
+      "kind": "write",
+      "native_sources": ["Forgejo REST API: PATCH /repos/{owner}/{repo}/milestones/{id}"],
+      "audit_boundary": "One repository milestone state transition.",
+      "returns_recommendation": false
+    },
+    {
+      "name": "wait_for_release_delivery",
+      "kind": "read",
+      "native_sources": [
+        "Forgejo repository settings hook-history page",
+        "Aftermath idempotent downstream receiver audit store"
+      ],
+      "audit_boundary": "Polling one hook and release tag for at most 30 seconds.",
+      "returns_recommendation": false
+    }
+  ]
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import mimetypes
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -51,6 +52,60 @@ class ForgejoAPI:
             detail = error.read().decode("utf-8", errors="replace")
             raise RuntimeError(
                 f"Forgejo API {method} {path} returned HTTP "
+                f"{error.code}: {detail[:1000]}"
+            ) from error
+
+    def _request_bytes(
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> Any:
+        request = urllib.request.Request(
+            f"{self.base_url.rstrip('/')}/{path.lstrip('/')}",
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"token {self.token}",
+                "Content-Type": content_type,
+            },
+            method=method,
+        )
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=self.timeout,
+            ) as response:
+                raw = response.read()
+                return json.loads(raw.decode("utf-8")) if raw else None
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"Forgejo API {method} {path} returned HTTP "
+                f"{error.code}: {detail[:1000]}"
+            ) from error
+
+    def download(self, url: str) -> bytes:
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/octet-stream",
+                "Authorization": f"token {self.token}",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=self.timeout,
+            ) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"Forgejo attachment GET {url} returned HTTP "
                 f"{error.code}: {detail[:1000]}"
             ) from error
 
@@ -333,6 +388,76 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no release list")
         return [item for item in result if isinstance(item, dict)]
 
+    def get_repository_content(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        path: str,
+        ref: str,
+    ) -> dict[str, Any]:
+        encoded_path = urllib.parse.quote(path, safe="/")
+        result = self.get(
+            f"/repos/{owner}/{repository}/contents/{encoded_path}",
+            query={"ref": ref},
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no repository content")
+        return result
+
+    def get_release_by_tag(
+        self,
+        owner: str,
+        repository: str,
+        tag: str,
+    ) -> dict[str, Any]:
+        encoded_tag = urllib.parse.quote(tag, safe="")
+        result = self.get(
+            f"/repos/{owner}/{repository}/releases/tags/{encoded_tag}"
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no release document")
+        return result
+
+    def list_release_attachments(
+        self,
+        owner: str,
+        repository: str,
+        release_id: int,
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/releases/{release_id}/assets"
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no release attachment list")
+        return [item for item in result if isinstance(item, dict)]
+
+    def create_release_attachment(
+        self,
+        owner: str,
+        repository: str,
+        release_id: int,
+        *,
+        name: str,
+        content: bytes,
+    ) -> dict[str, Any]:
+        encoded_name = urllib.parse.quote(name, safe="")
+        content_type = (
+            mimetypes.guess_type(name)[0] or "application/octet-stream"
+        )
+        result = self._request_bytes(
+            "POST",
+            (
+                f"/repos/{owner}/{repository}/releases/{release_id}/assets"
+                f"?name={encoded_name}"
+            ),
+            content,
+            content_type=content_type,
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no release attachment")
+        return result
+
     def list_issues(
         self,
         owner: str,
@@ -361,6 +486,35 @@ class ForgejoAPI:
                 "description": description,
                 "state": "open",
             },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no milestone document")
+        return result
+
+    def get_milestone(
+        self,
+        owner: str,
+        repository: str,
+        milestone_id: int,
+    ) -> dict[str, Any]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/milestones/{milestone_id}"
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no milestone document")
+        return result
+
+    def edit_milestone(
+        self,
+        owner: str,
+        repository: str,
+        milestone_id: int,
+        *,
+        state: str,
+    ) -> dict[str, Any]:
+        result = self.patch(
+            f"/repos/{owner}/{repository}/milestones/{milestone_id}",
+            {"state": state},
         )
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no milestone document")

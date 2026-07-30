@@ -8,6 +8,9 @@ from aftermath_bench.native_model_runner import (
 from aftermath_bench.native_forgejo_family import (
     FORGEJO_TOOL_DEFINITIONS,
 )
+from aftermath_bench.native_forgejo_publication_family import (
+    FORGEJO_PUBLICATION_TOOL_DEFINITIONS,
+)
 from aftermath_bench.native_kubernetes_family import (
     KUBERNETES_TOOL_DEFINITIONS,
 )
@@ -65,6 +68,20 @@ class ToolProvenanceTest(unittest.TestCase):
         report = validate_tool_provenance(
             load_tool_provenance(path),
             FORGEJO_TOOL_DEFINITIONS,
+        )
+        self.assertTrue(report.passed, report.failures)
+
+    def test_forgejo_publication_manifest_covers_every_tool(self) -> None:
+        path = (
+            repository_root()
+            / "data"
+            / "runtimes"
+            / "forgejo-main"
+            / "publication_tool_provenance.json"
+        )
+        report = validate_tool_provenance(
+            load_tool_provenance(path),
+            FORGEJO_PUBLICATION_TOOL_DEFINITIONS,
         )
         self.assertTrue(report.passed, report.failures)
 

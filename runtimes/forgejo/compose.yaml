@@ -67,8 +67,22 @@ services:
     depends_on:
       - webhook-sink
 
+  provenance-webhook-fault-gateway:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.gateway"]
+    environment:
+      AFTERMATH_GATEWAY_UPSTREAM: http://webhook-sink:8080
+      AFTERMATH_GATEWAY_DB: /data/gateway.sqlite3
+    volumes:
+      - provenance-webhook-gateway-audit:/data
+    ports:
+      - "127.0.0.1:9094:8081"
+    depends_on:
+      - webhook-sink
+
 volumes:
   forgejo-data:
   api-gateway-audit:
   webhook-sink-audit:
   webhook-gateway-audit:
+  provenance-webhook-gateway-audit:

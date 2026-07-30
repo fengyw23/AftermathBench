@@ -6,6 +6,11 @@ from aftermath_bench.integrations.forgejo_faults import (
     FORGEJO_FAULT_VARIANTS,
     ForgejoFaultController,
 )
+from aftermath_bench.integrations.forgejo_publication_faults import (
+    FORGEJO_PUBLICATION_VARIANTS,
+    PUBLICATION_VARIANTS,
+    ForgejoPublicationFaultController,
+)
 
 
 class ForgejoFaultControllerTest(unittest.TestCase):
@@ -54,6 +59,41 @@ class ForgejoFaultControllerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown Forgejo"):
             controller.arm("invented_partial_commit")
         self.assertFalse(calls)
+
+    def test_publication_variants_control_two_independent_consumers(
+        self,
+    ) -> None:
+        for variant in FORGEJO_PUBLICATION_VARIANTS:
+            with self.subTest(variant=variant):
+                calls = []
+
+                def requester(base_url, method, path, payload):
+                    calls.append((base_url, method, path, payload))
+                    return {"mode": payload["mode"]}
+
+                controller = ForgejoPublicationFaultController(
+                    requester=requester
+                )
+                specification = controller.arm(variant)
+                modes = {
+                    url.rsplit(":", 1)[-1]: payload["mode"]
+                    for url, _, _, payload in calls
+                }
+                self.assertEqual(
+                    modes["9091"],
+                    (
+                        "drop_response"
+                        if specification.release_committed
+                        else "suppress_request"
+                    ),
+                )
+                self.assertEqual(
+                    modes["9093"], specification.coordinator_mode
+                )
+                self.assertEqual(
+                    modes["9094"], specification.provenance_mode
+                )
+                self.assertIs(specification, PUBLICATION_VARIANTS[variant])
 
 
 if __name__ == "__main__":

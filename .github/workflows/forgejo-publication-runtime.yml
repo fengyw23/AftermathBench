@@ -1,0 +1,161 @@
+name: forgejo-publication-runtime
+
+on:
+  push:
+    branches:
+      - forgejo-publication-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-native-publication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      BLUEPRINT: data/scenario_blueprints/forgejo-release-publication-dev-002/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run deterministic tests
+        run: |
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned Forgejo from source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUNNER_TEMP/forgejo-source-verification.json"
+
+      - name: Build and freeze the publication prefix
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-publication"
+          mkdir -p "$runtime_root" "$run_root/runtime" "$run_root/baselines"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup
+          python scripts/build_forgejo_publication_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$run_root/runtime/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/publication-prefix.tar.gz"
+
+      - name: Replay eight boundaries and reference recoveries
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-publication"
+          variants=(
+            release_request_not_reached
+            release_committed_both_delivered
+            release_committed_coordinator_accepted_provenance_missing
+            release_committed_coordinator_missing_provenance_accepted
+            release_committed_both_missing_binary_present
+            release_committed_coordinator_delivered_provenance_missing_checksum_present
+            release_committed_coordinator_missing_provenance_delivered_sbom_present
+            release_committed_both_accepted_response_lost
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore \
+              --snapshot "$runtime_root/publication-prefix.tar.gz"
+            python scripts/run_forgejo_publication_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$run_root/runtime/$variant-boundary.json"
+            python scripts/run_forgejo_publication_control.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$run_root/runtime/$variant-reference.json"
+          done
+
+      - name: Execute fixed publication policies
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-publication"
+          variants=(
+            release_request_not_reached
+            release_committed_both_delivered
+            release_committed_coordinator_accepted_provenance_missing
+            release_committed_coordinator_missing_provenance_accepted
+            release_committed_both_missing_binary_present
+            release_committed_coordinator_delivered_provenance_missing_checksum_present
+            release_committed_coordinator_missing_provenance_delivered_sbom_present
+            release_committed_both_accepted_response_lost
+          )
+          baselines=(
+            no_op
+            blind_publish
+            assume_release_exists
+            repair_assets_only
+            replay_all_failed
+            compact_release_tree
+          )
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore \
+                --snapshot "$runtime_root/publication-prefix.tar.gz"
+              python scripts/run_forgejo_publication_boundary.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/runtime/prefix.json" \
+                --variant "$variant" \
+                --output "$run_root/baselines/$baseline-$variant-boundary.json"
+              python scripts/run_forgejo_publication_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/runtime/prefix.json" \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --output "$run_root/baselines/$baseline-$variant.json"
+            done
+          done
+
+      - name: Build and validate strict hard admission
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-publication"
+          python scripts/build_forgejo_publication_admission.py \
+            --runtime-directory "$run_root/runtime" \
+            --baseline-directory "$run_root/baselines" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$run_root/scenario"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$run_root/scenario/scenario.json"
+          cp "$RUNNER_TEMP/forgejo-source-verification.json" \
+            "$run_root/source-verification.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$run_root" \
+            --output "$run_root/evidence-manifest.json"
+
+      - name: Capture diagnostics and remove credentials
+        if: always()
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-publication"
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$run_root/compose-ps.txt" 2>&1 || true
+          rm -f "$runtime_root/credentials.json"
+          rm -f "$runtime_root/publication-prefix.tar.gz"
+
+      - name: Upload replayable publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-publication-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-publication
+          if-no-files-found: error
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true

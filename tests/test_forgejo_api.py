@@ -77,6 +77,30 @@ class ForgejoAPITest(unittest.TestCase):
             {"Do": "merge", "delete_branch_after_merge": False},
         )
 
+    def test_release_attachment_uses_native_raw_upload_endpoint(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"id": 11, "name": "bundle.tgz"}),
+        ) as opener:
+            result = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).create_release_attachment(
+                "aftermath",
+                "artifact-publication",
+                9,
+                name="bundle.tgz",
+                content=b"approved-bundle",
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/"
+            "artifact-publication/releases/9/assets?name=bundle.tgz",
+        )
+        self.assertEqual(request.data, b"approved-bundle")
+        self.assertEqual(result["id"], 11)
+
 
 if __name__ == "__main__":
     unittest.main()

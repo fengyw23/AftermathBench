@@ -140,6 +140,7 @@ class ForgejoStack:
             "api-fault-gateway",
             "forgejo",
             "webhook-fault-gateway",
+            "provenance-webhook-fault-gateway",
             "webhook-sink",
         )
         command = self.compose_command(
@@ -161,12 +162,14 @@ class ForgejoStack:
             "api-fault-gateway",
             "webhook-sink",
             "webhook-fault-gateway",
+            "provenance-webhook-fault-gateway",
         )
         self.wait_ready()
         for url in (
             "http://127.0.0.1:9091/admin/reset",
             "http://127.0.0.1:9092/admin/reset",
             "http://127.0.0.1:9093/admin/reset",
+            "http://127.0.0.1:9094/admin/reset",
         ):
             self.reset_service(url)
 
