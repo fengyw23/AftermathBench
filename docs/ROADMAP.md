@@ -65,8 +65,10 @@ promoted into the final native-runtime benchmark.
 - [x] Add a hard package-publication family with two independently repairable
   downstream consumers, three independently repairable assets, and no
   family-wide fixed decision tree.
-- [ ] Complete and archive its task-specific model execution control and
+- [x] Complete and archive its task-specific model execution control and
   ordinary model condition.
+- [ ] Freeze an independent hidden package-publication instance and make
+  replay identity/payload semantics explicit before any hidden model call.
 
 ## Phase 5 - Kubernetes interaction stress test (active)
 

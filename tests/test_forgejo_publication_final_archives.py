@@ -90,6 +90,65 @@ class ForgejoPublicationFinalArchivesTest(unittest.TestCase):
         )
         self._verify_manifest(root)
 
+    def test_ordinary_condition_is_complete_and_failure_is_attributed(
+        self,
+    ) -> None:
+        root = (
+            repository_root()
+            / "data"
+            / "evidence"
+            / "forgejo-publication-ordinary-final-20260731"
+        )
+        summary = _load(root / "model-runs" / "summary.json")
+        analysis = _load(root / "analysis.json")
+
+        self.assertEqual(summary["completed_runs"], 8)
+        self.assertEqual(summary["run_errors"], [])
+        self.assertEqual(summary["task_pass_rate"], 7 / 8)
+        self.assertEqual(summary["matched_group_success_rate"], 0.0)
+        self.assertEqual(summary["execution_control_counts"], {"false": 8})
+        self.assertEqual(
+            summary["component_pass_rates"],
+            {
+                "goal_completion": 7 / 8,
+                "preservation": 1.0,
+                "protocol_safety": 7 / 8,
+                "repair_completeness": 7 / 8,
+            },
+        )
+        self.assertEqual(analysis["load_errors"], [])
+        self.assertEqual(
+            analysis["evidence_complete_before_first_write_rate"],
+            1.0,
+        )
+        self.assertEqual(analysis["mutation_tool_error_count"], 0)
+        self.assertEqual(
+            analysis["derived_failure_stage_counts"],
+            {
+                "idempotency_identity_inference_failure": 1,
+                "pass": 7,
+            },
+        )
+        failed = [
+            report for report in analysis["reports"]
+            if not report["passed"]
+        ]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(
+            failed[0]["variant"],
+            "release_committed_both_delivered",
+        )
+        self.assertEqual(
+            failed[0]["mutation_signature"],
+            (
+                "upload_release_asset_from_repository,"
+                "upload_release_asset_from_repository,"
+                "upload_release_asset_from_repository,"
+                "replay_webhook,replay_webhook,close_milestone"
+            ),
+        )
+        self._verify_manifest(root)
+
 
 if __name__ == "__main__":
     unittest.main()

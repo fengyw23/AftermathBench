@@ -177,8 +177,19 @@ entities, 30 replayed relations across 19 relation types, dependency depth 6,
 six required boundary-query groups, four action branches, five distinct
 recovery signatures, and a minimum of four repair writes. Six fixed policies
 have zero matched-group success; the strongest passes 2/8. The model
-execution control and ordinary condition remain development experiments, not
-leaderboard results.
+execution control passes 8/8 in Actions run
+[`30558571437`](https://github.com/fengyw23/AftermathBench/actions/runs/30558571437).
+The same-commit ordinary condition passes 7/8 in run
+[`30560679399`](https://github.com/fengyw23/AftermathBench/actions/runs/30560679399)
+and fails the matched group. The sole failure occurs after all decisive
+evidence was queried: GLM replays two already-successful delivery UUIDs and
+mistakes equal payload hashes for receiver idempotency, even though the
+receiver records are keyed by delivery UUID. This is an identity-composition
+and replay-scope failure, not missing evidence or a tool error.
+
+The high task pass and single public instance mean this remains a development
+diagnostic, not a leaderboard result. Full analysis is in
+`docs/FORGEJO_PUBLICATION_MODEL_EXPERIMENT.md`.
 
 ## Kubernetes constraint-interaction vertical slice
 

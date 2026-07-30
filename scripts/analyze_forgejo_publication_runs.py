@@ -89,6 +89,16 @@ def _derive_stage(
     if not components.get("preservation", False):
         return "over_repair_scope_failure"
     if not components.get("protocol_safety", False):
+        checks = evaluation.get("checks", {})
+        if any(
+            checks.get(name) is False
+            for name in (
+                "exactly_two_target_external_effects",
+                "coordinator_effect_applied_once",
+                "provenance_effect_applied_once",
+            )
+        ):
+            return "idempotency_identity_inference_failure"
         return "state_inference_or_replay_scope_failure"
     if tool_error_count:
         return "execution_failure"

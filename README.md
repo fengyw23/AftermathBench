@@ -90,7 +90,12 @@ two independently faultable downstream consumers, three manifest-bound
 attachments, a release milestone and protected unrelated work. Its reference
 recovery passes 8/8, all 30 semantic relations replay, and the strongest fixed
 policy passes only 2/8 with zero matched-group success. It is hard-admitted as
-a development family, not a formal release instance.
+a development family, not a formal release instance. Its paired GLM-5.2
+experiment uses the same source commit and public tools: the explicit-scope
+control passes 8/8, while ordinary recovery passes 7/8 and fails the matched
+group after replaying two already-successful webhook deliveries. Complete
+native, control and ordinary evidence is under
+`data/evidence/forgejo-publication-*-final-20260731`.
 
 AftermathBench does not yet claim a complete multi-domain benchmark release.
 

@@ -10,6 +10,12 @@ reference recoveries, 30/30 replayed semantic relations and a maximum fixed
 policy pass rate of 2/8. The admitted scenario is archived under
 `data/scenarios/forgejo-release-publication-dev-002`.
 
+The paired development experiment is complete. GLM-5.2 passes the supplied
+scope control 8/8 and the ordinary condition 7/8, with zero infrastructure or
+mutation-tool errors. The ordinary matched group fails because one trajectory
+replays both already-successful webhook deliveries. See
+`docs/FORGEJO_PUBLICATION_MODEL_EXPERIMENT.md`.
+
 ## Recovery question
 
 An approved release-bundle publication call returns the same connection

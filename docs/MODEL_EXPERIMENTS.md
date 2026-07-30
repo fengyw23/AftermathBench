@@ -124,6 +124,33 @@ invoice without querying the already-linked invoice. The complete selection
 and raw artifacts are archived under
 `data/evidence/erpnext-sales-return-ordinary-repeat5-20260730`.
 
+## Forgejo package-publication paired experiment
+
+The first hard-admitted Forgejo development family has a complete paired
+GLM-5.2 run at source commit
+`0d4840df92a887c125f0a4288e90b564b9aabc85`:
+
+- explicit-scope control
+  [`30558571437`](https://github.com/fengyw23/AftermathBench/actions/runs/30558571437):
+  8/8 Recovery Integrity and 1/1 matched group;
+- ordinary recovery
+  [`30560679399`](https://github.com/fengyw23/AftermathBench/actions/runs/30560679399):
+  7/8 Recovery Integrity and 0/1 matched group.
+
+Both conditions completed all trajectories with no provider, runtime or
+mutation-tool error. The sole ordinary failure read every decision-critical
+evidence group before writing, but replayed two already-successful webhook
+deliveries. It treated equal payload hashes as the receiver's idempotency
+identity even though the visible records are keyed by native delivery UUID.
+The two replays therefore created two additional externally applied keys.
+
+This is a state/identity-composition and replay-scope failure, rather than a
+query-coverage failure. The high 7/8 task pass also means the family remains a
+development vertical slice and cannot by itself establish benchmark-scale
+difficulty. Full protocol, per-state analysis and limitations are in
+`docs/FORGEJO_PUBLICATION_MODEL_EXPERIMENT.md`; hash-bound evidence is under
+`data/evidence/forgejo-publication-{control,ordinary}-final-20260731`.
+
 ## Kubernetes interaction paired experiment
 
 The 13-state development stress test has a valid task-specific execution
