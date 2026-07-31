@@ -124,6 +124,85 @@ class PublicEvidenceSafetyTests(unittest.TestCase):
             2,
         )
 
+    def test_erpnext_restore_blobs_are_skipped_only_in_private_source_scan(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            credentials = root / "private.json"
+            credentials.write_text(
+                '{"token":"private-erpnext-token"}',
+                encoding="utf-8",
+            )
+            private_tree = root / "private-tree"
+            private_tree.mkdir()
+            restore_names = (
+                "database.sql",
+                "redis-queue.tar",
+                "gateway-audit.tar",
+                "remittance-audit.tar",
+            )
+            for name in restore_names:
+                (private_tree / name).write_text(
+                    "private-erpnext-token",
+                    encoding="utf-8",
+                )
+            (private_tree / "ordinary-report.json").write_text(
+                '{"status":"passed"}',
+                encoding="utf-8",
+            )
+
+            public = verify_public_evidence(
+                [private_tree],
+                credentials=[credentials],
+                secret_environment_variables=[],
+            )
+            private_source = verify_public_evidence(
+                [private_tree],
+                credentials=[credentials],
+                secret_environment_variables=[],
+                allow_native_restore_archives=True,
+            )
+
+        self.assertFalse(public["passed"])
+        self.assertEqual(len(public["unsafe_names"]), len(restore_names))
+        self.assertTrue(private_source["passed"])
+        self.assertEqual(
+            private_source["skipped_native_restore_archive_count"],
+            len(restore_names),
+        )
+        self.assertEqual(private_source["secret_hits"], [])
+
+    def test_private_restore_allowlist_never_exempts_ordinary_evidence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            credentials = root / "private.json"
+            credentials.write_text(
+                '{"token":"private-erpnext-token"}',
+                encoding="utf-8",
+            )
+            evidence = root / "evidence"
+            evidence.mkdir()
+            (evidence / "ordinary-report.json").write_text(
+                '{"debug":"private-erpnext-token"}',
+                encoding="utf-8",
+            )
+
+            result = verify_public_evidence(
+                [evidence],
+                credentials=[credentials],
+                secret_environment_variables=[],
+                allow_native_restore_archives=True,
+            )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(
+            result["secret_hits"],
+            ["evidence/ordinary-report.json"],
+        )
+
     def test_streaming_scan_detects_a_secret_across_chunk_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

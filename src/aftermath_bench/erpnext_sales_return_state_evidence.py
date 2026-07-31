@@ -262,6 +262,10 @@ def build_state_evidence(
         payload.update(
             {
                 "reset_evidence_file_sha256": file_sha256(reset_file),
+                # The native name records what was hashed.  The normalized
+                # name binds the same bytes into the domain-neutral formal
+                # evidence protocol.
+                "reset_snapshot_sha256": file_sha256(reset_file),
                 "failure_report_file_sha256": file_sha256(failure_file),
                 "surface_result": failure_report["surface_result"],
                 "visible_failure": failure_report["visible_failure"],

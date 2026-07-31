@@ -17,7 +17,14 @@ _SENSITIVE_FIELDS = frozenset(
     }
 )
 _NATIVE_RESTORE_ARCHIVES = frozenset(
-    {"forgejo-data.tar.gz", "webhook-sink-data.tar.gz"}
+    {
+        "forgejo-data.tar.gz",
+        "webhook-sink-data.tar.gz",
+        "database.sql",
+        "redis-queue.tar",
+        "gateway-audit.tar",
+        "remittance-audit.tar",
+    }
 )
 _FORBIDDEN_NAMES = frozenset({"credentials.json", ".env", *_NATIVE_RESTORE_ARCHIVES})
 _FORBIDDEN_SUFFIXES = frozenset({".key", ".pem"})

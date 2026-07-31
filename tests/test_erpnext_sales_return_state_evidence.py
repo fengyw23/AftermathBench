@@ -81,6 +81,10 @@ class ERPNextSalesReturnStateEvidenceTest(unittest.TestCase):
                 hashlib.sha256(reset_path.read_bytes()).hexdigest(),
             )
             self.assertEqual(
+                boundary["reset_snapshot_sha256"],
+                boundary["reset_evidence_file_sha256"],
+            )
+            self.assertEqual(
                 boundary["bundle"]["running_services"],
                 [
                     "redis-queue",
