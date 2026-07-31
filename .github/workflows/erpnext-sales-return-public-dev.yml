@@ -255,15 +255,26 @@ jobs:
 
       - name: Admit the active scenario and freeze the native evidence bundle
         run: |
-          python scripts/build_native_sales_return_admission.py \
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::admission command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
+          run_logged "$RUN_ROOT/logs/admission.log" \
+            python scripts/build_native_sales_return_admission.py \
             --prefix "$NATIVE_ROOT/runtime/prefix.json" \
             --control-directory "$NATIVE_ROOT/runtime" \
             --blueprint "$BLUEPRINT" \
-            --output-directory "$RUN_ROOT/scenario-staging" \
-            > "$RUN_ROOT/logs/admission.log" 2>&1
-          python -m aftermath_bench validate-native-scenario \
-            --scenario "$RUN_ROOT/scenario-staging/scenario.json" \
-            > "$RUN_ROOT/logs/scenario-validation.log" 2>&1
+            --output-directory "$RUN_ROOT/scenario-staging"
+          run_logged "$RUN_ROOT/logs/scenario-validation.log" \
+            python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/scenario-staging/scenario.json"
           scenario_id="$(
             python -c 'import json,re,sys; value=str(json.load(open(sys.argv[1]))["scenario_id"]); sys.exit("invalid scenario_id") if re.fullmatch(r"[a-z0-9][a-z0-9._-]*", value) is None else print(value)' \
               "$RUN_ROOT/scenario-staging/scenario.json"

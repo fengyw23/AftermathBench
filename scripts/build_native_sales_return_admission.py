@@ -122,13 +122,6 @@ def _build_graph(
     if len(replacement_invoices) != 1:
         raise RuntimeError("reference state must contain one replacement invoice")
     replacement_invoice = str(replacement_invoices[0]["name"])
-    pickup_jobs = [
-        job
-        for job in evidence["rq_jobs"]
-        if _contains_reference(job, str(prefix["sales_return"]))
-    ]
-    if not pickup_jobs:
-        raise RuntimeError("reference state did not retain a pickup job")
     native_names = {
         "original_sales_order": prefix["original_sales_order"],
         "original_delivery_note": prefix["original_delivery_note"],
@@ -147,7 +140,6 @@ def _build_graph(
         "payment_general_ledger": prefix["shared_payment_entry"],
         "credit_general_ledger": prefix["credit_note"],
         "replacement_invoice_general_ledger": replacement_invoice,
-        "pickup_job": pickup_jobs[0]["name"],
         "pickup_delivery": prefix["sales_return"],
         "affected_item": prefix["affected_item"],
         "unaffected_item": prefix["unaffected_item"],
@@ -172,7 +164,6 @@ def _build_graph(
         "payment_general_ledger": "General Ledger",
         "credit_general_ledger": "General Ledger",
         "replacement_invoice_general_ledger": "General Ledger",
-        "pickup_job": "RQ Job",
         "pickup_delivery": "External Delivery",
         "affected_item": "Item",
         "unaffected_item": "Item",
@@ -393,25 +384,9 @@ def _build_graph(
         ),
         _relation(
             "sales_return",
-            "pickup_job",
-            "enqueues",
-            "rq_jobs[].arguments",
-            _clause(
-                "rq_jobs.*.arguments",
-                "any_serialized_contains",
-                expected_entity="sales_return",
-            ),
-        ),
-        _relation(
-            "pickup_job",
             "pickup_delivery",
-            "delivers",
-            "rq_jobs[].arguments + pickup_delivery.key",
-            _clause(
-                "rq_jobs.*.arguments",
-                "any_serialized_contains",
-                expected_entity="sales_return",
-            ),
+            "triggers_external_delivery",
+            "pickup_delivery.key",
             _clause(
                 "pickup_delivery.key",
                 "any_equals",
@@ -497,11 +472,11 @@ def _build_graph(
             "shared_payment_entry",
         ],
         "required_evidence_groups": [
-            ["sales_return", "quality_inspection", "replacement_delivery_note"],
+            ["sales_return", "quality_inspection"],
             ["return_stock_ledger", "credit_general_ledger"],
             ["replacement_invoice", "shared_payment_entry"],
-            ["pickup_job"],
-            ["pickup_delivery"],
+            ["sales_return", "pickup_delivery"],
+            ["unaffected_invoice", "shared_payment_entry"],
         ],
         "boundary_signal_matrix": boundary_rows,
         "minimum_boundary_query_groups": minimum_queries,

@@ -145,6 +145,30 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
         self.assertLess(compare, reference)
         self.assertIn("--formal-contract", section)
 
+    def test_admission_failure_surfaces_its_captured_log(self) -> None:
+        section = self.text[
+            self.text.index(
+                "Admit the active scenario and freeze the native evidence bundle"
+            ):
+            self.text.index(
+                "Freeze the five formal input roles before provider access"
+            )
+        ]
+        self.assertIn("run_logged() {", section)
+        self.assertIn(
+            "::error::admission command failed; captured log follows",
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/admission.log"',
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/scenario-validation.log"',
+            section,
+        )
+        self.assertIn('cat "$log_path"', section)
+
     def test_input_lock_precedes_provider_secret_and_model(self) -> None:
         input_roles = self.text.index(
             "Freeze the five formal input roles before provider access"
