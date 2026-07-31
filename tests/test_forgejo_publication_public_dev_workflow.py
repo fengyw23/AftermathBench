@@ -122,7 +122,7 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             self.text,
         )
         self.assertIn(
-            'echo "::error::native replay command failed; sanitized log follows"',
+            'echo "::error::native replay command failed; captured log follows"',
             self.text,
         )
         self.assertIn('cat "$log_path"', self.text)
@@ -294,6 +294,71 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         ]
         self.assertNotIn('test ! -e "$SCENARIO_DIRECTORY"', first_step)
 
+    def test_active_scenario_path_is_derived_from_validated_identity(
+        self,
+    ) -> None:
+        section = self.text[
+            self.text.index("Admit the active scenario") : self.text.index(
+                "Freeze the five formal input roles"
+            )
+        ]
+        validation = section.index("validate-native-scenario")
+        derivation = section.index('scenario_id="$(', validation)
+        canonical_path = section.index(
+            'SCENARIO_DIRECTORY="data/scenarios/$scenario_id"',
+            derivation,
+        )
+        persistence = section.index('>> "$GITHUB_ENV"', canonical_path)
+        installation = section.index(
+            'mv "$RUN_ROOT/scenario-staging" "$SCENARIO_DIRECTORY"',
+            persistence,
+        )
+        self.assertLess(validation, derivation)
+        self.assertLess(derivation, canonical_path)
+        self.assertLess(canonical_path, persistence)
+        self.assertLess(persistence, installation)
+        self.assertIn(
+            're.fullmatch(r"[a-z0-9][a-z0-9._-]*", value)',
+            section,
+        )
+        job_environment = self.text[
+            self.text.index("    env:") : self.text.index("    steps:")
+        ]
+        self.assertNotIn("SCENARIO_DIRECTORY:", job_environment)
+
+    def test_formal_build_failures_surface_captured_logs(self) -> None:
+        input_section = self.text[
+            self.text.index("Freeze the five formal input roles"):
+            self.text.index("Run execution controls")
+        ]
+        completion_section = self.text[
+            self.text.index("Complete and validate"):
+            self.text.index("Seal the public evidence archive")
+        ]
+        for section, expected in (
+            (
+                input_section,
+                (
+                    'run_logged "formal input spec generation"',
+                    'run_logged "formal input evidence build"',
+                    "::error::formal input lock was not created",
+                ),
+            ),
+            (
+                completion_section,
+                (
+                    'run_logged "control manifest generation"',
+                    'run_logged "formal completion spec generation"',
+                    'run_logged "formal completion evidence build"',
+                    "::error::formal completion declarations were not created",
+                ),
+            ),
+        ):
+            self.assertIn("captured log follows", section)
+            self.assertIn('cat "$log_path"', section)
+            for value in expected:
+                self.assertIn(value, section)
+
     def test_provider_secret_is_step_scoped_after_formal_input_lock(self) -> None:
         lock_step = self.text.index(
             "Freeze the five formal input roles before provider access"
@@ -385,7 +450,11 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             archive_section,
         )
         self.assertIn(
-            'test -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok"',
+            'if [ ! -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok" ]',
+            archive_section,
+        )
+        self.assertIn(
+            "::error::provider-stage safety sentinel is missing",
             archive_section,
         )
         self.assertNotIn(
@@ -451,7 +520,7 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         )
         seal = self.text.index("id: seal", sentinel)
         sentinel_check = self.text.index(
-            'test -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok"',
+            'if [ ! -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok" ]',
             seal,
         )
         final_scan = self.text.index(

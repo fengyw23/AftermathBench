@@ -23,7 +23,6 @@ jobs:
       PYTHONPATH: src
       INSTANCE_SPEC: data/instance_specs/public-dev-slot-002.json
       BLUEPRINT: data/scenario_blueprints/public-dev-slot-002/scenario.json
-      SCENARIO_DIRECTORY: data/scenarios/public-dev-slot-002
       RUN_ROOT: data/generated/public-dev-slot-002
       NATIVE_ROOT: data/generated/public-dev-slot-002/native
       CONTROL_ROOT: data/generated/public-dev-slot-002/control
@@ -111,7 +110,7 @@ jobs:
             then
               return 0
             fi
-            echo "::error::native replay command failed; sanitized log follows"
+            echo "::error::native replay command failed; captured log follows"
             cat "$log_path"
             return 1
           }
@@ -254,6 +253,13 @@ jobs:
           run_logged "$RUN_ROOT/logs/scenario-validation.log" \
             python -m aftermath_bench validate-native-scenario \
             --scenario "$RUN_ROOT/scenario-staging/scenario.json"
+          scenario_id="$(
+            python -c 'import json,re,sys; value=str(json.load(open(sys.argv[1]))["scenario_id"]); sys.exit("invalid scenario_id") if re.fullmatch(r"[a-z0-9][a-z0-9._-]*", value) is None else print(value)' \
+              "$RUN_ROOT/scenario-staging/scenario.json"
+          )"
+          SCENARIO_DIRECTORY="data/scenarios/$scenario_id"
+          printf 'SCENARIO_DIRECTORY=%s\n' "$SCENARIO_DIRECTORY" \
+            >> "$GITHUB_ENV"
           if [ -d "$SCENARIO_DIRECTORY" ]
           then
             diff --recursive \
@@ -276,6 +282,18 @@ jobs:
 
       - name: Freeze the five formal input roles before provider access
         run: |
+          run_logged() {
+            local label="$1"
+            local log_path="$2"
+            shift 2
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::$label failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
           mapfile -t variants < <(
             python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$BLUEPRINT"
@@ -289,7 +307,9 @@ jobs:
               --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
             )
           done
-          python scripts/generate_forgejo_formal_build_spec.py \
+          run_logged "formal input spec generation" \
+            "$RUN_ROOT/logs/formal-input-spec.log" \
+            python scripts/generate_forgejo_formal_build_spec.py \
             --phase inputs \
             --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
             --scenario "$SCENARIO_DIRECTORY/scenario.json" \
@@ -298,14 +318,18 @@ jobs:
             "${capture_args[@]}" \
             --formal-output-directory "$FORMAL_OUTPUT" \
             --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
-            --root . \
-            > "$RUN_ROOT/logs/formal-input-spec.log" 2>&1
-          python scripts/build_formal_evidence.py \
+            --root .
+          run_logged "formal input evidence build" \
+            "$RUN_ROOT/logs/formal-input-build.log" \
+            python scripts/build_formal_evidence.py \
             --spec "$RUN_ROOT/specs/formal-inputs.json" \
             --root . \
-            --phase inputs \
-            > "$RUN_ROOT/logs/formal-input-build.log" 2>&1
-          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+            --phase inputs
+          if [ ! -s "$FORMAL_OUTPUT/formal-input-lock.json" ]
+          then
+            echo "::error::formal input lock was not created"
+            exit 1
+          fi
 
       - name: Run execution controls from the locked exact boundaries
         env:
@@ -392,10 +416,23 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          python scripts/build_evidence_file_manifest.py \
+          run_logged() {
+            local label="$1"
+            local log_path="$2"
+            shift 2
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::$label failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
+          run_logged "control manifest generation" \
+            "$RUN_ROOT/logs/control-files.log" \
+            python scripts/build_evidence_file_manifest.py \
             --root "$CONTROL_ROOT" \
-            --output "$CONTROL_ROOT/files.json" \
-            > "$RUN_ROOT/logs/control-files.log" 2>&1
+            --output "$CONTROL_ROOT/files.json"
           mapfile -t variants < <(
             python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$BLUEPRINT"
@@ -409,7 +446,9 @@ jobs:
               --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
             )
           done
-          python scripts/generate_forgejo_formal_build_spec.py \
+          run_logged "formal completion spec generation" \
+            "$RUN_ROOT/logs/formal-complete-spec.log" \
+            python scripts/generate_forgejo_formal_build_spec.py \
             --phase complete \
             --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
             --scenario "$SCENARIO_DIRECTORY/scenario.json" \
@@ -420,20 +459,28 @@ jobs:
             --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
             --formal-output-directory "$FORMAL_OUTPUT" \
             --output-spec "$RUN_ROOT/specs/formal-complete.json" \
-            --root . \
-            > "$RUN_ROOT/logs/formal-complete-spec.log" 2>&1
-          python scripts/build_formal_evidence.py \
+            --root .
+          run_logged "formal completion evidence build" \
+            "$RUN_ROOT/logs/formal-complete-build.log" \
+            python scripts/build_formal_evidence.py \
             --spec "$RUN_ROOT/specs/formal-complete.json" \
             --root . \
-            --phase complete \
-            > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
-          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+            --phase complete
+          if [ ! -s "$FORMAL_OUTPUT/completion/declarations.json" ]
+          then
+            echo "::error::formal completion declarations were not created"
+            exit 1
+          fi
 
       - name: Seal the public evidence archive and reject credentials
         id: seal
         if: always()
         run: |
-          test -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok"
+          if [ ! -f "$RUNNER_TEMP/forgejo-public-dev-provider-scan.ok" ]
+          then
+            echo "::error::provider-stage safety sentinel is missing"
+            exit 1
+          fi
           test -s "$SCENARIO_DIRECTORY/scenario.json"
           python scripts/build_forgejo_publication_status.py \
             --summary "$CONTROL_ROOT/model-runs/summary.json" \
