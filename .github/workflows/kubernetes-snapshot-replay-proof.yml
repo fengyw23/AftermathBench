@@ -80,8 +80,8 @@ jobs:
           kind load docker-image --name aftermath-kubernetes aftermathbench/kubernetes-control:local
           registry_root="$RUNNER_TEMP/k0-registry"
           mkdir -p "$registry_root"
-          sudo chown 65532:65532 "$registry_root"
           docker run --detach --name aftermath-interaction-registry \
+            --user "$(id -u):$(id -g)" \
             --publish 127.0.0.1:9092:8080 \
             --mount "type=bind,src=$registry_root,dst=/data" \
             aftermathbench/kubernetes-control:local \
@@ -129,5 +129,4 @@ jobs:
         run: |
           docker rm --force aftermath-interaction-registry || true
           python scripts/manage_kubernetes_stack.py down || true
-          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/k0-registry" || true
           rm -rf -- "$RUNNER_TEMP/k0-sensitive" "$RUNNER_TEMP/k0-registry"

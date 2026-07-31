@@ -29,7 +29,8 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
 
     def test_registry_uses_a_durable_bind_mount_and_is_not_auto_removed(self) -> None:
         self.assertIn('--mount "type=bind,src=$registry_root,dst=/data"', self.text)
-        self.assertIn('sudo chown 65532:65532 "$registry_root"', self.text)
+        self.assertIn('--user "$(id -u):$(id -g)"', self.text)
+        self.assertNotIn('sudo chown 65532:65532 "$registry_root"', self.text)
         self.assertIn("docker logs aftermath-interaction-registry", self.text)
         registry_section = self.text[
             self.text.index("docker run --detach") : self.text.index(
@@ -42,7 +43,10 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
         upload = self.text[self.text.index("Upload safe replay proof") :]
         self.assertIn("k0-evidence", upload)
         self.assertNotIn("k0-sensitive/", upload)
-        self.assertIn('sudo chown -R "$(id -u):$(id -g)"', upload)
+        self.assertIn(
+            'rm -rf -- "$RUNNER_TEMP/k0-sensitive" "$RUNNER_TEMP/k0-registry"',
+            upload,
+        )
 
     def test_proof_has_no_model_provider_or_secret(self) -> None:
         lowered = self.text.lower()
