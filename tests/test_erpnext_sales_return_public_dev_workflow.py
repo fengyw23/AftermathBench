@@ -30,6 +30,14 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             self.text,
         )
 
+    def test_expensive_run_is_scoped_to_a_dedicated_branch(self) -> None:
+        self.assertIn(
+            "      - erpnext-sales-return-public-dev",
+            self.text,
+        )
+        self.assertNotIn("      - native-hard-recovery-v1", self.text)
+        self.assertIn("workflow_dispatch:", self.text)
+
     def test_every_consumer_starts_from_the_same_exact_boundary(self) -> None:
         capture = self.text[
             self.text.index("Capture four exact boundaries"):
