@@ -74,6 +74,8 @@ def validate_bundle_manifest(
         "redis-queue",
         "queue-fault",
         "backend",
+        "websocket",
+        "frontend",
         "fault-gateway",
         "remittance",
     }

@@ -32,6 +32,8 @@ _MUTATING_SERVICES = (
 )
 _BUNDLE_STOP_SERVICES = (
     *_MUTATING_SERVICES,
+    "websocket",
+    "frontend",
     "queue-fault",
     "redis-queue",
 )
@@ -41,6 +43,8 @@ _BUNDLE_START_SERVICES = (
     "backend",
     "queue-short",
     "queue-long",
+    "websocket",
+    "frontend",
     "fault-gateway",
     "remittance",
 )
@@ -49,6 +53,8 @@ _BUNDLE_REQUIRED_RUNNING = frozenset(
         "redis-queue",
         "queue-fault",
         "backend",
+        "websocket",
+        "frontend",
         "fault-gateway",
         "remittance",
     }
@@ -393,14 +399,32 @@ class ERPNextStack:
         if "queue-fault" in selected:
             self.run(*common, "queue-fault")
             self._wait_http_service("http://127.0.0.1:8474/version")
-        application_services = tuple(
+        core_services = tuple(
             service
             for service in _BUNDLE_START_SERVICES
             if service in selected
-            and service not in {"redis-queue", "queue-fault"}
+            and service
+            in {
+                "backend",
+                "queue-short",
+                "queue-long",
+                "websocket",
+            }
         )
-        if application_services:
-            self.run(*common, *application_services)
+        if core_services:
+            self.run(*common, *core_services)
+        if "frontend" in selected:
+            # Nginx resolves backend/websocket addresses when it starts.
+            # Restart it after those containers have rejoined the network so
+            # it cannot retain a pre-quiescence upstream IP.
+            self.run(*common, "frontend")
+        edge_services = tuple(
+            service
+            for service in ("fault-gateway", "remittance")
+            if service in selected
+        )
+        if edge_services:
+            self.run(*common, *edge_services)
 
     def snapshot_bundle(self, destination: str | Path) -> dict[str, Any]:
         """Capture every mutable service needed to replay one exact boundary."""

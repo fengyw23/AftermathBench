@@ -23,7 +23,8 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     0,
                     (
                         "redis-queue\nqueue-fault\nbackend\n"
-                        "queue-short\nqueue-long\nfault-gateway\n"
+                        "queue-short\nqueue-long\nwebsocket\nfrontend\n"
+                        "fault-gateway\n"
                         "remittance\n"
                     ),
                     "",
@@ -56,13 +57,16 @@ class ERPNextStackBundleTest(unittest.TestCase):
             for command in commands
             if "up" in command and "--no-deps" in command
         ]
-        self.assertEqual(len(resume), 3)
+        self.assertEqual(len(resume), 5)
         self.assertTrue(
             all("--no-recreate" in command for command in resume)
         )
         self.assertEqual(resume[0][-1], "redis-queue")
         self.assertEqual(resume[1][-1], "queue-fault")
         self.assertIn("backend", resume[2])
+        self.assertIn("websocket", resume[2])
+        self.assertEqual(resume[3][-1], "frontend")
+        self.assertIn("fault-gateway", resume[4])
 
     def test_snapshot_preserves_a_pending_boundary_worker_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -76,7 +80,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     0,
                     (
                         "redis-queue\nqueue-fault\nbackend\n"
-                        "fault-gateway\nremittance\n"
+                        "websocket\nfrontend\nfault-gateway\nremittance\n"
                     ),
                     "",
                 )
@@ -104,9 +108,11 @@ class ERPNextStackBundleTest(unittest.TestCase):
             for command in commands
             if "up" in command and "--no-deps" in command
         ]
-        self.assertEqual(len(resume), 3)
-        self.assertNotIn("queue-short", resume[-1])
-        self.assertNotIn("queue-long", resume[-1])
+        self.assertEqual(len(resume), 5)
+        self.assertNotIn("queue-short", resume[2])
+        self.assertNotIn("queue-long", resume[2])
+        self.assertIn("websocket", resume[2])
+        self.assertEqual(resume[3][-1], "frontend")
         self.assertIn("--no-recreate", resume[-1])
 
     def test_snapshot_quiesces_and_hashes_every_mutable_service(self) -> None:
@@ -124,6 +130,8 @@ class ERPNextStackBundleTest(unittest.TestCase):
                         "backend",
                         "queue-short",
                         "queue-long",
+                        "websocket",
+                        "frontend",
                         "fault-gateway",
                         "remittance",
                     )
@@ -178,6 +186,8 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 "backend",
                 "queue-short",
                 "queue-long",
+                "websocket",
+                "frontend",
                 "fault-gateway",
                 "remittance",
                 "queue-fault",
@@ -190,7 +200,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
             for command in commands
             if "up" in command and "--no-deps" in command
         ]
-        self.assertEqual(len(starts), 3)
+        self.assertEqual(len(starts), 5)
         self.assertLess(
             commands.index(starts[0]),
             commands.index(starts[1]),
@@ -199,12 +209,23 @@ class ERPNextStackBundleTest(unittest.TestCase):
             commands.index(starts[1]),
             commands.index(starts[2]),
         )
+        self.assertLess(
+            commands.index(starts[2]),
+            commands.index(starts[3]),
+        )
+        self.assertLess(
+            commands.index(starts[3]),
+            commands.index(starts[4]),
+        )
         self.assertEqual(starts[0][-1], "redis-queue")
         self.assertIn("--wait", starts[0])
         self.assertEqual(starts[1][-1], "queue-fault")
         self.assertIn("backend", starts[2])
         self.assertIn("queue-short", starts[2])
-        self.assertIn("--no-recreate", starts[2])
+        self.assertIn("websocket", starts[2])
+        self.assertEqual(starts[3][-1], "frontend")
+        self.assertIn("fault-gateway", starts[4])
+        self.assertIn("--no-recreate", starts[4])
 
     def test_restore_verifies_hashes_before_replacing_native_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -247,6 +268,8 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     "backend",
                     "queue-short",
                     "queue-long",
+                    "websocket",
+                    "frontend",
                     "fault-gateway",
                     "remittance",
                 ],
@@ -286,11 +309,14 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 for command in commands
                 if "up" in command and "--no-deps" in command
             ]
-            self.assertEqual(len(starts), 3)
+            self.assertEqual(len(starts), 5)
             self.assertEqual(starts[0][-1], "redis-queue")
             self.assertEqual(starts[1][-1], "queue-fault")
             self.assertIn("backend", starts[2])
-            self.assertIn("--no-recreate", starts[2])
+            self.assertIn("websocket", starts[2])
+            self.assertEqual(starts[3][-1], "frontend")
+            self.assertIn("fault-gateway", starts[4])
+            self.assertIn("--no-recreate", starts[4])
 
             commands.clear()
             (bundle / "redis-queue.tar").write_bytes(b"drift")
