@@ -295,6 +295,28 @@ class KubernetesStack:
             time.sleep(delay_seconds)
         raise RuntimeError(f"Kubernetes API did not recover: {last_error}")
 
+    def _wait_etcd_restarted(
+        self,
+        previous_container: str,
+        *,
+        attempts: int = 180,
+        delay_seconds: float = 1.0,
+    ) -> str:
+        last_error = ""
+        for _attempt in range(attempts):
+            try:
+                current = self._etcd_container()
+                if current != previous_container:
+                    self._wait_api_ready()
+                    return current
+            except RuntimeError as error:
+                last_error = str(error)
+            time.sleep(delay_seconds)
+        raise RuntimeError(
+            "etcd static pod did not restart after manifest replacement: "
+            f"previous={previous_container}, last_error={last_error}"
+        )
+
     def _ensure_snapshot_mount(self) -> None:
         self._docker(
             "exec",
@@ -307,8 +329,9 @@ class KubernetesStack:
         original = self._read_etcd_manifest()
         patched = _patch_etcd_manifest_snapshot_mount(original)
         if patched != original:
+            previous_etcd = self._etcd_container()
             self._replace_etcd_manifest(patched)
-            self._wait_api_ready()
+            self._wait_etcd_restarted(previous_etcd)
 
     def prepare_snapshot_runtime(self) -> dict[str, str]:
         """Install the stable etcd bundle mount before a boundary is built."""
@@ -534,8 +557,9 @@ class KubernetesStack:
             )
             original = self._read_etcd_manifest()
             patched = _patch_etcd_manifest_data_path(original, remote_data_host)
+            previous_etcd = etcd_container
             self._replace_etcd_manifest(patched)
-            self._wait_api_ready()
+            self._wait_etcd_restarted(previous_etcd)
             self._restore_sqlite(
                 bundle / _BUNDLE_FILES["external_registry"], registry
             )

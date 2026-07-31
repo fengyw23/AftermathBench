@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 from aftermath_bench.integrations.kubernetes_stack import (
     KubernetesStack,
@@ -129,6 +130,28 @@ class KubernetesStackBundleTests(unittest.TestCase):
             files["etcd"].write_bytes(b"drift")
             with self.assertRaisesRegex(ValueError, "file drift: etcd"):
                 stack._validated_bundle(root)
+
+    def test_wait_for_etcd_restart_requires_a_new_container_identity(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with (
+            patch.object(
+                KubernetesStack,
+                "_etcd_container",
+                side_effect=["old-etcd", "new-etcd"],
+            ),
+            patch.object(KubernetesStack, "_wait_api_ready") as wait_ready,
+        ):
+            observed = stack._wait_etcd_restarted(
+                "old-etcd",
+                attempts=2,
+                delay_seconds=0,
+            )
+        self.assertEqual(observed, "new-etcd")
+        wait_ready.assert_called_once_with()
 
 
 if __name__ == "__main__":
