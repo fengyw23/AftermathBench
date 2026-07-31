@@ -83,6 +83,18 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             section,
         )
         self.assertIn('cat "$log_path"', section)
+        self.assertNotIn(
+            '--output "$NATIVE_ROOT/runtime/prefix.json" \\',
+            section,
+        )
+        self.assertNotIn(
+            '--output "$NATIVE_ROOT/runtime/prefix-validation.json" \\',
+            section,
+        )
+        self.assertNotIn(
+            '--snapshot "$NATIVE_ROOT/bundles/prefix" \\',
+            section,
+        )
 
     def test_reset_boundary_and_reference_are_byte_bound(self) -> None:
         section = self.text[
