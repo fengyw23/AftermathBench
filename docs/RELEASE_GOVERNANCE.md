@@ -61,11 +61,11 @@ stored report exactly equals the canonical recomputation and that the release
 manifest binds the report file's SHA-256. A stale or edited report therefore
 fails release validation even if its file hash declaration is also updated.
 
-ERPNext sales-return/exchange remains structurally hard-admitted, but its
-legacy runtime manifests reference boundary and recovery files that were not
-archived. The runtime gate therefore rejects it and the release manifest lists
-it as an explicit exclusion. The checkpoint contains 21, not 25, verified
-development cases.
+The model-consumed ERPNext sales-return/exchange development scenario remains
+an explicit historical exclusion. Its legacy runtime manifests reference an
+older evidence protocol and cannot be promoted by relabeling the split. The
+checkpoint still contains 21 verified development-candidate cases, separate
+from the four cases in the fresh formal public-development slot.
 
 The subsequently recovered GitHub Actions JSON is preserved under
 `data/evidence/erpnext-sales-return-native-historical-30425865276/` for
@@ -75,8 +75,9 @@ boundaries and successful deterministic recoveries, but lack the reset
 snapshots and cross-bound formal evidence envelope required by the current
 gate. Archiving them does not change ERPNext's release eligibility.
 
-The manifest is valid, but its release state is `development_only`. It binds
-zero formal slots, has zero hidden tests, and leaves all 36 target slots open.
+The manifest is valid and derives `partial_release`. It binds one formal
+ERPNext public-development slot, has zero hidden tests, and leaves 35 of the 36
+target slots open.
 
 ## Formal release states
 
@@ -134,21 +135,19 @@ cannot override an explicit failed reference recovery.
 
 ## Known open evidence work
 
-The current replay projections are sufficient for structural admission and
-the Forgejo/Kubernetes runtime evidence has explicit phase contracts. A fresh
-Forgejo public-development workflow has also completed the seven-role sealing
-pipeline, demonstrating the protocol end to end. Its uploaded artifact has not
-yet been imported and bound to the repository release manifest, however, and
-the two selected model-consumed development scenarios remain non-formal. The
-canonical manifest therefore still contains zero formal slots.
+The domain-neutral formal-spec protocol has now been applied to a fresh
+ERPNext public-development replay. Its four native failure boundaries,
+references, fixed-policy runs, execution controls and seven role envelopes are
+repository-bound and independently revalidated. The two selected
+model-consumed development scenarios remain non-formal, and no hidden-test
+instance exists.
 
-The next release slice must make formal-spec derivation domain-neutral and
-apply it to a fresh ERPNext public-development replay. Every promoted slot must
-bind frozen failure-boundary source trajectories to the exact collector, tool
-contract, evaluator, reset, raw-run, and control artifacts. This prevents a
-reference terminal state from being mistaken for evidence that was visible
-before the first recovery write. The audited ordering and promotion gates are
-recorded in `docs/FORMALIZATION_STAGE_GATE_20260731.md`.
+The next release slice applies the same protocol to a fresh Kubernetes
+public-development instance. Every promoted slot must continue to bind frozen
+failure-boundary source trajectories to the exact collector, tool contract,
+evaluator, reset, raw-run and control artifacts. The completed ERPNext slice
+and remaining limits are recorded in
+`docs/ERPNEXT_FORMAL_PUBLIC_DEV_CHECKPOINT_20260801.md`.
 
 Run:
 
@@ -158,4 +157,5 @@ python -m aftermath_bench status
 python -m aftermath_bench validate-release --require-full
 ```
 
-The last command is expected to fail for the current development checkpoint.
+The last command is expected to fail for the current partial-release
+checkpoint because 35 formal slots and all hidden-test lifecycles remain open.

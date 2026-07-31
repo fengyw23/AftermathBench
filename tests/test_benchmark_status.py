@@ -12,11 +12,14 @@ class BenchmarkStatusTest(unittest.TestCase):
 
         self.assertEqual(report["planned"]["target_case_count"], 183)
         self.assertTrue(report["planned"]["matrix_valid"])
-        self.assertEqual(report["implemented"]["scenario_count"], 9)
+        self.assertEqual(report["implemented"]["scenario_count"], 10)
         self.assertEqual(
-            report["implemented"]["formal_release_scenario_count"], 0
+            report["implemented"]["formal_release_scenario_count"], 1
         )
-        self.assertEqual(report["release_state"], "development_only")
+        self.assertEqual(
+            report["implemented"]["formal_release_matched_case_count"], 4
+        )
+        self.assertEqual(report["release_state"], "partial_release")
         self.assertEqual(
             report["implemented"]["hard_development_candidate_count"], 2
         )
@@ -36,9 +39,19 @@ class BenchmarkStatusTest(unittest.TestCase):
             scenarios["erpnext-sales-return-dev-001"]["admitted_tier"],
             "hard",
         )
-        self.assertFalse(
+        self.assertTrue(
             scenarios["erpnext-sales-return-dev-001"][
                 "runtime_execution_admitted"
+            ]
+        )
+        self.assertTrue(
+            scenarios["erpnext-sales-return-public-dev-001-r1"][
+                "runtime_execution_admitted"
+            ]
+        )
+        self.assertTrue(
+            scenarios["erpnext-sales-return-public-dev-001-r1"][
+                "formal_slot_split_matches"
             ]
         )
         self.assertEqual(

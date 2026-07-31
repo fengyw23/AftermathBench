@@ -1,5 +1,12 @@
 # Formalization stage gate - 2026-07-31
 
+> **Superseded checkpoint:** the ERPNext slice selected below completed in
+> GitHub Actions run `30647285786` and is now repository-bound as the first
+> formal public-development slot. See
+> [ERPNext formal public-development checkpoint](ERPNEXT_FORMAL_PUBLIC_DEV_CHECKPOINT_20260801.md)
+> for the verified result and the updated resume condition. The audit below is
+> retained as the pre-execution decision record.
+
 ## Decision
 
 The methodology-validation phase is complete, but the benchmark-release

@@ -451,22 +451,33 @@ class ReleaseManifestTest(unittest.TestCase):
             "control_evidence_sha256": control_summary[1],
         }
 
-    def test_current_checkpoint_binds_only_verified_development_candidates(
+    def test_current_checkpoint_binds_first_formal_public_dev_slot(
         self,
     ) -> None:
         report = validate_release_manifest(
             load_release_manifest(default_release_manifest_path())
         )
         self.assertTrue(report.passed, report.failures)
-        self.assertEqual(report.release_state, "development_only")
+        self.assertEqual(report.release_state, "partial_release")
         self.assertEqual(
             report.observed["hard_development_candidate_count"], 2
         )
         self.assertEqual(
             report.observed["hard_development_candidate_case_count"], 21
         )
-        self.assertEqual(report.observed["formal_verified_slot_count"], 0)
-        self.assertEqual(report.observed["missing_formal_slot_count"], 36)
+        self.assertEqual(report.observed["formal_verified_slot_count"], 1)
+        self.assertEqual(report.observed["missing_formal_slot_count"], 35)
+        formal = [
+            binding
+            for binding in report.bindings
+            if binding["quality_role"] == "release_slot"
+        ]
+        self.assertEqual(len(formal), 1)
+        self.assertEqual(
+            formal[0]["scenario_id"],
+            "erpnext-sales-return-public-dev-001-r1",
+        )
+        self.assertTrue(formal[0]["formal_evidence_ready"])
         for binding in report.bindings:
             self.assertTrue(
                 binding["checks"][

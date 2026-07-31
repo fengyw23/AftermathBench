@@ -1,11 +1,12 @@
 # AftermathBench
 
-> Current status: the canonical development manifest verifies two selected
-> hard candidates and 21 matched cases across the execution-admitted Forgejo
-> and Kubernetes runtimes. The family-specific target matrix contains 36
-> instances and 183 cases; no formal slot or hidden test is released yet.
-> ERPNext remains structurally validated but is excluded until its referenced
-> raw runtime evidence is archived. See
+> Current status: the canonical manifest verifies the first formal
+> public-development slot: four ERPNext matched cases with native runtime
+> admission, strict hard admission, 4/4 execution control and seven-role
+> evidence closure. Two additional hard development candidates contain 21
+> matched cases. The target matrix still has 35 open slots and no hidden-test
+> release, so the repository derives `partial_release`, not a complete
+> benchmark. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
@@ -71,6 +72,14 @@ The current ERPNext scenarios have three distinct statuses:
   preserved as historical evidence, but they lack per-variant reset snapshots
   and the current cross-bound formal envelopes; only a fresh native replay can
   satisfy the stricter runtime gate.
+- `erpnext-sales-return-public-dev-001-r1` is the fresh, independently
+  parameterized public-development instance. GitHub Actions run
+  [`30647285786`](https://github.com/fengyw23/AftermathBench/actions/runs/30647285786)
+  rebuilt ERPNext/Frappe, captured and replayed all four boundaries, ran all
+  fixed policies, passed strict hard admission, froze model inputs before
+  provider access, passed the GLM-5.2 supplied-scope control 4/4, and sealed
+  all seven formal roles. Its public artifact is now imported and bound as the
+  repository's first formal release slot.
 
 The historical partial-return challenge has four matched hidden transition
 states behind the same
@@ -118,21 +127,22 @@ result. Its public aggregate is archived under
 `docs/FORGEJO_PUBLICATION_INSTANCE_AND_FREEZE.md`.
 
 AftermathBench does not yet claim a complete multi-domain benchmark release.
-`data/release_manifest.json` is the authoritative development checkpoint. It
+`data/release_manifest.json` is the authoritative release checkpoint. It
 binds each selected scenario, every admission artifact, and its supplied-scope
 execution-control summary by SHA-256. `validate-release` verifies these inputs
-again instead of trusting a status label. The current manifest is valid but
-reports `development_only`: all 36 formal matrix slots remain unverified.
+again instead of trusting a status label. The current manifest is valid and
+reports `partial_release`: one formal matrix slot is verified and 35 remain
+open.
 See [Release governance](docs/RELEASE_GOVERNANCE.md).
 
-The first fresh Forgejo public-development workflow has now completed the
-seven-role sealing pipeline, but its uploaded artifact is not yet a
-repository-bound release slot. The 2026-07-31
-[formalization stage gate](docs/FORMALIZATION_STAGE_GATE_20260731.md) records
-that distinction, audits the three native domains against the machine-readable
-status, and fixes the next implementation slice: a domain-neutral formal-spec
-adapter followed by a fresh ERPNext public-development replay. Model-consumed
-development scenarios will not be relabeled as release data.
+The 2026-07-31 [formalization stage gate](docs/FORMALIZATION_STAGE_GATE_20260731.md)
+selected formal portability to ERPNext as the next slice. That slice is now
+complete; the
+[ERPNext formal public-development checkpoint](docs/ERPNEXT_FORMAL_PUBLIC_DEV_CHECKPOINT_20260801.md)
+records the workflow, artifact audit, repository binding and remaining
+scientific limits. The next slice applies the same protocol to a fresh
+Kubernetes public-development instance. Model-consumed development scenarios
+will not be relabeled as release data.
 
 ## Cross-model native results
 

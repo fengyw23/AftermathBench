@@ -131,13 +131,29 @@ def _payload_contract_matches(
     ):
         return False
     if phase == "boundary":
-        return (
+        legacy_contract = (
             payload.get("passed") is True
             and isinstance(payload.get("surface_result"), str)
             and bool(payload["surface_result"])
             and isinstance(payload.get("checks"), dict)
             and bool(payload["checks"])
         )
+        validation = payload.get("boundary_validation")
+        visible_failure = payload.get("visible_failure")
+        formal_native_contract = (
+            payload.get("phase") == "boundary"
+            and isinstance(payload.get("surface_result"), str)
+            and bool(payload["surface_result"])
+            and isinstance(visible_failure, dict)
+            and visible_failure.get("ok") is False
+            and isinstance(payload.get("failure_boundary_evidence"), dict)
+            and bool(payload["failure_boundary_evidence"])
+            and isinstance(validation, dict)
+            and validation.get("passed") is True
+            and isinstance(validation.get("checks"), dict)
+            and bool(validation["checks"])
+        )
+        return legacy_contract or formal_native_contract
     if phase == "reference":
         evaluation = payload.get("evaluation")
         return (

@@ -1,0 +1,204 @@
+x-erpnext-image: &erpnext_image
+  image: ${AFTERMATH_ERPNEXT_IMAGE:-aftermathbench/erpnext:v15.118.1}
+  pull_policy: never
+
+x-backend-defaults: &backend_defaults
+  <<: *erpnext_image
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+    - ./bridge/aftermath_frappe_bridge.py:/home/frappe/frappe-bench/apps/frappe/frappe/aftermath_bridge.py:ro
+  depends_on:
+    configurator:
+      condition: service_completed_successfully
+
+services:
+  db:
+    image: mariadb:10.6.22@sha256:7589b386fa6686a5d5f131b504ed21c81e492c48b78c6c4be0d5be1066542559
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MARIADB_ROOT_PASSWORD: ${AFTERMATH_DB_ROOT_PASSWORD:-aftermath-root}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - db-data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:7.2.7-alpine@sha256:ddd16a9b1575a774c7e62956be8daa1de5b32cfb5c25b7a216aefed8e0919f9b
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+  redis-queue:
+    image: redis:7.2.7-alpine@sha256:ddd16a9b1575a774c7e62956be8daa1de5b32cfb5c25b7a216aefed8e0919f9b
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - redis-queue-data:/data
+
+  queue-fault:
+    image: ghcr.io/shopify/toxiproxy:2.12.0@sha256:9378ed52a28bc50edc1350f936f518f31fa95f0d15917d6eb40b8e376d1a214e
+    command:
+      - -host=0.0.0.0
+      - -config=/config/toxiproxy.json
+    depends_on:
+      redis-queue:
+        condition: service_healthy
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "127.0.0.1:8474:8474"
+
+  configurator:
+    <<: *erpnext_image
+    entrypoint: ["bash", "-c"]
+    # The queue fault models a failed after-commit job enqueue. Realtime
+    # pub/sub remains on the direct Redis channel so that a queue-only fault
+    # cannot remove the benchmark's observation surface.
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host db;
+        bench set-config -gp db_port 3306;
+        bench set-config -g redis_cache "redis://redis-cache:6379";
+        bench set-config -g redis_queue "redis://queue-fault:26379";
+        bench set-config -g redis_socketio "redis://redis-queue:6379";
+        bench set-config -gp socketio_port 9000;
+        bench set-config -g serve_default_site true;
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - ./bridge/aftermath_frappe_bridge.py:/home/frappe/frappe-bench/apps/frappe/frappe/aftermath_bridge.py:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      queue-fault:
+        condition: service_started
+
+  create-site:
+    <<: *backend_defaults
+    entrypoint: ["bash", "-c"]
+    command:
+      - >
+        if [ -d "sites/aftermath.localhost" ]; then
+          echo "site already exists";
+        else
+          bench new-site aftermath.localhost --mariadb-user-host-login-scope='%' --admin-password="$${AFTERMATH_ADMIN_PASSWORD}" --db-root-username=root --db-root-password="$${AFTERMATH_DB_ROOT_PASSWORD}" --install-app erpnext --set-default;
+        fi
+    environment:
+      AFTERMATH_ADMIN_PASSWORD: ${AFTERMATH_ADMIN_PASSWORD:-aftermath-admin}
+      AFTERMATH_DB_ROOT_PASSWORD: ${AFTERMATH_DB_ROOT_PASSWORD:-aftermath-root}
+    restart: "no"
+
+  backend:
+    <<: *backend_defaults
+    environment:
+      GUNICORN_WORKERS: "2"
+      GUNICORN_THREADS: "2"
+      GUNICORN_TIMEOUT: "120"
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      create-site:
+        condition: service_completed_successfully
+
+  websocket:
+    <<: *backend_defaults
+    # Frappe v15's Node realtime process reads redis_queue rather than the
+    # redis_socketio setting. Override that process only; Python enqueue and
+    # workers continue through queue-fault so the injected failure stays
+    # scoped to the operation under test.
+    environment:
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      create-site:
+        condition: service_completed_successfully
+
+  queue-short:
+    <<: *backend_defaults
+    command: ["bench", "worker", "--queue", "short,default"]
+    depends_on:
+      create-site:
+        condition: service_completed_successfully
+
+  queue-long:
+    <<: *backend_defaults
+    command: ["bench", "worker", "--queue", "long,default,short"]
+    depends_on:
+      create-site:
+        condition: service_completed_successfully
+
+  frontend:
+    <<: *erpnext_image
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: websocket:9000
+      FRAPPE_SITE_NAME_HEADER: aftermath.localhost
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 20m
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - backend
+      - websocket
+
+  fault-gateway:
+    build:
+      context: ../..
+      dockerfile: runtimes/erpnext/control/Containerfile
+    command: ["python", "-m", "runtime_services.gateway"]
+    environment:
+      AFTERMATH_GATEWAY_UPSTREAM: http://frontend:8080
+      AFTERMATH_GATEWAY_UPSTREAM_HOST: aftermath.localhost
+      AFTERMATH_GATEWAY_DB: /data/gateway.sqlite3
+    volumes:
+      - gateway-audit:/data
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9091:8081"
+    depends_on:
+      - frontend
+
+  remittance:
+    build:
+      context: ../..
+      dockerfile: runtimes/erpnext/control/Containerfile
+    command: ["python", "-m", "runtime_services.remittance"]
+    environment:
+      AFTERMATH_REMITTANCE_DB: /data/remittance.sqlite3
+    volumes:
+      - remittance-audit:/data
+    ports:
+      - "127.0.0.1:9092:8080"
+
+volumes:
+  db-data:
+  redis-queue-data:
+  sites:
+  logs:
+  gateway-audit:
+  remittance-audit:

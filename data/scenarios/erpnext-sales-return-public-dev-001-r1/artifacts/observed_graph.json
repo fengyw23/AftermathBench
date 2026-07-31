@@ -1,0 +1,515 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-sales-return-public-dev-001-r1",
+  "source": "native replay projection with executable relation assertions",
+  "entities": [
+    {
+      "id": "original_sales_order",
+      "type": "Sales Order",
+      "native_name": "SAL-ORD-2026-00001"
+    },
+    {
+      "id": "original_delivery_note",
+      "type": "Delivery Note",
+      "native_name": "MAT-DN-2026-00001"
+    },
+    {
+      "id": "quality_inspection",
+      "type": "Quality Inspection",
+      "native_name": "MAT-QA-2026-00001"
+    },
+    {
+      "id": "affected_invoice",
+      "type": "Sales Invoice",
+      "native_name": "ACC-SINV-2026-00001"
+    },
+    {
+      "id": "unaffected_invoice",
+      "type": "Sales Invoice",
+      "native_name": "ACC-SINV-2026-00002"
+    },
+    {
+      "id": "shared_payment_entry",
+      "type": "Payment Entry",
+      "native_name": "ACC-PAY-2026-00001"
+    },
+    {
+      "id": "sales_return",
+      "type": "Delivery Note",
+      "native_name": "MAT-DN-2026-00002"
+    },
+    {
+      "id": "credit_note",
+      "type": "Sales Invoice",
+      "native_name": "ACC-SINV-2026-00003"
+    },
+    {
+      "id": "replacement_sales_order",
+      "type": "Sales Order",
+      "native_name": "SAL-ORD-2026-00002"
+    },
+    {
+      "id": "replacement_delivery_note",
+      "type": "Delivery Note",
+      "native_name": "MAT-DN-2026-00003"
+    },
+    {
+      "id": "replacement_invoice",
+      "type": "Sales Invoice",
+      "native_name": "ACC-SINV-2026-00004"
+    },
+    {
+      "id": "original_stock_ledger",
+      "type": "Stock Ledger",
+      "native_name": "MAT-DN-2026-00001"
+    },
+    {
+      "id": "return_stock_ledger",
+      "type": "Stock Ledger",
+      "native_name": "MAT-DN-2026-00002"
+    },
+    {
+      "id": "replacement_stock_ledger",
+      "type": "Stock Ledger",
+      "native_name": "MAT-DN-2026-00003"
+    },
+    {
+      "id": "payment_general_ledger",
+      "type": "General Ledger",
+      "native_name": "ACC-PAY-2026-00001"
+    },
+    {
+      "id": "credit_general_ledger",
+      "type": "General Ledger",
+      "native_name": "ACC-SINV-2026-00003"
+    },
+    {
+      "id": "replacement_invoice_general_ledger",
+      "type": "General Ledger",
+      "native_name": "ACC-SINV-2026-00004"
+    },
+    {
+      "id": "pickup_delivery",
+      "type": "External Delivery",
+      "native_name": "MAT-DN-2026-00002"
+    },
+    {
+      "id": "affected_item",
+      "type": "Item",
+      "native_name": "RAD-TABLET-XR7"
+    },
+    {
+      "id": "unaffected_item",
+      "type": "Item",
+      "native_name": "CLINIC-ROUTER-M5"
+    },
+    {
+      "id": "replacement_item",
+      "type": "Item",
+      "native_name": "RAD-TABLET-XR8"
+    },
+    {
+      "id": "customer",
+      "type": "Customer",
+      "native_name": "Northstar Mobile Diagnostics"
+    }
+  ],
+  "relations": [
+    {
+      "source": "original_sales_order",
+      "target": "original_delivery_note",
+      "type": "fulfilled_by",
+      "evidence": "original_delivery_note.items[].against_sales_order",
+      "replay": [
+        {
+          "selector": "original_delivery_note.items.*.against_sales_order",
+          "operator": "any_equals",
+          "expected_entity": "original_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "original_delivery_note",
+      "target": "affected_invoice",
+      "type": "billed_by",
+      "evidence": "affected_invoice.items[].delivery_note",
+      "replay": [
+        {
+          "selector": "affected_invoice.items.*.delivery_note",
+          "operator": "any_equals",
+          "expected_entity": "original_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "original_delivery_note",
+      "target": "unaffected_invoice",
+      "type": "billed_by",
+      "evidence": "unaffected_invoice.items[].delivery_note",
+      "replay": [
+        {
+          "selector": "unaffected_invoice.items.*.delivery_note",
+          "operator": "any_equals",
+          "expected_entity": "original_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "affected_invoice",
+      "target": "shared_payment_entry",
+      "type": "paid_by",
+      "evidence": "shared_payment_entry.references[].reference_name",
+      "replay": [
+        {
+          "selector": "shared_payment_entry.references.*.reference_name",
+          "operator": "any_equals",
+          "expected_entity": "affected_invoice"
+        }
+      ]
+    },
+    {
+      "source": "unaffected_invoice",
+      "target": "shared_payment_entry",
+      "type": "paid_by",
+      "evidence": "shared_payment_entry.references[].reference_name",
+      "replay": [
+        {
+          "selector": "shared_payment_entry.references.*.reference_name",
+          "operator": "any_equals",
+          "expected_entity": "unaffected_invoice"
+        }
+      ]
+    },
+    {
+      "source": "original_delivery_note",
+      "target": "quality_inspection",
+      "type": "inspected_by",
+      "evidence": "quality_inspection.reference_name",
+      "replay": [
+        {
+          "selector": "quality_inspection.reference_name",
+          "operator": "any_equals",
+          "expected_entity": "original_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "quality_inspection",
+      "target": "sales_return",
+      "type": "motivates",
+      "evidence": "quality_inspection.item_code + sales_return.items[].item_code",
+      "replay": [
+        {
+          "selector": "quality_inspection.item_code",
+          "operator": "intersects",
+          "other_selector": "sales_return.items.*.item_code"
+        }
+      ]
+    },
+    {
+      "source": "original_delivery_note",
+      "target": "sales_return",
+      "type": "returned_by",
+      "evidence": "sales_return.return_against",
+      "replay": [
+        {
+          "selector": "sales_return.return_against",
+          "operator": "any_equals",
+          "expected_entity": "original_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "original_delivery_note",
+      "target": "original_stock_ledger",
+      "type": "posts",
+      "evidence": "stock_ledger_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "stock_ledger_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "original_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "sales_return",
+      "target": "return_stock_ledger",
+      "type": "posts",
+      "evidence": "stock_ledger_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "stock_ledger_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "sales_return"
+        }
+      ]
+    },
+    {
+      "source": "affected_invoice",
+      "target": "credit_note",
+      "type": "credited_by",
+      "evidence": "credit_note.return_against",
+      "replay": [
+        {
+          "selector": "credit_note.return_against",
+          "operator": "any_equals",
+          "expected_entity": "affected_invoice"
+        }
+      ]
+    },
+    {
+      "source": "credit_note",
+      "target": "credit_general_ledger",
+      "type": "posts",
+      "evidence": "gl_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "gl_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "credit_note"
+        }
+      ]
+    },
+    {
+      "source": "replacement_sales_order",
+      "target": "replacement_delivery_note",
+      "type": "fulfilled_by",
+      "evidence": "replacement_delivery_note.items[].against_sales_order",
+      "replay": [
+        {
+          "selector": "replacement_delivery_note.items.*.against_sales_order",
+          "operator": "any_equals",
+          "expected_entity": "replacement_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "replacement_delivery_note",
+      "target": "replacement_stock_ledger",
+      "type": "posts",
+      "evidence": "stock_ledger_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "stock_ledger_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "replacement_delivery_note"
+        }
+      ]
+    },
+    {
+      "source": "replacement_sales_order",
+      "target": "replacement_invoice",
+      "type": "billed_by",
+      "evidence": "replacement_invoices[].items[].sales_order",
+      "replay": [
+        {
+          "selector": "replacement_invoices.*.items.*.sales_order",
+          "operator": "any_equals",
+          "expected_entity": "replacement_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "replacement_invoice",
+      "target": "replacement_invoice_general_ledger",
+      "type": "posts",
+      "evidence": "gl_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "gl_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "replacement_invoice"
+        }
+      ]
+    },
+    {
+      "source": "credit_note",
+      "target": "replacement_invoice",
+      "type": "co_reconciled",
+      "evidence": "same customer and both outstanding amounts are zero",
+      "replay": [
+        {
+          "selector": "credit_note.customer",
+          "operator": "any_equals",
+          "expected_entity": "customer"
+        },
+        {
+          "selector": "replacement_invoices.*.customer",
+          "operator": "any_equals",
+          "expected_entity": "customer"
+        },
+        {
+          "selector": "credit_note.outstanding_amount",
+          "operator": "all_numeric_zero"
+        },
+        {
+          "selector": "replacement_invoices.*.outstanding_amount",
+          "operator": "all_numeric_zero"
+        }
+      ]
+    },
+    {
+      "source": "shared_payment_entry",
+      "target": "payment_general_ledger",
+      "type": "posts",
+      "evidence": "gl_entries[].voucher_no",
+      "replay": [
+        {
+          "selector": "gl_entries.*.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "shared_payment_entry"
+        }
+      ]
+    },
+    {
+      "source": "sales_return",
+      "target": "pickup_delivery",
+      "type": "triggers_external_delivery",
+      "evidence": "pickup_delivery.key",
+      "replay": [
+        {
+          "selector": "pickup_delivery.key",
+          "operator": "any_equals",
+          "expected_entity": "sales_return"
+        }
+      ]
+    },
+    {
+      "source": "original_sales_order",
+      "target": "affected_item",
+      "type": "contains",
+      "evidence": "original_sales_order.items[].item_code",
+      "replay": [
+        {
+          "selector": "original_sales_order.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "affected_item"
+        }
+      ]
+    },
+    {
+      "source": "original_sales_order",
+      "target": "unaffected_item",
+      "type": "contains",
+      "evidence": "original_sales_order.items[].item_code",
+      "replay": [
+        {
+          "selector": "original_sales_order.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "unaffected_item"
+        }
+      ]
+    },
+    {
+      "source": "replacement_sales_order",
+      "target": "replacement_item",
+      "type": "contains",
+      "evidence": "replacement_sales_order.items[].item_code",
+      "replay": [
+        {
+          "selector": "replacement_sales_order.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "replacement_item"
+        }
+      ]
+    }
+  ],
+  "protected_effects": [
+    "original_sales_order",
+    "original_delivery_note",
+    "unaffected_invoice",
+    "shared_payment_entry"
+  ],
+  "required_evidence_groups": [
+    [
+      "sales_return",
+      "quality_inspection"
+    ],
+    [
+      "return_stock_ledger",
+      "credit_general_ledger"
+    ],
+    [
+      "replacement_invoice",
+      "shared_payment_entry"
+    ],
+    [
+      "sales_return",
+      "pickup_delivery"
+    ],
+    [
+      "unaffected_invoice",
+      "shared_payment_entry"
+    ]
+  ],
+  "boundary_signal_matrix": [
+    {
+      "variant": "request_not_reached",
+      "signals": {
+        "sales_return": 0,
+        "external_delivery": false,
+        "background_job": false
+      }
+    },
+    {
+      "variant": "database_committed_response_lost",
+      "signals": {
+        "sales_return": 1,
+        "external_delivery": true,
+        "background_job": false
+      }
+    },
+    {
+      "variant": "after_commit_enqueue_failed",
+      "signals": {
+        "sales_return": 1,
+        "external_delivery": false,
+        "background_job": false
+      }
+    },
+    {
+      "variant": "async_job_pending",
+      "signals": {
+        "sales_return": 1,
+        "external_delivery": false,
+        "background_job": true
+      }
+    }
+  ],
+  "minimum_boundary_query_groups": 3,
+  "single_query_decisive": false,
+  "action_branches": [
+    {
+      "id": "document_state",
+      "mutation_tools": [
+        "submit_document",
+        "cancel_document",
+        "create_sales_return",
+        "create_credit_note",
+        "create_delivery_note_from_order",
+        "create_sales_invoice_from_order"
+      ]
+    },
+    {
+      "id": "financial_reconciliation",
+      "mutation_tools": [
+        "reconcile_customer_documents"
+      ]
+    },
+    {
+      "id": "asynchronous_effect",
+      "mutation_tools": [
+        "enqueue_document_webhook",
+        "resume_workers"
+      ]
+    }
+  ],
+  "unsafe_actions": [
+    "resubmit a committed Sales Return",
+    "return the eight accepted tablets or unaffected routers",
+    "cancel the shared customer Payment Entry",
+    "create a duplicate exchange Sales Invoice",
+    "enqueue a second pickup after external delivery"
+  ]
+}

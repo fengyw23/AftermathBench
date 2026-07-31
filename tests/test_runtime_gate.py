@@ -137,7 +137,7 @@ class RuntimeGateTest(unittest.TestCase):
         self.assertFalse(report.source_audit_passed)
         self.assertFalse(report.execution_admitted)
 
-    def test_erpnext_source_passes_but_legacy_raw_contract_is_rejected(
+    def test_erpnext_source_and_fresh_formal_runtime_are_admitted(
         self,
     ) -> None:
         report = next(
@@ -146,28 +146,23 @@ class RuntimeGateTest(unittest.TestCase):
             if path.parent.name == "erpnext-v15"
         )
         self.assertTrue(report.source_audit_passed)
-        self.assertFalse(report.execution_admitted)
+        self.assertTrue(report.execution_admitted)
+        self.assertFalse(report.failures)
         evidence_root = (
             repository_root()
             / "data"
             / "evidence"
-            / "erpnext-native-20260728"
+            / "formal"
+            / "aftermathbench-2026.08-r1"
+            / "erpnext"
+            / "erpnext-sales-return-exchange-reconciliation"
+            / "dev-001"
         )
+        self.assertTrue((evidence_root / "runtime-admission.json").is_file())
         self.assertTrue(
-            all(
-                (evidence_root / name).is_file()
-                for name in (
-                    "request_not_reached.json",
-                    "database_committed_response_lost.json",
-                    "after_commit_enqueue_failed.json",
-                    "async_job_pending.json",
-                )
-            )
-        )
-        self.assertFalse(
             report.execution_checks["boundary_evidence_files_verified"]
         )
-        self.assertFalse(
+        self.assertTrue(
             report.execution_checks["reference_evidence_files_verified"]
         )
 
@@ -457,6 +452,56 @@ class RuntimeGateTest(unittest.TestCase):
                     phase="boundary",
                 )
             )
+
+    def test_runtime_gate_accepts_only_validated_formal_native_boundary(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, declaration = _write_combined_manifest(root)
+            for report in declaration["reports"]:
+                evidence = root / report["boundary_file"]
+                variant = report["variant"]
+                payload = {
+                    "schema_version": "1.0",
+                    "artifact_type": "native_failure_boundary",
+                    "scenario_id": "scenario-1",
+                    "variant": variant,
+                    "phase": "boundary",
+                    "surface_result": "connection lost",
+                    "visible_failure": {"ok": False, "error": "lost"},
+                    "failure_boundary_evidence": {"record": variant},
+                    "boundary_validation": {
+                        "passed": True,
+                        "checks": {"exact_boundary": True},
+                    },
+                }
+                evidence.write_text(json.dumps(payload), encoding="utf-8")
+                report["boundary_sha256"] = hashlib.sha256(
+                    evidence.read_bytes()
+                ).hexdigest()
+            manifest.write_text(json.dumps(declaration), encoding="utf-8")
+            arguments = {
+                "path": manifest,
+                "runtime_id": "runtime-1",
+                "head_sha": "a" * 40,
+                "workflow_run": (
+                    "https://github.com/example/repo/actions/runs/1"
+                ),
+                "phase": "boundary",
+            }
+            self.assertTrue(_evidence_manifest_consistent(**arguments))
+
+            first = declaration["reports"][0]
+            evidence = root / first["boundary_file"]
+            payload = json.loads(evidence.read_text(encoding="utf-8"))
+            payload["boundary_validation"]["passed"] = False
+            evidence.write_text(json.dumps(payload), encoding="utf-8")
+            first["boundary_sha256"] = hashlib.sha256(
+                evidence.read_bytes()
+            ).hexdigest()
+            manifest.write_text(json.dumps(declaration), encoding="utf-8")
+            self.assertFalse(_evidence_manifest_consistent(**arguments))
 
     def test_forgejo_admission_manifest_records_replayable_reports(self) -> None:
         root = (

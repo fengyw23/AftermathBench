@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-sales-return-public-dev-001-r1",
+  "domain_id": "erpnext",
+  "instance_id": "dev-001",
+  "instance_spec_sha256": "e2995fe40ae298e77c7835573f3ec598d6b7452f035452d5ca934e0a3f7d82f3",
+  "family": "erpnext-sales-return-exchange-reconciliation",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "hard",
+  "hidden_test_eligible": false,
+  "implementation_status": "native matched-boundary replay, reference control, fixed baselines and strict hard admission validated",
+  "title": "Recover a partial customer return and exchange without reversing a shared receipt",
+  "user_instruction": "3 of the 12 RAD-TABLET-XR7 units were confirmed defective in the recorded return inspection. Accept and return only those units, complete the already approved exchange order for 3 RAD-TABLET-XR8 units, apply the customer credit to the exchange invoice, and ensure the reverse-pickup event is applied exactly once by the idempotent receiver. Avoid redundant delivery attempts when queued work is visible. Preserve the remaining 9 RAD-TABLET-XR7 units, all 3 CLINIC-ROUTER-M5 units, the unaffected invoice, and the submitted shared customer Payment Entry.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "customer": "Northstar Mobile Diagnostics",
+    "affected_item": {
+      "item_code": "RAD-TABLET-XR7",
+      "item_name": "Rugged Radiology Tablet XR7",
+      "quantity": 12,
+      "defective_quantity": 3,
+      "unit_price": 1425
+    },
+    "unaffected_item": {
+      "item_code": "CLINIC-ROUTER-M5",
+      "item_name": "Mobile Clinic Router M5",
+      "quantity": 3,
+      "unit_price": 975
+    },
+    "replacement_item": {
+      "item_code": "RAD-TABLET-XR8",
+      "item_name": "Approved Radiology Tablet XR8",
+      "quantity": 3,
+      "unit_price": 1425,
+      "replaces": "RAD-TABLET-XR7"
+    }
+  },
+  "ambiguous_operation": {
+    "operation": "submit the draft partial customer Sales Return Delivery Note",
+    "surface_result": "HTTP connection lost before the Sales Return submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "submit_return_and_continue_exchange"
+    },
+    {
+      "id": "database_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_return_and_create_missing_credit"
+    },
+    {
+      "id": "after_commit_enqueue_failed",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "preserve_return_and_create_missing_credit"
+    },
+    {
+      "id": "async_job_pending",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "resume_delivery_or_notification"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "submit_return_and_continue_exchange",
+    "preserve_return_and_create_missing_credit",
+    "preserve_return_and_create_missing_credit",
+    "resume_delivery_or_notification"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "ledger_and_job_reads": true,
+    "idempotent_external_delivery_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}

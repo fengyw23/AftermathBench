@@ -50,8 +50,11 @@ promoted into the final native-runtime benchmark.
   errors).
 - [x] Audit the corresponding ordinary model condition and separate
   investigation, state-inference, scope, execution, and verification errors.
-- [ ] Construct independent public-development and frozen hidden instances;
-  the consumed development scenario is not a release case.
+- [x] Construct, replay, formally seal and repository-bind an independent
+  public-development instance; the consumed development scenario is not a
+  release case.
+- [ ] Construct and freeze two unconsumed hidden instances without model
+  access.
 
 ## Phase 4 - Forgejo coding/DevOps vertical slice (active)
 
