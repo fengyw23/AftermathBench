@@ -7,6 +7,17 @@ from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
 from .frappe import FrappeHTTPAdapter
 
 
+_UNSETTLED_JOB_STATUSES = frozenset(
+    {
+        "queued",
+        "started",
+        "failed",
+        "deferred",
+        "scheduled",
+    }
+)
+
+
 class ERPNextSalesReturnEvidenceCollector(ERPNextPartialReturnEvidenceCollector):
     """Collect native sales, stock, accounting, queue, and delivery evidence."""
 
@@ -124,6 +135,8 @@ class ERPNextSalesReturnEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             )
             if sales_return_name
             in json.dumps(job, ensure_ascii=False, sort_keys=True, default=str)
+            and str(job.get("status", "")).lower()
+            in _UNSETTLED_JOB_STATUSES
         ]
         return {
             **evidence,

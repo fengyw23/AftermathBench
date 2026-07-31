@@ -31,7 +31,14 @@ class _Adapter:
                         "queue": "short",
                     },
                     {
-                        "name": "job-target",
+                        "name": "job-target-settled",
+                        "job_name": "enqueue_webhook",
+                        "status": "finished",
+                        "arguments": '{"doc":{"name":"DN-RETURN-1"}}',
+                        "queue": "short",
+                    },
+                    {
+                        "name": "job-target-unsettled",
                         "job_name": "enqueue_webhook",
                         "status": "queued",
                         "arguments": '{"doc":{"name":"DN-RETURN-1"}}',
@@ -67,7 +74,7 @@ class ERPNextSalesReturnEvidenceCollectorTest(unittest.TestCase):
         )
         self.assertEqual(
             [job["name"] for job in evidence["rq_jobs"]],
-            ["job-target"],
+            ["job-target-unsettled"],
         )
 
 
