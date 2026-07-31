@@ -325,9 +325,19 @@ class _Fixture:
             "instance_spec_sha256": INSTANCE_SHA,
             "variant": variant,
             "surface_result": SURFACE,
-            "visible_failure": {"ok": False, "error": SURFACE},
+            "visible_failure": self._visible_failure(),
             "checks": {"surface_error_observed": True},
             "passed": True,
+        }
+
+    @staticmethod
+    def _visible_failure() -> dict:
+        return {
+            "ok": False,
+            "error": SURFACE,
+            "receiver_evidence": {
+                "body_sha256": "a" * 64,
+            },
         }
 
     @classmethod
@@ -374,7 +384,14 @@ class _Fixture:
                         {
                             "tool": "list_releases",
                             "arguments": {},
-                            "result": {"ok": True, "result": []},
+                            "result": {
+                                "ok": True,
+                                "result": [
+                                    {
+                                        "body_sha256": "b" * 64,
+                                    }
+                                ],
+                            },
                         }
                     ],
                     "control_error": None,
@@ -428,7 +445,7 @@ class _Fixture:
                         raw_boundary_path.read_bytes()
                     ).hexdigest(),
                     "surface_result": SURFACE,
-                    "visible_failure": {"ok": False, "error": SURFACE},
+                    "visible_failure": self._visible_failure(),
                     "harness_error_type": "RemoteDisconnected",
                     "bundle_manifest_file_sha256": boundary_bundle[
                         "manifest_file_sha256"
@@ -517,7 +534,7 @@ class _Fixture:
                     "variant": variant,
                     "execution_control": True,
                     "stop_reason": "model_stopped",
-                    "surface_failure": {"ok": False, "error": SURFACE},
+                    "surface_failure": self._visible_failure(),
                     "turns": [{"turn": 1, "tool_calls": []}],
                     "final_evidence": final_evidence,
                     "evaluation": evaluation,

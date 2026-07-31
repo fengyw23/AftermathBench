@@ -1911,8 +1911,14 @@ def _build_input_evidence_roles(
                         "variant_id": item.variant_id,
                         "phase": "failure_surface",
                         "operation": scenario.raw["ambiguous_operation"]["operation"],
-                        "surface_result": item.raw_boundary["surface_result"],
-                        "visible_failure": item.raw_boundary["visible_failure"],
+                        "surface_result": _bound_json_field(
+                            raw_boundary_outputs[item.variant_id],
+                            "surface_result",
+                        ),
+                        "visible_failure": _bound_json_field(
+                            raw_boundary_outputs[item.variant_id],
+                            "visible_failure",
+                        ),
                         "raw_failure_report_sha256": _file_sha256(
                             raw_boundary_outputs[item.variant_id]
                         ),
@@ -1984,7 +1990,10 @@ def _build_input_evidence_roles(
                         "raw_reference_report_sha256": _file_sha256(
                             raw_reference_outputs[item.variant_id]
                         ),
-                        "steps": item.raw_reference["reference_trace"],
+                        "steps": _bound_json_field(
+                            raw_reference_outputs[item.variant_id],
+                            "reference_trace",
+                        ),
                     },
                 )
                 for item in evidence
