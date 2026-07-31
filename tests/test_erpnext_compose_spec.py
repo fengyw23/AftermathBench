@@ -41,6 +41,10 @@ class ERPNextComposeSpecTest(unittest.TestCase):
             'redis_socketio "redis://redis-queue:6379"',
             self.compose,
         )
+        self.assertIn(
+            "FRAPPE_REDIS_QUEUE: redis://redis-queue:6379",
+            self.compose,
+        )
 
     def test_native_recovery_bridge_is_read_only_and_source_visible(self) -> None:
         self.assertIn(
