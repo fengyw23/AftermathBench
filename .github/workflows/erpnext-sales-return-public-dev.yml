@@ -304,6 +304,17 @@ jobs:
 
       - name: Freeze the five formal input roles before provider access
         run: |
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::formal-input command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
           capture_args=(
             --capture-bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json"
           )
@@ -317,7 +328,8 @@ jobs:
               --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
             )
           done
-          python scripts/generate_erpnext_formal_build_spec.py \
+          run_logged "$RUN_ROOT/logs/formal-input-spec.log" \
+            python scripts/generate_erpnext_formal_build_spec.py \
             --phase inputs \
             --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
             --scenario "$SCENARIO_DIRECTORY/scenario.json" \
@@ -326,13 +338,12 @@ jobs:
             "${capture_args[@]}" \
             --formal-output-directory "$FORMAL_OUTPUT" \
             --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
-            --root . \
-            > "$RUN_ROOT/logs/formal-input-spec.log" 2>&1
-          python scripts/build_formal_evidence.py \
+            --root .
+          run_logged "$RUN_ROOT/logs/formal-input-build.log" \
+            python scripts/build_formal_evidence.py \
             --spec "$RUN_ROOT/specs/formal-inputs.json" \
             --root . \
-            --phase inputs \
-            > "$RUN_ROOT/logs/formal-input-build.log" 2>&1
+            --phase inputs
           test -s "$FORMAL_OUTPUT/formal-input-lock.json"
 
       - name: Run execution controls from the locked exact boundaries
@@ -450,6 +461,17 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::formal-completion command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
           python scripts/build_evidence_file_manifest.py \
             --root "$CONTROL_ROOT" \
             --output "$CONTROL_ROOT/files.json" \
@@ -467,7 +489,8 @@ jobs:
               --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
             )
           done
-          python scripts/generate_erpnext_formal_build_spec.py \
+          run_logged "$RUN_ROOT/logs/formal-complete-spec.log" \
+            python scripts/generate_erpnext_formal_build_spec.py \
             --phase complete \
             --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
             --scenario "$SCENARIO_DIRECTORY/scenario.json" \
@@ -478,13 +501,12 @@ jobs:
             --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
             --formal-output-directory "$FORMAL_OUTPUT" \
             --output-spec "$RUN_ROOT/specs/formal-complete.json" \
-            --root . \
-            > "$RUN_ROOT/logs/formal-complete-spec.log" 2>&1
-          python scripts/build_formal_evidence.py \
+            --root .
+          run_logged "$RUN_ROOT/logs/formal-complete-build.log" \
+            python scripts/build_formal_evidence.py \
             --spec "$RUN_ROOT/specs/formal-complete.json" \
             --root . \
-            --phase complete \
-            > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
+            --phase complete
           test -s "$FORMAL_OUTPUT/completion/declarations.json"
 
       - name: Seal the safe public evidence archive
@@ -519,6 +541,26 @@ jobs:
             --expected-restore-bundle-count 5
           python scripts/verify_public_evidence_safe.py \
             --root "$RUNNER_TEMP/erpnext-public-dev-public"
+
+      - name: Seal safe diagnostic evidence after failure
+        if: failure()
+        run: |
+          if [ ! -e "$RUNNER_TEMP/erpnext-public-dev-public" ]
+          then
+            python scripts/verify_public_evidence_safe.py \
+              --root "$RUN_ROOT" \
+              --credentials-json runtimes/erpnext/.runtime/credentials.json \
+              --allow-native-restore-archives
+            python scripts/build_evidence_file_manifest.py \
+              --root "$RUN_ROOT" \
+              --output "$RUN_ROOT/files.json"
+            python scripts/build_erpnext_public_evidence_archive.py \
+              --source-root "$RUN_ROOT" \
+              --output-root "$RUNNER_TEMP/erpnext-public-dev-public" \
+              --expected-restore-bundle-count 5
+            python scripts/verify_public_evidence_safe.py \
+              --root "$RUNNER_TEMP/erpnext-public-dev-public"
+          fi
 
       - name: Upload safe public evidence
         if: always()

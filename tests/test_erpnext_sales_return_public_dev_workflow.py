@@ -169,6 +169,46 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
         )
         self.assertIn('cat "$log_path"', section)
 
+    def test_formal_failures_surface_logs_and_publish_safe_diagnostics(
+        self,
+    ) -> None:
+        input_section = self.text[
+            self.text.index(
+                "Freeze the five formal input roles before provider access"
+            ):
+            self.text.index("Run execution controls")
+        ]
+        completion_section = self.text[
+            self.text.index(
+                "Complete and validate the seven-role formal package"
+            ):
+            self.text.index("Seal the safe public evidence archive")
+        ]
+        for section, label in (
+            (input_section, "formal-input"),
+            (completion_section, "formal-completion"),
+        ):
+            self.assertIn("run_logged() {", section)
+            self.assertIn(
+                f"::error::{label} command failed; captured log follows",
+                section,
+            )
+            self.assertIn('cat "$log_path"', section)
+        diagnostic = self.text[
+            self.text.index("Seal safe diagnostic evidence after failure"):
+            self.text.index("Upload safe public evidence")
+        ]
+        self.assertIn("if: failure()", diagnostic)
+        self.assertIn(
+            "build_erpnext_public_evidence_archive.py",
+            diagnostic,
+        )
+        self.assertIn(
+            "--expected-restore-bundle-count 5",
+            diagnostic,
+        )
+        self.assertIn("verify_public_evidence_safe.py", diagnostic)
+
     def test_input_lock_precedes_provider_secret_and_model(self) -> None:
         input_roles = self.text.index(
             "Freeze the five formal input roles before provider access"
