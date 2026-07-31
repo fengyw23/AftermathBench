@@ -23,6 +23,8 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
 
     def test_registry_uses_a_durable_bind_mount_and_is_not_auto_removed(self) -> None:
         self.assertIn('--mount "type=bind,src=$registry_root,dst=/data"', self.text)
+        self.assertIn('sudo chown 65532:65532 "$registry_root"', self.text)
+        self.assertIn("docker logs aftermath-interaction-registry", self.text)
         registry_section = self.text[
             self.text.index("docker run --detach") : self.text.index(
                 "Install exact-replay mount"

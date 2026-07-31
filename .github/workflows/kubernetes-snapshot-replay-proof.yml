@@ -66,16 +66,24 @@ jobs:
           kind load docker-image --name aftermath-kubernetes aftermathbench/kubernetes-control:local
           registry_root="$RUNNER_TEMP/k0-registry"
           mkdir -p "$registry_root"
+          sudo chown 65532:65532 "$registry_root"
           docker run --detach --name aftermath-interaction-registry \
             --publish 127.0.0.1:9092:8080 \
             --mount "type=bind,src=$registry_root,dst=/data" \
             aftermathbench/kubernetes-control:local \
             python -m runtime_services.webhook_sink
+          registry_ready=false
           for attempt in $(seq 1 30); do
-            curl --fail --silent http://127.0.0.1:9092/health && break
+            if curl --fail --silent http://127.0.0.1:9092/health; then
+              registry_ready=true
+              break
+            fi
             sleep 1
           done
-          curl --fail --silent http://127.0.0.1:9092/health
+          if [[ "$registry_ready" != true ]]; then
+            docker logs aftermath-interaction-registry
+            exit 1
+          fi
 
       - name: Install exact-replay mount before constructing the boundary
         run: python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
