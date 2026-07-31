@@ -69,21 +69,32 @@ jobs:
       - name: Create the native prefix and exact reset bundle
         run: |
           runtime_root="runtimes/erpnext/.runtime"
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::native prefix command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
           python scripts/manage_erpnext_stack.py up
           python scripts/manage_erpnext_stack.py setup
-          python scripts/build_erpnext_sales_return_prefix.py \
+          run_logged "$RUN_ROOT/logs/prefix.log" \
+            python scripts/build_erpnext_sales_return_prefix.py \
             --scenario "$BLUEPRINT" \
             --credentials "$runtime_root/credentials.json" \
             --output "$NATIVE_ROOT/runtime/prefix.json" \
-            > "$RUN_ROOT/logs/prefix.log" 2>&1
-          python scripts/validate_erpnext_sales_return_prefix.py \
+          run_logged "$RUN_ROOT/logs/prefix-validation.log" \
+            python scripts/validate_erpnext_sales_return_prefix.py \
             --credentials "$runtime_root/credentials.json" \
             --prefix "$NATIVE_ROOT/runtime/prefix.json" \
             --output "$NATIVE_ROOT/runtime/prefix-validation.json" \
-            > "$RUN_ROOT/logs/prefix-validation.log" 2>&1
-          python scripts/manage_erpnext_stack.py snapshot-bundle \
+          run_logged "$RUN_ROOT/logs/prefix-bundle.log" \
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
             --snapshot "$NATIVE_ROOT/bundles/prefix" \
-            > "$RUN_ROOT/logs/prefix-bundle.log" 2>&1
 
       - name: Capture four exact boundaries and replay references
         run: |

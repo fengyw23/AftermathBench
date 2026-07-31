@@ -64,6 +64,26 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             controls,
         )
 
+    def test_native_prefix_failures_echo_the_captured_log(self) -> None:
+        section = self.text[
+            self.text.index("Create the native prefix"):
+            self.text.index("Capture four exact boundaries")
+        ]
+        self.assertIn("run_logged() {", section)
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/prefix.log"',
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/prefix-validation.log"',
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/prefix-bundle.log"',
+            section,
+        )
+        self.assertIn('cat "$log_path"', section)
+
     def test_reset_boundary_and_reference_are_byte_bound(self) -> None:
         section = self.text[
             self.text.index("Capture four exact boundaries"):
