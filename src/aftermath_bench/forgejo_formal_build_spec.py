@@ -24,6 +24,22 @@ from .native_admission import validate_native_scenario
 from .native_forgejo_publication_family import (
     FORGEJO_PUBLICATION_TOOL_DEFINITIONS,
 )
+from .native_formal_spec import (
+    CompletionEvidenceSources,
+    EvaluatorContractSources,
+    FormalSource,
+    InputEvidenceSources,
+    NativeFormalSpecError,
+    PublicToolContract,
+    ToolContractSources,
+    VariantCompletionEvidence,
+    VariantInputEvidence,
+    build_completion_roles as build_native_completion_roles,
+    build_evaluator_role as build_native_evaluator_role,
+    build_input_evidence_roles as build_native_input_evidence_roles,
+    build_tool_contract_role as build_native_tool_contract_role,
+    empty_completion_roles as native_empty_completion_roles,
+)
 from .native_scenario import (
     NativeScenario,
     load_native_scenario,
@@ -1388,48 +1404,6 @@ def _collect_variant_evidence(
     )
 
 
-def _role_root(output: str, role: str) -> str:
-    if role in {
-        "tool_contract",
-        "evaluator",
-        "reset_evidence",
-        "boundary_bundle",
-        "reference_bundle",
-    }:
-        return f"{output}/roles/{role}"
-    if role in {"raw_run_archive", "execution_control"}:
-        return f"{output}/completion/roles/{role}"
-    raise ForgejoFormalBuildSpecError(f"unknown formal role {role}")
-
-
-def _support(output: str, role: str, name: str) -> str:
-    return f"{_role_root(output, role)}/support/{name}"
-
-
-def _file_sha256(path: str) -> dict[str, str]:
-    return {"$file_sha256": path}
-
-
-def _envelope_sha256(role: str) -> dict[str, str]:
-    return {"$envelope_sha256": role}
-
-
-def _role_dependencies(role: str) -> dict[str, str]:
-    return {"$role_dependencies": role}
-
-
-def _identity(field: str) -> dict[str, str]:
-    return {"$identity": field}
-
-
-def _bound_json_field(path: str, field: str) -> dict[str, dict[str, str]]:
-    return {"$bound_json_field": {"path": path, "field": field}}
-
-
-def _formal_input_lock_sha256() -> dict[str, bool]:
-    return {"$formal_input_lock_sha256": True}
-
-
 def _validate_output_directory(root: Path, value: str) -> str:
     path = Path(value)
     if (
@@ -1451,14 +1425,6 @@ def _validate_output_directory(root: Path, value: str) -> str:
     return value
 
 
-def _source_support(path: str, source_path: str) -> dict[str, str]:
-    return {"path": path, "source_path": source_path}
-
-
-def _json_support(path: str, value: Any) -> dict[str, Any]:
-    return {"path": path, "json_content": value}
-
-
 def _build_tool_contract_role(
     *,
     root: Path,
@@ -1466,17 +1432,16 @@ def _build_tool_contract_role(
     runtime_revision: str,
     source_verification_relative: str,
 ) -> dict[str, Any]:
-    definition_source, definition_relative = _repo_file(
+    _, definition_relative = _repo_file(
         root,
         _TOOL_DEFINITION_SOURCE,
         label="Forgejo tool-definition source",
     )
-    implementation_source, implementation_relative = _repo_file(
+    _, implementation_relative = _repo_file(
         root,
         _TOOL_IMPLEMENTATION_SOURCE,
         label="Forgejo tool-implementation source",
     )
-    del definition_source, implementation_source
     dependency_sources = [
         _repo_file(
             root,
@@ -1495,40 +1460,6 @@ def _build_tool_contract_role(
         raise ForgejoFormalBuildSpecError(
             "Forgejo public tool registry is not the expected 17-tool surface"
         )
-
-    definition_output = _support(
-        output,
-        "tool_contract",
-        "sources/native_forgejo_publication_family.py",
-    )
-    implementation_output = _support(
-        output,
-        "tool_contract",
-        "sources/forgejo_publication_recovery.py",
-    )
-    dependency_outputs = {
-        source: _support(
-            output,
-            "tool_contract",
-            f"sources/{Path(source).name}",
-        )
-        for source in dependency_sources
-    }
-    schema_outputs = {
-        tool.name: _support(
-            output,
-            "tool_contract",
-            f"schemas/{tool.name}.json",
-        )
-        for tool in tools
-    }
-    implementation_dependencies = [
-        {
-            "path": dependency_outputs[source],
-            "sha256": _file_sha256(dependency_outputs[source]),
-        }
-        for source in dependency_sources
-    ]
     runtime_sources = [
         _repo_file(
             root,
@@ -1537,81 +1468,60 @@ def _build_tool_contract_role(
         )[1]
         for relative in _NATIVE_RUNTIME_CONTRACT_SOURCES
     ]
-    runtime_outputs = {
-        source: _support(
-            output,
-            "tool_contract",
-            f"native-runtime/{index:02d}-{Path(source).name}",
+    try:
+        return build_native_tool_contract_role(
+            output=output,
+            sources=ToolContractSources(
+                definition=FormalSource(
+                    source_path=definition_relative,
+                    role_path=(
+                        "sources/native_forgejo_publication_family.py"
+                    ),
+                ),
+                implementation=FormalSource(
+                    source_path=implementation_relative,
+                    role_path="sources/forgejo_publication_recovery.py",
+                ),
+                implementation_dependencies=tuple(
+                    FormalSource(
+                        source_path=source,
+                        role_path=f"sources/{Path(source).name}",
+                    )
+                    for source in dependency_sources
+                ),
+                runtime_revision=runtime_revision,
+                runtime_verification=FormalSource(
+                    source_path=source_verification_relative,
+                    role_path="native-runtime/source-verification.json",
+                ),
+                runtime_sources=tuple(
+                    FormalSource(
+                        source_path=source,
+                        role_path=(
+                            f"native-runtime/{index:02d}-"
+                            f"{Path(source).name}"
+                        ),
+                    )
+                    for index, source in enumerate(
+                        runtime_sources,
+                        start=1,
+                    )
+                ),
+                tools=tuple(
+                    PublicToolContract(
+                        name=tool.name,
+                        description=tool.description,
+                        input_schema=tool.input_schema,
+                        implementation_symbol=(
+                            "ForgejoPublicationEnvironment.invoke"
+                        ),
+                    )
+                    for tool in tools
+                ),
+            ),
         )
-        for index, source in enumerate(runtime_sources, start=1)
-    }
-    verification_output = _support(
-        output,
-        "tool_contract",
-        "native-runtime/source-verification.json",
-    )
-    return {
-        "primary_payload": {
-            "tool_count": len(tools),
-            "definition_source_path": definition_output,
-            "definition_source_sha256": _file_sha256(definition_output),
-            "implementation_dependencies": implementation_dependencies,
-            "native_runtime_contract": {
-                "revision": runtime_revision,
-                "source_verification_path": verification_output,
-                "source_verification_sha256": _file_sha256(verification_output),
-                "files": [
-                    {
-                        "source_path": source,
-                        "path": runtime_outputs[source],
-                        "sha256": _file_sha256(runtime_outputs[source]),
-                    }
-                    for source in runtime_sources
-                ],
-            },
-            "tools": [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema_path": schema_outputs[tool.name],
-                    "input_schema_sha256": _file_sha256(schema_outputs[tool.name]),
-                    "definition_source_path": definition_output,
-                    "definition_source_sha256": _file_sha256(definition_output),
-                    "implementation_path": implementation_output,
-                    "implementation_sha256": _file_sha256(implementation_output),
-                    "implementation_symbol": ("ForgejoPublicationEnvironment.invoke"),
-                    "implementation_dependencies": (implementation_dependencies),
-                }
-                for tool in tools
-            ],
-        },
-        "support_files": [
-            _source_support(definition_output, definition_relative),
-            _source_support(
-                implementation_output,
-                implementation_relative,
-            ),
-            *[
-                _source_support(dependency_outputs[source], source)
-                for source in dependency_sources
-            ],
-            _source_support(
-                verification_output,
-                source_verification_relative,
-            ),
-            *[
-                _source_support(runtime_outputs[source], source)
-                for source in runtime_sources
-            ],
-            *[
-                _json_support(
-                    schema_outputs[tool.name],
-                    tool.input_schema,
-                )
-                for tool in tools
-            ],
-        ],
-    }
+    except NativeFormalSpecError as error:
+        raise ForgejoFormalBuildSpecError(str(error)) from error
 
 
 def _build_evaluator_role(
@@ -1625,50 +1535,23 @@ def _build_evaluator_role(
         _EVALUATOR_SOURCE,
         label="Forgejo deterministic evaluator source",
     )
-    implementation_output = _support(
-        output,
-        "evaluator",
-        "sources/forgejo_publication_recovery.py",
-    )
-    return {
-        "primary_payload": {
-            "implementation_symbol": ("evaluate_forgejo_publication_recovery"),
-            "checks": [
-                {
-                    "id": check_id,
-                    "implementation_path": implementation_output,
-                    "implementation_sha256": _file_sha256(implementation_output),
-                }
-                for check_id in check_ids
-            ],
-            "scored_state_fields": list(_SCORED_STATE_FIELDS),
-        },
-        "support_files": [_source_support(implementation_output, source_relative)],
-    }
-
-
-def _manifest_supports(
-    *,
-    output: str,
-    role: str,
-    source_paths: tuple[str, ...],
-) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
-    declarations: list[dict[str, str]] = []
-    supports: list[dict[str, Any]] = []
-    for index, source in enumerate(source_paths, start=1):
-        destination = _support(
-            output,
-            role,
-            f"capture-bundles/bundle-{index:02d}.json",
+    try:
+        return build_native_evaluator_role(
+            output=output,
+            sources=EvaluatorContractSources(
+                implementation=FormalSource(
+                    source_path=source_relative,
+                    role_path="sources/forgejo_publication_recovery.py",
+                ),
+                implementation_symbol=(
+                    "evaluate_forgejo_publication_recovery"
+                ),
+                check_ids=check_ids,
+                scored_state_fields=_SCORED_STATE_FIELDS,
+            ),
         )
-        declarations.append(
-            {
-                "path": destination,
-                "sha256": _file_sha256(destination),
-            }
-        )
-        supports.append(_source_support(destination, source))
-    return declarations, supports
+    except NativeFormalSpecError as error:
+        raise ForgejoFormalBuildSpecError(str(error)) from error
 
 
 def _build_input_evidence_roles(
@@ -1687,61 +1570,6 @@ def _build_input_evidence_roles(
         scenario.resolve_artifact("prefix"),
         label="scenario admission prefix",
     )
-    prefix_output = _support(
-        output,
-        "reset_evidence",
-        "common/prefix.json",
-    )
-    tokens = {
-        item.variant_id: f"v{index:02d}" for index, item in enumerate(evidence, start=1)
-    }
-    reset_manifest_declarations, reset_manifest_supports = _manifest_supports(
-        output=output,
-        role="reset_evidence",
-        source_paths=capture_manifest_usage["reset"],
-    )
-    boundary_manifest_declarations, boundary_manifest_supports = _manifest_supports(
-        output=output,
-        role="boundary_bundle",
-        source_paths=capture_manifest_usage["boundary"],
-    )
-    reset_outputs = {
-        item.variant_id: _support(
-            output,
-            "reset_evidence",
-            f"variants/{tokens[item.variant_id]}-reset.json",
-        )
-        for item in evidence
-    }
-    boundary_outputs = {
-        item.variant_id: _support(
-            output,
-            "boundary_bundle",
-            f"variants/{tokens[item.variant_id]}-boundary.json",
-        )
-        for item in evidence
-    }
-    failure_outputs = {
-        item.variant_id: _support(
-            output,
-            "boundary_bundle",
-            f"failure-surfaces/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    raw_boundary_outputs = {
-        item.variant_id: _support(
-            output,
-            "boundary_bundle",
-            f"raw/{tokens[item.variant_id]}-boundary.json",
-        )
-        for item in evidence
-    }
-    runtime_manifest_output = _support(
-        output,
-        "boundary_bundle",
-        "source-bundles/runtime-files.json",
-    )
     boundary_contract_sources = [
         _repo_file(
             root,
@@ -1750,301 +1578,63 @@ def _build_input_evidence_roles(
         )[1]
         for relative in _BOUNDARY_CONTRACT_SOURCES
     ]
-    boundary_contract_outputs = {
-        source: _support(
-            output,
-            "boundary_bundle",
-            f"native-boundary/{index:02d}-{Path(source).name}",
-        )
-        for index, source in enumerate(
-            boundary_contract_sources,
-            start=1,
-        )
-    }
-    boundary_verification_output = _support(
-        output,
-        "boundary_bundle",
-        "native-boundary/source-verification.json",
-    )
-    raw_reference_outputs = {
-        item.variant_id: _support(
-            output,
-            "reference_bundle",
-            f"raw/{tokens[item.variant_id]}-reference.json",
-        )
-        for item in evidence
-    }
-    reference_start_outputs = {
-        item.variant_id: _support(
-            output,
-            "reference_bundle",
-            f"start-states/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    trace_outputs = {
-        item.variant_id: _support(
-            output,
-            "reference_bundle",
-            f"traces/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    terminal_outputs = {
-        item.variant_id: _support(
-            output,
-            "reference_bundle",
-            f"terminal/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-
-    reset_role = {
-        "primary_payload": {
-            "prefix_path": prefix_output,
-            "prefix_sha256": _file_sha256(prefix_output),
-            "exact_bundle_manifests": reset_manifest_declarations,
-            "variants": [
-                {
-                    "variant_id": item.variant_id,
-                    "reset_snapshot_path": reset_outputs[item.variant_id],
-                    "reset_snapshot_sha256": _file_sha256(
-                        reset_outputs[item.variant_id]
-                    ),
-                    "reset_verified": True,
-                }
-                for item in evidence
-            ],
-        },
-        "support_files": [
-            _source_support(prefix_output, prefix_relative),
-            *reset_manifest_supports,
-            *[
-                _source_support(
-                    reset_outputs[item.variant_id],
-                    item.reset_relative,
-                )
-                for item in evidence
-            ],
-        ],
-    }
-    boundary_role = {
-        "primary_payload": {
-            "operation": scenario.raw["ambiguous_operation"]["operation"],
-            "runtime_bundle_manifest_path": runtime_manifest_output,
-            "runtime_bundle_manifest_sha256": _file_sha256(runtime_manifest_output),
-            "failure_injection_contract": {
-                "runtime_revision": runtime_revision,
-                "source_verification_path": (boundary_verification_output),
-                "source_verification_sha256": _file_sha256(
-                    boundary_verification_output
+    try:
+        return build_native_input_evidence_roles(
+            output=output,
+            sources=InputEvidenceSources(
+                operation=scenario.raw["ambiguous_operation"]["operation"],
+                prefix_source_path=prefix_relative,
+                runtime_manifest_source_path=runtime_manifest_relative,
+                runtime_revision=runtime_revision,
+                boundary_verification_source_path=(
+                    source_verification_relative
                 ),
-                "files": [
-                    {
-                        "source_path": source,
-                        "path": boundary_contract_outputs[source],
-                        "sha256": _file_sha256(boundary_contract_outputs[source]),
-                    }
-                    for source in boundary_contract_sources
-                ],
-            },
-            "exact_bundle_manifests": boundary_manifest_declarations,
-            "variants": [
-                {
-                    "variant_id": item.variant_id,
-                    "boundary_state_path": boundary_outputs[item.variant_id],
-                    "boundary_state_sha256": _file_sha256(
-                        boundary_outputs[item.variant_id]
-                    ),
-                    "failure_surface_path": failure_outputs[item.variant_id],
-                    "failure_surface_sha256": _file_sha256(
-                        failure_outputs[item.variant_id]
-                    ),
-                    "raw_failure_report_path": (raw_boundary_outputs[item.variant_id]),
-                    "raw_failure_report_sha256": _file_sha256(
-                        raw_boundary_outputs[item.variant_id]
-                    ),
-                    "reset_snapshot_sha256": _file_sha256(
-                        reset_outputs[item.variant_id]
-                    ),
-                    "boundary_validation_passed": True,
-                }
-                for item in evidence
-            ],
-        },
-        "support_files": [
-            _source_support(
-                runtime_manifest_output,
-                runtime_manifest_relative,
+                boundary_contract_sources=tuple(
+                    FormalSource(
+                        source_path=source,
+                        role_path=(
+                            f"native-boundary/{index:02d}-"
+                            f"{Path(source).name}"
+                        ),
+                    )
+                    for index, source in enumerate(
+                        boundary_contract_sources,
+                        start=1,
+                    )
+                ),
+                reset_capture_manifest_sources=(
+                    capture_manifest_usage["reset"]
+                ),
+                boundary_capture_manifest_sources=(
+                    capture_manifest_usage["boundary"]
+                ),
+                variants=tuple(
+                    VariantInputEvidence(
+                        variant_id=item.variant_id,
+                        reset_source_path=item.reset_relative,
+                        boundary_state_source_path=(
+                            item.boundary_capture_relative
+                        ),
+                        raw_failure_report_source_path=(
+                            item.raw_boundary_relative
+                        ),
+                        reference_start_state_source_path=(
+                            item.reference_start_relative
+                        ),
+                        raw_reference_report_source_path=(
+                            item.raw_reference_relative
+                        ),
+                    )
+                    for item in evidence
+                ),
             ),
-            _source_support(
-                boundary_verification_output,
-                source_verification_relative,
-            ),
-            *[
-                _source_support(
-                    boundary_contract_outputs[source],
-                    source,
-                )
-                for source in boundary_contract_sources
-            ],
-            *boundary_manifest_supports,
-            *[
-                _source_support(
-                    boundary_outputs[item.variant_id],
-                    item.boundary_capture_relative,
-                )
-                for item in evidence
-            ],
-            *[
-                _source_support(
-                    raw_boundary_outputs[item.variant_id],
-                    item.raw_boundary_relative,
-                )
-                for item in evidence
-            ],
-            *[
-                _json_support(
-                    failure_outputs[item.variant_id],
-                    {
-                        "scenario_id": _identity("scenario_id"),
-                        "variant_id": item.variant_id,
-                        "phase": "failure_surface",
-                        "operation": scenario.raw["ambiguous_operation"]["operation"],
-                        "surface_result": _bound_json_field(
-                            raw_boundary_outputs[item.variant_id],
-                            "surface_result",
-                        ),
-                        "visible_failure": _bound_json_field(
-                            raw_boundary_outputs[item.variant_id],
-                            "visible_failure",
-                        ),
-                        "raw_failure_report_sha256": _file_sha256(
-                            raw_boundary_outputs[item.variant_id]
-                        ),
-                    },
-                )
-                for item in evidence
-            ],
-        ],
-    }
-    reference_role = {
-        "primary_payload": {
-            "variants": [
-                {
-                    "variant_id": item.variant_id,
-                    "boundary_state_sha256": _file_sha256(
-                        boundary_outputs[item.variant_id]
-                    ),
-                    "raw_reference_report_path": (
-                        raw_reference_outputs[item.variant_id]
-                    ),
-                    "raw_reference_report_sha256": _file_sha256(
-                        raw_reference_outputs[item.variant_id]
-                    ),
-                    "reference_start_state_path": (
-                        reference_start_outputs[item.variant_id]
-                    ),
-                    "reference_start_state_sha256": _file_sha256(
-                        reference_start_outputs[item.variant_id]
-                    ),
-                    "reference_trace_path": trace_outputs[item.variant_id],
-                    "reference_trace_sha256": _file_sha256(
-                        trace_outputs[item.variant_id]
-                    ),
-                    "terminal_state_path": terminal_outputs[item.variant_id],
-                    "terminal_state_sha256": _file_sha256(
-                        terminal_outputs[item.variant_id]
-                    ),
-                    "evaluator_passed": True,
-                }
-                for item in evidence
-            ]
-        },
-        "support_files": [
-            *[
-                _source_support(
-                    reference_start_outputs[item.variant_id],
-                    item.reference_start_relative,
-                )
-                for item in evidence
-            ],
-            *[
-                _source_support(
-                    raw_reference_outputs[item.variant_id],
-                    item.raw_reference_relative,
-                )
-                for item in evidence
-            ],
-            *[
-                _json_support(
-                    trace_outputs[item.variant_id],
-                    {
-                        "scenario_id": _identity("scenario_id"),
-                        "variant_id": item.variant_id,
-                        "phase": "reference_trace",
-                        "boundary_state_sha256": _file_sha256(
-                            boundary_outputs[item.variant_id]
-                        ),
-                        "input_envelope_sha256": _role_dependencies("reference_bundle"),
-                        "raw_reference_report_sha256": _file_sha256(
-                            raw_reference_outputs[item.variant_id]
-                        ),
-                        "steps": _bound_json_field(
-                            raw_reference_outputs[item.variant_id],
-                            "reference_trace",
-                        ),
-                    },
-                )
-                for item in evidence
-            ],
-            *[
-                _json_support(
-                    terminal_outputs[item.variant_id],
-                    {
-                        "scenario_id": _identity("scenario_id"),
-                        "variant_id": item.variant_id,
-                        "phase": "terminal",
-                        "boundary_state_sha256": _file_sha256(
-                            boundary_outputs[item.variant_id]
-                        ),
-                        "evaluator_envelope_sha256": _envelope_sha256("evaluator"),
-                        "raw_reference_report_sha256": _file_sha256(
-                            raw_reference_outputs[item.variant_id]
-                        ),
-                        "evaluation": _bound_json_field(
-                            raw_reference_outputs[item.variant_id],
-                            "evaluation",
-                        ),
-                        "final_evidence": _bound_json_field(
-                            raw_reference_outputs[item.variant_id],
-                            "final_evidence",
-                        ),
-                        "status": "complete",
-                    },
-                )
-                for item in evidence
-            ],
-        ],
-    }
-    return {
-        "reset_evidence": reset_role,
-        "boundary_bundle": boundary_role,
-        "reference_bundle": reference_role,
-    }
+        )
+    except NativeFormalSpecError as error:
+        raise ForgejoFormalBuildSpecError(str(error)) from error
 
 
 def _empty_completion_roles() -> dict[str, dict[str, Any]]:
-    return {
-        "raw_run_archive": {
-            "primary_payload": {},
-            "support_files": [],
-        },
-        "execution_control": {
-            "primary_payload": {},
-            "support_files": [],
-        },
-    }
+    return native_empty_completion_roles()
 
 
 def _build_completion_roles(
@@ -2065,183 +1655,38 @@ def _build_completion_roles(
         raise ForgejoFormalBuildSpecError(
             "complete mode requires all eight raw model trajectories"
         )
-    tokens = {
-        item.variant_id: f"v{index:02d}" for index, item in enumerate(evidence, start=1)
-    }
-    boundary_outputs = {
-        item.variant_id: _support(
-            output,
-            "boundary_bundle",
-            f"variants/{tokens[item.variant_id]}-boundary.json",
-        )
-        for item in evidence
-    }
-    lock_output = _support(
-        output,
-        "raw_run_archive",
-        "formal-input-lock.json",
-    )
-    control_manifest_output = _support(
-        output,
-        "raw_run_archive",
-        "source-bundles/control-files.json",
-    )
-    raw_outputs = {
-        item.variant_id: _support(
-            output,
-            "raw_run_archive",
-            f"trajectories/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    pre_model_outputs = {
-        item.variant_id: _support(
-            output,
-            "raw_run_archive",
-            f"pre-model-boundaries/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    run_outputs = {
-        item.variant_id: _support(
-            output,
-            "raw_run_archive",
-            f"run-records/{tokens[item.variant_id]}.json",
-        )
-        for item in evidence
-    }
-    summary_output = _support(
-        output,
-        "execution_control",
-        "summary.json",
-    )
-    run_ids = {
-        item.variant_id: str((item.trajectory or {})["run_id"]) for item in evidence
-    }
-    run_passes = {
-        item.variant_id: (
-            (item.trajectory or {}).get("evaluation", {}).get("passed") is True
-        )
-        for item in evidence
-    }
-    passed_runs = sum(run_passes.values())
-    task_pass_rate = passed_runs / len(evidence)
-    raw_role = {
-        "primary_payload": {
-            "formal_input_lock_path": lock_output,
-            "formal_input_lock_sha256": _file_sha256(lock_output),
-            "control_bundle_manifest_path": control_manifest_output,
-            "control_bundle_manifest_sha256": _file_sha256(control_manifest_output),
-            "runs": [
-                {
-                    "run_id": run_ids[item.variant_id],
-                    "variant_id": item.variant_id,
-                    "run_path": run_outputs[item.variant_id],
-                    "run_sha256": _file_sha256(run_outputs[item.variant_id]),
-                    "raw_trajectory_path": raw_outputs[item.variant_id],
-                    "raw_trajectory_sha256": _file_sha256(raw_outputs[item.variant_id]),
-                    "pre_model_boundary_evidence_path": (
-                        pre_model_outputs[item.variant_id]
-                    ),
-                    "pre_model_boundary_evidence_sha256": _file_sha256(
-                        pre_model_outputs[item.variant_id]
-                    ),
-                    "summary_report_path": raw_outputs[item.variant_id],
-                    "boundary_state_sha256": _file_sha256(
-                        boundary_outputs[item.variant_id]
-                    ),
-                    "formal_input_lock_sha256": (_formal_input_lock_sha256()),
-                    "execution_control": True,
-                    "passed": run_passes[item.variant_id],
-                }
-                for item in evidence
-            ],
-        },
-        "support_files": [
-            _source_support(lock_output, model_input_lock_relative),
-            _source_support(
-                control_manifest_output,
-                control_manifest_relative,
+    try:
+        return build_native_completion_roles(
+            output=output,
+            input_variant_ids=tuple(
+                item.variant_id for item in evidence
             ),
-            *[
-                _source_support(
-                    raw_outputs[item.variant_id],
-                    str(item.trajectory_relative),
-                )
-                for item in evidence
-            ],
-            *[
-                _source_support(
-                    pre_model_outputs[item.variant_id],
-                    str(item.pre_model_boundary_relative),
-                )
-                for item in evidence
-            ],
-            *[
-                _json_support(
-                    run_outputs[item.variant_id],
-                    {
-                        "scenario_id": _identity("scenario_id"),
-                        "variant_id": item.variant_id,
-                        "run_id": run_ids[item.variant_id],
-                        "boundary_state_sha256": _file_sha256(
-                            boundary_outputs[item.variant_id]
+            sources=CompletionEvidenceSources(
+                control_manifest_source_path=control_manifest_relative,
+                model_input_lock_source_path=model_input_lock_relative,
+                variants=tuple(
+                    VariantCompletionEvidence(
+                        variant_id=item.variant_id,
+                        run_id=str((item.trajectory or {})["run_id"]),
+                        trajectory_source_path=str(
+                            item.trajectory_relative
                         ),
-                        "input_envelope_sha256": _role_dependencies("raw_run_archive"),
-                        "formal_input_lock_sha256": (_formal_input_lock_sha256()),
-                        "raw_trajectory_path": raw_outputs[item.variant_id],
-                        "raw_trajectory_sha256": _file_sha256(
-                            raw_outputs[item.variant_id]
+                        pre_model_boundary_source_path=str(
+                            item.pre_model_boundary_relative
                         ),
-                        "pre_model_boundary_evidence_path": (
-                            pre_model_outputs[item.variant_id]
+                        passed=(
+                            (item.trajectory or {})
+                            .get("evaluation", {})
+                            .get("passed")
+                            is True
                         ),
-                        "pre_model_boundary_evidence_sha256": _file_sha256(
-                            pre_model_outputs[item.variant_id]
-                        ),
-                        "summary_report_path": raw_outputs[item.variant_id],
-                        "execution_control": True,
-                        "passed": run_passes[item.variant_id],
-                    },
-                )
-                for item in evidence
-            ],
-        ],
-    }
-    summary = {
-        "schema_version": "1.0",
-        "completed_runs": len(evidence),
-        "run_errors": [],
-        "task_pass_rate": task_pass_rate,
-        "execution_control_counts": {"true": len(evidence)},
-        "reports": [
-            {
-                "scenario_id": _identity("scenario_id"),
-                "variant": item.variant_id,
-                "passed": run_passes[item.variant_id],
-                "path": raw_outputs[item.variant_id],
-            }
-            for item in evidence
-        ],
-    }
-    control_role = {
-        "primary_payload": {
-            "formal_input_lock_sha256": _formal_input_lock_sha256(),
-            "run_ids": [run_ids[item.variant_id] for item in evidence],
-            "completed_runs": len(evidence),
-            "passed_runs": passed_runs,
-            "task_pass_rate": task_pass_rate,
-            "control_summary_path": summary_output,
-            "control_summary_sha256": _file_sha256(summary_output),
-        },
-        "support_files": [
-            _json_support(summary_output, summary),
-        ],
-    }
-    return {
-        "raw_run_archive": raw_role,
-        "execution_control": control_role,
-    }
+                    )
+                    for item in evidence
+                ),
+            ),
+        )
+    except NativeFormalSpecError as error:
+        raise ForgejoFormalBuildSpecError(str(error)) from error
 
 
 def generate_forgejo_formal_build_spec(

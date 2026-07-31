@@ -39,14 +39,32 @@ def main() -> int:
         action="store_true",
         help="run the pinned fetch and image build; default is a dry run",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        help="Write the exact build and source-verification report.",
+    )
     args = parser.parse_args()
     plan = create_build_plan(
         args.source_directory,
         container_cli=args.container_cli,
     )
-    print(json.dumps(plan.as_dict(), indent=2))
+    payload: dict = {"plan": plan.as_dict()}
     if args.execute:
-        execute_build_plan(plan)
+        image_build = execute_build_plan(plan)
+        payload["source_verification"] = {
+            "build_driver_revision": plan.expected_driver_revision,
+            "source_refs": image_build["verified_source_refs"],
+            "passed": True,
+        }
+        payload["image_build"] = image_build
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -15,7 +15,16 @@ def main() -> int:
     )
     parser.add_argument(
         "action",
-        choices=("up", "setup", "snapshot", "restore", "down", "purge"),
+        choices=(
+            "up",
+            "setup",
+            "snapshot",
+            "restore",
+            "snapshot-bundle",
+            "restore-bundle",
+            "down",
+            "purge",
+        ),
     )
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument(
@@ -53,6 +62,26 @@ def main() -> int:
         if not args.snapshot:
             parser.error("--snapshot is required")
         stack.restore_database(args.snapshot)
+    elif args.action == "snapshot-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        print(
+            json.dumps(
+                stack.snapshot_bundle(args.snapshot),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif args.action == "restore-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        print(
+            json.dumps(
+                stack.restore_bundle(args.snapshot),
+                indent=2,
+                sort_keys=True,
+            )
+        )
     elif args.action == "down":
         stack.down()
     else:

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import itertools
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,11 @@ from aftermath_bench.evidence_replay import (
     replay_graph,
     replay_selectors,
 )
+from aftermath_bench.native_admission import (
+    native_admission_report_payload,
+    validate_native_scenario,
+)
+from aftermath_bench.native_scenario import load_native_scenario
 
 VARIANTS = (
     "request_not_reached",
@@ -599,7 +605,7 @@ def _build_replay(
         captures.append(
             {
                 "variant": report["variant"],
-                "source_report": str(source),
+                "source_report": source.name,
                 "source_report_sha256": _sha256(source),
                 "source_evaluation_passed": report["evaluation"]["passed"],
                 "evidence": project_evidence(
@@ -640,6 +646,14 @@ def main() -> int:
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--control-directory", type=Path, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument(
+        "--blueprint",
+        type=Path,
+        help=(
+            "When supplied, build a complete admitted scenario directory "
+            "instead of legacy standalone artifact files."
+        ),
+    )
     args = parser.parse_args()
     prefix = _read(args.prefix)
     references, failures, baselines = _load_inputs(args.control_directory)
@@ -652,18 +666,70 @@ def main() -> int:
         references,
         args.control_directory,
     )
-    args.output_directory.mkdir(parents=True, exist_ok=True)
+    artifact_directory = (
+        args.output_directory / "artifacts"
+        if args.blueprint is not None
+        else args.output_directory
+    )
+    artifact_directory.mkdir(parents=True, exist_ok=True)
     for name, payload in (
         ("reference.json", reference),
         ("observed_graph.json", graph),
         ("baselines.json", baseline_summary),
         ("replay_evidence.json", replay),
     ):
-        (args.output_directory / name).write_text(
+        (artifact_directory / name).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-    return 0
+    if args.blueprint is None:
+        return 0
+    blueprint = _read(args.blueprint)
+    if (
+        blueprint.get("scenario_id") != prefix.get("scenario_id")
+        or blueprint.get("instance_spec_sha256")
+        != prefix.get("instance_spec_sha256")
+    ):
+        raise RuntimeError(
+            "blueprint and prefix instance identities do not match"
+        )
+    scenario = {
+        **blueprint,
+        "schema_version": "1.0",
+        "benchmark_tier": "hard",
+        "implementation_status": (
+            "native matched-boundary replay, reference control, fixed "
+            "baselines and strict hard admission validated"
+        ),
+        "admission_status": "validated_hard",
+        "admission_artifacts": {
+            "admission": "artifacts/admission.json",
+            "prefix": "artifacts/prefix.json",
+            "reference": "artifacts/reference.json",
+            "observed_graph": "artifacts/observed_graph.json",
+            "baselines": "artifacts/baselines.json",
+            "replay_evidence": "artifacts/replay_evidence.json",
+        },
+    }
+    (args.output_directory / "scenario.json").write_text(
+        json.dumps(scenario, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    shutil.copyfile(args.prefix, artifact_directory / "prefix.json")
+    admission = validate_native_scenario(
+        load_native_scenario(args.output_directory / "scenario.json")
+    )
+    result = native_admission_report_payload(admission)
+    (artifact_directory / "admission.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return (
+        0
+        if result["passed"] and result["admitted_tier"] == "hard"
+        else 1
+    )
 
 
 if __name__ == "__main__":

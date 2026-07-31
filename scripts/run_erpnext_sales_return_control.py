@@ -46,6 +46,11 @@ def main() -> int:
     parser.add_argument("--variant", required=True)
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--formal-contract",
+        action="store_true",
+        help="Emit the current reference-recovery phase contract.",
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument(
         "--container-cli",
@@ -141,9 +146,15 @@ def main() -> int:
         ),
     }
     report = {
-        "schema_version": "0.1",
+        "schema_version": "1.0" if args.formal_contract else "0.1",
+        "artifact_type": (
+            "erpnext_sales_return_reference_recovery"
+            if args.formal_contract
+            else "legacy_erpnext_sales_return_reference_recovery"
+        ),
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
+        "phase": "reference",
         "control": "state_driven_reference_using_agent_visible_tools",
         "reference_trace": normalized_trace,
         "query_tools": query_tools,

@@ -18,6 +18,9 @@ from .hidden_test_eligibility import verify_hidden_test_eligibility
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
+from .integrations.erpnext_sales_return_evaluator import (
+    evaluate_sales_return_recovery,
+)
 from .native_admission import (
     NativeAdmissionReport,
     native_admission_report_payload,
@@ -73,6 +76,9 @@ TRUSTED_FORMAL_EVALUATORS: dict[
 ] = {
     "forgejo-release-package-publication": (
         evaluate_forgejo_publication_recovery
+    ),
+    "erpnext-sales-return-exchange-reconciliation": (
+        evaluate_sales_return_recovery
     ),
 }
 

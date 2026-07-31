@@ -3,13 +3,64 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
+import shutil
 import subprocess
+import tempfile
 import time
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+_BUNDLE_SCHEMA_VERSION = "1.0"
+_BUNDLE_CAPTURE_MODE = "simultaneous_service_quiescence"
+_BUNDLE_FILES = {
+    "database": "database.sql",
+    "redis_queue": "redis-queue.tar",
+    "gateway_audit": "gateway-audit.tar",
+    "remittance_audit": "remittance-audit.tar",
+}
+_MUTATING_SERVICES = (
+    "backend",
+    "queue-short",
+    "queue-long",
+    "fault-gateway",
+    "remittance",
+)
+_BUNDLE_STOP_SERVICES = (
+    *_MUTATING_SERVICES,
+    "queue-fault",
+    "redis-queue",
+)
+_BUNDLE_START_SERVICES = (
+    "redis-queue",
+    "queue-fault",
+    "backend",
+    "queue-short",
+    "queue-long",
+    "fault-gateway",
+    "remittance",
+)
+_BUNDLE_REQUIRED_RUNNING = frozenset(
+    {
+        "redis-queue",
+        "queue-fault",
+        "backend",
+        "fault-gateway",
+        "remittance",
+    }
+)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _parse_mapping_output(output: str) -> dict[str, Any]:
@@ -252,7 +303,221 @@ class ERPNextStack:
         )
         with path.open("wb") as handle:
             self.runner(command, check=True, stdout=handle)
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        return _sha256_file(path)
+
+    def _import_database(self, source: Path) -> None:
+        command = self.compose_command(
+            "exec",
+            "-T",
+            "db",
+            "mariadb",
+            "-uroot",
+            f"-p{self.db_root_password}",
+        )
+        with source.open("rb") as handle:
+            self.runner(command, check=True, stdin=handle)
+
+    def _archive_service_volume(
+        self,
+        *,
+        service: str,
+        destination: Path,
+    ) -> None:
+        command = self.compose_command(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "sh",
+            service,
+            "-c",
+            "tar -C /data -cf - .",
+        )
+        with destination.open("wb") as handle:
+            self.runner(command, check=True, stdout=handle)
+
+    def _restore_service_volume(
+        self,
+        *,
+        service: str,
+        source: Path,
+    ) -> None:
+        command = self.compose_command(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "sh",
+            service,
+            "-c",
+            (
+                "find /data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + "
+                "&& tar -C /data -xf -"
+            ),
+        )
+        with source.open("rb") as handle:
+            self.runner(command, check=True, stdin=handle)
+
+    def snapshot_bundle(self, destination: str | Path) -> dict[str, Any]:
+        """Capture every mutable service needed to replay one exact boundary."""
+
+        bundle = Path(destination).resolve()
+        if bundle.exists():
+            raise FileExistsError(bundle)
+        running_process = self.run(
+            "ps",
+            "--status",
+            "running",
+            "--services",
+            capture_output=True,
+        )
+        running_services = tuple(
+            service
+            for service in _BUNDLE_START_SERVICES
+            if service in set(running_process.stdout.splitlines())
+        )
+        if not _BUNDLE_REQUIRED_RUNNING <= set(running_services):
+            missing = sorted(
+                _BUNDLE_REQUIRED_RUNNING - set(running_services)
+            )
+            raise RuntimeError(
+                "cannot snapshot incomplete ERPNext runtime; "
+                f"not running: {missing}"
+            )
+        bundle.parent.mkdir(parents=True, exist_ok=True)
+        temporary: Path | None = Path(
+            tempfile.mkdtemp(
+                prefix=f".{bundle.name}.incomplete-",
+                dir=bundle.parent,
+            )
+        )
+        try:
+            self.run("stop", *_BUNDLE_STOP_SERVICES)
+            try:
+                database = temporary / _BUNDLE_FILES["database"]
+                self.snapshot_database(database)
+                for key, service in (
+                    ("redis_queue", "redis-queue"),
+                    ("gateway_audit", "fault-gateway"),
+                    ("remittance_audit", "remittance"),
+                ):
+                    self._archive_service_volume(
+                        service=service,
+                        destination=temporary / _BUNDLE_FILES[key],
+                    )
+            finally:
+                if running_services:
+                    self.run("up", "--detach", *running_services)
+            self._wait_http_service(
+                "http://127.0.0.1:8080/api/method/ping"
+            )
+            self._wait_http_service("http://127.0.0.1:9091/audit")
+            self._wait_http_service("http://127.0.0.1:9092/health")
+            files = {
+                key: {
+                    "path": filename,
+                    "bytes": (temporary / filename).stat().st_size,
+                    "sha256": _sha256_file(temporary / filename),
+                }
+                for key, filename in _BUNDLE_FILES.items()
+            }
+            manifest = {
+                "schema_version": _BUNDLE_SCHEMA_VERSION,
+                "capture_mode": _BUNDLE_CAPTURE_MODE,
+                "running_services": list(running_services),
+                "files": files,
+            }
+            (temporary / "bundle.json").write_text(
+                json.dumps(
+                    manifest,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, bundle)
+            temporary = None
+            return manifest
+        finally:
+            if temporary is not None and temporary.exists():
+                shutil.rmtree(temporary)
+
+    def restore_bundle(self, source: str | Path) -> dict[str, Any]:
+        """Restore a quiesced native boundary bundle without replaying writes."""
+
+        bundle = Path(source).resolve()
+        manifest_path = bundle / "bundle.json"
+        if not manifest_path.is_file():
+            raise FileNotFoundError(manifest_path)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("schema_version") != _BUNDLE_SCHEMA_VERSION
+            or manifest.get("capture_mode") != _BUNDLE_CAPTURE_MODE
+            or set(manifest.get("files", {})) != set(_BUNDLE_FILES)
+            or not isinstance(manifest.get("running_services"), list)
+            or len(manifest["running_services"])
+            != len(set(map(str, manifest["running_services"])))
+            or not set(map(str, manifest["running_services"]))
+            <= set(_BUNDLE_START_SERVICES)
+            or not _BUNDLE_REQUIRED_RUNNING
+            <= set(map(str, manifest["running_services"]))
+        ):
+            raise ValueError("invalid ERPNext native bundle manifest")
+        resolved_files: dict[str, Path] = {}
+        for key, expected_name in _BUNDLE_FILES.items():
+            declaration = manifest["files"].get(key)
+            if (
+                not isinstance(declaration, dict)
+                or set(declaration) != {"path", "bytes", "sha256"}
+                or declaration.get("path") != expected_name
+            ):
+                raise ValueError(
+                    f"invalid ERPNext native bundle file declaration: {key}"
+                )
+            path = bundle / expected_name
+            if (
+                not path.is_file()
+                or path.stat().st_size != int(declaration["bytes"])
+                or _sha256_file(path) != str(declaration["sha256"])
+            ):
+                raise ValueError(
+                    f"ERPNext native bundle file drift: {key}"
+                )
+            resolved_files[key] = path
+
+        self.run("stop", *_BUNDLE_STOP_SERVICES)
+        try:
+            self._import_database(resolved_files["database"])
+            self._restore_service_volume(
+                service="redis-queue",
+                source=resolved_files["redis_queue"],
+            )
+            self._restore_service_volume(
+                service="fault-gateway",
+                source=resolved_files["gateway_audit"],
+            )
+            self._restore_service_volume(
+                service="remittance",
+                source=resolved_files["remittance_audit"],
+            )
+        finally:
+            running_services = tuple(map(str, manifest["running_services"]))
+            if running_services:
+                self.run(
+                    "up",
+                    "--detach",
+                    *running_services,
+                )
+        self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
+        self._wait_http_service(
+            "http://127.0.0.1:8080/api/method/ping"
+        )
+        self._wait_http_service("http://127.0.0.1:9091/audit")
+        self._wait_http_service("http://127.0.0.1:9092/health")
+        return manifest
 
     def restore_database(self, source: str | Path) -> None:
         path = Path(source).resolve()
@@ -269,16 +534,7 @@ class ERPNextStack:
             "queue-short",
             "queue-long",
         )
-        command = self.compose_command(
-            "exec",
-            "-T",
-            "db",
-            "mariadb",
-            "-uroot",
-            f"-p{self.db_root_password}",
-        )
-        with path.open("rb") as handle:
-            self.runner(command, check=True, stdin=handle)
+        self._import_database(path)
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
         self.run("exec", "-T", "redis-queue", "redis-cli", "FLUSHALL")
         self.run("start", "queue-short", "queue-long")

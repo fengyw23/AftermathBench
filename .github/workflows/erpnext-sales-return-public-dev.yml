@@ -1,0 +1,490 @@
+name: erpnext-sales-return-public-dev-formal
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Execution-control model identifier
+        required: true
+        default: glm-5.2
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  replay-freeze-control-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE_SPEC: data/instance_specs/erpnext-sales-return-public-dev-001.json
+      BLUEPRINT: data/scenario_blueprints/erpnext-sales-return-public-dev-001/scenario.json
+      RUN_ROOT: data/generated/erpnext-sales-return-public-dev-001
+      NATIVE_ROOT: data/generated/erpnext-sales-return-public-dev-001/native
+      CONTROL_ROOT: data/generated/erpnext-sales-return-public-dev-001/control
+      FORMAL_OUTPUT: data/evidence/formal/aftermathbench-2026.08-r1/erpnext/erpnext-sales-return-exchange-reconciliation/dev-001
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify and materialize the fresh public-development instance
+        run: |
+          test ! -e "$RUN_ROOT"
+          mkdir -p "$RUN_ROOT/logs" \
+            "$RUN_ROOT/specs" \
+            "$NATIVE_ROOT/runtime/state-evidence" \
+            "$NATIVE_ROOT/baselines/pre-state" \
+            "$NATIVE_ROOT/bundles" \
+            "$CONTROL_ROOT/model-runs/repetition-01" \
+            "$CONTROL_ROOT/pre-model-boundaries"
+          python scripts/verify_erpnext_sales_return_instance_novelty.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --bound-blueprint "$BLUEPRINT"
+          python scripts/render_erpnext_sales_return_blueprint.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$RUN_ROOT/rendered-blueprint.json" \
+            --instance-id dev-001 \
+            --benchmark-split public_dev
+          cmp "$BLUEPRINT" "$RUN_ROOT/rendered-blueprint.json"
+          python -m unittest discover -s tests -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Create the native prefix and exact reset bundle
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_sales_return_prefix.py \
+            --scenario "$BLUEPRINT" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$NATIVE_ROOT/runtime/prefix.json" \
+            > "$RUN_ROOT/logs/prefix.log" 2>&1
+          python scripts/validate_erpnext_sales_return_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+            --output "$NATIVE_ROOT/runtime/prefix-validation.json" \
+            > "$RUN_ROOT/logs/prefix-validation.log" 2>&1
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$NATIVE_ROOT/bundles/prefix" \
+            > "$RUN_ROOT/logs/prefix-bundle.log" 2>&1
+
+      - name: Capture four exact boundaries and replay references
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$BLUEPRINT"
+          )
+          test "${#variants[@]}" -eq 4
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::native replay command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
+          for variant in "${variants[@]}"
+          do
+            echo "::group::capture-and-reference $variant"
+            reset="$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json"
+            boundary="$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"
+            boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$NATIVE_ROOT/bundles/prefix"
+            run_logged "$RUN_ROOT/logs/$variant-reset.log" \
+              python scripts/capture_erpnext_sales_return_state_evidence.py \
+              --phase reset \
+              --scenario "$BLUEPRINT" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json" \
+              --output "$reset"
+            run_logged "$RUN_ROOT/logs/$variant-boundary.log" \
+              python scripts/run_erpnext_sales_return_failure.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --snapshot-bundle "$NATIVE_ROOT/bundles/prefix" \
+              --formal-contract \
+              --output "$NATIVE_ROOT/runtime/$variant-boundary.json"
+            cp \
+              "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              "$NATIVE_ROOT/runtime/$variant.json"
+            run_logged "$RUN_ROOT/logs/$variant-boundary-bundle.log" \
+              python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$boundary_bundle"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$boundary_bundle"
+            run_logged "$RUN_ROOT/logs/$variant-boundary-evidence.log" \
+              python scripts/capture_erpnext_sales_return_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$boundary_bundle/bundle.json" \
+              --reset-evidence "$reset" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$boundary"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$boundary_bundle"
+            reference_start="$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
+            run_logged "$RUN_ROOT/logs/$variant-reference-start.log" \
+              python scripts/capture_erpnext_sales_return_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$boundary_bundle/bundle.json" \
+              --reset-evidence "$reset" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$reference_start"
+            cmp "$boundary" "$reference_start"
+            run_logged "$RUN_ROOT/logs/$variant-reference.log" \
+              python scripts/run_erpnext_sales_return_control.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --formal-contract \
+              --output "$NATIVE_ROOT/runtime/$variant-reference.json"
+            echo "::endgroup::"
+          done
+
+      - name: Execute every fixed policy from each exact boundary
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          baselines=(
+            no_op
+            blind_retry
+            assume_committed
+            repair_failed_record_only
+            all_rollback
+            cancel_shared_payment
+            compact_boundary_tree
+          )
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$NATIVE_ROOT/bundles/boundary-$variant"
+              baseline_start="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant.json"
+              python scripts/capture_erpnext_sales_return_state_evidence.py \
+                --phase boundary \
+                --scenario "$BLUEPRINT" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+                --variant "$variant" \
+                --bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json" \
+                --reset-evidence "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+                --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+                --output "$baseline_start" \
+                > "$RUN_ROOT/logs/$baseline-$variant-pre-state.log" 2>&1
+              cmp \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+                "$baseline_start"
+              python scripts/run_erpnext_sales_return_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+                --output "$NATIVE_ROOT/runtime/$variant-baseline-$baseline.json" \
+                > "$RUN_ROOT/logs/$baseline-$variant.log" 2>&1
+            done
+          done
+
+      - name: Admit the active scenario and freeze the native evidence bundle
+        run: |
+          python scripts/build_native_sales_return_admission.py \
+            --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+            --control-directory "$NATIVE_ROOT/runtime" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$RUN_ROOT/scenario-staging" \
+            > "$RUN_ROOT/logs/admission.log" 2>&1
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/scenario-staging/scenario.json" \
+            > "$RUN_ROOT/logs/scenario-validation.log" 2>&1
+          scenario_id="$(
+            python -c 'import json,re,sys; value=str(json.load(open(sys.argv[1]))["scenario_id"]); sys.exit("invalid scenario_id") if re.fullmatch(r"[a-z0-9][a-z0-9._-]*", value) is None else print(value)' \
+              "$RUN_ROOT/scenario-staging/scenario.json"
+          )"
+          SCENARIO_DIRECTORY="data/scenarios/$scenario_id"
+          printf 'SCENARIO_DIRECTORY=%s\n' "$SCENARIO_DIRECTORY" \
+            >> "$GITHUB_ENV"
+          if [ -d "$SCENARIO_DIRECTORY" ]
+          then
+            diff --recursive \
+              "$SCENARIO_DIRECTORY" \
+              "$RUN_ROOT/scenario-staging"
+          else
+            mkdir -p "$(dirname "$SCENARIO_DIRECTORY")"
+            mv "$RUN_ROOT/scenario-staging" "$SCENARIO_DIRECTORY"
+          fi
+          cp -R "$SCENARIO_DIRECTORY" "$NATIVE_ROOT/scenario"
+          cp "$INSTANCE_SPEC" "$NATIVE_ROOT/instance-spec.json"
+          cp "$BLUEPRINT" "$NATIVE_ROOT/blueprint.json"
+          cp \
+            "$RUN_ROOT/source-verification.json" \
+            "$NATIVE_ROOT/runtime/source-verification.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$NATIVE_ROOT" \
+            --output "$NATIVE_ROOT/files.json" \
+            > "$RUN_ROOT/logs/native-files.log" 2>&1
+
+      - name: Freeze the five formal input roles before provider access
+        run: |
+          capture_args=(
+            --capture-bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in \
+            request_not_reached \
+            database_committed_response_lost \
+            after_commit_enqueue_failed \
+            async_job_pending
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_erpnext_formal_build_spec.py \
+            --phase inputs \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            > "$RUN_ROOT/logs/formal-input-spec.log" 2>&1
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            --phase inputs \
+            > "$RUN_ROOT/logs/formal-input-build.log" 2>&1
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+
+      - name: Run execution controls from the locked exact boundaries
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          restore_and_capture_boundary() {
+            local variant="$1"
+            local pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$NATIVE_ROOT/bundles/boundary-$variant"
+            python scripts/capture_erpnext_sales_return_state_evidence.py \
+              --phase boundary \
+              --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json" \
+              --reset-evidence "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --output "$pre_model" \
+              > "$RUN_ROOT/logs/pre-model-$variant.log" 2>&1
+            cmp \
+              "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              "$pre_model"
+          }
+          run_control_once() {
+            local variant="$1"
+            local output="$2"
+            local log_path="$3"
+            local pre_model="$4"
+            python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --max-turns 25 \
+              --execution-control \
+              --formal-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+              --pre-model-boundary-evidence "$pre_model" \
+              --output "$output" \
+              > "$log_path" 2>&1
+          }
+          valid_trajectory() {
+            local output="$1"
+            local variant="$2"
+            test -s "$output" \
+              && python scripts/validate_native_control_trajectory.py \
+                --trajectory "$output" \
+                --variant "$variant" \
+                > /dev/null 2>&1
+          }
+          run_status=0
+          for variant in "${variants[@]}"
+          do
+            output="$CONTROL_ROOT/model-runs/repetition-01/$variant.json"
+            pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            restore_and_capture_boundary "$variant"
+            rm -f "$output"
+            run_control_once \
+              "$variant" "$output" \
+              "$RUN_ROOT/logs/control-$variant.log" \
+              "$pre_model" || true
+            if ! valid_trajectory "$output" "$variant"
+            then
+              echo "::warning::retrying one invalid execution control from its locked boundary"
+              restore_and_capture_boundary "$variant"
+              rm -f "$output"
+              run_control_once \
+                "$variant" "$output" \
+                "$RUN_ROOT/logs/control-$variant-retry.log" \
+                "$pre_model" || true
+            fi
+            if ! valid_trajectory "$output" "$variant"
+            then
+              run_status=1
+            fi
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$CONTROL_ROOT/model-runs" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --expected-execution-control true \
+            --output "$CONTROL_ROOT/model-runs/summary.json" \
+            > "$RUN_ROOT/logs/control-summary.log" 2>&1 \
+            || run_status=1
+          python scripts/validate_native_control_summary.py \
+            --summary "$CONTROL_ROOT/model-runs/summary.json" \
+            --expected-cases 4 \
+            --minimum-pass-rate 0.8 \
+            > "$RUN_ROOT/logs/control-gate.log" 2>&1 \
+            && touch "$RUN_ROOT/control-gate-passed"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives \
+            --secret-env AFTERMATH_API_KEY \
+            > "$RUN_ROOT/logs/provider-secret-scan.log" 2>&1
+          touch "$RUNNER_TEMP/erpnext-public-dev-provider-scan.ok"
+          printf '%s\n' "$run_status" \
+            > "$RUN_ROOT/control-collection-status.txt"
+
+      - name: Complete and validate the seven-role formal package
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/build_evidence_file_manifest.py \
+            --root "$CONTROL_ROOT" \
+            --output "$CONTROL_ROOT/files.json" \
+            > "$RUN_ROOT/logs/control-files.log" 2>&1
+          capture_args=(
+            --capture-bundle-manifest "$NATIVE_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in \
+            request_not_reached \
+            database_committed_response_lost \
+            after_commit_enqueue_failed \
+            async_job_pending
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$NATIVE_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_erpnext_formal_build_spec.py \
+            --phase complete \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --control-manifest "$CONTROL_ROOT/files.json" \
+            --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            > "$RUN_ROOT/logs/formal-complete-spec.log" 2>&1
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            --phase complete \
+            > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+
+      - name: Seal the safe public evidence archive
+        if: always()
+        run: |
+          test -f "$RUNNER_TEMP/erpnext-public-dev-provider-scan.ok"
+          test -s "$SCENARIO_DIRECTORY/scenario.json"
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+          test -f "$RUN_ROOT/control-gate-passed"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --root "$SCENARIO_DIRECTORY" \
+            --credentials-json runtimes/erpnext/.runtime/credentials.json \
+            --allow-native-restore-archives
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          mkdir -p \
+            "$RUN_ROOT/repo-ready/$(dirname "$SCENARIO_DIRECTORY")" \
+            "$RUN_ROOT/repo-ready/$(dirname "$FORMAL_OUTPUT")"
+          cp -R \
+            "$SCENARIO_DIRECTORY" \
+            "$RUN_ROOT/repo-ready/$SCENARIO_DIRECTORY"
+          cp -R \
+            "$FORMAL_OUTPUT" \
+            "$RUN_ROOT/repo-ready/$FORMAL_OUTPUT"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" \
+            --output "$RUN_ROOT/files.json"
+          python scripts/build_erpnext_public_evidence_archive.py \
+            --source-root "$RUN_ROOT" \
+            --output-root "$RUNNER_TEMP/erpnext-public-dev-public" \
+            --expected-restore-bundle-count 5
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUNNER_TEMP/erpnext-public-dev-public"
+
+      - name: Upload safe public evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-sales-return-public-dev-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/erpnext-public-dev-public/
+          if-no-files-found: warn
+
+      - name: Purge native services and local credentials
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          python scripts/manage_erpnext_stack.py purge || true

@@ -182,9 +182,19 @@ def main() -> int:
         choices=ERP_NEXT_FAULT_VARIANTS,
     )
     parser.add_argument("--prefix", type=Path, required=True)
-    parser.add_argument("--snapshot", type=Path, required=True)
+    snapshot = parser.add_mutually_exclusive_group(required=True)
+    snapshot.add_argument("--snapshot", type=Path)
+    snapshot.add_argument("--snapshot-bundle", type=Path)
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--formal-contract",
+        action="store_true",
+        help=(
+            "Emit the current boundary phase contract. This requires an "
+            "exact native prefix bundle rather than the legacy SQL-only reset."
+        ),
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument(
         "--container-cli",
@@ -203,7 +213,13 @@ def main() -> int:
             "aftermath-root",
         ),
     )
-    stack.restore_database(args.snapshot)
+    if args.formal_contract and args.snapshot_bundle is None:
+        parser.error("--formal-contract requires --snapshot-bundle")
+    if args.snapshot_bundle is not None:
+        stack.restore_bundle(args.snapshot_bundle)
+    else:
+        assert args.snapshot is not None
+        stack.restore_database(args.snapshot)
     _reset_gateway_audit("http://127.0.0.1:9091/admin/reset")
     adapter = FrappeHTTPAdapter(
         FrappeConfig(
@@ -262,9 +278,18 @@ def main() -> int:
         gateway_audit.get("events", []),
     )
     report = {
-        "schema_version": "0.1",
+        "schema_version": "1.0" if args.formal_contract else "0.1",
+        "artifact_type": (
+            "erpnext_sales_return_failure_boundary"
+            if args.formal_contract
+            else "legacy_erpnext_sales_return_failure_boundary"
+        ),
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
+        "phase": "boundary",
+        "surface_result": (
+            "HTTP connection lost before the Sales Return submission response"
+        ),
         "visible_failure": visible_failure,
         "post_submit_workflow": post_submit_workflow,
         "failure_boundary_evidence": evidence,

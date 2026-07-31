@@ -131,7 +131,8 @@ def _run(command: Sequence[str]) -> None:
     subprocess.run(command, check=True)
 
 
-def verify_source_refs(plan: ERPNextBuildPlan) -> None:
+def verify_source_refs(plan: ERPNextBuildPlan) -> dict[str, Any]:
+    references = []
     for repository, tag, expected_revision in plan.source_refs:
         output = subprocess.check_output(
             ("git", "ls-remote", repository, f"refs/tags/{tag}"),
@@ -143,9 +144,23 @@ def verify_source_refs(plan: ERPNextBuildPlan) -> None:
                 f"source tag mismatch for {repository} {tag}: "
                 f"{actual_revision or '<missing>'} != {expected_revision}"
             )
+        references.append(
+            {
+                "repository": repository,
+                "tag": tag,
+                "revision": actual_revision,
+                "expected_revision": expected_revision,
+                "passed": True,
+            }
+        )
+    return {
+        "build_driver_revision": plan.expected_driver_revision,
+        "source_refs": references,
+        "passed": all(item["passed"] for item in references),
+    }
 
 
-def execute_build_plan(plan: ERPNextBuildPlan) -> None:
+def execute_build_plan(plan: ERPNextBuildPlan) -> dict[str, Any]:
     if shutil.which(plan.build_command[0]) is None:
         raise RuntimeError(
             f"{plan.build_command[0]!r} is not installed; print the build plan "
@@ -156,7 +171,7 @@ def execute_build_plan(plan: ERPNextBuildPlan) -> None:
             f"refusing to reuse non-empty source directory: "
             f"{plan.source_directory}"
         )
-    verify_source_refs(plan)
+    source_verification = verify_source_refs(plan)
     plan.source_directory.mkdir(parents=True, exist_ok=True)
     for command in plan.fetch_commands:
         _run(command)
@@ -173,3 +188,22 @@ def execute_build_plan(plan: ERPNextBuildPlan) -> None:
     for command in plan.prepare_commands:
         _run(command)
     _run(plan.build_command)
+    image_id = subprocess.check_output(
+        (
+            plan.build_command[0],
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            plan.image,
+        ),
+        text=True,
+    ).strip()
+    if not image_id.startswith("sha256:"):
+        raise RuntimeError(f"invalid ERPNext image ID: {image_id!r}")
+    return {
+        "image": plan.image,
+        "image_id": image_id,
+        "built_from_verified_revision": plan.expected_driver_revision,
+        "verified_source_refs": source_verification["source_refs"],
+    }
