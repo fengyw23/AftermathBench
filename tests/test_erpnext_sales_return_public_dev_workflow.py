@@ -83,6 +83,15 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             section,
         )
         self.assertIn('cat "$log_path"', section)
+        self.assertIn("ps --all || true", section)
+        self.assertIn(
+            "logs --no-color --tail 200",
+            section,
+        )
+        self.assertIn(
+            "backend frontend fault-gateway queue-fault redis-queue",
+            section,
+        )
         self.assertNotIn(
             '--output "$NATIVE_ROOT/runtime/prefix.json" \\',
             section,
@@ -101,6 +110,8 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             self.text.index("Capture four exact boundaries"):
             self.text.index("Execute every fixed policy")
         ]
+        self.assertIn("ps --all || true", section)
+        self.assertIn("logs --no-color --tail 200", section)
         reset = section.index("--phase reset")
         failure = section.index(
             "run_erpnext_sales_return_failure.py",

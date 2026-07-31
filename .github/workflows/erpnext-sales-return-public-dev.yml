@@ -78,6 +78,15 @@ jobs:
             fi
             echo "::error::native prefix command failed; captured log follows"
             cat "$log_path"
+            docker compose \
+              --project-name aftermath-erpnext \
+              --file runtimes/erpnext/compose.yaml \
+              ps --all || true
+            docker compose \
+              --project-name aftermath-erpnext \
+              --file runtimes/erpnext/compose.yaml \
+              logs --no-color --tail 200 \
+              backend frontend fault-gateway queue-fault redis-queue || true
             return 1
           }
           python scripts/manage_erpnext_stack.py up
@@ -113,6 +122,15 @@ jobs:
             fi
             echo "::error::native replay command failed; captured log follows"
             cat "$log_path"
+            docker compose \
+              --project-name aftermath-erpnext \
+              --file runtimes/erpnext/compose.yaml \
+              ps --all || true
+            docker compose \
+              --project-name aftermath-erpnext \
+              --file runtimes/erpnext/compose.yaml \
+              logs --no-color --tail 200 \
+              backend frontend fault-gateway queue-fault redis-queue || true
             return 1
           }
           for variant in "${variants[@]}"
