@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
@@ -112,20 +113,47 @@ class ERPNextSalesReturnEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             )
             if str(row.get("voucher_no")) in voucher_names
         ]
-        jobs = self.list_documents(
-            "RQ Job",
-            fields=["name", "job_name", "status", "arguments", "queue"],
-            order_by="creation desc",
-            limit=500,
-        )
+        sales_return_name = str(prefix["sales_return"])
+        jobs = [
+            job
+            for job in self.list_documents(
+                "RQ Job",
+                fields=["name", "job_name", "status", "arguments", "queue"],
+                order_by="creation desc",
+                limit=500,
+            )
+            if sales_return_name
+            in json.dumps(job, ensure_ascii=False, sort_keys=True, default=str)
+        ]
         return {
             **evidence,
-            "sales_returns": sales_returns,
-            "credit_notes": credit_notes,
-            "replacement_delivery_notes": replacement_deliveries,
-            "replacement_invoices": replacement_invoices,
-            "stock_ledger_entries": stock_ledger,
-            "gl_entries": general_ledger,
-            "rq_jobs": jobs,
+            "sales_returns": sorted(
+                sales_returns,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "credit_notes": sorted(
+                credit_notes,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "replacement_delivery_notes": sorted(
+                replacement_deliveries,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "replacement_invoices": sorted(
+                replacement_invoices,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "stock_ledger_entries": sorted(
+                stock_ledger,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "gl_entries": sorted(
+                general_ledger,
+                key=lambda row: str(row.get("name", "")),
+            ),
+            "rq_jobs": sorted(
+                jobs,
+                key=lambda row: str(row.get("name", "")),
+            ),
             "pickup_delivery": self.get_delivery(str(prefix["sales_return"])),
         }

@@ -10,6 +10,7 @@ from aftermath_bench.erpnext_sales_return_state_evidence import (
     ERPNextSalesReturnStateEvidenceError,
     build_state_evidence,
     canonical_state_fingerprint,
+    json_difference_paths,
 )
 
 
@@ -112,6 +113,25 @@ class ERPNextSalesReturnStateEvidenceTest(unittest.TestCase):
                     bundle_manifest_path=manifest,
                     state={},
                 )
+
+    def test_difference_diagnostics_report_paths_without_values(self) -> None:
+        differences = json_difference_paths(
+            {
+                "rq_jobs": [{"name": "job-secret", "status": "started"}],
+                "pickup_delivery": None,
+            },
+            {
+                "rq_jobs": [{"name": "job-secret", "status": "finished"}],
+                "pickup_delivery": {"key": "private-delivery"},
+            },
+        )
+        rendered = ", ".join(differences)
+        self.assertEqual(
+            differences,
+            ("$.pickup_delivery", "$.rq_jobs[0].status"),
+        )
+        self.assertNotIn("job-secret", rendered)
+        self.assertNotIn("private-delivery", rendered)
 
     @staticmethod
     def _write_json(path: Path, value: object) -> None:

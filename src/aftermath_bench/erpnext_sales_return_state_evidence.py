@@ -31,6 +31,49 @@ def canonical_state_fingerprint(state: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def json_difference_paths(
+    expected: Any,
+    actual: Any,
+    *,
+    limit: int = 20,
+) -> tuple[str, ...]:
+    """Return bounded JSON paths without exposing mismatched values."""
+
+    differences: list[str] = []
+
+    def visit(left: Any, right: Any, path: str) -> None:
+        if len(differences) >= limit:
+            return
+        if type(left) is not type(right):
+            differences.append(path)
+            return
+        if isinstance(left, dict):
+            for key in sorted(set(left) | set(right), key=str):
+                child = f"{path}.{key}"
+                if key not in left or key not in right:
+                    differences.append(child)
+                else:
+                    visit(left[key], right[key], child)
+                if len(differences) >= limit:
+                    return
+            return
+        if isinstance(left, list):
+            if len(left) != len(right):
+                differences.append(f"{path}.length")
+            for index, (left_item, right_item) in enumerate(
+                zip(left, right, strict=False)
+            ):
+                visit(left_item, right_item, f"{path}[{index}]")
+                if len(differences) >= limit:
+                    return
+            return
+        if left != right:
+            differences.append(path)
+
+    visit(expected, actual, "$")
+    return tuple(differences)
+
+
 def validate_bundle_manifest(
     manifest_path: str | Path,
 ) -> dict[str, Any]:
@@ -169,12 +212,19 @@ def build_state_evidence(
             or failure_report.get("scenario_id") != scenario_id
             or failure_report.get("variant") != variant_id
             or failure_report.get("phase") != "boundary"
-            or failure_report.get("failure_boundary_evidence") != state
             or failure_report.get("boundary_validation", {}).get("passed")
             is not True
         ):
             raise ERPNextSalesReturnStateEvidenceError(
                 "failure report does not prove the captured boundary state"
+            )
+        reported_state = failure_report.get("failure_boundary_evidence")
+        if reported_state != state:
+            differences = json_difference_paths(reported_state, state)
+            detail = ", ".join(differences) or "<unknown>"
+            raise ERPNextSalesReturnStateEvidenceError(
+                "failure report does not prove the captured boundary state; "
+                f"difference paths: {detail}"
             )
         if (
             not isinstance(reset_evidence, dict)
@@ -226,5 +276,6 @@ __all__ = [
     "build_state_evidence",
     "canonical_state_fingerprint",
     "file_sha256",
+    "json_difference_paths",
     "validate_bundle_manifest",
 ]
