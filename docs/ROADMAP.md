@@ -96,6 +96,14 @@ evidence for production realism.
 
 ## Phase 6 - hard-task expansion
 
+- Extract a domain-neutral formal-spec adapter from the validated Forgejo
+  pipeline and prove output-equivalent validation on its regression fixtures.
+- Materialize a fresh ERPNext sales-return `public_dev` instance with
+  per-variant reset snapshots, a pre-provider input lock and seven-role formal
+  evidence before adding more development-only families.
+- Apply the same adapter to a fresh Kubernetes interaction `public_dev`
+  instance while preserving exact runtime-generated identities visible to the
+  model.
 - Add clean-state and explicitly provided-target-state controls.
 - Add automatic failure attribution and trajectory comparison.
 - Reject task families solved by one fixed retry/no-retry heuristic.
@@ -122,10 +130,12 @@ development-only. At the latest machine-readable status checkpoint:
 - nine scenarios and 49 matched post-error states are implemented;
 - five scenarios and 33 matched states pass structural hard admission;
 - four of the five structurally hard scenarios run on execution-admitted
-  runtimes; ERPNext is pending archival of the raw files named by its runtime
-  evidence manifests;
+  runtimes; ERPNext requires a fresh replay under the current reset and formal
+  evidence contracts rather than reuse of its archived legacy reports;
 - the canonical development manifest verifies two candidates and 21 cases;
 - no scenario belongs to a formal `public_dev` or `hidden_test` release split.
 
 These counts must be generated with `python -m aftermath_bench status`; they
 must not be inferred from the target matrix or workflow success badges.
+The exact stage decision and promotion gates are recorded in
+`docs/FORMALIZATION_STAGE_GATE_20260731.md`.

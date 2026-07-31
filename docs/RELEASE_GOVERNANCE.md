@@ -135,12 +135,20 @@ cannot override an explicit failed reference recovery.
 ## Known open evidence work
 
 The current replay projections are sufficient for structural admission and
-the Forgejo/Kubernetes runtime evidence now has explicit phase contracts, but
-the two selected scenarios still lack the seven-role formal evidence closure.
-They must next be emitted from frozen failure-boundary source trajectories and
-bound to the exact collector, tool contract, evaluator, reset, raw-run, and
-control artifacts. This prevents reference-terminal state from being mistaken
-for evidence that was visible before the first recovery write.
+the Forgejo/Kubernetes runtime evidence has explicit phase contracts. A fresh
+Forgejo public-development workflow has also completed the seven-role sealing
+pipeline, demonstrating the protocol end to end. Its uploaded artifact has not
+yet been imported and bound to the repository release manifest, however, and
+the two selected model-consumed development scenarios remain non-formal. The
+canonical manifest therefore still contains zero formal slots.
+
+The next release slice must make formal-spec derivation domain-neutral and
+apply it to a fresh ERPNext public-development replay. Every promoted slot must
+bind frozen failure-boundary source trajectories to the exact collector, tool
+contract, evaluator, reset, raw-run, and control artifacts. This prevents a
+reference terminal state from being mistaken for evidence that was visible
+before the first recovery write. The audited ordering and promotion gates are
+recorded in `docs/FORMALIZATION_STAGE_GATE_20260731.md`.
 
 Run:
 

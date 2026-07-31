@@ -125,6 +125,15 @@ again instead of trusting a status label. The current manifest is valid but
 reports `development_only`: all 36 formal matrix slots remain unverified.
 See [Release governance](docs/RELEASE_GOVERNANCE.md).
 
+The first fresh Forgejo public-development workflow has now completed the
+seven-role sealing pipeline, but its uploaded artifact is not yet a
+repository-bound release slot. The 2026-07-31
+[formalization stage gate](docs/FORMALIZATION_STAGE_GATE_20260731.md) records
+that distinction, audits the three native domains against the machine-readable
+status, and fixes the next implementation slice: a domain-neutral formal-spec
+adapter followed by a fresh ERPNext public-development replay. Model-consumed
+development scenarios will not be relabeled as release data.
+
 ## Cross-model native results
 
 ### Current hard-family development result
