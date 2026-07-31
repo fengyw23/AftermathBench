@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,29 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
         encoding="utf-8",
         newline="\n",
     )
+
+
+def _copy_exact_prefix_artifact(
+    source: Path,
+    destination: Path,
+    prefix: dict[str, Any],
+) -> None:
+    trace = prefix.get("trace")
+    if not isinstance(trace, list) or not trace:
+        raise RuntimeError("publication prefix must contain a non-empty trace")
+    if any(
+        event.get("kind") != "write"
+        or event.get("status") != "success"
+        for event in trace
+        if isinstance(event, dict)
+    ) or any(not isinstance(event, dict) for event in trace):
+        raise RuntimeError(
+            "publication prefix trace must record successful write events"
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    if source.read_bytes() != destination.read_bytes():
+        raise RuntimeError("publication prefix artifact copy is not exact")
 
 
 def _tool_result(
@@ -718,7 +742,8 @@ def build_admission(
     output_directory: Path,
 ) -> dict[str, Any]:
     blueprint = _read(blueprint_path)
-    prefix = _read(runtime_directory / "prefix.json")
+    prefix_path = runtime_directory / "prefix.json"
+    prefix = _read(prefix_path)
     scenario_id = str(blueprint["scenario_id"])
     if str(prefix.get("scenario_id")) != scenario_id:
         raise RuntimeError("blueprint and prefix scenario IDs do not match")
@@ -778,10 +803,6 @@ def build_admission(
     for heuristic in baselines["heuristics"]:
         for report in heuristic["reports"]:
             report["path"] = Path(report["path"]).name
-    prefix["trace"] = [
-        {**event, "kind": "write", "status": "success"}
-        for event in prefix["trace"]
-    ]
     scenario = {
         **blueprint,
         "schema_version": "1.0",
@@ -813,7 +834,11 @@ def build_admission(
     output_directory.mkdir(parents=True, exist_ok=True)
     artifacts = output_directory / "artifacts"
     _write(output_directory / "scenario.json", scenario)
-    _write(artifacts / "prefix.json", prefix)
+    _copy_exact_prefix_artifact(
+        prefix_path,
+        artifacts / "prefix.json",
+        prefix,
+    )
     _write(artifacts / "reference.json", reference)
     _write(artifacts / "observed_graph.json", graph)
     _write(artifacts / "replay_evidence.json", replay)

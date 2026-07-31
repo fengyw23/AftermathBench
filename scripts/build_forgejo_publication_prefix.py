@@ -40,6 +40,7 @@ def main() -> int:
     args.output.write_text(
         json.dumps(prefix.as_dict(), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     print(
         json.dumps(

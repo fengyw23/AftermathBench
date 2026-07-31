@@ -75,3 +75,28 @@ class ForgejoPublicationPrefixTests(unittest.TestCase):
 
         self.assertEqual(client.calls, 2)
         self.assertEqual(sleep.call_count, 1)  # type: ignore[attr-defined]
+
+    def test_records_successful_prefix_writes_at_the_source(self) -> None:
+        builder = ForgejoPublicationPrefixBuilder(  # type: ignore[arg-type]
+            object()
+        )
+
+        result = builder._record(
+            "create_repository",
+            {"name": "release"},
+            {"id": 1},
+        )
+
+        self.assertEqual(result, {"id": 1})
+        self.assertEqual(
+            builder.trace,
+            [
+                {
+                    "tool": "create_repository",
+                    "arguments": {"name": "release"},
+                    "result": {"id": 1},
+                    "kind": "write",
+                    "status": "success",
+                }
+            ],
+        )

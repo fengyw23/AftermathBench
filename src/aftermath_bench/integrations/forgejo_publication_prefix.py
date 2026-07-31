@@ -72,6 +72,8 @@ class ForgejoPublicationPrefixBuilder:
                 "tool": tool,
                 "arguments": arguments,
                 "result": result,
+                "kind": "write",
+                "status": "success",
             }
         )
         return result

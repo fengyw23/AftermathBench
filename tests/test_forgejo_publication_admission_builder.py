@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from aftermath_bench.evidence_replay import replay_graph
 from aftermath_bench.integrations.forgejo_publication_faults import (
     PUBLICATION_VARIANTS,
 )
-from scripts.build_forgejo_publication_admission import _observed_graph
+from scripts.build_forgejo_publication_admission import (
+    _copy_exact_prefix_artifact,
+    _observed_graph,
+)
 
 
 def _prefix() -> dict:
@@ -52,6 +58,34 @@ def _prefix() -> dict:
 
 
 class ForgejoPublicationAdmissionBuilderTest(unittest.TestCase):
+    def test_prefix_artifact_is_an_exact_copy_of_runtime_input(self) -> None:
+        prefix = {
+            "scenario_id": "forgejo-release-publication-test",
+            "trace": [
+                {
+                    "tool": "create_repository",
+                    "arguments": {"name": "release"},
+                    "result": {"id": 1},
+                    "kind": "write",
+                    "status": "success",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "runtime" / "prefix.json"
+            destination = root / "scenario" / "artifacts" / "prefix.json"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                json.dumps(prefix, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            _copy_exact_prefix_artifact(source, destination, prefix)
+
+            self.assertEqual(destination.read_bytes(), source.read_bytes())
+
     def test_graph_meets_static_hardness_floor(self) -> None:
         graph = _observed_graph(_prefix())
         self.assertGreaterEqual(len(graph["entities"]), 20)
