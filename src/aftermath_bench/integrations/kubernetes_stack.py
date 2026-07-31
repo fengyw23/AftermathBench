@@ -370,9 +370,24 @@ class KubernetesStack:
     def _snapshot_sqlite(source: Path, destination: Path) -> None:
         if not source.is_file():
             raise FileNotFoundError(source)
-        with closing(sqlite3.connect(source)) as input_database:
-            with closing(sqlite3.connect(destination)) as output_database:
-                input_database.backup(output_database)
+        # The live database belongs to the unprivileged container user. Once
+        # the service is stopped, copy the complete WAL set to a runner-owned
+        # staging directory before asking SQLite to compact it into one file.
+        # Opening the bind-mounted source directly may attempt WAL recovery and
+        # fail because the runner cannot write the container-owned database.
+        with tempfile.TemporaryDirectory(
+            prefix="aftermath-registry-snapshot-",
+            dir=destination.parent,
+        ) as raw:
+            staging = Path(raw) / source.name
+            shutil.copy2(source, staging)
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(f"{source}{suffix}")
+                if sidecar.is_file():
+                    shutil.copy2(sidecar, Path(f"{staging}{suffix}"))
+            with closing(sqlite3.connect(staging)) as input_database:
+                with closing(sqlite3.connect(destination)) as output_database:
+                    input_database.backup(output_database)
 
     @staticmethod
     def _restore_sqlite(source: Path, destination: Path) -> None:
