@@ -234,15 +234,26 @@ jobs:
 
       - name: Admit the active scenario and freeze the native evidence bundle
         run: |
-          python scripts/build_forgejo_publication_admission.py \
+          run_logged() {
+            local log_path="$1"
+            shift
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            echo "::error::admission command failed; captured log follows"
+            cat "$log_path"
+            return 1
+          }
+          run_logged "$RUN_ROOT/logs/admission.log" \
+            python scripts/build_forgejo_publication_admission.py \
             --runtime-directory "$NATIVE_ROOT/runtime" \
             --baseline-directory "$NATIVE_ROOT/baselines" \
             --blueprint "$BLUEPRINT" \
-            --output-directory "$RUN_ROOT/scenario-staging" \
-            > "$RUN_ROOT/logs/admission.log" 2>&1
-          python -m aftermath_bench validate-native-scenario \
-            --scenario "$RUN_ROOT/scenario-staging/scenario.json" \
-            > "$RUN_ROOT/logs/scenario-validation.log" 2>&1
+            --output-directory "$RUN_ROOT/scenario-staging"
+          run_logged "$RUN_ROOT/logs/scenario-validation.log" \
+            python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/scenario-staging/scenario.json"
           if [ -d "$SCENARIO_DIRECTORY" ]
           then
             diff --recursive \
@@ -258,10 +269,10 @@ jobs:
           cp \
             "$RUN_ROOT/source-verification.json" \
             "$NATIVE_ROOT/runtime/source-verification.json"
-          python scripts/build_evidence_file_manifest.py \
+          run_logged "$RUN_ROOT/logs/native-files.log" \
+            python scripts/build_evidence_file_manifest.py \
             --root "$NATIVE_ROOT" \
-            --output "$NATIVE_ROOT/files.json" \
-            > "$RUN_ROOT/logs/native-files.log" 2>&1
+            --output "$NATIVE_ROOT/files.json"
 
       - name: Freeze the five formal input roles before provider access
         run: |

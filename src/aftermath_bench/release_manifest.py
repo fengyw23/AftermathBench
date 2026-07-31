@@ -18,9 +18,14 @@ from .hidden_test_eligibility import verify_hidden_test_eligibility
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
-from .native_admission import validate_native_scenario
+from .native_admission import (
+    NativeAdmissionReport,
+    native_admission_report_payload,
+    validate_native_scenario,
+)
 from .native_freeze import verify_frozen_bundle
 from .native_scenario import (
+    NativeScenario,
     load_native_scenario,
     validate_native_scenario_document,
 )
@@ -230,6 +235,49 @@ def _payload_file_matches(
         and _SHA256.fullmatch(expected_sha)
         and file_hashes.get(relative) == expected_sha
     )
+
+
+def _validate_admission_release_binding(
+    *,
+    scenario: NativeScenario,
+    admission: NativeAdmissionReport,
+    declaration: dict[str, Any],
+) -> dict[str, bool]:
+    """Bind admission inputs, the derived report, and its release declaration.
+
+    ``admission.artifact_sha256`` deliberately excludes ``admission.json``:
+    that file is the output of admission, not one of its inputs.  The release
+    manifest separately binds the output file and this function checks that
+    its content is the canonical recomputation.
+    """
+
+    declared = dict(declaration.get("admission_artifact_sha256", {}))
+    declared_inputs = {
+        name: digest for name, digest in declared.items() if name != "admission"
+    }
+    try:
+        actual = {
+            str(name): file_sha256(scenario.resolve_artifact(str(name)))
+            for name in scenario.raw.get("admission_artifacts", {})
+        }
+        stored = load_json_strict(scenario.resolve_artifact("admission"))
+    except (KeyError, OSError, ValueError, json.JSONDecodeError):
+        actual = {}
+        stored = None
+
+    input_hashes_match = declared_inputs == admission.artifact_sha256
+    report_hash_matches = bool(
+        "admission" in declared
+        and declared.get("admission") == actual.get("admission")
+    )
+    all_artifact_hashes_match = declared == actual
+    report_matches = stored == native_admission_report_payload(admission)
+    return {
+        "admission_input_artifact_sha256_match": input_hashes_match,
+        "admission_report_sha256_match": report_hash_matches,
+        "admission_artifact_sha256_match": all_artifact_hashes_match,
+        "admission_report_matches_recomputed": report_matches,
+    }
 
 
 def _load_bound_json_payload(
@@ -1647,7 +1695,10 @@ def validate_release_manifest(
                     "family_variant_profile_matches": False,
                     "hard_admission_passes": False,
                     "runtime_execution_admitted": False,
+                    "admission_input_artifact_sha256_match": False,
+                    "admission_report_sha256_match": False,
                     "admission_artifact_sha256_match": False,
+                    "admission_report_matches_recomputed": False,
                     "execution_control_passes": False,
                 }
             )
@@ -1701,9 +1752,13 @@ def validate_release_manifest(
             binding_checks["runtime_execution_admitted"] = bool(
                 runtime_admission.get(str(scenario.raw["runtime_id"]), False)
             )
-            binding_checks["admission_artifact_sha256_match"] = dict(
-                declaration.get("admission_artifact_sha256", {})
-            ) == admission.artifact_sha256
+            binding_checks.update(
+                _validate_admission_release_binding(
+                    scenario=scenario,
+                    admission=admission,
+                    declaration=declaration,
+                )
+            )
             control_checks = _validate_control_summary(
                 root=root,
                 declaration=dict(declaration.get("control_evidence", {})),

@@ -131,6 +131,32 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             self.text,
         )
 
+    def test_admission_failure_surfaces_its_captured_log(self) -> None:
+        admission = self.text.index(
+            "Admit the active scenario and freeze the native evidence bundle"
+        )
+        formal_lock = self.text.index(
+            "Freeze the five formal input roles before provider access"
+        )
+        section = self.text[admission:formal_lock]
+        self.assertIn(
+            "::error::admission command failed; captured log follows",
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/admission.log"',
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/scenario-validation.log"',
+            section,
+        )
+        self.assertIn(
+            'run_logged "$RUN_ROOT/logs/native-files.log"',
+            section,
+        )
+        self.assertIn('cat "$log_path"', section)
+
     def test_all_consumers_restore_the_same_boundary_bundle(self) -> None:
         reference_section = self.text[
             self.text.index("Capture eight exact boundaries") : self.text.index(

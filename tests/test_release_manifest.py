@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,11 +16,13 @@ from aftermath_bench.native_freeze import (
     append_usage_event,
     build_frozen_bundle,
 )
+from aftermath_bench.native_admission import validate_native_scenario
 from aftermath_bench.native_scenario import NativeScenario, load_native_scenario
 from aftermath_bench.release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
     FORMAL_EVIDENCE_ROLES,
     _validate_control_summary,
+    _validate_admission_release_binding,
     _validate_hidden_bundle,
     _validate_variant_semantics,
     default_release_manifest_path,
@@ -464,6 +467,60 @@ class ReleaseManifestTest(unittest.TestCase):
         )
         self.assertEqual(report.observed["formal_verified_slot_count"], 0)
         self.assertEqual(report.observed["missing_formal_slot_count"], 36)
+        for binding in report.bindings:
+            self.assertTrue(
+                binding["checks"][
+                    "admission_input_artifact_sha256_match"
+                ]
+            )
+            self.assertTrue(
+                binding["checks"]["admission_report_sha256_match"]
+            )
+            self.assertTrue(
+                binding["checks"]["admission_report_matches_recomputed"]
+            )
+
+    def test_hash_bound_but_stale_admission_report_is_rejected(self) -> None:
+        source = (
+            repository_root()
+            / "data"
+            / "scenarios"
+            / "forgejo-release-publication-dev-002"
+        )
+        with TemporaryDirectory() as directory:
+            copied = Path(directory) / source.name
+            shutil.copytree(source, copied)
+            scenario = load_native_scenario(copied / "scenario.json")
+            admission = validate_native_scenario(scenario)
+            declaration = {
+                "admission_artifact_sha256": {
+                    name: file_sha256(scenario.resolve_artifact(name))
+                    for name in scenario.raw["admission_artifacts"]
+                }
+            }
+            stored_path = scenario.resolve_artifact("admission")
+            stored = json.loads(stored_path.read_text(encoding="utf-8"))
+            stored["passed"] = not stored["passed"]
+            stored_path.write_text(
+                json.dumps(stored, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            declaration["admission_artifact_sha256"]["admission"] = (
+                file_sha256(stored_path)
+            )
+
+            checks = _validate_admission_release_binding(
+                scenario=scenario,
+                admission=admission,
+                declaration=declaration,
+            )
+
+            self.assertTrue(checks["admission_artifact_sha256_match"])
+            self.assertTrue(checks["admission_report_sha256_match"])
+            self.assertFalse(
+                checks["admission_report_matches_recomputed"]
+            )
 
     def test_manifest_bound_scenarios_have_cross_platform_lf_bytes(
         self,

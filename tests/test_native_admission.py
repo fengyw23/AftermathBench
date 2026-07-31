@@ -1,19 +1,60 @@
 import hashlib
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
 
 from aftermath_bench.native_admission import (
     _constraint_prompt_admission,
     _projection_witness_admission,
     _reference_evidence_groups,
+    native_admission_report_payload,
     validate_native_scenario,
 )
 from aftermath_bench.native_scenario import (
     load_native_scenario,
     native_scenario_paths,
 )
+from aftermath_bench.schema import repository_root
+from scripts.refresh_native_admission_report import (
+    refresh_native_admission_report,
+)
 
 
 class NativeAdmissionTest(unittest.TestCase):
+    def test_derived_admission_report_is_not_a_recursive_input(self) -> None:
+        source = (
+            repository_root()
+            / "data"
+            / "scenarios"
+            / "forgejo-release-publication-dev-002"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            scenario_root = Path(directory) / source.name
+            shutil.copytree(source, scenario_root)
+            (scenario_root / "artifacts" / "admission.json").unlink()
+
+            report = validate_native_scenario(
+                load_native_scenario(scenario_root / "scenario.json")
+            )
+
+            self.assertTrue(report.passed, report.failures)
+            self.assertNotIn("admission", report.artifact_sha256)
+            self.assertTrue(
+                report.checks["artifact_scenario_ids_match"]
+            )
+            persisted = refresh_native_admission_report(
+                scenario_root / "scenario.json"
+            )
+            self.assertEqual(
+                persisted,
+                native_admission_report_payload(report),
+            )
+            replayed = validate_native_scenario(
+                load_native_scenario(scenario_root / "scenario.json")
+            )
+            self.assertEqual(replayed, report)
+
     def test_projection_profile_requires_valid_witness_for_every_group(self) -> None:
         report = {
             "variant_ids": ["a", "b", "c"],

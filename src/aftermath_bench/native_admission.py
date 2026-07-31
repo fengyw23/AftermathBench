@@ -28,6 +28,28 @@ class NativeAdmissionReport:
         return tuple(name for name, passed in self.checks.items() if not passed)
 
 
+def native_admission_report_payload(
+    report: NativeAdmissionReport,
+) -> dict[str, Any]:
+    """Return the canonical persisted representation of an admission result.
+
+    The report binds only the evidence consumed by admission.  The persisted
+    report file is a derived release artifact and therefore cannot include
+    its own hash without creating a circular dependency.
+    """
+
+    return {
+        "scenario_id": report.scenario_id,
+        "requested_tier": report.requested_tier,
+        "admitted_tier": report.admitted_tier,
+        "passed": report.passed,
+        "checks": report.checks,
+        "observed": report.observed,
+        "failures": list(report.failures),
+        "artifact_sha256": report.artifact_sha256,
+    }
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
@@ -342,8 +364,10 @@ def validate_native_scenario(
         "observed_graph": graph_path,
         "baselines": baseline_path,
     }
-    if "admission" in scenario.raw.get("admission_artifacts", {}):
-        paths["admission"] = scenario.resolve_artifact("admission")
+    # admission.json is the derived result of this validation.  Treating it
+    # as an input creates an impossible self-reference for a freshly built
+    # scenario and records the hash of a provisional report rather than the
+    # report that is ultimately published.
     constraint_profile = scenario.raw.get("admission_profile", {}).get(
         "constraint_derived_scope", {}
     )

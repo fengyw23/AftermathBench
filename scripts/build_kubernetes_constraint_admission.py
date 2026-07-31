@@ -17,7 +17,10 @@ from aftermath_bench.integrations.kubernetes_settlement_recovery import (
 from aftermath_bench.kubernetes_constraint_prompt_audit import (
     build_constraint_prompt_audit,
 )
-from aftermath_bench.native_admission import validate_native_scenario
+from aftermath_bench.native_admission import (
+    native_admission_report_payload,
+    validate_native_scenario,
+)
 from aftermath_bench.native_scenario import load_native_scenario
 from aftermath_bench.schema import repository_root
 
@@ -31,6 +34,7 @@ def _write(path: Path, value: dict[str, Any]) -> None:
     path.write_text(
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -525,16 +529,7 @@ def main() -> int:
     }
     _write(output / "scenario.json", scenario)
     report = validate_native_scenario(load_native_scenario(output / "scenario.json"))
-    result = {
-        "scenario_id": report.scenario_id,
-        "requested_tier": report.requested_tier,
-        "admitted_tier": report.admitted_tier,
-        "passed": report.passed,
-        "checks": report.checks,
-        "observed": report.observed,
-        "failures": list(report.failures),
-        "artifact_sha256": report.artifact_sha256,
-    }
+    result = native_admission_report_payload(report)
     _write(artifacts / "admission.json", result)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if report.passed and report.admitted_tier == "hard" else 1

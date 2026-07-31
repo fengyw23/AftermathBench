@@ -53,6 +53,14 @@ Each binding verifies:
 - supplied-scope control coverage, zero run errors, and at least 80% pass,
   recomputed from individual reports rather than trusted from summary fields.
 
+Admission uses an acyclic evidence chain. The core validator hashes only the
+evidence it consumes (`prefix`, `reference`, graph, baselines, and any declared
+replay or projection evidence). It does not consume its own derived
+`admission.json`. The release verifier then separately requires that the
+stored report exactly equals the canonical recomputation and that the release
+manifest binds the report file's SHA-256. A stale or edited report therefore
+fails release validation even if its file hash declaration is also updated.
+
 ERPNext sales-return/exchange remains structurally hard-admitted, but its
 legacy runtime manifests reference boundary and recovery files that were not
 archived. The runtime gate therefore rejects it and the release manifest lists

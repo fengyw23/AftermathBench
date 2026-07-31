@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from aftermath_bench.native_admission import validate_native_scenario
+from aftermath_bench.native_admission import (
+    native_admission_report_payload,
+    validate_native_scenario,
+)
 from aftermath_bench.native_baseline_summary import summarize_baselines
 from aftermath_bench.native_scenario import load_native_scenario
 
@@ -18,6 +21,7 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -817,16 +821,7 @@ def build_admission(
     admission = validate_native_scenario(
         load_native_scenario(output_directory / "scenario.json")
     )
-    result = {
-        "scenario_id": admission.scenario_id,
-        "requested_tier": admission.requested_tier,
-        "admitted_tier": admission.admitted_tier,
-        "passed": admission.passed,
-        "checks": admission.checks,
-        "observed": admission.observed,
-        "failures": list(admission.failures),
-        "artifact_sha256": admission.artifact_sha256,
-    }
+    result = native_admission_report_payload(admission)
     _write(artifacts / "admission.json", result)
     return result
 
