@@ -343,11 +343,10 @@ jobs:
               "$BLUEPRINT"
           )
           mkdir -p "$CONTROL_ROOT/pre-model-boundaries"
-          run_status=0
-          for variant in "${variants[@]}"
-          do
-            boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
-            pre_model_capture="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+          restore_and_capture_boundary() {
+            local variant="$1"
+            local boundary_bundle="$NATIVE_ROOT/bundles/boundary-$variant"
+            local pre_model_capture="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$boundary_bundle"
             python scripts/capture_forgejo_publication_state_evidence.py \
@@ -365,24 +364,64 @@ jobs:
             cmp \
               "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
               "$pre_model_capture"
-            if python -m aftermath_bench run-native-model \
-                --provider openai-compatible \
-                --base-url "$AFTERMATH_MODEL_BASE_URL" \
-                --model "$MODEL_ID" \
-                --scenario "$SCENARIO_DIRECTORY/scenario.json" \
-                --credentials "$runtime_root/credentials.json" \
-                --prefix "$NATIVE_ROOT/runtime/prefix.json" \
-                --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
-                --max-turns 25 \
-                --execution-control \
-                --formal-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
-                --pre-model-boundary-evidence "$pre_model_capture" \
-                --output "$CONTROL_ROOT/model-runs/repetition-01/$variant.json" \
-                > "$RUN_ROOT/logs/control-$variant.log" 2>&1
+          }
+          run_control_once() {
+            local variant="$1"
+            local output="$2"
+            local log_path="$3"
+            local pre_model_capture="$4"
+            python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --max-turns 25 \
+              --execution-control \
+              --formal-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+              --pre-model-boundary-evidence "$pre_model_capture" \
+              --output "$output" \
+              > "$log_path" 2>&1
+          }
+          valid_trajectory() {
+            local output="$1"
+            local variant="$2"
+            test -s "$output" \
+              && python scripts/validate_native_control_trajectory.py \
+                --trajectory "$output" \
+                --variant "$variant" \
+                > /dev/null 2>&1
+          }
+          run_status=0
+          for variant in "${variants[@]}"
+          do
+            output="$CONTROL_ROOT/model-runs/repetition-01/$variant.json"
+            pre_model_capture="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            first_log="$RUN_ROOT/logs/control-$variant.log"
+            retry_log="$RUN_ROOT/logs/control-$variant-retry.log"
+            restore_and_capture_boundary "$variant"
+            rm -f "$output"
+            if run_control_once \
+                "$variant" "$output" "$first_log" "$pre_model_capture"
             then
               true
-            elif [ ! -s "$CONTROL_ROOT/model-runs/repetition-01/$variant.json" ]
+            fi
+            if ! valid_trajectory "$output" "$variant"
             then
+              echo "::warning::execution control $variant produced no valid trajectory; retrying once from the locked boundary"
+              restore_and_capture_boundary "$variant"
+              rm -f "$output"
+              if run_control_once \
+                  "$variant" "$output" "$retry_log" "$pre_model_capture"
+              then
+                true
+              fi
+            fi
+            if ! valid_trajectory "$output" "$variant"
+            then
+              echo "::error::execution control $variant produced no valid trajectory after one retry"
               run_status=1
             fi
           done

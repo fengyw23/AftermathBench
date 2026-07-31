@@ -71,7 +71,7 @@ class ForgejoStack:
         self,
         *,
         username: str = "aftermath",
-        password: str = "aftermath-admin",
+        password: str,
         email: str = "admin@aftermath.invalid",
     ) -> dict[str, str]:
         result = self.run(

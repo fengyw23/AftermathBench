@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Self
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from aftermath_bench.integrations.forgejo_stack import ForgejoStack
+from scripts.manage_forgejo_stack import _administrator_password
 
 
 class _ReadyResponse:
@@ -21,6 +23,29 @@ class _ReadyResponse:
 
 
 class ForgejoStackTest(unittest.TestCase):
+    def test_default_administrator_password_is_ephemeral(self) -> None:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "scripts.manage_forgejo_stack.secrets.token_urlsafe",
+                return_value="generated-ephemeral-password",
+            ) as generate,
+        ):
+            password = _administrator_password()
+
+        self.assertEqual(password, "generated-ephemeral-password")
+        generate.assert_called_once_with(32)
+
+    def test_explicit_administrator_password_is_preserved(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"AFTERMATH_FORGEJO_ADMIN_PASSWORD": "configured-password"},
+            clear=True,
+        ):
+            password = _administrator_password()
+
+        self.assertEqual(password, "configured-password")
+
     def test_compose_commands_are_scoped_to_the_runtime_project(self) -> None:
         runner = Mock(return_value=subprocess.CompletedProcess([], 0))
         stack = ForgejoStack(
@@ -52,10 +77,15 @@ class ForgejoStackTest(unittest.TestCase):
             compose_file=Path("compose.yaml"),
             runner=runner,
         )
-        credentials = stack.create_administrator()
+        credentials = stack.create_administrator(
+            password="ephemeral-test-password",
+        )
         self.assertEqual(credentials["token"], "secret-token")
         self.assertEqual(credentials["username"], "aftermath")
-        self.assertEqual(credentials["password"], "aftermath-admin")
+        self.assertEqual(
+            credentials["password"],
+            "ephemeral-test-password",
+        )
         self.assertEqual(
             credentials["web_base_url"],
             "http://127.0.0.1:8080",

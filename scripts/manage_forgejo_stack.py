@@ -3,10 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 from pathlib import Path
 
 from aftermath_bench.integrations.forgejo_stack import ForgejoStack
 from aftermath_bench.schema import repository_root
+
+
+def _administrator_password() -> str:
+    configured = os.environ.get("AFTERMATH_FORGEJO_ADMIN_PASSWORD")
+    return configured if configured else secrets.token_urlsafe(32)
 
 
 def main() -> int:
@@ -53,10 +59,7 @@ def main() -> int:
     elif args.action == "setup":
         credentials = stack.create_administrator(
             username=args.username,
-            password=os.environ.get(
-                "AFTERMATH_FORGEJO_ADMIN_PASSWORD",
-                "aftermath-admin",
-            ),
+            password=_administrator_password(),
             email=args.email,
         )
         path = runtime / ".runtime" / "credentials.json"
@@ -64,6 +67,7 @@ def main() -> int:
         path.write_text(
             json.dumps(credentials, indent=2) + "\n",
             encoding="utf-8",
+            newline="\n",
         )
         os.chmod(path, 0o600)
         print(f"credentials written to {path}")

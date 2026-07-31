@@ -382,6 +382,35 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         )
         self.assertIn("--secret-env AFTERMATH_API_KEY", self.text[control_step:])
 
+    def test_missing_control_trajectory_is_retried_from_locked_boundary(
+        self,
+    ) -> None:
+        section = self.text[
+            self.text.index("Run execution controls"):
+            self.text.index("Complete and validate")
+        ]
+        self.assertIn("restore_and_capture_boundary()", section)
+        self.assertIn("run_control_once()", section)
+        self.assertIn("valid_trajectory()", section)
+        self.assertIn(
+            "validate_native_control_trajectory.py",
+            section,
+        )
+        self.assertIn(
+            "produced no valid trajectory; retrying once from the locked boundary",
+            section,
+        )
+        self.assertIn(
+            "produced no valid trajectory after one retry",
+            section,
+        )
+        self.assertGreaterEqual(
+            section.count('restore_and_capture_boundary "$variant"'),
+            2,
+        )
+        self.assertNotIn('cat "$first_log"', section)
+        self.assertNotIn('cat "$retry_log"', section)
+
     def test_all_variants_and_strict_control_gate_are_bound(self) -> None:
         self.assertIn('test "${#variants[@]}" -eq 8', self.text)
         for variant in FORGEJO_PUBLICATION_VARIANTS:
