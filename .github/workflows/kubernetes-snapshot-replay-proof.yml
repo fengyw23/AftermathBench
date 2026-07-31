@@ -1,0 +1,110 @@
+name: kubernetes-snapshot-replay-proof
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - ".github/workflows/kubernetes-snapshot-replay-proof.yml"
+      - "scripts/capture_kubernetes_interaction_state_evidence.py"
+      - "scripts/manage_kubernetes_stack.py"
+      - "scripts/verify_kubernetes_snapshot_replay.py"
+      - "src/aftermath_bench/integrations/kubernetes_interaction_evidence.py"
+      - "src/aftermath_bench/integrations/kubernetes_stack.py"
+      - "tests/test_kubernetes_interaction_evidence.py"
+      - "tests/test_kubernetes_stack_bundle.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove-exact-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Run snapshot and canonical-evidence unit tests
+        run: |
+          python -m unittest discover -s tests -p 'test_kubernetes_stack_bundle.py' -v
+          python -m unittest discover -s tests -p 'test_kubernetes_interaction_evidence.py' -v
+
+      - name: Build pinned kind from source
+        run: |
+          git clone --no-checkout https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin 9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned kubectl
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+
+      - name: Start pinned Kubernetes and durable external registry
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes aftermathbench/kubernetes-control:local
+          registry_root="$RUNNER_TEMP/k0-registry"
+          mkdir -p "$registry_root"
+          docker run --detach --name aftermath-interaction-registry \
+            --publish 127.0.0.1:9092:8080 \
+            --mount "type=bind,src=$registry_root,dst=/data" \
+            aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9092/health && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:9092/health
+
+      - name: Install exact-replay mount before constructing the boundary
+        run: python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+
+      - name: Build one native failure boundary and prove two-cycle replay
+        run: |
+          evidence_root="$RUNNER_TEMP/k0-evidence"
+          sensitive_root="$RUNNER_TEMP/k0-sensitive"
+          mkdir -p "$evidence_root" "$sensitive_root"
+          python scripts/run_kubernetes_interaction_boundary.py \
+            --variant state_13 \
+            --prefix-output "$evidence_root/prefix.json" \
+            --output "$evidence_root/failure-boundary.json"
+          python scripts/verify_kubernetes_snapshot_replay.py \
+            --variant state_13 \
+            --bundle "$sensitive_root/boundary-bundle" \
+            --registry-database "$RUNNER_TEMP/k0-registry/webhook-sink.sqlite3" \
+            --output-directory "$evidence_root/replay-proof"
+
+      - name: Upload safe replay proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-snapshot-replay-proof-${{ github.run_id }}
+          path: ${{ runner.temp }}/k0-evidence/
+
+      - name: Purge native services and sensitive restore state
+        if: always()
+        run: |
+          docker rm --force aftermath-interaction-registry || true
+          python scripts/manage_kubernetes_stack.py down || true
+          rm -rf -- "$RUNNER_TEMP/k0-sensitive" "$RUNNER_TEMP/k0-registry"
