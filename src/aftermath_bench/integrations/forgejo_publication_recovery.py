@@ -65,6 +65,14 @@ def _asset_evidence(
     return evidence
 
 
+def _asset_metadata(
+    assets: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Copy attachment metadata without invoking its download route."""
+
+    return [dict(asset) for asset in assets]
+
+
 @dataclass(frozen=True)
 class ForgejoPublicationEvaluation:
     passed: bool
@@ -518,7 +526,11 @@ class ForgejoPublicationEnvironment:
     def event_log(self) -> tuple[dict[str, Any], ...]:
         return tuple(self._events)
 
-    def snapshot(self) -> dict[str, Any]:
+    def _snapshot(
+        self,
+        *,
+        include_asset_contents: bool,
+    ) -> dict[str, Any]:
         prefix = self.prefix
         owner = self.owner
         repository = self.repository
@@ -570,11 +582,15 @@ class ForgejoPublicationEnvironment:
                 f"{urllib.parse.quote(str(prefix['base_branch']), safe='')}"
             ),
             "releases": releases,
-            "target_release_assets": _asset_evidence(
-                self.api, target_assets
+            "target_release_assets": (
+                _asset_evidence(self.api, target_assets)
+                if include_asset_contents
+                else _asset_metadata(target_assets)
             ),
-            "protected_release_assets": _asset_evidence(
-                self.api, protected_assets
+            "protected_release_assets": (
+                _asset_evidence(self.api, protected_assets)
+                if include_asset_contents
+                else _asset_metadata(protected_assets)
             ),
             "protected_pull": self.api.get_pull_request(
                 owner,
@@ -607,6 +623,16 @@ class ForgejoPublicationEnvironment:
             ],
             "external_deliveries": self._external_records(),
         }
+
+    def snapshot_metadata(self) -> dict[str, Any]:
+        """Capture native API metadata without changing download counters."""
+
+        return self._snapshot(include_asset_contents=False)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Capture evaluable state, including attachment content hashes."""
+
+        return self._snapshot(include_asset_contents=True)
 
 
 def _require(call: dict[str, Any], tool: str) -> Any:

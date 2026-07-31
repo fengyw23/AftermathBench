@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import tarfile
 import tempfile
 import unittest
 from copy import deepcopy
@@ -21,8 +23,13 @@ class _Environment:
     def __init__(self, state: dict):
         self.state = deepcopy(state)
 
-    def snapshot(self) -> dict:
+    def snapshot_metadata(self) -> dict:
         return deepcopy(self.state)
+
+    def snapshot(self) -> dict:
+        raise AssertionError(
+            "formal state capture must not use the downloading snapshot"
+        )
 
 
 class ForgejoPublicationStateEvidenceTests(unittest.TestCase):
@@ -65,7 +72,14 @@ class ForgejoPublicationStateEvidenceTests(unittest.TestCase):
         forgejo = bundle / "forgejo-data.tar.gz"
         sink = bundle / "webhook-sink-data.tar.gz"
         manifest = bundle / "bundle.json"
-        forgejo.write_bytes(b"exact forgejo archive")
+        asset_uuid = "01234567-89ab-4def-8123-456789abcdef"
+        asset_content = b"exact attachment data"
+        with tarfile.open(forgejo, mode="w:gz") as archive:
+            member = tarfile.TarInfo(
+                "./gitea/attachments/0/1/" + asset_uuid
+            )
+            member.size = len(asset_content)
+            archive.addfile(member, io.BytesIO(asset_content))
         sink.write_bytes(b"exact receiver archive")
         self._write_json(
             manifest,
@@ -95,7 +109,14 @@ class ForgejoPublicationStateEvidenceTests(unittest.TestCase):
             "id": 201,
             "name": "package.tar.gz",
             "size": 21,
-            "content_sha256": "2" * 64,
+            "uuid": "01234567-89ab-4def-8123-456789abcdef",
+            "browser_download_url": (
+                "http://forgejo.invalid/attachments/"
+                "01234567-89ab-4def-8123-456789abcdef"
+            ),
+            "content_sha256": hashlib.sha256(
+                b"exact attachment data"
+            ).hexdigest(),
             "content_size": 21,
         }
         coordinator = {"uuid": "delivery-a", "status": "succeeded"}

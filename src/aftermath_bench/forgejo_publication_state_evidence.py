@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import tarfile
 import tempfile
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -22,6 +23,10 @@ from .integrations.forgejo_web import ForgejoWebSession
 from .strict_json import loads_strict
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CANONICAL_UUID = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{12}$"
+)
 _BUNDLE_FIELDS = frozenset(
     {
         "schema_version",
@@ -224,6 +229,189 @@ def bind_exact_bundle(
             "size_bytes": sink_size,
         },
     }
+
+
+def _safe_archive_member_path(name: Any) -> str:
+    if (
+        not isinstance(name, str)
+        or not name
+        or "\x00" in name
+        or "\\" in name
+    ):
+        raise ForgejoPublicationStateEvidenceError(
+            "Forgejo archive contains an unsafe member path"
+        )
+    if name == ".":
+        return ""
+    candidate = name.removeprefix("./")
+    if not candidate or candidate.startswith("/"):
+        raise ForgejoPublicationStateEvidenceError(
+            "Forgejo archive contains an unsafe member path"
+        )
+    parts = candidate.split("/")
+    if (
+        any(part in {"", ".", ".."} for part in parts)
+        or re.fullmatch(r"[A-Za-z]:", parts[0]) is not None
+    ):
+        raise ForgejoPublicationStateEvidenceError(
+            "Forgejo archive contains an unsafe member path"
+        )
+    return "/".join(parts)
+
+
+def _archive_attachment_path(uuid: str) -> str:
+    return f"gitea/attachments/{uuid[0]}/{uuid[1]}/{uuid}"
+
+
+def _validated_asset_metadata(
+    snapshot: dict[str, Any],
+) -> dict[str, tuple[str, int, dict[str, Any]]]:
+    expected: dict[str, tuple[str, int, dict[str, Any]]] = {}
+    seen_uuids: set[str] = set()
+    for field in (
+        "target_release_assets",
+        "protected_release_assets",
+    ):
+        assets = snapshot.get(field)
+        if not isinstance(assets, list):
+            raise ForgejoPublicationStateEvidenceError(
+                f"native state {field} must be an array"
+            )
+        for index, asset in enumerate(assets):
+            if not isinstance(asset, dict):
+                raise ForgejoPublicationStateEvidenceError(
+                    f"native state {field} contains non-object metadata"
+                )
+            asset_uuid = asset.get("uuid")
+            if (
+                not isinstance(asset_uuid, str)
+                or _CANONICAL_UUID.fullmatch(asset_uuid) is None
+            ):
+                raise ForgejoPublicationStateEvidenceError(
+                    f"native state {field} contains an invalid attachment UUID"
+                )
+            if asset_uuid in seen_uuids:
+                raise ForgejoPublicationStateEvidenceError(
+                    "native state contains a duplicate attachment UUID"
+                )
+            seen_uuids.add(asset_uuid)
+            size = asset.get("size")
+            if (
+                not isinstance(size, int)
+                or isinstance(size, bool)
+                or size < 0
+            ):
+                raise ForgejoPublicationStateEvidenceError(
+                    f"native state {field} contains an invalid attachment size"
+                )
+            expected[_archive_attachment_path(asset_uuid)] = (
+                field,
+                index,
+                asset,
+            )
+    return expected
+
+
+def enrich_snapshot_assets_from_bound_archive(
+    snapshot: dict[str, Any],
+    forgejo_archive_path: str | Path,
+    *,
+    archive_sha256: str,
+    archive_size_bytes: int,
+) -> dict[str, Any]:
+    """Hash attachment bytes from a bound native archive without HTTP reads."""
+
+    if not isinstance(snapshot, dict):
+        raise ForgejoPublicationStateEvidenceError(
+            "native metadata snapshot must be an object"
+        )
+    expected_sha256 = _require_sha256(
+        archive_sha256,
+        field="bound Forgejo archive sha256",
+    )
+    if (
+        not isinstance(archive_size_bytes, int)
+        or isinstance(archive_size_bytes, bool)
+        or archive_size_bytes < 0
+    ):
+        raise ForgejoPublicationStateEvidenceError(
+            "bound Forgejo archive size must be a non-negative integer"
+        )
+    source = _input_file(
+        forgejo_archive_path,
+        label="Forgejo bundle archive",
+    )
+    result = deepcopy(snapshot)
+    expected = _validated_asset_metadata(result)
+    observed: set[str] = set()
+    try:
+        with source.open("rb") as raw:
+            digest = hashlib.sha256()
+            observed_archive_size = 0
+            while chunk := raw.read(1024 * 1024):
+                digest.update(chunk)
+                observed_archive_size += len(chunk)
+            if (
+                digest.hexdigest() != expected_sha256
+                or observed_archive_size != archive_size_bytes
+            ):
+                raise ForgejoPublicationStateEvidenceError(
+                    "Forgejo archive changed after its bundle binding"
+                )
+            raw.seek(0)
+            with tarfile.open(fileobj=raw, mode="r:gz") as archive:
+                for member in archive:
+                    member_path = _safe_archive_member_path(member.name)
+                    if member_path not in expected:
+                        continue
+                    if member_path in observed:
+                        raise ForgejoPublicationStateEvidenceError(
+                            "Forgejo archive contains a duplicate attachment member"
+                        )
+                    if not member.isfile():
+                        raise ForgejoPublicationStateEvidenceError(
+                            "Forgejo archive attachment member is not a regular file"
+                        )
+                    field, index, asset = expected[member_path]
+                    expected_size = int(asset["size"])
+                    if member.size != expected_size:
+                        raise ForgejoPublicationStateEvidenceError(
+                            "Forgejo archive attachment size does not match "
+                            "native metadata"
+                        )
+                    content = archive.extractfile(member)
+                    if content is None:
+                        raise ForgejoPublicationStateEvidenceError(
+                            "Forgejo archive attachment member cannot be read"
+                        )
+                    content_digest = hashlib.sha256()
+                    content_size = 0
+                    while chunk := content.read(1024 * 1024):
+                        content_digest.update(chunk)
+                        content_size += len(chunk)
+                    if content_size != expected_size:
+                        raise ForgejoPublicationStateEvidenceError(
+                            "Forgejo archive attachment bytes are truncated"
+                        )
+                    result[field][index] = {
+                        **asset,
+                        "content_sha256": content_digest.hexdigest(),
+                        "content_size": content_size,
+                    }
+                    observed.add(member_path)
+    except ForgejoPublicationStateEvidenceError:
+        raise
+    except (OSError, EOFError, tarfile.TarError) as error:
+        raise ForgejoPublicationStateEvidenceError(
+            "Forgejo archive cannot be read as a safe gzip tar"
+        ) from error
+    missing = sorted(set(expected) - observed)
+    if missing:
+        raise ForgejoPublicationStateEvidenceError(
+            "Forgejo archive is missing attachment members: "
+            + ", ".join(missing)
+        )
+    return result
 
 
 def _prefix_identity(
@@ -681,7 +869,18 @@ def capture_forgejo_publication_state_evidence(
         webhook_sink_archive_path=webhook_sink_archive_path,
     )
     environment = environment_factory(credentials, prefix)
-    native_snapshot = environment.snapshot()
+    metadata_snapshot = getattr(environment, "snapshot_metadata", None)
+    native_snapshot = (
+        metadata_snapshot()
+        if callable(metadata_snapshot)
+        else environment.snapshot()
+    )
+    native_snapshot = enrich_snapshot_assets_from_bound_archive(
+        native_snapshot,
+        forgejo_archive_path,
+        archive_sha256=bundle["forgejo_archive"]["sha256"],
+        archive_size_bytes=bundle["forgejo_archive"]["size_bytes"],
+    )
     if phase == "reset":
         expected_raw: bytes | None = None
         expected: dict[str, Any] | None = None
@@ -844,6 +1043,7 @@ __all__ = [
     "canonical_state_fingerprint",
     "capture_forgejo_publication_state_evidence",
     "deterministic_state_projection",
+    "enrich_snapshot_assets_from_bound_archive",
     "establish_expected_projection",
     "write_state_evidence",
 ]
