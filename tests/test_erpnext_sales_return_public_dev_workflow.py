@@ -89,7 +89,11 @@ class ERPNextSalesReturnPublicDevWorkflowTest(unittest.TestCase):
             section,
         )
         self.assertIn(
-            "backend frontend fault-gateway queue-fault redis-queue",
+            "backend frontend websocket queue-short queue-long",
+            section,
+        )
+        self.assertIn(
+            "fault-gateway queue-fault redis-queue",
             section,
         )
         self.assertNotIn(

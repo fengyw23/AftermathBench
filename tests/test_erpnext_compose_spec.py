@@ -32,6 +32,16 @@ class ERPNextComposeSpecTest(unittest.TestCase):
     def test_site_creation_does_not_depend_on_missing_wait_helper(self) -> None:
         self.assertNotIn("wait-for-it", self.compose)
 
+    def test_queue_fault_does_not_take_down_realtime_observation(self) -> None:
+        self.assertIn(
+            'redis_queue "redis://queue-fault:26379"',
+            self.compose,
+        )
+        self.assertIn(
+            'redis_socketio "redis://redis-queue:6379"',
+            self.compose,
+        )
+
     def test_native_recovery_bridge_is_read_only_and_source_visible(self) -> None:
         self.assertIn(
             (
