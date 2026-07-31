@@ -151,7 +151,40 @@ class KubernetesStackBundleTests(unittest.TestCase):
                 delay_seconds=0,
             )
         self.assertEqual(observed, "new-etcd")
-        wait_ready.assert_called_once_with()
+        wait_ready.assert_called_once_with(
+            attempts=2,
+            delay_seconds=0,
+        )
+
+    def test_wait_for_etcd_restart_does_not_retry_api_wait(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with (
+            patch.object(
+                KubernetesStack,
+                "_etcd_container",
+                return_value="new-etcd",
+            ) as container,
+            patch.object(
+                KubernetesStack,
+                "_wait_api_ready",
+                side_effect=RuntimeError("API stayed unavailable"),
+            ) as wait_ready,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "API stayed unavailable"):
+                stack._wait_etcd_restarted(
+                    "old-etcd",
+                    attempts=2,
+                    delay_seconds=0,
+                )
+        container.assert_called_once_with()
+        wait_ready.assert_called_once_with(
+            attempts=2,
+            delay_seconds=0,
+        )
 
 
 if __name__ == "__main__":

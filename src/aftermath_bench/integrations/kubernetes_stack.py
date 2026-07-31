@@ -311,15 +311,22 @@ class KubernetesStack:
         delay_seconds: float = 1.0,
     ) -> str:
         last_error = ""
+        restarted_container = ""
         for _attempt in range(attempts):
             try:
                 current = self._etcd_container()
                 if current != previous_container:
-                    self._wait_api_ready()
-                    return current
+                    restarted_container = current
+                    break
             except RuntimeError as error:
                 last_error = str(error)
             time.sleep(delay_seconds)
+        if restarted_container:
+            self._wait_api_ready(
+                attempts=attempts,
+                delay_seconds=delay_seconds,
+            )
+            return restarted_container
         raise RuntimeError(
             "etcd static pod did not restart after manifest replacement: "
             f"previous={previous_container}, last_error={last_error}"
