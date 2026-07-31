@@ -86,6 +86,7 @@ _NATIVE_RUNTIME_CONTRACT_SOURCES = (
     "runtimes/erpnext/control/Containerfile",
     "runtimes/erpnext/bridge/aftermath_frappe_bridge.py",
     "runtimes/erpnext/patches/pin-python-base.patch",
+    "runtimes/erpnext/patches/atomic-assets-link.patch",
     "scripts/build_erpnext_runtime.py",
     "scripts/manage_erpnext_stack.py",
     "scripts/run_erpnext_sales_return_failure.py",

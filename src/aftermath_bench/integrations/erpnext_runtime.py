@@ -79,23 +79,30 @@ def create_build_plan(
         ),
         ("git", "-C", str(source), "checkout", "--detach", "FETCH_HEAD"),
     )
-    patch = (
-        repository_root()
-        / "runtimes"
-        / "erpnext"
-        / "patches"
-        / "pin-python-base.patch"
-    ).resolve()
-    prepare_commands = (
-        (
-            "git",
-            "-C",
-            str(source),
-            "apply",
-            "--check",
-            str(patch),
-        ),
-        ("git", "-C", str(source), "apply", str(patch)),
+    patch_directory = (
+        repository_root() / "runtimes" / "erpnext" / "patches"
+    )
+    patches = tuple(
+        (patch_directory / name).resolve()
+        for name in (
+            "pin-python-base.patch",
+            "atomic-assets-link.patch",
+        )
+    )
+    prepare_commands = tuple(
+        command
+        for patch in patches
+        for command in (
+            (
+                "git",
+                "-C",
+                str(source),
+                "apply",
+                "--check",
+                str(patch),
+            ),
+            ("git", "-C", str(source), "apply", str(patch)),
+        )
     )
     build: list[str] = [
         container_cli,

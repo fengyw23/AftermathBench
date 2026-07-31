@@ -1,0 +1,24 @@
+diff --git a/resources/core/main-entrypoint.sh b/resources/core/main-entrypoint.sh
+--- a/resources/core/main-entrypoint.sh
++++ b/resources/core/main-entrypoint.sh
+@@ -6,7 +6,18 @@ BAKED_PATH="/home/frappe/frappe-bench/assets"
+ 
+ echo "Linking fresh assets to volume..."
+-rm -rf "$ASSETS_PATH"
+ mkdir -p "$(dirname "$ASSETS_PATH")"
+-ln -s "$BAKED_PATH" "$ASSETS_PATH"
++TMP_DIR="$(mktemp -d "$(dirname "$ASSETS_PATH")/.assets-link.XXXXXX")"
++trap 'rm -rf "$TMP_DIR"' EXIT
++ln -s "$BAKED_PATH" "$TMP_DIR/assets"
++
++# Every Frappe service shares the sites volume and executes this entrypoint.
++# Install the link atomically so concurrent container starts cannot turn the
++# destination into sites/assets/assets or observe a missing link.
++if [ -e "$ASSETS_PATH" ] && [ ! -L "$ASSETS_PATH" ]; then
++  rm -rf "$ASSETS_PATH"
++fi
++mv -Tf "$TMP_DIR/assets" "$ASSETS_PATH"
++rmdir "$TMP_DIR"
++trap - EXIT
+ 
+ exec "$@"

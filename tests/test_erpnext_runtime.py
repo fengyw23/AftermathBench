@@ -30,6 +30,13 @@ class ERPNextRuntimeTest(unittest.TestCase):
         self.assertTrue(
             plan.prepare_commands[0][-1].endswith("pin-python-base.patch")
         )
+        self.assertEqual(plan.prepare_commands[2][4], "--check")
+        self.assertTrue(
+            plan.prepare_commands[2][-1].endswith(
+                "atomic-assets-link.patch"
+            )
+        )
+        self.assertEqual(len(plan.prepare_commands), 4)
         self.assertEqual(
             plan.source_refs,
             (
@@ -59,6 +66,19 @@ class ERPNextRuntimeTest(unittest.TestCase):
             source.resolve() / "images" / "production" / "Containerfile",
         )
         self.assertNotIn("frappe/erpnext:", rendered)
+
+    def test_assets_link_patch_is_concurrent_start_safe(self) -> None:
+        patch_path = (
+            Path(__file__).resolve().parents[1]
+            / "runtimes"
+            / "erpnext"
+            / "patches"
+            / "atomic-assets-link.patch"
+        )
+        patch_text = patch_path.read_text(encoding="utf-8")
+        self.assertIn('mktemp -d "$(dirname "$ASSETS_PATH")/', patch_text)
+        self.assertIn('mv -Tf "$TMP_DIR/assets" "$ASSETS_PATH"', patch_text)
+        self.assertNotIn('+rm -rf "$ASSETS_PATH"\n', patch_text)
 
     @patch("subprocess.check_output")
     def test_source_tags_are_checked_against_locked_commits(self, check_output) -> None:
