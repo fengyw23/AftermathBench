@@ -136,6 +136,71 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(len(state["events"]), 1)
 
+    def test_terminating_pods_are_not_part_of_the_stable_boundary(self) -> None:
+        terminating = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": "orders-api-v1-old",
+                "namespace": "aftermath-interactions",
+                "uid": "old-pod-uid",
+                "deletionTimestamp": "2026-08-01T00:00:00Z",
+            },
+            "status": {"phase": "Running"},
+        }
+        active = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": "orders-api-v2-current",
+                "namespace": "aftermath-interactions",
+                "uid": "current-pod-uid",
+            },
+            "status": {"phase": "Running"},
+        }
+        state = canonicalize_interaction_snapshot(
+            {"pods": [terminating, active]}
+        )
+        self.assertEqual(
+            [item["metadata"]["uid"] for item in state["resources"]],
+            ["current-pod-uid"],
+        )
+
+    def test_ip_allocator_restart_event_is_not_boundary_evidence(self) -> None:
+        repair = {
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Service",
+                "name": "orders-api",
+                "uid": "service-uid",
+            },
+            "reason": "ClusterIPNotAllocated",
+            "reportingComponent": "ipallocator-repair-controller",
+            "message": "Cluster IP is not allocated; repairing",
+            "type": "Warning",
+        }
+        task_event = {
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Job",
+                "name": "orders-schema-migration",
+                "uid": "migration-uid",
+            },
+            "reason": "BackoffLimitExceeded",
+            "reportingComponent": "job-controller",
+            "message": "Job has reached the specified backoff limit",
+            "type": "Warning",
+        }
+        state = canonicalize_interaction_snapshot(
+            {"events": [repair, task_event]}
+        )
+        self.assertEqual(len(state["events"]), 1)
+        self.assertEqual(state["events"][0]["reason"], "BackoffLimitExceeded")
+
 
 if __name__ == "__main__":
     unittest.main()

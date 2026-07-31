@@ -73,6 +73,15 @@ explicit, versioned normalization contract. It may omit a volatile field only
 when the model neither needs it for a valid decision nor can be scored on it.
 UIDs and external idempotency identities may not be normalized away.
 
+The implemented `kubernetes-interaction-boundary-v2` contract also excludes
+two whole-object controller transients that empirical destructive replay proved
+cannot be part of a stable boundary: Pods already carrying a deletion timestamp,
+and `ClusterIPNotAllocated` Events emitted by the IP allocator repair controller
+after an etcd restart. The parent workload intent, every active Pod, every task
+Event, every scored object UID, and every external idempotency record remain in
+the capture. Neither excluded transient is read by the evaluator or required by
+the reference recovery.
+
 ### Restore proof
 
 The spike must perform the following sequence in one clean native job:

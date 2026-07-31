@@ -10,7 +10,20 @@ from .kubernetes_interaction_prefix import NAMESPACE, SCENARIO_ID
 from .kubernetes_interaction_recovery import KubernetesInteractionEnvironment
 
 
-NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v1"
+NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v2"
+
+# The service-IP repair controller can emit this Event after an etcd restore
+# even though the Service object, its UID, ClusterIP, selector, and every
+# evaluator-visible field are unchanged.  It is control-plane restart noise,
+# not evidence used by this recovery task.  Keep all other semantic Events.
+_RESTORE_ONLY_EVENT_SIGNATURES = frozenset(
+    {
+        (
+            "ClusterIPNotAllocated",
+            "ipallocator-repair-controller",
+        )
+    }
+)
 
 _DROP_KEYS = frozenset(
     {
@@ -99,6 +112,24 @@ def _event_key(document: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
+def _is_decision_relevant_resource(document: dict[str, Any]) -> bool:
+    # A Pod already marked for deletion is not part of the stable failure
+    # boundary.  Its parent Deployment/ReplicaSet intent remains preserved,
+    # while the exact garbage-collection instant is wall-clock dependent.
+    return not (
+        document.get("kind") == "Pod"
+        and document.get("metadata", {}).get("deletionTimestamp") is not None
+    )
+
+
+def _is_decision_relevant_event(document: dict[str, Any]) -> bool:
+    signature = (
+        str(document.get("reason", "")),
+        str(document.get("reportingComponent", "")),
+    )
+    return signature not in _RESTORE_ONLY_EVENT_SIGNATURES
+
+
 def canonicalize_interaction_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     resource_groups = (
         "configmaps",
@@ -115,11 +146,13 @@ def canonicalize_interaction_snapshot(snapshot: dict[str, Any]) -> dict[str, Any
         canonical_kubernetes_object(document)
         for group in resource_groups
         for document in snapshot.get(group, ())
+        if _is_decision_relevant_resource(document)
     ]
     resources.sort(key=_object_key)
     events = [
         canonical_kubernetes_object(document)
         for document in snapshot.get("events", ())
+        if _is_decision_relevant_event(document)
     ]
     # Duplicate controller Events do not change a recovery decision. Preserve
     # one copy of each complete semantic observation while keeping the
