@@ -262,7 +262,7 @@ class KubernetesStack:
         with tempfile.TemporaryDirectory(prefix="aftermath-etcd-manifest-") as raw:
             local = Path(raw) / "etcd.yaml"
             local.write_text(content, encoding="utf-8", newline="\n")
-            remote = "/tmp/aftermath-etcd.yaml"
+            remote = f"{_ETCD_MANIFEST_PATH}.aftermath"
             self._docker("cp", str(local), f"{self.node_container}:{remote}")
             self._docker(
                 "exec",

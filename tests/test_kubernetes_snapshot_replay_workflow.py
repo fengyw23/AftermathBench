@@ -36,6 +36,7 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
         upload = self.text[self.text.index("Upload safe replay proof") :]
         self.assertIn("k0-evidence", upload)
         self.assertNotIn("k0-sensitive/", upload)
+        self.assertIn('sudo chown -R "$(id -u):$(id -g)"', upload)
 
     def test_proof_has_no_model_provider_or_secret(self) -> None:
         lowered = self.text.lower()
