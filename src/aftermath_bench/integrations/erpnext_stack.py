@@ -358,6 +358,50 @@ class ERPNextStack:
         with source.open("rb") as handle:
             self.runner(command, check=True, stdin=handle)
 
+    def _resume_bundle_services(
+        self,
+        running_services: tuple[str, ...],
+    ) -> None:
+        """Resume a quiesced bundle in native dependency order.
+
+        The queue proxy is intentionally part of the persisted boundary.  A
+        concurrent Compose start can launch Frappe before that proxy accepts
+        connections, causing gunicorn to exit and leaving the public gateway
+        behind a permanent 502.  Resume the captured containers in three
+        stages without traversing one-shot Compose dependencies or recreating
+        container identities.
+        """
+
+        selected = set(running_services)
+        common = (
+            "up",
+            "--detach",
+            "--no-deps",
+            "--no-recreate",
+        )
+        if "redis-queue" in selected:
+            self.run(
+                "up",
+                "--detach",
+                "--wait",
+                "--wait-timeout",
+                "60",
+                "--no-deps",
+                "--no-recreate",
+                "redis-queue",
+            )
+        if "queue-fault" in selected:
+            self.run(*common, "queue-fault")
+            self._wait_http_service("http://127.0.0.1:8474/version")
+        application_services = tuple(
+            service
+            for service in _BUNDLE_START_SERVICES
+            if service in selected
+            and service not in {"redis-queue", "queue-fault"}
+        )
+        if application_services:
+            self.run(*common, *application_services)
+
     def snapshot_bundle(self, destination: str | Path) -> dict[str, Any]:
         """Capture every mutable service needed to replay one exact boundary."""
 
@@ -407,18 +451,7 @@ class ERPNextStack:
                     )
             finally:
                 if running_services:
-                    # Every listed service was running before quiescence, so
-                    # its container already exists.  Compose ``start`` still
-                    # traverses ``depends_on``; use an explicitly non-
-                    # recreating, dependency-free ``up`` to resume exactly the
-                    # captured set without re-running configurator/create-site.
-                    self.run(
-                        "up",
-                        "--detach",
-                        "--no-deps",
-                        "--no-recreate",
-                        *running_services,
-                    )
+                    self._resume_bundle_services(running_services)
             self._wait_http_service(
                 "http://127.0.0.1:8080/api/method/ping"
             )
@@ -517,19 +550,7 @@ class ERPNextStack:
         finally:
             running_services = tuple(map(str, manifest["running_services"]))
             if running_services:
-                # Restore must resume the captured containers without
-                # replaying Compose dependency initializers or replacing
-                # container identities.  In particular, re-running
-                # create-site after the database import can keep the ERP
-                # backend behind a 502 and mutates the state this bundle is
-                # intended to reproduce.
-                self.run(
-                    "up",
-                    "--detach",
-                    "--no-deps",
-                    "--no-recreate",
-                    *running_services,
-                )
+                self._resume_bundle_services(running_services)
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
         self._wait_http_service(
             "http://127.0.0.1:8080/api/method/ping"
