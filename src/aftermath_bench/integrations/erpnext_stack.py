@@ -408,12 +408,17 @@ class ERPNextStack:
             finally:
                 if running_services:
                     # Every listed service was running before quiescence, so
-                    # its container already exists.  ``compose up`` would
-                    # traverse ``depends_on`` and re-run the one-shot
-                    # configurator/create-site services, changing the native
-                    # boundary while it is being frozen.  ``start`` resumes
-                    # only the exact containers that were stopped.
-                    self.run("start", *running_services)
+                    # its container already exists.  Compose ``start`` still
+                    # traverses ``depends_on``; use an explicitly non-
+                    # recreating, dependency-free ``up`` to resume exactly the
+                    # captured set without re-running configurator/create-site.
+                    self.run(
+                        "up",
+                        "--detach",
+                        "--no-deps",
+                        "--no-recreate",
+                        *running_services,
+                    )
             self._wait_http_service(
                 "http://127.0.0.1:8080/api/method/ping"
             )
@@ -513,11 +518,18 @@ class ERPNextStack:
             running_services = tuple(map(str, manifest["running_services"]))
             if running_services:
                 # Restore must resume the captured containers without
-                # replaying Compose dependency initializers.  In particular,
-                # re-running create-site after the database import can keep
-                # the ERP backend behind a 502 and mutates the very state this
-                # bundle is intended to reproduce.
-                self.run("start", *running_services)
+                # replaying Compose dependency initializers or replacing
+                # container identities.  In particular, re-running
+                # create-site after the database import can keep the ERP
+                # backend behind a 502 and mutates the state this bundle is
+                # intended to reproduce.
+                self.run(
+                    "up",
+                    "--detach",
+                    "--no-deps",
+                    "--no-recreate",
+                    *running_services,
+                )
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
         self._wait_http_service(
             "http://127.0.0.1:8080/api/method/ping"

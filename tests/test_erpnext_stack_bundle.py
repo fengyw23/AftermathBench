@@ -48,8 +48,9 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 list(root.glob(".failed-boundary.incomplete-*")),
                 [],
             )
-        self.assertTrue(any("start" in command for command in commands))
-        self.assertFalse(any("up" in command for command in commands))
+        resume = next(command for command in commands if "up" in command)
+        self.assertIn("--no-deps", resume)
+        self.assertIn("--no-recreate", resume)
 
     def test_snapshot_preserves_a_pending_boundary_worker_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -89,10 +90,11 @@ class ERPNextStackBundleTest(unittest.TestCase):
         start = next(
             command
             for command in commands
-            if "start" in command
+            if "up" in command and "--no-deps" in command
         )
         self.assertNotIn("queue-short", start)
         self.assertNotIn("queue-long", start)
+        self.assertIn("--no-recreate", start)
 
     def test_snapshot_quiesces_and_hashes_every_mutable_service(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -173,13 +175,13 @@ class ERPNextStackBundleTest(unittest.TestCase):
         start = next(
             command
             for command in commands
-            if "start" in command
+            if "up" in command and "--no-deps" in command
         )
         self.assertLess(
             start.index("redis-queue"),
             start.index("queue-short"),
         )
-        self.assertNotIn("up", start)
+        self.assertIn("--no-recreate", start)
 
     def test_restore_verifies_hashes_before_replacing_native_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -257,10 +259,12 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 )
             )
             start = next(
-                command for command in commands if "start" in command
+                command
+                for command in commands
+                if "up" in command and "--no-deps" in command
             )
             self.assertIn("backend", start)
-            self.assertNotIn("up", start)
+            self.assertIn("--no-recreate", start)
 
             commands.clear()
             (bundle / "redis-queue.tar").write_bytes(b"drift")
