@@ -58,6 +58,20 @@ jobs:
           echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" | sha256sum --check
           chmod +x "$RUNNER_TEMP/bin/kubectl"
 
+      - name: Install checksum-pinned etcdutl
+        run: |
+          etcd_url="https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz"
+          etcd_sha="4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" "$etcd_url"
+          echo "$etcd_sha  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
+            "$RUNNER_TEMP/bin/etcdutl"
+          etcdutl version
+
       - name: Start pinned Kubernetes and durable external registry
         run: |
           python scripts/manage_kubernetes_stack.py up

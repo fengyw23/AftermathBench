@@ -124,6 +124,7 @@ class KubernetesStack:
     kind: str = "kind"
     kubectl: str = "kubectl"
     docker: str = "docker"
+    etcdutl: str = "etcdutl"
     external_registry_container: str = "aftermath-interaction-registry"
 
     @classmethod
@@ -227,8 +228,15 @@ class KubernetesStack:
 
     def _require_bundle_commands(self) -> None:
         self._require_commands()
-        if shutil.which(self.docker) is None:
-            raise RuntimeError(f"missing Kubernetes bundle command: {self.docker}")
+        missing = [
+            command
+            for command in (self.docker, self.etcdutl)
+            if shutil.which(command) is None
+        ]
+        if missing:
+            raise RuntimeError(
+                "missing Kubernetes bundle commands: " + ", ".join(missing)
+            )
 
     def _docker(self, *arguments: str) -> str:
         return self._run((self.docker, *arguments))
@@ -527,15 +535,7 @@ class KubernetesStack:
         registry = Path(registry_database).resolve()
         self._ensure_snapshot_mount()
         restore_token = uuid.uuid4().hex
-        remote_input_host = f"{_ETCD_BUNDLE_HOST_ROOT}/inputs/{restore_token}.db"
-        remote_input_mount = f"{_ETCD_BUNDLE_MOUNT}/inputs/{restore_token}.db"
         remote_data_host = f"{_ETCD_BUNDLE_HOST_ROOT}/restores/{restore_token}"
-        remote_data_mount = f"{_ETCD_BUNDLE_MOUNT}/restores/{restore_token}"
-        self._docker(
-            "cp",
-            str(bundle / _BUNDLE_FILES["etcd"]),
-            f"{self.node_container}:{remote_input_host}",
-        )
         etcd_container = self._etcd_container()
         node_ip = self._docker(
             "inspect",
@@ -549,27 +549,43 @@ class KubernetesStack:
         try:
             self._stop_registry()
             registry_stopped = True
-            self._docker(
-                "exec",
-                self.node_container,
-                "crictl",
-                "exec",
-                etcd_container,
-                "etcdutl",
-                "snapshot",
-                "restore",
-                remote_input_mount,
-                f"--data-dir={remote_data_mount}",
-                f"--name={self.node_container}",
-                (
-                    "--initial-cluster="
-                    f"{self.node_container}=https://{node_ip}:2380"
-                ),
-                f"--initial-advertise-peer-urls=https://{node_ip}:2380",
-                f"--initial-cluster-token=aftermath-{restore_token}",
-                "--bump-revision=1000000000",
-                "--mark-compacted",
-            )
+            with tempfile.TemporaryDirectory(
+                prefix="aftermath-etcd-restore-"
+            ) as raw:
+                local_data = Path(raw) / "member-data"
+                self._run(
+                    (
+                        self.etcdutl,
+                        "snapshot",
+                        "restore",
+                        str(bundle / _BUNDLE_FILES["etcd"]),
+                        f"--data-dir={local_data}",
+                        f"--name={self.node_container}",
+                        (
+                            "--initial-cluster="
+                            f"{self.node_container}=https://{node_ip}:2380"
+                        ),
+                        (
+                            "--initial-advertise-peer-urls="
+                            f"https://{node_ip}:2380"
+                        ),
+                        f"--initial-cluster-token=aftermath-{restore_token}",
+                        "--bump-revision=1000000000",
+                        "--mark-compacted",
+                    )
+                )
+                self._docker(
+                    "exec",
+                    self.node_container,
+                    "mkdir",
+                    "-p",
+                    remote_data_host,
+                )
+                self._docker(
+                    "cp",
+                    f"{local_data}/.",
+                    f"{self.node_container}:{remote_data_host}",
+                )
             original = self._read_etcd_manifest()
             patched = _patch_etcd_manifest_data_path(original, remote_data_host)
             previous_etcd = etcd_container

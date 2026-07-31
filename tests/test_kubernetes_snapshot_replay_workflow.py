@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -7,12 +8,17 @@ from pathlib import Path
 class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.root = Path(__file__).parents[1]
         cls.text = (
-            Path(__file__).parents[1]
+            cls.root
             / ".github"
             / "workflows"
             / "kubernetes-snapshot-replay-proof.yml"
         ).read_text(encoding="utf-8")
+        cls.lock = json.loads(
+            (cls.root / "runtimes" / "kubernetes" / "runtime.lock.json")
+            .read_text(encoding="utf-8")
+        )
 
     def test_snapshot_mount_is_installed_before_boundary(self) -> None:
         prepare = self.text.index("prepare-snapshot-runtime")
@@ -49,6 +55,11 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
             "run-native-model",
         ):
             self.assertNotIn(forbidden, lowered)
+
+    def test_etcdutl_archive_and_digest_match_runtime_lock(self) -> None:
+        self.assertIn(self.lock["etcd"]["url"], self.text)
+        self.assertIn(self.lock["etcd"]["sha256"], self.text)
+        self.assertIn('"$RUNNER_TEMP/bin/etcdutl"', self.text)
 
 
 if __name__ == "__main__":
