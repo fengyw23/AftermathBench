@@ -48,9 +48,8 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 list(root.glob(".failed-boundary.incomplete-*")),
                 [],
             )
-        self.assertTrue(
-            any("up" in command and "--detach" in command for command in commands)
-        )
+        self.assertTrue(any("start" in command for command in commands))
+        self.assertFalse(any("up" in command for command in commands))
 
     def test_snapshot_preserves_a_pending_boundary_worker_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -90,7 +89,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
         start = next(
             command
             for command in commands
-            if "up" in command and "--detach" in command
+            if "start" in command
         )
         self.assertNotIn("queue-short", start)
         self.assertNotIn("queue-long", start)
@@ -174,12 +173,13 @@ class ERPNextStackBundleTest(unittest.TestCase):
         start = next(
             command
             for command in commands
-            if "up" in command and "--detach" in command
+            if "start" in command
         )
         self.assertLess(
             start.index("redis-queue"),
             start.index("queue-short"),
         )
+        self.assertNotIn("up", start)
 
     def test_restore_verifies_hashes_before_replacing_native_state(self) -> None:
         commands: list[tuple[str, ...]] = []
@@ -256,6 +256,11 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     if "tar -C /data -xf -" in command
                 )
             )
+            start = next(
+                command for command in commands if "start" in command
+            )
+            self.assertIn("backend", start)
+            self.assertNotIn("up", start)
 
             commands.clear()
             (bundle / "redis-queue.tar").write_bytes(b"drift")
