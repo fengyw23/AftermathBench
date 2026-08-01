@@ -34,6 +34,8 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         self.assertNotIn("api_key", lowered)
         self.assertNotIn("secrets.", lowered)
         self.assertNotIn("run-native-model", lowered)
+        self.assertIn("Exact boundary replay failed", self.workflow)
+        self.assertIn("tail -c 1800", self.workflow)
 
     def test_freezes_all_five_formal_inputs_before_any_model_work(self) -> None:
         self.assertIn(

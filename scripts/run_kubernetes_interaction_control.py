@@ -85,6 +85,12 @@ def main() -> int:
                 "passed": evaluation.passed,
                 "mutations": len(mutations),
                 "error": error,
+                "failed_checks": [
+                    name
+                    for name, passed in evaluation.checks.items()
+                    if not passed
+                ],
+                "failures": list(evaluation.failures),
             },
             indent=2,
         )
