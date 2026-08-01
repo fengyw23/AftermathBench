@@ -4,8 +4,15 @@ import json
 import unittest
 
 from aftermath_bench.integrations.kubernetes_interaction_prefix import (
+    API_V1,
+    API_V2,
+    BATCH_STATE,
+    COMPATIBILITY_BRIDGE,
     CONTRACT_CONFIGMAPS,
+    CURRENT_CREDENTIAL,
     NAMESPACE,
+    WORKER_V1,
+    WORKER_V2,
     interaction_prefix_manifests,
 )
 from aftermath_bench.integrations.kubernetes_interaction_scope import (
@@ -22,15 +29,15 @@ class KubernetesInteractionPrefixTest(unittest.TestCase):
         }
         self.assertGreaterEqual(len(manifests), 20)
         for name in (
-            "orders-api-v1",
-            "orders-api-v2",
-            "orders-worker-v1",
-            "orders-worker-v2",
+            API_V1,
+            API_V2,
+            WORKER_V1,
+            WORKER_V2,
         ):
             self.assertIn(("Deployment", name), names)
-        self.assertIn(("Secret", "orders-db-current"), names)
-        self.assertIn(("ConfigMap", "schema-compatibility-bridge"), names)
-        self.assertIn(("ConfigMap", "worker-batch-state"), names)
+        self.assertIn(("Secret", CURRENT_CREDENTIAL), names)
+        self.assertIn(("ConfigMap", COMPATIBILITY_BRIDGE), names)
+        self.assertIn(("ConfigMap", BATCH_STATE), names)
         self.assertTrue(
             set(CONTRACT_CONFIGMAPS)
             <= {name for kind, name in names if kind == "ConfigMap"}
