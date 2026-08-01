@@ -187,6 +187,43 @@ class KubernetesStackBundleTests(unittest.TestCase):
         self.assertEqual(observe.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
 
+    def test_restore_restarts_kubelet_and_waits_for_node_lease(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with (
+            patch.object(KubernetesStack, "_docker", return_value="") as docker,
+            patch.object(
+                KubernetesStack,
+                "_kubelet_pid",
+                side_effect=["old-kubelet", "new-kubelet"],
+            ) as pid,
+            patch.object(
+                KubernetesStack,
+                "_node_lease_renew_time",
+                side_effect=["lease-1", "lease-1", "lease-2"],
+            ) as lease,
+            patch("time.sleep") as sleep,
+        ):
+            observed = stack._restart_kubelet_consumer(
+                "old-kubelet",
+                attempts=2,
+                delay_seconds=0,
+            )
+        self.assertEqual(observed, "new-kubelet")
+        docker.assert_called_once_with(
+            "exec",
+            "aftermath-kubernetes-control-plane",
+            "systemctl",
+            "restart",
+            "kubelet",
+        )
+        self.assertEqual(pid.call_count, 2)
+        self.assertEqual(lease.call_count, 3)
+        self.assertEqual(sleep.call_count, 3)
+
     def test_wait_for_etcd_restart_does_not_retry_api_wait(self) -> None:
         stack = KubernetesStack(
             cluster_name="aftermath-kubernetes",

@@ -139,6 +139,11 @@ The restore gate therefore observes both the controller-manager and scheduler
 leader-election Leases renew after the restart before handing the boundary to
 the next reference, policy or model consumer.
 
+The node kubelet is a fourth state consumer. A scheduled Pod can otherwise
+remain Pending indefinitely after an etcd rewind even when the scheduler and
+Job controller are healthy. The restore procedure therefore restarts kubelet
+and requires its Node Lease to renew before exposing the restored boundary.
+
 Official operational references:
 
 - <https://etcd.io/docs/v3.7/op-guide/recovery/>

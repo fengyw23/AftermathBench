@@ -454,6 +454,87 @@ class KubernetesStack:
             f"initial={initial}, latest={latest}"
         )
 
+    def _kubelet_pid(self) -> str:
+        value = self._docker(
+            "exec",
+            self.node_container,
+            "systemctl",
+            "show",
+            "--property=MainPID",
+            "--value",
+            "kubelet",
+        ).strip()
+        if not value.isdigit() or int(value) <= 0:
+            raise RuntimeError(f"kubelet has no live MainPID: {value!r}")
+        return value
+
+    def _node_lease_renew_time(self) -> str:
+        payload = json.loads(
+            self._run(
+                (
+                    self.kubectl,
+                    "--context",
+                    self.context,
+                    "get",
+                    "lease.coordination.k8s.io",
+                    self.node_container,
+                    "-n",
+                    "kube-node-lease",
+                    "-o",
+                    "json",
+                )
+            )
+        )
+        renew_time = str(payload.get("spec", {}).get("renewTime", ""))
+        if not renew_time:
+            raise RuntimeError("kubelet node Lease has no renewTime")
+        return renew_time
+
+    def _restart_kubelet_consumer(
+        self,
+        previous_pid: str,
+        *,
+        attempts: int = 180,
+        delay_seconds: float = 1.0,
+    ) -> str:
+        """Rebuild the kubelet watch and prove it is writing after restore."""
+
+        self._docker(
+            "exec",
+            self.node_container,
+            "systemctl",
+            "restart",
+            "kubelet",
+        )
+        current_pid = ""
+        for _attempt in range(attempts):
+            try:
+                current_pid = self._kubelet_pid()
+                if current_pid != previous_pid:
+                    break
+            except RuntimeError:
+                pass
+            time.sleep(delay_seconds)
+        else:
+            raise RuntimeError(
+                "kubelet did not restart after exact restore: "
+                f"previous={previous_pid}, current={current_pid}"
+            )
+        initial_lease = self._node_lease_renew_time()
+        latest_lease = initial_lease
+        for _attempt in range(attempts):
+            time.sleep(delay_seconds)
+            try:
+                latest_lease = self._node_lease_renew_time()
+            except RuntimeError:
+                continue
+            if latest_lease != initial_lease:
+                return current_pid
+        raise RuntimeError(
+            "kubelet node Lease did not renew after exact restore: "
+            f"initial={initial_lease}, latest={latest_lease}"
+        )
+
     def _read_etcd_manifest(self) -> str:
         return self._docker(
             "exec", self.node_container, "cat", _ETCD_MANIFEST_PATH
@@ -747,6 +828,7 @@ class KubernetesStack:
                 "kube-scheduler",
             )
         }
+        kubelet_before_restore = self._kubelet_pid()
         node_ip = self._docker(
             "inspect",
             "--format",
@@ -757,6 +839,7 @@ class KubernetesStack:
             raise RuntimeError("kind control-plane container has no IP address")
         registry_stopped = False
         restarted_control_plane: dict[str, str] = {}
+        restarted_kubelet_pid = ""
         try:
             self._stop_registry()
             registry_stopped = True
@@ -805,6 +888,9 @@ class KubernetesStack:
             restarted_control_plane = self._restart_control_plane_consumers(
                 control_plane_before_restore
             )
+            restarted_kubelet_pid = self._restart_kubelet_consumer(
+                kubelet_before_restore
+            )
             self._restore_sqlite(
                 bundle / _BUNDLE_FILES["external_registry"], registry
             )
@@ -814,4 +900,5 @@ class KubernetesStack:
         return manifest | {
             "restore_token": restore_token,
             "restarted_control_plane": restarted_control_plane,
+            "restarted_kubelet_pid": restarted_kubelet_pid,
         }
