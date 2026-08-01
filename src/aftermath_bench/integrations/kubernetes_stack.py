@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import shutil
 import sqlite3
@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from ..schema import repository_root
-
 
 _BUNDLE_SCHEMA_VERSION = "1.0"
 _BUNDLE_CAPTURE_MODE = "etcd_snapshot_and_quiesced_registry_sqlite"
@@ -179,7 +178,7 @@ class KubernetesStack:
     external_registry_container: str = "aftermath-interaction-registry"
 
     @classmethod
-    def from_repository(cls) -> "KubernetesStack":
+    def from_repository(cls) -> KubernetesStack:
         root = repository_root()
         lock = json.loads(default_lock_path().read_text(encoding="utf-8"))
         return cls(
@@ -344,9 +343,13 @@ class KubernetesStack:
         attempts: int = 180,
         delay_seconds: float = 1.0,
     ) -> dict[str, str]:
-        """Clear controller caches after rewinding the authoritative keyspace."""
+        """Clear API and controller caches after rewinding the keyspace."""
 
-        components = ("kube-controller-manager", "kube-scheduler")
+        components = (
+            "kube-apiserver",
+            "kube-controller-manager",
+            "kube-scheduler",
+        )
         if set(previous) != set(components) or any(
             not previous[component] for component in components
         ):
@@ -527,9 +530,11 @@ class KubernetesStack:
                 sidecar = Path(f"{source}{suffix}")
                 if sidecar.is_file():
                     shutil.copy2(sidecar, Path(f"{staging}{suffix}"))
-            with closing(sqlite3.connect(staging)) as input_database:
-                with closing(sqlite3.connect(destination)) as output_database:
-                    input_database.backup(output_database)
+            with (
+                closing(sqlite3.connect(staging)) as input_database,
+                closing(sqlite3.connect(destination)) as output_database,
+            ):
+                input_database.backup(output_database)
 
     @staticmethod
     def _restore_sqlite(source: Path, destination: Path) -> None:
@@ -673,7 +678,11 @@ class KubernetesStack:
         etcd_container = self._etcd_container()
         control_plane_before_restore = {
             component: self._control_plane_container(component)
-            for component in ("kube-controller-manager", "kube-scheduler")
+            for component in (
+                "kube-apiserver",
+                "kube-controller-manager",
+                "kube-scheduler",
+            )
         }
         node_ip = self._docker(
             "inspect",

@@ -126,10 +126,12 @@ watches, so the spike must either use a revision bump and compaction marker or
 prove that rebuilding the short-lived cluster from the restored keyspace avoids
 stale informer state. This is an empirical admission test, not an assumption.
 After each rewind, the implementation changes a dedicated replay-token
-annotation in the controller-manager and scheduler static-Pod manifests. That
-configuration change rebuilds both consumers and clears their informer caches;
-directly stopping the same containers repeatedly is forbidden because kubelet
-can interpret it as repeated failure and apply crash-loop backoff.
+annotation in the API server, controller-manager and scheduler static-Pod
+manifests. Rebuilding the API server is required because its watch cache can
+otherwise acknowledge writes while serving the pre-restore object projection;
+rebuilding the other two consumers clears their informer caches. Directly
+stopping the same containers repeatedly is forbidden because kubelet can
+interpret it as repeated failure and apply crash-loop backoff.
 
 Official operational references:
 

@@ -16,7 +16,6 @@ from aftermath_bench.integrations.kubernetes_stack import (
     _patch_static_pod_manifest_replay_token,
 )
 
-
 ETCD_MANIFEST = """\
 apiVersion: v1
 kind: Pod
@@ -174,13 +173,13 @@ class KubernetesStackBundleTests(unittest.TestCase):
                 "_wait_api_ready",
                 side_effect=RuntimeError("API stayed unavailable"),
             ) as wait_ready,
+            self.assertRaisesRegex(RuntimeError, "API stayed unavailable"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "API stayed unavailable"):
-                stack._wait_etcd_restarted(
-                    "old-etcd",
-                    attempts=2,
-                    delay_seconds=0,
-                )
+            stack._wait_etcd_restarted(
+                "old-etcd",
+                attempts=2,
+                delay_seconds=0,
+            )
         container.assert_called_once_with()
         wait_ready.assert_called_once_with(
             attempts=2,
@@ -198,6 +197,9 @@ class KubernetesStackBundleTests(unittest.TestCase):
                 KubernetesStack,
                 "_docker",
                 side_effect=[
+                    "apiVersion: v1\nkind: Pod\nmetadata:\n  name: apiserver\n",
+                    "",
+                    "",
                     "apiVersion: v1\nkind: Pod\nmetadata:\n  name: manager\n",
                     "",
                     "",
@@ -209,12 +211,13 @@ class KubernetesStackBundleTests(unittest.TestCase):
             patch.object(
                 KubernetesStack,
                 "_wait_control_plane_container_restarted",
-                side_effect=["new-manager", "new-scheduler"],
+                side_effect=["new-apiserver", "new-manager", "new-scheduler"],
             ) as wait_restarted,
             patch.object(KubernetesStack, "_wait_api_ready") as wait_ready,
         ):
             observed = stack._restart_control_plane_consumers(
                 {
+                    "kube-apiserver": "old-apiserver",
                     "kube-controller-manager": "old-manager",
                     "kube-scheduler": "old-scheduler",
                 },
@@ -224,15 +227,26 @@ class KubernetesStackBundleTests(unittest.TestCase):
         self.assertEqual(
             observed,
             {
+                "kube-apiserver": "new-apiserver",
                 "kube-controller-manager": "new-manager",
                 "kube-scheduler": "new-scheduler",
             },
         )
         self.assertEqual(
             [call.args[0] for call in docker.call_args_list],
-            ["exec", "cp", "exec", "exec", "cp", "exec"],
+            [
+                "exec",
+                "cp",
+                "exec",
+                "exec",
+                "cp",
+                "exec",
+                "exec",
+                "cp",
+                "exec",
+            ],
         )
-        self.assertEqual(wait_restarted.call_count, 2)
+        self.assertEqual(wait_restarted.call_count, 3)
         wait_ready.assert_called_once_with(
             attempts=2,
             delay_seconds=0,
