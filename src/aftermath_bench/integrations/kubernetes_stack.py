@@ -242,13 +242,16 @@ class KubernetesStack:
         return self._run((self.docker, *arguments))
 
     def _etcd_container(self) -> str:
+        return self._control_plane_container("etcd")
+
+    def _control_plane_container(self, component: str) -> str:
         output = self._docker(
             "exec",
             self.node_container,
             "crictl",
             "ps",
             "--name",
-            "etcd",
+            component,
             "--state",
             "Running",
             "-q",
@@ -256,10 +259,68 @@ class KubernetesStack:
         matches = tuple(line.strip() for line in output.splitlines() if line.strip())
         if len(matches) != 1:
             raise RuntimeError(
-                "expected exactly one running etcd container; "
+                f"expected exactly one running {component} container; "
                 f"observed={matches}"
             )
         return matches[0]
+
+    def _wait_control_plane_container_restarted(
+        self,
+        component: str,
+        previous_container: str,
+        *,
+        attempts: int = 180,
+        delay_seconds: float = 1.0,
+    ) -> str:
+        last_error = ""
+        for _attempt in range(attempts):
+            try:
+                current = self._control_plane_container(component)
+                if current != previous_container:
+                    return current
+            except RuntimeError as error:
+                last_error = str(error)
+            time.sleep(delay_seconds)
+        raise RuntimeError(
+            f"{component} static pod did not restart: "
+            f"previous={previous_container}, last_error={last_error}"
+        )
+
+    def _restart_control_plane_consumers(
+        self,
+        *,
+        attempts: int = 180,
+        delay_seconds: float = 1.0,
+    ) -> dict[str, str]:
+        """Clear controller caches after rewinding the authoritative keyspace."""
+
+        components = ("kube-controller-manager", "kube-scheduler")
+        previous = {
+            component: self._control_plane_container(component)
+            for component in components
+        }
+        for component in components:
+            self._docker(
+                "exec",
+                self.node_container,
+                "crictl",
+                "stop",
+                previous[component],
+            )
+        restarted = {
+            component: self._wait_control_plane_container_restarted(
+                component,
+                previous[component],
+                attempts=attempts,
+                delay_seconds=delay_seconds,
+            )
+            for component in components
+        }
+        self._wait_api_ready(
+            attempts=attempts,
+            delay_seconds=delay_seconds,
+        )
+        return restarted
 
     def _read_etcd_manifest(self) -> str:
         return self._docker(
@@ -553,6 +614,7 @@ class KubernetesStack:
         if not node_ip:
             raise RuntimeError("kind control-plane container has no IP address")
         registry_stopped = False
+        restarted_control_plane: dict[str, str] = {}
         try:
             self._stop_registry()
             registry_stopped = True
@@ -598,10 +660,14 @@ class KubernetesStack:
             previous_etcd = etcd_container
             self._replace_etcd_manifest(patched)
             self._wait_etcd_restarted(previous_etcd)
+            restarted_control_plane = self._restart_control_plane_consumers()
             self._restore_sqlite(
                 bundle / _BUNDLE_FILES["external_registry"], registry
             )
         finally:
             if registry_stopped:
                 self._start_registry()
-        return manifest | {"restore_token": restore_token}
+        return manifest | {
+            "restore_token": restore_token,
+            "restarted_control_plane": restarted_control_plane,
+        }

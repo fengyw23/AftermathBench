@@ -27,6 +27,10 @@ class KubernetesSnapshotReplayWorkflowTests(unittest.TestCase):
         self.assertLess(prepare, boundary)
         self.assertLess(boundary, proof)
 
+    def test_replay_proof_resumes_a_preserved_suspended_owner(self) -> None:
+        self.assertEqual(self.text.count("--variant state_06"), 2)
+        self.assertNotIn("--variant state_13", self.text)
+
     def test_registry_uses_a_durable_bind_mount_and_is_not_auto_removed(self) -> None:
         self.assertIn('--mount "type=bind,src=$registry_root,dst=/data"', self.text)
         self.assertIn('--user "$(id -u):$(id -g)"', self.text)

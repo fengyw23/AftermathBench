@@ -186,6 +186,50 @@ class KubernetesStackBundleTests(unittest.TestCase):
             delay_seconds=0,
         )
 
+    def test_restore_restarts_stateful_control_plane_consumers(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with (
+            patch.object(
+                KubernetesStack,
+                "_control_plane_container",
+                side_effect=["old-manager", "old-scheduler"],
+            ),
+            patch.object(
+                KubernetesStack,
+                "_docker",
+            ) as docker,
+            patch.object(
+                KubernetesStack,
+                "_wait_control_plane_container_restarted",
+                side_effect=["new-manager", "new-scheduler"],
+            ) as wait_restarted,
+            patch.object(KubernetesStack, "_wait_api_ready") as wait_ready,
+        ):
+            observed = stack._restart_control_plane_consumers(
+                attempts=2,
+                delay_seconds=0,
+            )
+        self.assertEqual(
+            observed,
+            {
+                "kube-controller-manager": "new-manager",
+                "kube-scheduler": "new-scheduler",
+            },
+        )
+        self.assertEqual(
+            [call.args[-1] for call in docker.call_args_list],
+            ["old-manager", "old-scheduler"],
+        )
+        self.assertEqual(wait_restarted.call_count, 2)
+        wait_ready.assert_called_once_with(
+            attempts=2,
+            delay_seconds=0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -51,6 +51,10 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         baseline_text = self.workflow[baseline_step:admission_step]
         self.assertIn("restore-bundle", baseline_text)
         self.assertNotIn("run_kubernetes_interaction_boundary.py", baseline_text)
+        self.assertIn(
+            '"src/aftermath_bench/integrations/kubernetes_stack.py"',
+            self.workflow,
+        )
 
     def test_admission_builder_uses_public_blueprint_explicitly(self) -> None:
         self.assertIn("--blueprint", self.workflow)
