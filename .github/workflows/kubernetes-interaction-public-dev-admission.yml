@@ -14,11 +14,16 @@ on:
       - "scripts/summarize_native_baselines.py"
       - "scripts/verify_kubernetes_interaction_instance_novelty.py"
       - "scripts/verify_kubernetes_interaction_public_dev_admission.py"
+      - "scripts/generate_kubernetes_interaction_formal_build_spec.py"
+      - "scripts/build_formal_evidence.py"
       - "src/aftermath_bench/native_admission.py"
       - "src/aftermath_bench/native_baseline_summary.py"
       - "src/aftermath_bench/native_kubernetes_interaction_family.py"
       - "src/aftermath_bench/integrations/kubernetes_interaction_*.py"
       - "src/aftermath_bench/integrations/kubernetes_stack.py"
+      - "src/aftermath_bench/kubernetes_interaction_formal_build_spec.py"
+      - "src/aftermath_bench/native_formal_spec.py"
+      - "src/aftermath_bench/formal_evidence_builder.py"
       - "tests/test_kubernetes_interaction*.py"
       - "tests/test_kubernetes_stack_bundle.py"
   workflow_dispatch:
@@ -38,6 +43,13 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: >-
         data/instance_specs/public-dev-slot-003.json
+      RUN_ROOT: data/generated/public-dev-slot-003
+      NATIVE_ROOT: data/generated/public-dev-slot-003/native
+      SCENARIO_DIRECTORY: >-
+        data/scenarios/k8s-constraint-interactions-public-dev-006
+      FORMAL_OUTPUT: >-
+        data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,6 +78,9 @@ jobs:
           git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
             9a205e8c8540557602240f8766d3c95c51c23c4c
           git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          python scripts/verify_kubernetes_sources.py \
+            --kind-source "$RUNNER_TEMP/kind" \
+            --output "$RUNNER_TEMP/kubernetes-source-verification.json"
           mkdir -p "$RUNNER_TEMP/bin"
           (cd "$RUNNER_TEMP/kind" && \
             go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
@@ -129,60 +144,112 @@ jobs:
       - name: Install exact-replay mount before constructing boundaries
         run: python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
 
-      - name: Replay thirteen exact native boundaries and references
+      - name: Replay thirteen exact native boundaries and references from one reset bundle
         run: |
-          run_root="$RUNNER_TEMP/kubernetes-public-dev-admission"
           sensitive_root="$RUNNER_TEMP/kubernetes-public-dev-sensitive"
           registry_database="$RUNNER_TEMP/kubernetes-public-dev-registry/webhook-sink.sqlite3"
+          test ! -e "$RUN_ROOT"
           mkdir -p \
-            "$run_root/runtime/state-evidence" \
-            "$run_root/runtime/bundle-manifests" \
-            "$run_root/baselines" \
+            "$RUN_ROOT/logs" \
+            "$RUN_ROOT/specs" \
+            "$NATIVE_ROOT/runtime/state-evidence" \
+            "$NATIVE_ROOT/runtime/bundle-manifests" \
+            "$NATIVE_ROOT/baselines" \
+            "$NATIVE_ROOT/bundles" \
             "$sensitive_root"
+          python scripts/run_kubernetes_interaction_boundary.py \
+            --variant state_01 \
+            --prepare-only \
+            --prefix-output "$NATIVE_ROOT/runtime/prefix.json"
+          reset_before_snapshot="$NATIVE_ROOT/runtime/state-evidence/reset-pre-snapshot.json"
+          python scripts/capture_kubernetes_interaction_state_evidence.py \
+            --variant state_01 \
+            --output "$reset_before_snapshot"
+          python scripts/manage_kubernetes_stack.py snapshot-bundle \
+            --snapshot "$sensitive_root/prefix" \
+            --registry-database "$registry_database"
+          cp \
+            "$sensitive_root/prefix/bundle.json" \
+            "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
           variants=(
             state_01 state_02 state_03 state_04 state_05 state_06 state_07
             state_08 state_09 state_10 state_11 state_12 state_13
           )
           for variant in "${variants[@]}"; do
+            python scripts/manage_kubernetes_stack.py restore-bundle \
+              --snapshot "$sensitive_root/prefix" \
+              --registry-database "$registry_database"
+            reset="$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json"
+            python scripts/capture_kubernetes_interaction_state_evidence.py \
+              --variant "$variant" \
+              --phase reset \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json" \
+              --pre-snapshot-state "$reset_before_snapshot" \
+              --wait-seconds 180 \
+              --output "$reset"
             python scripts/run_kubernetes_interaction_boundary.py \
               --variant "$variant" \
-              --prefix-output "$run_root/runtime/prefix.json" \
-              --output "$run_root/runtime/$variant-boundary.json"
-            boundary="$run_root/runtime/state-evidence/$variant-boundary.json"
-            reference_start="$run_root/runtime/state-evidence/$variant-reference-start.json"
+              --trigger-only \
+              --prefix-input "$NATIVE_ROOT/runtime/prefix.json" \
+              --output "$NATIVE_ROOT/runtime/$variant-boundary.json"
+            native_before_snapshot="$NATIVE_ROOT/runtime/state-evidence/$variant-pre-snapshot.json"
+            boundary="$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"
+            reference_start="$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
             bundle="$sensitive_root/boundary-$variant"
             python scripts/capture_kubernetes_interaction_state_evidence.py \
               --variant "$variant" \
-              --output "$boundary"
+              --output "$native_before_snapshot"
             python scripts/manage_kubernetes_stack.py snapshot-bundle \
               --snapshot "$bundle" \
               --registry-database "$registry_database"
             cp \
               "$bundle/bundle.json" \
-              "$run_root/runtime/bundle-manifests/$variant.json"
+              "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
             python scripts/manage_kubernetes_stack.py restore-bundle \
               --snapshot "$bundle" \
               --registry-database "$registry_database"
             python scripts/capture_kubernetes_interaction_state_evidence.py \
               --variant "$variant" \
+              --phase boundary \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" \
+              --reset-evidence "$reset" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --pre-snapshot-state "$native_before_snapshot" \
+              --wait-seconds 180 \
+              --output "$boundary"
+            python scripts/manage_kubernetes_stack.py restore-bundle \
+              --snapshot "$bundle" \
+              --registry-database "$registry_database"
+            python scripts/capture_kubernetes_interaction_state_evidence.py \
+              --variant "$variant" \
+              --phase boundary \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" \
+              --reset-evidence "$reset" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --pre-snapshot-state "$native_before_snapshot" \
               --expected "$boundary" \
               --wait-seconds 180 \
               --output "$reference_start"
             python scripts/run_kubernetes_interaction_control.py \
               --variant "$variant" \
-              --output "$run_root/runtime/$variant-reference.json"
+              --output "$NATIVE_ROOT/runtime/$variant-reference.json"
           done
           python scripts/summarize_kubernetes_interaction_runtime.py \
-            --run-directory "$run_root/runtime" \
-            --output "$run_root/runtime-summary.json" \
-            --projection-output "$run_root/projection-witnesses.json"
+            --run-directory "$NATIVE_ROOT/runtime" \
+            --output "$NATIVE_ROOT/runtime-summary.json" \
+            --projection-output "$NATIVE_ROOT/projection-witnesses.json"
 
       - name: Replay 117 fixed policies from byte-locked native boundaries
         run: |
-          run_root="$RUNNER_TEMP/kubernetes-public-dev-admission"
           mkdir -p \
-            "$run_root/baselines/pre-state" \
-            "$run_root/baselines/boundary-reports"
+            "$NATIVE_ROOT/baselines/pre-state" \
+            "$NATIVE_ROOT/baselines/boundary-reports"
           variants=(
             state_01 state_02 state_03 state_04 state_05 state_06 state_07
             state_08 state_09 state_10 state_11 state_12 state_13
@@ -194,13 +261,13 @@ jobs:
           )
           for baseline in "${baselines[@]}"; do
             for variant in "${variants[@]}"; do
-              boundary="$run_root/baselines/pre-state/$baseline-$variant-boundary.json"
-              pre_state="$run_root/baselines/pre-state/$baseline-$variant.json"
+              boundary="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant-boundary.json"
+              pre_state="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant.json"
               python scripts/run_kubernetes_interaction_boundary.py \
                 --variant "$variant" \
-                --prefix-output "$run_root/runtime/prefix.json" \
+                --prefix-output "$NATIVE_ROOT/baselines/prefix.json" \
                 --output \
-                  "$run_root/baselines/boundary-reports/$baseline-$variant.json"
+                  "$NATIVE_ROOT/baselines/boundary-reports/$baseline-$variant.json"
               python scripts/capture_kubernetes_interaction_state_evidence.py \
                 --variant "$variant" \
                 --output "$boundary"
@@ -212,36 +279,85 @@ jobs:
               python scripts/run_kubernetes_interaction_baseline.py \
                 --baseline "$baseline" \
                 --variant "$variant" \
-                --output "$run_root/baselines/$baseline-$variant.json"
+                --output "$NATIVE_ROOT/baselines/$baseline-$variant.json"
             done
           done
           python scripts/summarize_native_baselines.py \
-            --run-directory "$run_root/baselines" \
+            --run-directory "$NATIVE_ROOT/baselines" \
             --scenario \
               data/scenario_blueprints/public-dev-slot-003/scenario.json \
-            --output "$run_root/baselines/summary.json"
+            --output "$NATIVE_ROOT/baselines/summary.json"
 
       - name: Build and verify replay-derived hard admission
         run: |
-          run_root="$RUNNER_TEMP/kubernetes-public-dev-admission"
           python scripts/build_kubernetes_interaction_admission.py \
-            --run-directory "$run_root" \
+            --run-directory "$NATIVE_ROOT" \
             --blueprint \
               data/scenario_blueprints/public-dev-slot-003/scenario.json \
-            --output-directory "$run_root/admitted-scenario"
+            --output-directory "$NATIVE_ROOT/admitted-scenario"
           python -m aftermath_bench validate-native-scenario \
-            --scenario "$run_root/admitted-scenario/scenario.json"
+            --scenario "$NATIVE_ROOT/admitted-scenario/scenario.json"
           python \
             scripts/verify_kubernetes_interaction_public_dev_admission.py \
-            --run-directory "$run_root" \
-            --output "$run_root/public-dev-admission-verification.json"
+            --run-directory "$NATIVE_ROOT" \
+            --output "$NATIVE_ROOT/public-dev-admission-verification.json"
+          if [ -d "$SCENARIO_DIRECTORY" ]; then
+            diff --recursive "$SCENARIO_DIRECTORY" "$NATIVE_ROOT/admitted-scenario"
+          else
+            mkdir -p "$(dirname "$SCENARIO_DIRECTORY")"
+            cp -R "$NATIVE_ROOT/admitted-scenario" "$SCENARIO_DIRECTORY"
+          fi
+          cp \
+            "$RUNNER_TEMP/kubernetes-source-verification.json" \
+            "$NATIVE_ROOT/runtime/source-verification.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$NATIVE_ROOT" \
+            --output "$NATIVE_ROOT/files.json"
+
+      - name: Freeze the five formal input roles without provider access
+        run: |
+          capture_args=(
+            --capture-bundle-manifest \
+              "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
+          )
+          for variant in \
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
+            state_08 state_09 state_10 state_11 state_12 state_13
+          do
+            capture_args+=(
+              --capture-bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+            )
+          done
+          python scripts/generate_kubernetes_interaction_formal_build_spec.py \
+            --phase inputs \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root .
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            --phase inputs
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives
 
       - name: Upload public-development admission evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kubernetes-public-dev-admission-${{ github.run_id }}
-          path: ${{ runner.temp }}/kubernetes-public-dev-admission/
+          path: |
+            data/generated/public-dev-slot-003/
+            data/scenarios/k8s-constraint-interactions-public-dev-006/
+            data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006/
 
       - name: Purge native services
         if: always()

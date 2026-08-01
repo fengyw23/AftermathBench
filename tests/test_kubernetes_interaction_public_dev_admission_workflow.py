@@ -35,6 +35,50 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         self.assertNotIn("secrets.", lowered)
         self.assertNotIn("run-native-model", lowered)
 
+    def test_freezes_all_five_formal_inputs_before_any_model_work(self) -> None:
+        self.assertIn(
+            "Freeze the five formal input roles without provider access",
+            self.workflow,
+        )
+        self.assertIn(
+            "generate_kubernetes_interaction_formal_build_spec.py",
+            self.workflow,
+        )
+        self.assertIn("--phase inputs", self.workflow)
+        self.assertIn("build_formal_evidence.py", self.workflow)
+        self.assertIn("formal-input-lock.json", self.workflow)
+        self.assertNotIn("secrets.", self.workflow.lower())
+
+    def test_formal_inputs_use_one_reset_and_thirteen_exact_boundary_bundles(
+        self,
+    ) -> None:
+        exact = self.workflow.index(
+            "Replay thirteen exact native boundaries and references"
+        )
+        baseline = self.workflow.index("Replay 117 fixed policies", exact)
+        section = self.workflow[exact:baseline]
+        prepare = section.index("--prepare-only")
+        reset_snapshot = section.index("snapshot-bundle", prepare)
+        reset_bundle = section.index('"$sensitive_root/prefix"', reset_snapshot)
+        restore = section.index("restore-bundle", reset_bundle)
+        restored_bundle = section.index('"$sensitive_root/prefix"', restore)
+        trigger = section.index("--trigger-only", restore)
+        boundary_snapshot = section.index("snapshot-bundle", trigger)
+        boundary_restore = section.index("restore-bundle", boundary_snapshot)
+        pre_snapshot = section.index("--pre-snapshot-state", boundary_restore)
+        reference_restore = section.index("restore-bundle", pre_snapshot)
+        expected = section.index('--expected "$boundary"', reference_restore)
+        self.assertLess(prepare, reset_snapshot)
+        self.assertLess(reset_snapshot, reset_bundle)
+        self.assertLess(reset_bundle, restore)
+        self.assertLess(restore, restored_bundle)
+        self.assertLess(restore, trigger)
+        self.assertLess(trigger, boundary_snapshot)
+        self.assertLess(boundary_snapshot, boundary_restore)
+        self.assertLess(boundary_restore, pre_snapshot)
+        self.assertLess(pre_snapshot, reference_restore)
+        self.assertLess(reference_restore, expected)
+
     def test_references_restore_and_fixed_policies_byte_lock_boundaries(
         self,
     ) -> None:

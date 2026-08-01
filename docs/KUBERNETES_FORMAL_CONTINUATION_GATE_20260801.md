@@ -186,6 +186,16 @@ Build the same seven roles used by the ERPNext slot:
 Freeze the five provider-input roles and their input lock before any model
 credential is made available.
 
+Implementation status (2026-08-02): the repository now contains the
+Kubernetes-specific formal build-spec adapter and a provider-free workflow
+stage. The stage creates one exact reset bundle, derives all thirteen failure
+boundaries from restores of that bundle, snapshots each boundary together with
+the external registry, and proves both reset and boundary replay against their
+pre-snapshot canonical bytes. It then recomputes every reference evaluation and
+freezes the five input roles. This status is **implemented but not yet
+CI-admitted** until the updated public-development workflow completes and its
+formal input lock is inspected. K4 remains prohibited before that result.
+
 ### K4 — execution control and model evaluation
 
 Run the explicit-scope execution control first. It must achieve at least 80%

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -52,33 +53,88 @@ def _external_keys(url: str = "http://127.0.0.1:9092") -> set[str]:
     return {str(item["key"]) for item in payload.get("deliveries", ())}
 
 
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _load_prefix(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(payload, dict)
+        or payload.get("scenario_id") != SCENARIO_ID
+        or not isinstance(payload.get("trace"), list)
+        or not isinstance(payload.get("fingerprint"), str)
+    ):
+        raise ValueError("prefix input does not match the active interaction instance")
+    return payload
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--variant", choices=KUBERNETES_INTERACTION_VARIANTS, required=True
     )
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--prefix-output", type=Path)
+    parser.add_argument("--prefix-input", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Create only the stable prefix so it can be snapshotted exactly.",
+    )
+    mode.add_argument(
+        "--trigger-only",
+        action="store_true",
+        help="Trigger the failure against a previously restored prefix bundle.",
+    )
     args = parser.parse_args()
+    if args.prepare_only and args.prefix_output is None:
+        parser.error("--prepare-only requires --prefix-output")
+    if args.trigger_only and args.prefix_input is None:
+        parser.error("--trigger-only requires --prefix-input")
+    if not args.prepare_only and args.output is None:
+        parser.error("--output is required unless --prepare-only is used")
+    if args.prefix_input is not None and not args.trigger_only:
+        parser.error("--prefix-input is valid only with --trigger-only")
     stack = KubernetesStack.from_repository()
     api = KubernetesApi(context=stack.context)
-    stable = _reset_external()
-    prefix = reset_interaction_prefix(api)
-    prefix["trace"].append(
-        {
-            "kind": "write",
-            "status": "success",
-            "tool": "post_external_event",
-            "arguments": {"idempotency_key": REGISTRY_STABLE_KEY},
-            "result": stable,
-        }
-    )
-    if args.prefix_output:
-        args.prefix_output.parent.mkdir(parents=True, exist_ok=True)
-        args.prefix_output.write_text(
-            json.dumps(prefix, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+    if args.trigger_only:
+        assert args.prefix_input is not None
+        prefix = _load_prefix(args.prefix_input)
+    else:
+        stable = _reset_external()
+        prefix = reset_interaction_prefix(api)
+        prefix["trace"].append(
+            {
+                "kind": "write",
+                "status": "success",
+                "tool": "post_external_event",
+                "arguments": {"idempotency_key": REGISTRY_STABLE_KEY},
+                "result": stable,
+            }
         )
+    if args.prefix_output:
+        _write_json(args.prefix_output, prefix)
+    if args.prepare_only:
+        print(
+            json.dumps(
+                {
+                    "scenario_id": SCENARIO_ID,
+                    "prepared": True,
+                    "prefix_fingerprint": prefix["fingerprint"],
+                    "prefix_sha256": hashlib.sha256(
+                        args.prefix_output.read_bytes()
+                    ).hexdigest(),
+                },
+                indent=2,
+            )
+        )
+        return 0
     error = None
     try:
         KubernetesInteractionFaultBoundary(api).trigger(args.variant)
@@ -111,11 +167,8 @@ def main() -> int:
         },
     }
     payload["passed"] = all(payload["checks"].values())
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    assert args.output is not None
+    _write_json(args.output, payload)
     print(
         json.dumps(
             {
