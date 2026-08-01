@@ -38,7 +38,12 @@ concurrency:
 jobs:
   replay-and-admit-public-development-instance:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    # Exact replay now refreshes every persistent state consumer after each
+    # etcd rewind. The 13 reference boundaries take about two hours and the
+    # 117 native fixed-policy probes take another two, so the previous
+    # 240-minute job limit cancelled a healthy run before admission and input
+    # locking. Keep all checks intact and use GitHub's hosted-job maximum.
+    timeout-minutes: 360
     env:
       PYTHONPATH: src
       AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: >-
