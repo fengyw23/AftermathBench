@@ -3,16 +3,30 @@ from __future__ import annotations
 from typing import Any
 
 from .kubernetes_interaction_prefix import (
+    APPLICATION,
     API_SERVICE,
     API_V1,
     API_V2,
+    BATCH_STATE,
+    CHANGE_ID,
+    CHANGE_RECORD,
+    COMPATIBILITY_BRIDGE,
+    CURRENT_CREDENTIAL_GENERATION,
+    CURRENT_EPOCH,
+    CURRENT_VERSION,
     CURRENT_CREDENTIAL,
+    MIGRATION_LABEL,
     NEXT_CREDENTIAL,
     PUBLICATION_LABEL,
+    RECOVERY_AUDIT,
     RECOVERY_AUDIT_KEY,
+    RELEASE_LEDGER,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
+    TARGET_CREDENTIAL_GENERATION,
+    TARGET_EPOCH,
+    TARGET_VERSION,
     TRANSITION_LABEL,
     WORKER_V1,
     WORKER_V2,
@@ -67,8 +81,14 @@ def _activate(
     component: str,
     version: str,
 ) -> None:
-    target = f"orders-{component}-{version}"
-    other = f"orders-{component}-{'v1' if version == 'v2' else 'v2'}"
+    names = {
+        "api": {CURRENT_VERSION: API_V1, TARGET_VERSION: API_V2},
+        "worker": {CURRENT_VERSION: WORKER_V1, TARGET_VERSION: WORKER_V2},
+    }[component]
+    target = names[version]
+    other = names[
+        CURRENT_VERSION if version == TARGET_VERSION else TARGET_VERSION
+    ]
     if _replicas(_find(deployments, target) or {}) != 1:
         _call(
             environment,
@@ -95,7 +115,7 @@ def _activate(
             patch={
                 "spec": {
                     "selector": {
-                        "app": "orders",
+                        "app": APPLICATION,
                         "component": "api",
                         "version": version,
                     }
@@ -116,25 +136,25 @@ def _close(
     release_resolution: str,
 ) -> None:
     jobs = _call(environment, "list_objects", resource="jobs")
-    migration_uid = _job_uid(jobs, "migration", "orders-platform-v2")
+    migration_uid = _job_uid(jobs, "migration", MIGRATION_LABEL)
     transition_uid = _job_uid(jobs, "transition-owner", TRANSITION_LABEL)
     publication_uid = _job_uid(jobs, "publication-owner", PUBLICATION_LABEL)
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="change-record",
-        patch={"data": {"orders-platform-v2.state": "resolved"}},
+        name=CHANGE_RECORD,
+        patch={"data": {f"{CHANGE_ID}.state": "resolved"}},
     )
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="release-ledger",
+        name=RELEASE_LEDGER,
         patch={
             "data": {
-                "orders-platform-v2.status": status,
-                "orders-platform-v2.schema_epoch": epoch,
+                f"{CHANGE_ID}.status": status,
+                f"{CHANGE_ID}.schema_epoch": epoch,
             }
         },
     )
@@ -142,19 +162,19 @@ def _close(
         environment,
         "patch_object",
         resource="configmap",
-        name="recovery-audit",
+        name=RECOVERY_AUDIT,
         patch={
             "data": {
-                "orders-platform-v2.status": "complete",
-                "orders-platform-v2.schema_epoch": epoch,
-                "orders-platform-v2.api_version": api_version,
-                "orders-platform-v2.worker_version": worker_version,
-                "orders-platform-v2.credential_generation": credential_generation,
-                "orders-platform-v2.migration_job_uid": migration_uid,
-                "orders-platform-v2.transition_job_uid": transition_uid,
-                "orders-platform-v2.publication_job_uid": publication_uid,
-                "orders-platform-v2.preparation_resolution": preparation_resolution,
-                "orders-platform-v2.release_resolution": release_resolution,
+                f"{CHANGE_ID}.status": "complete",
+                f"{CHANGE_ID}.schema_epoch": epoch,
+                f"{CHANGE_ID}.api_version": api_version,
+                f"{CHANGE_ID}.worker_version": worker_version,
+                f"{CHANGE_ID}.credential_generation": credential_generation,
+                f"{CHANGE_ID}.migration_job_uid": migration_uid,
+                f"{CHANGE_ID}.transition_job_uid": transition_uid,
+                f"{CHANGE_ID}.publication_job_uid": publication_uid,
+                f"{CHANGE_ID}.preparation_resolution": preparation_resolution,
+                f"{CHANGE_ID}.release_resolution": release_resolution,
             }
         },
     )
@@ -163,7 +183,7 @@ def _close(
         "post_external_event",
         idempotency_key=RECOVERY_AUDIT_KEY,
         payload={
-            "application": "orders",
+            "application": APPLICATION,
             "status": "complete",
             "schema_epoch": epoch,
             "api_version": api_version,
@@ -182,9 +202,9 @@ def _abort(
     compensate: bool,
 ) -> None:
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "api", "v1")
+    _activate(environment, deployments, "api", CURRENT_VERSION)
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "worker", "v1")
+    _activate(environment, deployments, "worker", CURRENT_VERSION)
     for resource, name in (
         ("deployment", API_V2),
         ("deployment", WORKER_V2),
@@ -196,7 +216,13 @@ def _abort(
         "patch_object",
         resource="secret",
         name=CURRENT_CREDENTIAL,
-        patch={"metadata": {"labels": {"credential-generation": "1"}}},
+        patch={
+            "metadata": {
+                "labels": {
+                    "credential-generation": CURRENT_CREDENTIAL_GENERATION
+                }
+            }
+        },
     )
     if compensate:
         jobs = _call(environment, "list_objects", resource="jobs")
@@ -205,21 +231,21 @@ def _abort(
             "post_external_event",
             idempotency_key=REGISTRY_COMPENSATION_KEY,
             payload={
-                "application": "orders",
+                "application": APPLICATION,
                 "status": "compensated",
                 "compensates": REGISTRY_PREPARE_KEY,
                 "migration_job_uid": _job_uid(
-                    jobs, "migration", "orders-platform-v2"
+                    jobs, "migration", MIGRATION_LABEL
                 ),
             },
         )
     _close(
         environment,
         status="aborted",
-        epoch="1",
-        api_version="v1",
-        worker_version="v1",
-        credential_generation="1",
+        epoch=CURRENT_EPOCH,
+        api_version=CURRENT_VERSION,
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         preparation_resolution="compensated" if compensate else "not-created",
         release_resolution="not-applicable",
     )
@@ -227,28 +253,34 @@ def _abort(
 
 def _defer(environment: KubernetesInteractionEnvironment) -> None:
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "api", "v2")
+    _activate(environment, deployments, "api", TARGET_VERSION)
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "worker", "v1")
+    _activate(environment, deployments, "worker", CURRENT_VERSION)
     _call(
         environment,
         "patch_object",
         resource="secret",
         name=CURRENT_CREDENTIAL,
-        patch={"metadata": {"labels": {"credential-generation": "1"}}},
+        patch={
+            "metadata": {
+                "labels": {
+                    "credential-generation": CURRENT_CREDENTIAL_GENERATION
+                }
+            }
+        },
     )
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="schema-compatibility-bridge",
+        name=COMPATIBILITY_BRIDGE,
         patch={"data": {"lease": "active"}},
     )
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="worker-batch-state",
+        name=BATCH_STATE,
         patch={"data": {"state": "inflight"}},
     )
     _call(
@@ -259,10 +291,10 @@ def _defer(environment: KubernetesInteractionEnvironment) -> None:
     _close(
         environment,
         status="deferred",
-        epoch="2",
-        api_version="v2",
-        worker_version="v1",
-        credential_generation="1",
+        epoch=TARGET_EPOCH,
+        api_version=TARGET_VERSION,
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         preparation_resolution="not-created",
         release_resolution="deferred",
     )
@@ -274,28 +306,34 @@ def _publication(
     create_transition: bool,
 ) -> None:
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "api", "v2")
+    _activate(environment, deployments, "api", TARGET_VERSION)
     deployments = _call(environment, "list_objects", resource="deployments")
-    _activate(environment, deployments, "worker", "v2")
+    _activate(environment, deployments, "worker", TARGET_VERSION)
     _call(
         environment,
         "patch_object",
         resource="secret",
         name=CURRENT_CREDENTIAL,
-        patch={"metadata": {"labels": {"credential-generation": "2"}}},
+        patch={
+            "metadata": {
+                "labels": {
+                    "credential-generation": TARGET_CREDENTIAL_GENERATION
+                }
+            }
+        },
     )
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="schema-compatibility-bridge",
+        name=COMPATIBILITY_BRIDGE,
         patch={"data": {"lease": "retired"}},
     )
     _call(
         environment,
         "patch_object",
         resource="configmap",
-        name="worker-batch-state",
+        name=BATCH_STATE,
         patch={"data": {"state": "drained"}},
     )
     if create_transition:
@@ -333,12 +371,12 @@ def _publication(
         "post_external_event",
         idempotency_key=REGISTRY_RELEASE_KEY,
         payload={
-            "application": "orders",
+            "application": APPLICATION,
             "status": "published",
-            "version": "v2",
-            "schema_epoch": "2",
+            "version": TARGET_VERSION,
+            "schema_epoch": TARGET_EPOCH,
             "migration_job_uid": _job_uid(
-                jobs, "migration", "orders-platform-v2"
+                jobs, "migration", MIGRATION_LABEL
             ),
             "publication_job_uid": str(publication["metadata"]["uid"]),
         },
@@ -346,10 +384,10 @@ def _publication(
     _close(
         environment,
         status="active",
-        epoch="2",
-        api_version="v2",
-        worker_version="v2",
-        credential_generation="2",
+        epoch=TARGET_EPOCH,
+        api_version=TARGET_VERSION,
+        worker_version=TARGET_VERSION,
+        credential_generation=TARGET_CREDENTIAL_GENERATION,
         preparation_resolution="not-created",
         release_resolution="present",
     )
@@ -362,13 +400,25 @@ def _close_actual(environment: KubernetesInteractionEnvironment) -> None:
     preparation = bool(facts["preparation_present"])
     _close(
         environment,
-        status="active" if release else "deferred" if epoch == "2" else "aborted",
+        status=(
+            "active"
+            if release
+            else "deferred"
+            if epoch == TARGET_EPOCH
+            else "aborted"
+        ),
         epoch=epoch,
         api_version=str(facts["api_version"]),
         worker_version=str(facts["worker_version"]),
         credential_generation=str(facts["credential_generation"]),
         preparation_resolution="released" if preparation and release else "not-created",
-        release_resolution="present" if release else "deferred" if epoch == "2" else "not-applicable",
+        release_resolution=(
+            "present"
+            if release
+            else "deferred"
+            if epoch == TARGET_EPOCH
+            else "not-applicable"
+        ),
     )
 
 
@@ -401,7 +451,7 @@ def run_kubernetes_interaction_baseline(
         _close_actual(environment)
     elif baseline == "compact_epoch_external_tree":
         facts = environment._boundary_facts
-        if str(facts["schema_epoch"]) == "1":
+        if str(facts["schema_epoch"]) == CURRENT_EPOCH:
             _abort(environment, compensate=bool(facts["preparation_present"]))
         elif bool(facts["release_accepted"]):
             _close_actual(environment)

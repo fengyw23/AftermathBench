@@ -5,6 +5,8 @@ from typing import Any
 
 from .integrations.kubernetes_api import KubernetesApi
 from .integrations.kubernetes_interaction_prefix import (
+    APPLICATION,
+    CHANGE_ID,
     RECOVERY_AUDIT_KEY,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
@@ -60,41 +62,43 @@ def _control_target(variant: str) -> dict[str, Any]:
             "shared_credential_generation": expected["credential_generation"],
             "bridge_lease": expected["bridge_lease"],
             "batch_state": expected["batch_state"],
-            "v2_candidate_artifacts": (
+            "target_candidate_artifacts": (
                 "present" if expected["candidate_present"] else "absent"
             ),
             "transition_owner": transition,
             "publication_owner": publication,
         },
         "records": {
-            "change_record": "orders-platform-v2.state=resolved",
+            "change_record": f"{CHANGE_ID}.state=resolved",
             "release_ledger": {
-                "orders-platform-v2.status": expected["status"],
-                "orders-platform-v2.schema_epoch": expected["epoch"],
+                f"{CHANGE_ID}.status": expected["status"],
+                f"{CHANGE_ID}.schema_epoch": expected["epoch"],
             },
             "recovery_audit": {
-                "orders-platform-v2.status": "complete",
-                "orders-platform-v2.schema_epoch": expected["epoch"],
-                "orders-platform-v2.api_version": expected["api_version"],
-                "orders-platform-v2.worker_version": expected["worker_version"],
-                "orders-platform-v2.credential_generation": expected[
+                f"{CHANGE_ID}.status": "complete",
+                f"{CHANGE_ID}.schema_epoch": expected["epoch"],
+                f"{CHANGE_ID}.api_version": expected["api_version"],
+                f"{CHANGE_ID}.worker_version": expected["worker_version"],
+                f"{CHANGE_ID}.credential_generation": expected[
                     "credential_generation"
                 ],
-                "orders-platform-v2.migration_job_uid": (
+                f"{CHANGE_ID}.migration_job_uid": (
                     "exact metadata.uid of the preserved migration Job"
                 ),
-                "orders-platform-v2.transition_job_uid": (
+                f"{CHANGE_ID}.transition_job_uid": (
                     "exact metadata.uid of the resulting transition Job, "
                     "or none when target says no transition Job"
                 ),
-                "orders-platform-v2.publication_job_uid": (
+                f"{CHANGE_ID}.publication_job_uid": (
                     "exact metadata.uid of the resulting publication Job, "
                     "or none when target says no publication Job"
                 ),
-                "orders-platform-v2.preparation_resolution": expected[
+                f"{CHANGE_ID}.preparation_resolution": expected[
                     "preparation_resolution"
                 ],
-                "orders-platform-v2.release_resolution": expected["release_resolution"],
+                f"{CHANGE_ID}.release_resolution": expected[
+                    "release_resolution"
+                ],
             },
         },
         "external_registry": {
@@ -145,7 +149,7 @@ def kubernetes_interaction_initial_message(
         "Successful prior tool activity:\n"
         f"{json.dumps(prefix.get('trace', ()), ensure_ascii=False, indent=2)}\n\n"
         "Latest attempted operation:\n"
-        "execute the approved orders platform migration and coordinated rollout\n\n"
+        f"execute the approved {APPLICATION} platform migration and coordinated rollout\n\n"
         "Latest tool result:\n"
         f"{json.dumps(failure_report['visible_failure'], indent=2)}\n\n"
         "Continue from the current authoritative cluster and registry state."

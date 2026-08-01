@@ -1,0 +1,162 @@
+name: kubernetes-interaction-public-dev-instance
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - ".github/workflows/kubernetes-interaction-public-dev-instance.yml"
+      - "data/instance_specs/public-dev-slot-003.json"
+      - "data/scenario_blueprints/public-dev-slot-003/**"
+      - "scripts/capture_kubernetes_interaction_state_evidence.py"
+      - "scripts/manage_kubernetes_stack.py"
+      - "scripts/render_kubernetes_interaction_blueprint.py"
+      - "scripts/run_kubernetes_interaction_boundary.py"
+      - "scripts/verify_kubernetes_interaction_instance_novelty.py"
+      - "scripts/verify_kubernetes_snapshot_replay.py"
+      - "src/aftermath_bench/native_kubernetes_interaction_family.py"
+      - "src/aftermath_bench/integrations/kubernetes_interaction_*.py"
+      - "tests/test_kubernetes_interaction*.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze-public-development-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: >-
+        data/instance_specs/public-dev-slot-003.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Reject consumed identities and rename-only instances
+        run: |
+          python scripts/verify_kubernetes_interaction_instance_novelty.py \
+            --instance-spec "$AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC" \
+            --bound-blueprint \
+              data/scenario_blueprints/public-dev-slot-003/scenario.json
+
+      - name: Verify checked blueprint and parameterized runtime
+        run: |
+          python scripts/render_kubernetes_interaction_blueprint.py \
+            --instance-spec "$AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC" \
+            --output "$RUNNER_TEMP/public-dev-scenario.json" \
+            --instance-id dev-006 \
+            --benchmark-split public_dev
+          cmp \
+            data/scenario_blueprints/public-dev-slot-003/scenario.json \
+            "$RUNNER_TEMP/public-dev-scenario.json"
+          python -m unittest discover \
+            -s tests -p 'test_kubernetes_interaction_instances.py' -v
+          python -m unittest discover \
+            -s tests -p 'test_kubernetes_interaction_prefix.py' -v
+          python -m unittest discover \
+            -s tests -p 'test_kubernetes_interaction_scope.py' -v
+          python -m unittest discover \
+            -s tests -p 'test_kubernetes_interaction_evidence.py' -v
+
+      - name: Build pinned kind from source
+        run: |
+          git clone --no-checkout \
+            https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
+            9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && \
+            go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned kubectl and etcdutl
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" \
+            https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" \
+            | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          etcd_url="https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz"
+          etcd_sha="4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" "$etcd_url"
+          echo "$etcd_sha  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
+            "$RUNNER_TEMP/bin/etcdutl"
+          etcdutl version
+
+      - name: Start native Kubernetes and durable external registry
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes \
+            aftermathbench/kubernetes-control:local
+          registry_root="$RUNNER_TEMP/public-dev-registry"
+          mkdir -p "$registry_root"
+          docker run --detach --name aftermath-interaction-registry \
+            --user "$(id -u):$(id -g)" \
+            --publish 127.0.0.1:9092:8080 \
+            --mount "type=bind,src=$registry_root,dst=/data" \
+            aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          registry_ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9092/health; then
+              registry_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$registry_ready" != true ]]; then
+            docker logs aftermath-interaction-registry
+            exit 1
+          fi
+
+      - name: Build fresh boundary and prove two-cycle exact replay
+        run: |
+          python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+          evidence_root="$RUNNER_TEMP/public-dev-evidence"
+          sensitive_root="$RUNNER_TEMP/public-dev-sensitive"
+          mkdir -p "$evidence_root" "$sensitive_root"
+          python scripts/run_kubernetes_interaction_boundary.py \
+            --variant state_13 \
+            --prefix-output "$evidence_root/prefix.json" \
+            --output "$evidence_root/failure-boundary.json"
+          python scripts/verify_kubernetes_snapshot_replay.py \
+            --variant state_13 \
+            --bundle "$sensitive_root/boundary-bundle" \
+            --registry-database \
+              "$RUNNER_TEMP/public-dev-registry/webhook-sink.sqlite3" \
+            --output-directory "$evidence_root/replay-proof"
+
+      - name: Upload safe public-development replay proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-public-dev-instance-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-dev-evidence/
+
+      - name: Purge native services and sensitive restore state
+        if: always()
+        run: |
+          docker rm --force aftermath-interaction-registry || true
+          python scripts/manage_kubernetes_stack.py down || true
+          rm -rf -- \
+            "$RUNNER_TEMP/public-dev-sensitive" \
+            "$RUNNER_TEMP/public-dev-registry"

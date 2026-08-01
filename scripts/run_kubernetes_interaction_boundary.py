@@ -13,6 +13,9 @@ from aftermath_bench.integrations.kubernetes_interaction_faults import (
     capture_interaction_facts,
 )
 from aftermath_bench.integrations.kubernetes_interaction_prefix import (
+    APPLICATION,
+    CURRENT_EPOCH,
+    CURRENT_VERSION,
     NAMESPACE,
     REGISTRY_STABLE_KEY,
     SCENARIO_ID,
@@ -32,9 +35,9 @@ def _reset_external(url: str = "http://127.0.0.1:9092") -> dict[str, Any]:
         f"{base}/webhooks/events",
         method="POST",
         payload={
-            "application": "orders",
-            "version": "v1",
-            "schema_epoch": "1",
+            "application": APPLICATION,
+            "version": CURRENT_VERSION,
+            "schema_epoch": CURRENT_EPOCH,
             "status": "published",
         },
         headers={"X-Idempotency-Key": REGISTRY_STABLE_KEY},

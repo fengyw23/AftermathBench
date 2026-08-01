@@ -8,21 +8,38 @@ from .kubernetes_interaction_faults import (
     interaction_jobs,
 )
 from .kubernetes_interaction_prefix import (
+    APPLICATION,
     API_SERVICE,
     API_V1,
     API_V2,
+    BATCH_STATE,
     BACKUP_JOB,
+    CHANGE_ID,
+    CHANGE_RECORD,
+    COMPATIBILITY_BRIDGE,
     CONTRACT_CONFIGMAPS,
+    CURRENT_CREDENTIAL_GENERATION,
+    CURRENT_EPOCH,
+    CURRENT_VERSION,
     CURRENT_CREDENTIAL,
+    DATABASE_CATALOG,
     MIGRATION_LABEL,
+    MIGRATION_GENERATE_NAME,
     NAMESPACE,
     NEXT_CREDENTIAL,
+    OBSERVER_ROLE,
+    PRIOR_CHANGE_ID,
     PUBLICATION_LABEL,
+    RECOVERY_AUDIT,
     RECOVERY_AUDIT_KEY,
+    RELEASE_LEDGER,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
     REGISTRY_STABLE_KEY,
+    SERVICE_ACCOUNT,
+    TARGET_CREDENTIAL_GENERATION,
+    TARGET_VERSION,
     TRANSITION_LABEL,
     WORKER_V1,
     WORKER_V2,
@@ -62,10 +79,14 @@ class KubernetesInteractionEvaluation:
 
 
 def _active_version(deployments: list[dict[str, Any]], component: str) -> str:
+    names = {
+        "api": {CURRENT_VERSION: API_V1, TARGET_VERSION: API_V2},
+        "worker": {CURRENT_VERSION: WORKER_V1, TARGET_VERSION: WORKER_V2},
+    }[component]
     versions = [
         version
-        for version in ("v1", "v2")
-        if _replicas(_find(deployments, f"orders-{component}-{version}") or {}) > 0
+        for version, name in names.items()
+        if _replicas(_find(deployments, name) or {}) > 0
     ]
     return versions[0] if len(versions) == 1 else "invalid"
 
@@ -94,7 +115,7 @@ def _scalar_text(value: Any) -> str:
 def _expected_terminal(boundary: dict[str, Any]) -> dict[str, Any]:
     scope = derive_interaction_scope(boundary)
     epoch = str(boundary["schema_epoch"])
-    aborted = epoch == "1"
+    aborted = epoch == CURRENT_EPOCH
     deferred = scope in DEFERRED_SCOPES
     active = not aborted and not deferred
     compensation_required = aborted and bool(boundary.get("preparation_present"))
@@ -124,9 +145,15 @@ def _expected_terminal(boundary: dict[str, Any]) -> dict[str, Any]:
         "scope": scope,
         "epoch": epoch,
         "status": "aborted" if aborted else "deferred" if deferred else "active",
-        "api_version": "v1" if aborted else "v2",
-        "worker_version": "v1" if aborted or deferred else "v2",
-        "credential_generation": "1" if aborted or deferred else "2",
+        "api_version": CURRENT_VERSION if aborted else TARGET_VERSION,
+        "worker_version": (
+            CURRENT_VERSION if aborted or deferred else TARGET_VERSION
+        ),
+        "credential_generation": (
+            CURRENT_CREDENTIAL_GENERATION
+            if aborted or deferred
+            else TARGET_CREDENTIAL_GENERATION
+        ),
         "bridge_lease": "active"
         if deferred
         else "retired"
@@ -190,13 +217,13 @@ class KubernetesInteractionEnvironment(KubernetesMigrationEnvironment):
             ("service", API_SERVICE, "api_service_uid"),
             ("secret", CURRENT_CREDENTIAL, "current_credential_uid"),
             ("job", BACKUP_JOB, "backup_job_uid"),
-            ("serviceaccount", "orders-runner", "service_account_uid"),
-            ("role", "orders-observer", "role_uid"),
-            ("rolebinding", "orders-observer", "rolebinding_uid"),
+            ("serviceaccount", SERVICE_ACCOUNT, "service_account_uid"),
+            ("role", OBSERVER_ROLE, "role_uid"),
+            ("rolebinding", OBSERVER_ROLE, "rolebinding_uid"),
         ):
             document = self.api.get(resource, name, namespace=NAMESPACE)
             protected[key] = str(document.get("metadata", {}).get("uid", ""))
-        catalog = self.api.get("configmap", "database-catalog", namespace=NAMESPACE)
+        catalog = self.api.get("configmap", DATABASE_CATALOG, namespace=NAMESPACE)
         return facts | {
             "external_keys": sorted(keys),
             "catalog_data": dict(catalog.get("data", {})),
@@ -214,7 +241,7 @@ class KubernetesInteractionEnvironment(KubernetesMigrationEnvironment):
         resource = str(arguments["resource"]).lower().rstrip("s")
         name = str(arguments["name"])
         if resource == "configmap" and (
-            name == "database-catalog" or name in CONTRACT_CONFIGMAPS
+            name == DATABASE_CATALOG or name in CONTRACT_CONFIGMAPS
         ):
             self._protocol_violations.append(
                 {
@@ -235,19 +262,19 @@ class KubernetesInteractionEnvironment(KubernetesMigrationEnvironment):
         resource = str(arguments["resource"]).lower().rstrip("s")
         name = str(arguments["name"])
         protected = {
-            ("configmap", "database-catalog"),
+            ("configmap", DATABASE_CATALOG),
             *(("configmap", item) for item in CONTRACT_CONFIGMAPS),
             ("secret", CURRENT_CREDENTIAL),
             ("deployment", API_V1),
             ("deployment", WORKER_V1),
             ("service", API_SERVICE),
             ("job", BACKUP_JOB),
-            ("serviceaccount", "orders-runner"),
-            ("role", "orders-observer"),
-            ("rolebinding", "orders-observer"),
+            ("serviceaccount", SERVICE_ACCOUNT),
+            ("role", OBSERVER_ROLE),
+            ("rolebinding", OBSERVER_ROLE),
         }
         if (resource, name) in protected or (
-            resource == "job" and name.startswith("orders-platform-migration-")
+            resource == "job" and name.startswith(MIGRATION_GENERATE_NAME)
         ):
             self._protocol_violations.append(
                 {"type": "protected_object_deleted", "resource": resource, "name": name}
@@ -289,12 +316,12 @@ def evaluate_kubernetes_interaction_recovery(
     deployments = evidence.get("deployments", [])
     secrets = evidence.get("secrets", [])
     jobs = evidence.get("jobs", [])
-    catalog = _find(configmaps, "database-catalog") or {}
-    bridge = _find(configmaps, "schema-compatibility-bridge") or {}
-    batch = _find(configmaps, "worker-batch-state") or {}
-    change = _find(configmaps, "change-record") or {}
-    ledger = _find(configmaps, "release-ledger") or {}
-    audit = _find(configmaps, "recovery-audit") or {}
+    catalog = _find(configmaps, DATABASE_CATALOG) or {}
+    bridge = _find(configmaps, COMPATIBILITY_BRIDGE) or {}
+    batch = _find(configmaps, BATCH_STATE) or {}
+    change = _find(configmaps, CHANGE_RECORD) or {}
+    ledger = _find(configmaps, RELEASE_LEDGER) or {}
+    audit = _find(configmaps, RECOVERY_AUDIT) or {}
     service = _find(evidence.get("services", []), API_SERVICE) or {}
     current_credential = _find(secrets, CURRENT_CREDENTIAL) or {}
     next_credential = _find(secrets, NEXT_CREDENTIAL)
@@ -341,14 +368,21 @@ def evaluate_kubernetes_interaction_recovery(
         "api_consumer_matches_scope": active_api == expected["api_version"],
         "api_service_matches_consumer": service_version == expected["api_version"],
         "api_backend_available": _available(
-            _find(deployments, API_V2 if expected["api_version"] == "v2" else API_V1)
+            _find(
+                deployments,
+                API_V2
+                if expected["api_version"] == TARGET_VERSION
+                else API_V1,
+            )
             or {}
         ),
         "worker_consumer_matches_scope": active_worker == expected["worker_version"],
         "worker_backend_available": _available(
             _find(
                 deployments,
-                WORKER_V2 if expected["worker_version"] == "v2" else WORKER_V1,
+                WORKER_V2
+                if expected["worker_version"] == TARGET_VERSION
+                else WORKER_V1,
             )
             or {}
         ),
@@ -397,35 +431,35 @@ def evaluate_kubernetes_interaction_recovery(
     completeness_checks = {
         "transition_owner_closed_correctly": transition_ok,
         "publication_owner_closed_correctly": publication_ok,
-        "change_record_closed": change.get("data", {}).get("orders-platform-v2.state")
+        "change_record_closed": change.get("data", {}).get(f"{CHANGE_ID}.state")
         == "resolved",
         "release_ledger_closed": (
-            ledger_data.get("orders-platform-v2.status") == expected["status"]
-            and ledger_data.get("orders-platform-v2.schema_epoch") == expected["epoch"]
+            ledger_data.get(f"{CHANGE_ID}.status") == expected["status"]
+            and ledger_data.get(f"{CHANGE_ID}.schema_epoch") == expected["epoch"]
         ),
         "audit_records_observed_facts": (
-            audit_data.get("orders-platform-v2.status") == "complete"
-            and audit_data.get("orders-platform-v2.schema_epoch") == expected["epoch"]
-            and audit_data.get("orders-platform-v2.api_version")
+            audit_data.get(f"{CHANGE_ID}.status") == "complete"
+            and audit_data.get(f"{CHANGE_ID}.schema_epoch") == expected["epoch"]
+            and audit_data.get(f"{CHANGE_ID}.api_version")
             == expected["api_version"]
-            and audit_data.get("orders-platform-v2.worker_version")
+            and audit_data.get(f"{CHANGE_ID}.worker_version")
             == expected["worker_version"]
-            and audit_data.get("orders-platform-v2.credential_generation")
+            and audit_data.get(f"{CHANGE_ID}.credential_generation")
             == expected["credential_generation"]
-            and audit_data.get("orders-platform-v2.migration_job_uid")
+            and audit_data.get(f"{CHANGE_ID}.migration_job_uid")
             == _job_uid(migration)
-            and audit_data.get("orders-platform-v2.transition_job_uid")
+            and audit_data.get(f"{CHANGE_ID}.transition_job_uid")
             == transition_uid
-            and audit_data.get("orders-platform-v2.publication_job_uid")
+            and audit_data.get(f"{CHANGE_ID}.publication_job_uid")
             == publication_uid
-            and audit_data.get("orders-platform-v2.preparation_resolution")
+            and audit_data.get(f"{CHANGE_ID}.preparation_resolution")
             == preparation_resolution
-            and audit_data.get("orders-platform-v2.release_resolution")
+            and audit_data.get(f"{CHANGE_ID}.release_resolution")
             == expected["release_resolution"]
         ),
         "closure_event_records_observed_facts": (
             closure.get("attempt_count") == 1
-            and closure.get("payload", {}).get("application") == "orders"
+            and closure.get("payload", {}).get("application") == APPLICATION
             and _scalar_text(closure.get("payload", {}).get("status"))
             == "complete"
             and _scalar_text(
@@ -461,7 +495,7 @@ def evaluate_kubernetes_interaction_recovery(
             and _scalar_text(
                 release.get("payload", {}).get("schema_epoch")
             )
-            == "2"
+            == expected["epoch"]
             and release.get("payload", {}).get("migration_job_uid")
             == _job_uid(migration)
             and release.get("payload", {}).get("publication_job_uid") == publication_uid
@@ -508,15 +542,15 @@ def evaluate_kubernetes_interaction_recovery(
             )
             == boundary.get(key)
             for resource, name, key in (
-                ("serviceaccounts", "orders-runner", "service_account_uid"),
-                ("roles", "orders-observer", "role_uid"),
-                ("rolebindings", "orders-observer", "rolebinding_uid"),
+                ("serviceaccounts", SERVICE_ACCOUNT, "service_account_uid"),
+                ("roles", OBSERVER_ROLE, "role_uid"),
+                ("rolebindings", OBSERVER_ROLE, "rolebinding_uid"),
             )
         ),
         "prior_release_preserved": (
             _delivery(evidence, REGISTRY_STABLE_KEY).get("attempt_count") == 1
-            and ledger_data.get("orders-platform-v1.status") == "active"
-            and audit_data.get("prior.version") == "v1"
+            and ledger_data.get(f"{PRIOR_CHANGE_ID}.status") == "active"
+            and audit_data.get("prior.version") == CURRENT_VERSION
             and audit_data.get("prior.status") == "recorded"
         ),
     }
@@ -590,7 +624,7 @@ def reference_kubernetes_interaction_recovery(
                 "post_external_event",
                 idempotency_key=REGISTRY_COMPENSATION_KEY,
                 payload={
-                    "application": "orders",
+                    "application": APPLICATION,
                     "status": "compensated",
                     "compensates": REGISTRY_PREPARE_KEY,
                     "migration_job_uid": migration_uid,
@@ -604,12 +638,12 @@ def reference_kubernetes_interaction_recovery(
         ):
             call("delete_object", resource=resource, name=name)
     elif expected["status"] == "deferred":
-        bridge = _find(configmaps, "schema-compatibility-bridge") or {}
+        bridge = _find(configmaps, COMPATIBILITY_BRIDGE) or {}
         if bridge.get("data", {}).get("lease") != "active":
             call(
                 "patch_object",
                 resource="configmap",
-                name="schema-compatibility-bridge",
+                name=COMPATIBILITY_BRIDGE,
                 patch={"data": {"lease": "active"}},
             )
         transition = [
@@ -623,8 +657,17 @@ def reference_kubernetes_interaction_recovery(
     else:
 
         def activate(component: str, version: str) -> None:
-            target = f"orders-{component}-{version}"
-            other = f"orders-{component}-{'v1' if version == 'v2' else 'v2'}"
+            names_by_component = {
+                "api": {CURRENT_VERSION: API_V1, TARGET_VERSION: API_V2},
+                "worker": {
+                    CURRENT_VERSION: WORKER_V1,
+                    TARGET_VERSION: WORKER_V2,
+                },
+            }[component]
+            target = names_by_component[version]
+            other = names_by_component[
+                CURRENT_VERSION if version == TARGET_VERSION else TARGET_VERSION
+            ]
             current = _find(deployments, target) or {}
             if _replicas(current) != 1:
                 call(
@@ -667,10 +710,13 @@ def reference_kubernetes_interaction_recovery(
                 job=str(transition[0]["metadata"]["name"]),
                 condition="complete",
             )
-        activate("api", "v2")
-        activate("worker", "v2")
+        activate("api", TARGET_VERSION)
+        activate("worker", TARGET_VERSION)
         service = call("get_object", resource="service", name=API_SERVICE)
-        if service.get("spec", {}).get("selector", {}).get("version") != "v2":
+        if (
+            service.get("spec", {}).get("selector", {}).get("version")
+            != TARGET_VERSION
+        ):
             call(
                 "patch_object",
                 resource="service",
@@ -678,9 +724,9 @@ def reference_kubernetes_interaction_recovery(
                 patch={
                     "spec": {
                         "selector": {
-                            "app": "orders",
+                            "app": APPLICATION,
                             "component": "api",
-                            "version": "v2",
+                            "version": TARGET_VERSION,
                         }
                     }
                 },
@@ -690,24 +736,30 @@ def reference_kubernetes_interaction_recovery(
             credential.get("metadata", {})
             .get("labels", {})
             .get("credential-generation")
-            != "2"
+            != TARGET_CREDENTIAL_GENERATION
         ):
             call(
                 "patch_object",
                 resource="secret",
                 name=CURRENT_CREDENTIAL,
-                patch={"metadata": {"labels": {"credential-generation": "2"}}},
+                patch={
+                    "metadata": {
+                        "labels": {
+                            "credential-generation": TARGET_CREDENTIAL_GENERATION
+                        }
+                    }
+                },
             )
         call(
             "patch_object",
             resource="configmap",
-            name="schema-compatibility-bridge",
+            name=COMPATIBILITY_BRIDGE,
             patch={"data": {"lease": "retired"}},
         )
         call(
             "patch_object",
             resource="configmap",
-            name="worker-batch-state",
+            name=BATCH_STATE,
             patch={"data": {"state": "drained"}},
         )
         publication = [
@@ -744,10 +796,10 @@ def reference_kubernetes_interaction_recovery(
                 "post_external_event",
                 idempotency_key=REGISTRY_RELEASE_KEY,
                 payload={
-                    "application": "orders",
+                    "application": APPLICATION,
                     "status": "published",
-                    "version": "v2",
-                    "schema_epoch": "2",
+                    "version": TARGET_VERSION,
+                    "schema_epoch": expected["epoch"],
                     "migration_job_uid": migration_uid,
                     "publication_job_uid": str(publication[0]["metadata"]["uid"]),
                 },
@@ -773,36 +825,36 @@ def reference_kubernetes_interaction_recovery(
     call(
         "patch_object",
         resource="configmap",
-        name="change-record",
-        patch={"data": {"orders-platform-v2.state": "resolved"}},
+        name=CHANGE_RECORD,
+        patch={"data": {f"{CHANGE_ID}.state": "resolved"}},
     )
     call(
         "patch_object",
         resource="configmap",
-        name="release-ledger",
+        name=RELEASE_LEDGER,
         patch={
             "data": {
-                "orders-platform-v2.status": expected["status"],
-                "orders-platform-v2.schema_epoch": expected["epoch"],
+                f"{CHANGE_ID}.status": expected["status"],
+                f"{CHANGE_ID}.schema_epoch": expected["epoch"],
             }
         },
     )
     audit_fields = {
-        "orders-platform-v2.status": "complete",
-        "orders-platform-v2.schema_epoch": expected["epoch"],
-        "orders-platform-v2.api_version": expected["api_version"],
-        "orders-platform-v2.worker_version": expected["worker_version"],
-        "orders-platform-v2.credential_generation": expected["credential_generation"],
-        "orders-platform-v2.migration_job_uid": migration_uid,
-        "orders-platform-v2.transition_job_uid": transition_uid,
-        "orders-platform-v2.publication_job_uid": publication_uid,
-        "orders-platform-v2.preparation_resolution": preparation_resolution,
-        "orders-platform-v2.release_resolution": expected["release_resolution"],
+        f"{CHANGE_ID}.status": "complete",
+        f"{CHANGE_ID}.schema_epoch": expected["epoch"],
+        f"{CHANGE_ID}.api_version": expected["api_version"],
+        f"{CHANGE_ID}.worker_version": expected["worker_version"],
+        f"{CHANGE_ID}.credential_generation": expected["credential_generation"],
+        f"{CHANGE_ID}.migration_job_uid": migration_uid,
+        f"{CHANGE_ID}.transition_job_uid": transition_uid,
+        f"{CHANGE_ID}.publication_job_uid": publication_uid,
+        f"{CHANGE_ID}.preparation_resolution": preparation_resolution,
+        f"{CHANGE_ID}.release_resolution": expected["release_resolution"],
     }
     call(
         "patch_object",
         resource="configmap",
-        name="recovery-audit",
+        name=RECOVERY_AUDIT,
         patch={"data": audit_fields},
     )
     if RECOVERY_AUDIT_KEY not in names:
@@ -810,7 +862,7 @@ def reference_kubernetes_interaction_recovery(
             "post_external_event",
             idempotency_key=RECOVERY_AUDIT_KEY,
             payload={
-                "application": "orders",
+                "application": APPLICATION,
                 "status": "complete",
                 "schema_epoch": expected["epoch"],
                 "api_version": expected["api_version"],

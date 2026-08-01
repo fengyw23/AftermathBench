@@ -11,15 +11,26 @@ from aftermath_bench.integrations.kubernetes_interaction_prefix import (
     API_SERVICE,
     API_V1,
     API_V2,
+    BATCH_STATE,
     BACKUP_JOB,
+    CHANGE_ID,
+    CHANGE_RECORD,
+    COMPATIBILITY_BRIDGE,
+    CURRENT_VERSION,
     CURRENT_CREDENTIAL,
+    DATABASE_CATALOG,
+    MIGRATION_LABEL,
     NEXT_CREDENTIAL,
     PUBLICATION_LABEL,
+    RECOVERY_AUDIT,
+    RECOVERY_AUDIT_KEY,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
     REGISTRY_STABLE_KEY,
+    RELEASE_LEDGER,
     SCENARIO_ID,
+    TARGET_VERSION,
     TRANSITION_LABEL,
     WORKER_V1,
     WORKER_V2,
@@ -74,12 +85,12 @@ def _compact_capture(report: dict[str, Any]) -> dict[str, Any]:
     deployments = state["deployments"]
     secrets = state["secrets"]
     jobs = state["jobs"]
-    catalog = _find(configmaps, "database-catalog") or {}
-    bridge = _find(configmaps, "schema-compatibility-bridge") or {}
-    batch = _find(configmaps, "worker-batch-state") or {}
-    ledger = _find(configmaps, "release-ledger") or {}
-    audit = _find(configmaps, "recovery-audit") or {}
-    change = _find(configmaps, "change-record") or {}
+    catalog = _find(configmaps, DATABASE_CATALOG) or {}
+    bridge = _find(configmaps, COMPATIBILITY_BRIDGE) or {}
+    batch = _find(configmaps, BATCH_STATE) or {}
+    ledger = _find(configmaps, RELEASE_LEDGER) or {}
+    audit = _find(configmaps, RECOVERY_AUDIT) or {}
+    change = _find(configmaps, CHANGE_RECORD) or {}
     service = _find(state["services"], API_SERVICE) or {}
     credential = _find(secrets, CURRENT_CREDENTIAL) or {}
     next_credential = _find(secrets, NEXT_CREDENTIAL)
@@ -87,7 +98,7 @@ def _compact_capture(report: dict[str, Any]) -> dict[str, Any]:
         item
         for item in jobs
         if item.get("metadata", {}).get("labels", {}).get("migration")
-        == "orders-platform-v2"
+        == MIGRATION_LABEL
     ]
     transition = [
         item
@@ -128,14 +139,18 @@ def _compact_capture(report: dict[str, Any]) -> dict[str, Any]:
             "api_available": _available(
                 _find(
                     deployments,
-                    API_V2 if expected["api_version"] == "v2" else API_V1,
+                    API_V2
+                    if expected["api_version"] == TARGET_VERSION
+                    else API_V1,
                 )
                 or {}
             ),
             "worker_available": _available(
                 _find(
                     deployments,
-                    WORKER_V2 if expected["worker_version"] == "v2" else WORKER_V1,
+                    WORKER_V2
+                    if expected["worker_version"] == TARGET_VERSION
+                    else WORKER_V1,
                 )
                 or {}
             ),
@@ -164,17 +179,17 @@ def _compact_capture(report: dict[str, Any]) -> dict[str, Any]:
             "preparation": REGISTRY_PREPARE_KEY in deliveries,
             "compensation": REGISTRY_COMPENSATION_KEY in deliveries,
             "release": REGISTRY_RELEASE_KEY in deliveries,
-            "closure": "audit:recovery:orders-platform-v2" in deliveries,
+            "closure": RECOVERY_AUDIT_KEY in deliveries,
             "exactly_once": all(
                 item.get("attempt_count") == 1 for item in deliveries.values()
             ),
         },
         "closure": {
-            "change": change.get("data", {}).get("orders-platform-v2.state")
+            "change": change.get("data", {}).get(f"{CHANGE_ID}.state")
             == "resolved",
-            "ledger": ledger.get("data", {}).get("orders-platform-v2.status")
+            "ledger": ledger.get("data", {}).get(f"{CHANGE_ID}.status")
             == expected["status"],
-            "audit": audit.get("data", {}).get("orders-platform-v2.status")
+            "audit": audit.get("data", {}).get(f"{CHANGE_ID}.status")
             == "complete",
         },
         "preservation": {
@@ -322,8 +337,8 @@ def _observed_graph() -> dict[str, Any]:
         ],
         "unsafe_actions": [
             "roll back the committed schema catalog",
-            "stop a v1 worker with a non-replayable in-flight batch",
-            "rotate the shared credential while a v1 consumer remains",
+            f"stop a {CURRENT_VERSION} worker with a non-replayable in-flight batch",
+            f"rotate the shared credential while a {CURRENT_VERSION} consumer remains",
             "duplicate an existing transition or publication owner",
             "repeat an accepted external release",
             "manufacture absent preparation history",

@@ -5,16 +5,24 @@ from typing import Any
 
 from .kubernetes_api import KubernetesApi
 from .kubernetes_interaction_prefix import (
+    APPLICATION,
     API_SERVICE,
     API_V1,
     API_V2,
+    COMPATIBILITY_BRIDGE,
+    CURRENT_EPOCH,
+    CURRENT_VERSION,
     CURRENT_CREDENTIAL,
+    DATABASE_CATALOG,
     MIGRATION_LABEL,
     NAMESPACE,
     PUBLICATION_LABEL,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
     TRANSITION_LABEL,
+    TARGET_EPOCH,
+    TARGET_VERSION,
+    BATCH_STATE,
     WORKER_V1,
     WORKER_V2,
     interaction_migration_job_manifest,
@@ -49,10 +57,12 @@ def interaction_jobs(
 
 def _consumer_version(api: KubernetesApi, component: str) -> str:
     versions = []
-    for version in ("v1", "v2"):
-        document = api.get(
-            "deployment", f"orders-{component}-{version}", namespace=NAMESPACE
-        )
+    names = {
+        "api": {CURRENT_VERSION: API_V1, TARGET_VERSION: API_V2},
+        "worker": {CURRENT_VERSION: WORKER_V1, TARGET_VERSION: WORKER_V2},
+    }[component]
+    for version, name in names.items():
+        document = api.get("deployment", name, namespace=NAMESPACE)
         if _replicas(document) > 0:
             versions.append(version)
     return versions[0] if len(versions) == 1 else "invalid"
@@ -81,11 +91,11 @@ def capture_interaction_facts(
     *,
     external_keys: set[str],
 ) -> dict[str, Any]:
-    catalog = api.get("configmap", "database-catalog", namespace=NAMESPACE)
+    catalog = api.get("configmap", DATABASE_CATALOG, namespace=NAMESPACE)
     bridge = api.get(
-        "configmap", "schema-compatibility-bridge", namespace=NAMESPACE
+        "configmap", COMPATIBILITY_BRIDGE, namespace=NAMESPACE
     )
-    batch = api.get("configmap", "worker-batch-state", namespace=NAMESPACE)
+    batch = api.get("configmap", BATCH_STATE, namespace=NAMESPACE)
     credential = api.get("secret", CURRENT_CREDENTIAL, namespace=NAMESPACE)
     migration = interaction_jobs(
         api, label_key="migration", label_value=MIGRATION_LABEL
@@ -159,11 +169,13 @@ class KubernetesInteractionFaultBoundary:
 
     def _set_consumer(self, component: str, version: str) -> None:
         names = {
-            "api": {"v1": API_V1, "v2": API_V2},
-            "worker": {"v1": WORKER_V1, "v2": WORKER_V2},
+            "api": {CURRENT_VERSION: API_V1, TARGET_VERSION: API_V2},
+            "worker": {CURRENT_VERSION: WORKER_V1, TARGET_VERSION: WORKER_V2},
         }[component]
         target = names[version]
-        other = names["v1" if version == "v2" else "v2"]
+        other = names[
+            CURRENT_VERSION if version == TARGET_VERSION else TARGET_VERSION
+        ]
         self.api.patch(
             "deployment", target, {"spec": {"replicas": 1}}, namespace=NAMESPACE
         )
@@ -180,7 +192,7 @@ class KubernetesInteractionFaultBoundary:
                 {
                     "spec": {
                         "selector": {
-                            "app": "orders",
+                            "app": APPLICATION,
                             "component": "api",
                             "version": version,
                         }
@@ -209,15 +221,15 @@ class KubernetesInteractionFaultBoundary:
             raise ValueError(f"unknown Kubernetes interaction variant: {variant}")
         facts = INTERACTION_VARIANT_FACTS[variant]
         migration = self._migration(str(facts["migration_state"]))
-        if str(facts["schema_epoch"]) == "2":
+        if str(facts["schema_epoch"]) == TARGET_EPOCH:
             self.api.patch(
                 "configmap",
-                "database-catalog",
+                DATABASE_CATALOG,
                 {
                     "data": {
-                        "schemaEpoch": "2",
+                        "schemaEpoch": TARGET_EPOCH,
                         "migration": str(migration["metadata"]["name"]),
-                        "history": "epoch1->epoch2:no-down-migration",
+                        "history": f"epoch{CURRENT_EPOCH}->epoch{TARGET_EPOCH}:no-down-migration",
                     }
                 },
                 namespace=NAMESPACE,
@@ -240,13 +252,13 @@ class KubernetesInteractionFaultBoundary:
         )
         self.api.patch(
             "configmap",
-            "schema-compatibility-bridge",
+            COMPATIBILITY_BRIDGE,
             {"data": {"lease": str(facts["bridge_lease"])}},
             namespace=NAMESPACE,
         )
         self.api.patch(
             "configmap",
-            "worker-batch-state",
+            BATCH_STATE,
             {"data": {"state": str(facts["batch_state"])}},
             namespace=NAMESPACE,
         )
@@ -261,8 +273,8 @@ class KubernetesInteractionFaultBoundary:
             self._post(
                 REGISTRY_PREPARE_KEY,
                 {
-                    "application": "orders",
-                    "version": "v2",
+                    "application": APPLICATION,
+                    "version": TARGET_VERSION,
                     "migration_job_uid": migration_uid,
                     "status": "prepared",
                 },
@@ -273,9 +285,9 @@ class KubernetesInteractionFaultBoundary:
             self._post(
                 REGISTRY_RELEASE_KEY,
                 {
-                    "application": "orders",
-                    "version": "v2",
-                    "schema_epoch": "2",
+                    "application": APPLICATION,
+                    "version": TARGET_VERSION,
+                    "schema_epoch": TARGET_EPOCH,
                     "migration_job_uid": migration_uid,
                     "publication_job_uid": str(publication["metadata"]["uid"]),
                     "status": "published",

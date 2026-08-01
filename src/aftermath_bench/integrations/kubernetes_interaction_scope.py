@@ -3,15 +3,24 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from ..evidence_projection import projection_admission_report
+from .kubernetes_interaction_prefix import (
+    CURRENT_CREDENTIAL_GENERATION,
+    CURRENT_EPOCH,
+    CURRENT_VERSION,
+    SCENARIO_ID,
+    TARGET_CREDENTIAL_GENERATION,
+    TARGET_EPOCH,
+    TARGET_VERSION,
+)
 
 
 def _facts(**overrides: Any) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "schema_epoch": "2",
+        "schema_epoch": TARGET_EPOCH,
         "migration_state": "committed",
-        "api_version": "v2",
-        "worker_version": "v2",
-        "credential_generation": "2",
+        "api_version": TARGET_VERSION,
+        "worker_version": TARGET_VERSION,
+        "credential_generation": TARGET_CREDENTIAL_GENERATION,
         "bridge_lease": "retired",
         "batch_state": "drained",
         "transition_controller": "absent",
@@ -27,47 +36,47 @@ def _facts(**overrides: Any) -> dict[str, Any]:
 # evaluator-only and must never be rendered into the ordinary model input.
 INTERACTION_VARIANT_FACTS: dict[str, dict[str, Any]] = {
     "state_01": _facts(
-        schema_epoch="1",
+        schema_epoch=CURRENT_EPOCH,
         migration_state="failed",
-        api_version="v1",
-        worker_version="v1",
-        credential_generation="1",
+        api_version=CURRENT_VERSION,
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="active",
         batch_state="inflight",
     ),
     "state_02": _facts(
-        schema_epoch="1",
+        schema_epoch=CURRENT_EPOCH,
         migration_state="failed",
-        api_version="v1",
-        worker_version="v1",
-        credential_generation="1",
+        api_version=CURRENT_VERSION,
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="active",
         batch_state="inflight",
         preparation_present=True,
     ),
     "state_03": _facts(
-        worker_version="v1",
-        credential_generation="1",
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="active",
         batch_state="inflight",
     ),
     "state_04": _facts(
-        worker_version="v1",
-        credential_generation="1",
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="active",
         batch_state="inflight",
         transition_controller="suspended",
     ),
     "state_05": _facts(
-        worker_version="v1",
-        credential_generation="1",
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="expired",
         batch_state="inflight",
         transition_controller="suspended",
     ),
     "state_06": _facts(
-        worker_version="v1",
-        credential_generation="1",
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
         bridge_lease="active",
         batch_state="drained",
         transition_controller="suspended",
@@ -76,12 +85,14 @@ INTERACTION_VARIANT_FACTS: dict[str, dict[str, Any]] = {
     "state_08": _facts(publication_task="pending"),
     "state_09": _facts(publication_task="completed"),
     "state_10": _facts(publication_task="completed", release_accepted=True),
-    "state_11": _facts(api_version="v1"),
+    "state_11": _facts(api_version=CURRENT_VERSION),
     "state_12": _facts(
-        worker_version="v1",
-        credential_generation="1",
+        worker_version=CURRENT_VERSION,
+        credential_generation=CURRENT_CREDENTIAL_GENERATION,
     ),
-    "state_13": _facts(credential_generation="1"),
+    "state_13": _facts(
+        credential_generation=CURRENT_CREDENTIAL_GENERATION
+    ),
 }
 
 KUBERNETES_INTERACTION_VARIANTS = tuple(INTERACTION_VARIANT_FACTS)
@@ -108,18 +119,20 @@ def derive_interaction_scope(facts: Mapping[str, Any]) -> str:
     epoch = str(facts.get("schema_epoch", ""))
     migration = str(facts.get("migration_state", ""))
     preparation = bool(facts.get("preparation_present", False))
-    if epoch == "1":
+    if epoch == CURRENT_EPOCH:
         if migration != "failed":
-            raise ValueError("epoch 1 interaction boundary must contain failed migration")
+            raise ValueError(
+                "current-epoch interaction boundary must contain failed migration"
+            )
         return (
             "compensate_and_discard_failed_change"
             if preparation
             else "discard_failed_change"
         )
-    if epoch != "2" or migration != "committed":
+    if epoch != TARGET_EPOCH or migration != "committed":
         raise ValueError("unsupported schema/migration interaction boundary")
 
-    if str(facts.get("api_version", "")) != "v2":
+    if str(facts.get("api_version", "")) != TARGET_VERSION:
         return "repair_api_consumer_before_publication"
 
     worker = str(facts.get("worker_version", ""))
@@ -127,7 +140,7 @@ def derive_interaction_scope(facts: Mapping[str, Any]) -> str:
     bridge = str(facts.get("bridge_lease", ""))
     batch = str(facts.get("batch_state", ""))
     controller = str(facts.get("transition_controller", ""))
-    if worker != "v2":
+    if worker != TARGET_VERSION:
         if batch == "inflight":
             if bridge == "active":
                 if controller == "absent":
@@ -146,7 +159,7 @@ def derive_interaction_scope(facts: Mapping[str, Any]) -> str:
                 return "create_worker_transition"
         raise ValueError("unsupported worker transition boundary")
 
-    if credential != "2":
+    if credential != TARGET_CREDENTIAL_GENERATION:
         return "rotate_shared_credential"
 
     publication = str(facts.get("publication_task", ""))
@@ -176,7 +189,7 @@ def interaction_projection_report() -> dict[str, Any]:
     )
     report.update(
         {
-            "scenario_id": "k8s-constraint-interactions-dev-005",
+            "scenario_id": SCENARIO_ID,
             "source": "declared matrix pending native boundary replay",
             "variant_scopes": scopes,
         }
