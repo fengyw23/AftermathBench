@@ -201,6 +201,41 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         self.assertEqual(len(state["events"]), 1)
         self.assertEqual(state["events"][0]["reason"], "BackoffLimitExceeded")
 
+    def test_pod_lifecycle_events_are_not_boundary_evidence(self) -> None:
+        failed_mount = {
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Pod",
+                "name": "orders-worker-v2-current",
+                "uid": "worker-pod-uid",
+            },
+            "reason": "FailedMount",
+            "reportingComponent": "kubelet",
+            "message": "failed to sync configmap cache",
+            "type": "Warning",
+        }
+        deployment_scale = {
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Deployment",
+                "name": "orders-worker-v2",
+                "uid": "worker-deployment-uid",
+            },
+            "reason": "ScalingReplicaSet",
+            "reportingComponent": "deployment-controller",
+            "message": "Scaled up replica set from 0 to 1",
+            "type": "Normal",
+        }
+        state = canonicalize_interaction_snapshot(
+            {"events": [failed_mount, deployment_scale]}
+        )
+        self.assertEqual(len(state["events"]), 1)
+        self.assertEqual(state["events"][0]["reason"], "ScalingReplicaSet")
+
 
 if __name__ == "__main__":
     unittest.main()
