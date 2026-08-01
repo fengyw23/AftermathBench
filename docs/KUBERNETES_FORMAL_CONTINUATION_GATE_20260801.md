@@ -73,16 +73,21 @@ explicit, versioned normalization contract. It may omit a volatile field only
 when the model neither needs it for a valid decision nor can be scored on it.
 UIDs and external idempotency identities may not be normalized away.
 
-The implemented `kubernetes-interaction-boundary-v4` contract also excludes
-whole-object controller transients that empirical destructive replay proved
-cannot be part of a stable boundary: Pods already carrying a deletion timestamp,
-and Events whose subject is not a task-level Job, Deployment, or ReplicaSet.
-The excluded class covers low-level Pod lifecycle messages, service-IP repair,
-and Endpoints-controller concurrency warnings regenerated after an etcd restart.
-The parent workload intent, every active Pod, higher-level Job/Deployment/
-ReplicaSet task Events, every scored object UID, and every external idempotency
-record remain in the capture. None of the excluded transients is read by the
-evaluator or required by the reference recovery.
+The implemented `kubernetes-interaction-boundary-v5` contract separates
+persistent recovery authority from controller-runtime projections. Empirical
+two-consumer replay showed that rewinding etcd after one consumer has run makes
+kubelet recreate workload Pods and makes Deployment/ReplicaSet controllers
+re-emit scaling Events. Their names, UIDs, condition order and messages can
+therefore differ even though every persistent recovery fact is identical.
+
+The canonical boundary retains all scored ConfigMap, Secret, Service,
+Deployment, Job and RBAC identities, authored specifications, Job evidence,
+contract facts and external idempotency records. It excludes Pods and
+Deployment/ReplicaSet/Pod lifecycle Events, and treats Kubernetes condition
+arrays as maps keyed by condition type. These excluded fields are neither read
+by the evaluator nor used by the reference recovery to derive scope. Ordinary
+live tools may still expose them as diagnostics; they are not claimed as exact
+persistent boundary authority.
 
 ### Restore proof
 

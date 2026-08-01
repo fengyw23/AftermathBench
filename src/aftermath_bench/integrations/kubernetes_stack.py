@@ -288,6 +288,7 @@ class KubernetesStack:
 
     def _restart_control_plane_consumers(
         self,
+        previous: dict[str, str],
         *,
         attempts: int = 180,
         delay_seconds: float = 1.0,
@@ -295,18 +296,31 @@ class KubernetesStack:
         """Clear controller caches after rewinding the authoritative keyspace."""
 
         components = ("kube-controller-manager", "kube-scheduler")
-        previous = {
-            component: self._control_plane_container(component)
-            for component in components
-        }
+        if set(previous) != set(components) or any(
+            not previous[component] for component in components
+        ):
+            raise ValueError("previous control-plane identities are incomplete")
         for component in components:
-            self._docker(
-                "exec",
-                self.node_container,
-                "crictl",
-                "stop",
-                previous[component],
-            )
+            try:
+                current = self._control_plane_container(component)
+            except RuntimeError:
+                # The static pod may already be between its old and new
+                # container while etcd is being replaced. The identity wait
+                # below is the authoritative liveness check.
+                current = ""
+            if current == previous[component]:
+                try:
+                    self._docker(
+                        "exec",
+                        self.node_container,
+                        "crictl",
+                        "stop",
+                        previous[component],
+                    )
+                except RuntimeError:
+                    # A race in which kubelet removed the old container after
+                    # the read is safe only if a new identity appears below.
+                    pass
         restarted = {
             component: self._wait_control_plane_container_restarted(
                 component,
@@ -605,6 +619,10 @@ class KubernetesStack:
         restore_token = uuid.uuid4().hex
         remote_data_host = f"{_ETCD_BUNDLE_HOST_ROOT}/restores/{restore_token}"
         etcd_container = self._etcd_container()
+        control_plane_before_restore = {
+            component: self._control_plane_container(component)
+            for component in ("kube-controller-manager", "kube-scheduler")
+        }
         node_ip = self._docker(
             "inspect",
             "--format",
@@ -660,7 +678,9 @@ class KubernetesStack:
             previous_etcd = etcd_container
             self._replace_etcd_manifest(patched)
             self._wait_etcd_restarted(previous_etcd)
-            restarted_control_plane = self._restart_control_plane_consumers()
+            restarted_control_plane = self._restart_control_plane_consumers(
+                control_plane_before_restore
+            )
             self._restore_sqlite(
                 bundle / _BUNDLE_FILES["external_registry"], registry
             )

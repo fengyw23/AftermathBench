@@ -136,7 +136,7 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(len(state["events"]), 1)
 
-    def test_terminating_pods_are_not_part_of_the_stable_boundary(self) -> None:
+    def test_pods_are_not_persistent_boundary_authority(self) -> None:
         terminating = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -161,9 +161,99 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         state = canonicalize_interaction_snapshot(
             {"pods": [terminating, active]}
         )
+        self.assertEqual(state["resources"], [])
+
+    def test_kubernetes_condition_order_is_semantically_normalized(self) -> None:
+        document = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "worker",
+                "namespace": "aftermath-interactions",
+                "uid": "worker-uid",
+            },
+            "status": {
+                "conditions": [
+                    {"type": "Progressing", "status": "True"},
+                    {"type": "Available", "status": "True"},
+                ]
+            },
+        }
+        reordered = copy.deepcopy(document)
+        reordered["status"]["conditions"].reverse()
         self.assertEqual(
-            [item["metadata"]["uid"] for item in state["resources"]],
-            ["current-pod-uid"],
+            canonical_kubernetes_object(document),
+            canonical_kubernetes_object(reordered),
+        )
+
+    def test_two_consumers_match_despite_controller_runtime_reprojection(
+        self,
+    ) -> None:
+        deployment = {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "name": "worker",
+                "namespace": "aftermath-interactions",
+                "uid": "persistent-deployment-uid",
+            },
+            "spec": {"replicas": 1},
+            "status": {
+                "conditions": [
+                    {"type": "Progressing", "status": "True"},
+                    {"type": "Available", "status": "True"},
+                ],
+                "readyReplicas": 1,
+            },
+        }
+        job_event = {
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Job",
+                "name": "migration",
+                "uid": "persistent-job-uid",
+            },
+            "reason": "Complete",
+            "message": "Job completed",
+            "type": "Normal",
+        }
+        original = {
+            "deployments": [deployment],
+            "pods": [
+                {
+                    "kind": "Pod",
+                    "metadata": {"name": "worker-old", "uid": "pod-old"},
+                }
+            ],
+            "events": [job_event],
+            "boundary_facts": {"scope": "preserve"},
+        }
+        replayed = copy.deepcopy(original)
+        replayed["deployments"][0]["status"]["conditions"].reverse()
+        replayed["pods"] = [
+            {
+                "kind": "Pod",
+                "metadata": {"name": "worker-new", "uid": "pod-new"},
+            }
+        ]
+        replayed["events"].append(
+            {
+                "kind": "Event",
+                "metadata": {"namespace": "aftermath-interactions"},
+                "involvedObject": {
+                    "kind": "ReplicaSet",
+                    "name": "worker-rs",
+                    "uid": "persistent-rs-uid",
+                },
+                "reason": "SuccessfulCreate",
+                "message": "Created pod: worker-new",
+                "type": "Normal",
+            }
+        )
+        self.assertEqual(
+            canonicalize_interaction_snapshot(original),
+            canonicalize_interaction_snapshot(replayed),
         )
 
     def test_ip_allocator_restart_event_is_not_boundary_evidence(self) -> None:
@@ -201,7 +291,7 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         self.assertEqual(len(state["events"]), 1)
         self.assertEqual(state["events"][0]["reason"], "BackoffLimitExceeded")
 
-    def test_pod_lifecycle_events_are_not_boundary_evidence(self) -> None:
+    def test_pod_and_deployment_events_are_not_boundary_evidence(self) -> None:
         failed_mount = {
             "apiVersion": "v1",
             "kind": "Event",
@@ -233,8 +323,7 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         state = canonicalize_interaction_snapshot(
             {"events": [failed_mount, deployment_scale]}
         )
-        self.assertEqual(len(state["events"]), 1)
-        self.assertEqual(state["events"][0]["reason"], "ScalingReplicaSet")
+        self.assertEqual(state["events"], [])
 
     def test_endpoint_controller_conflicts_are_not_boundary_evidence(self) -> None:
         endpoint_conflict = {

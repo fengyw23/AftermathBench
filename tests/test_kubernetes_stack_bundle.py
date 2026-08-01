@@ -210,6 +210,10 @@ class KubernetesStackBundleTests(unittest.TestCase):
             patch.object(KubernetesStack, "_wait_api_ready") as wait_ready,
         ):
             observed = stack._restart_control_plane_consumers(
+                {
+                    "kube-controller-manager": "old-manager",
+                    "kube-scheduler": "old-scheduler",
+                },
                 attempts=2,
                 delay_seconds=0,
             )
@@ -229,6 +233,61 @@ class KubernetesStackBundleTests(unittest.TestCase):
             attempts=2,
             delay_seconds=0,
         )
+
+    def test_restore_accepts_consumers_that_restart_during_etcd_recovery(
+        self,
+    ) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with (
+            patch.object(
+                KubernetesStack,
+                "_control_plane_container",
+                side_effect=[
+                    "new-manager",
+                    RuntimeError("scheduler is restarting"),
+                ],
+            ),
+            patch.object(KubernetesStack, "_docker") as docker,
+            patch.object(
+                KubernetesStack,
+                "_wait_control_plane_container_restarted",
+                side_effect=["new-manager", "new-scheduler"],
+            ),
+            patch.object(KubernetesStack, "_wait_api_ready"),
+        ):
+            observed = stack._restart_control_plane_consumers(
+                {
+                    "kube-controller-manager": "old-manager",
+                    "kube-scheduler": "old-scheduler",
+                },
+                attempts=2,
+                delay_seconds=0,
+            )
+        self.assertEqual(
+            observed,
+            {
+                "kube-controller-manager": "new-manager",
+                "kube-scheduler": "new-scheduler",
+            },
+        )
+        docker.assert_not_called()
+
+    def test_restore_rejects_incomplete_previous_consumer_identities(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        with self.assertRaisesRegex(ValueError, "identities are incomplete"):
+            stack._restart_control_plane_consumers(
+                {"kube-controller-manager": "old-manager"},
+                attempts=1,
+                delay_seconds=0,
+            )
 
 
 if __name__ == "__main__":

@@ -10,14 +10,14 @@ from .kubernetes_interaction_prefix import NAMESPACE, SCENARIO_ID
 from .kubernetes_interaction_recovery import KubernetesInteractionEnvironment
 
 
-NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v4"
+NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v5"
 
 # This task exposes Events as supporting diagnostics for workload transitions.
-# Only higher-level workload owners carry task evidence: migration/publication
-# Jobs and Deployment/ReplicaSet rollout intent.  Service-IP, Endpoints, Pod,
-# scheduler, and kubelet Events are controller-runtime observations that are
-# regenerated after an etcd restart and duplicate authoritative object state.
-_TASK_EVENT_SUBJECT_KINDS = frozenset({"Job", "Deployment", "ReplicaSet"})
+# Only Job Events carry failure evidence not already represented by an
+# authoritative object. Deployment/ReplicaSet scaling messages and every Pod
+# lifecycle observation are controller-runtime projections that are regenerated
+# after restore and are neither scored nor used to derive a recovery scope.
+_TASK_EVENT_SUBJECT_KINDS = frozenset({"Job"})
 
 _DROP_KEYS = frozenset(
     {
@@ -61,7 +61,19 @@ def _canonical_value(value: Any) -> Any:
                 result[key] = _canonical_value(item)
         return result
     if isinstance(value, list):
-        return [_canonical_value(item) for item in value]
+        result = [_canonical_value(item) for item in value]
+        if (
+            result
+            and all(
+                isinstance(item, dict) and isinstance(item.get("type"), str)
+                for item in result
+            )
+            and len({item["type"] for item in result}) == len(result)
+        ):
+            # Kubernetes condition arrays are semantic maps keyed by type;
+            # controllers may rewrite their order without changing state.
+            result.sort(key=lambda item: item["type"])
+        return result
     return value
 
 
@@ -106,16 +118,6 @@ def _event_key(document: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
-def _is_decision_relevant_resource(document: dict[str, Any]) -> bool:
-    # A Pod already marked for deletion is not part of the stable failure
-    # boundary.  Its parent Deployment/ReplicaSet intent remains preserved,
-    # while the exact garbage-collection instant is wall-clock dependent.
-    return not (
-        document.get("kind") == "Pod"
-        and document.get("metadata", {}).get("deletionTimestamp") is not None
-    )
-
-
 def _is_decision_relevant_event(document: dict[str, Any]) -> bool:
     return (
         str(document.get("involvedObject", {}).get("kind", ""))
@@ -133,13 +135,11 @@ def canonicalize_interaction_snapshot(snapshot: dict[str, Any]) -> dict[str, Any
         "deployments",
         "services",
         "jobs",
-        "pods",
     )
     resources = [
         canonical_kubernetes_object(document)
         for group in resource_groups
         for document in snapshot.get(group, ())
-        if _is_decision_relevant_resource(document)
     ]
     resources.sort(key=_object_key)
     events = [
