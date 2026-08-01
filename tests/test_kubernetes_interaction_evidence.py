@@ -236,6 +236,26 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         self.assertEqual(len(state["events"]), 1)
         self.assertEqual(state["events"][0]["reason"], "ScalingReplicaSet")
 
+    def test_endpoint_controller_conflicts_are_not_boundary_evidence(self) -> None:
+        endpoint_conflict = {
+            "apiVersion": "v1",
+            "kind": "Event",
+            "metadata": {"namespace": "aftermath-interactions"},
+            "involvedObject": {
+                "kind": "Endpoints",
+                "name": "orders-api",
+                "uid": "endpoints-uid",
+            },
+            "reason": "FailedToUpdateEndpoint",
+            "reportingComponent": "endpoint-controller",
+            "message": "the object has been modified",
+            "type": "Warning",
+        }
+        state = canonicalize_interaction_snapshot(
+            {"events": [endpoint_conflict]}
+        )
+        self.assertEqual(state["events"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
