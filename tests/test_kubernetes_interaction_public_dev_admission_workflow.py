@@ -42,6 +42,23 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
             self.workflow,
         )
 
+    def test_historical_regressions_run_without_active_instance_override(
+        self,
+    ) -> None:
+        novelty = self.workflow.index(
+            "verify_kubernetes_interaction_instance_novelty.py"
+        )
+        unset = self.workflow.index(
+            "unset AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC"
+        )
+        tests = self.workflow.index("python -m unittest discover", unset)
+        runtime = self.workflow.index(
+            "Replay thirteen native boundaries and references"
+        )
+        self.assertLess(novelty, unset)
+        self.assertLess(unset, tests)
+        self.assertLess(tests, runtime)
+
     def test_public_graph_selectors_follow_instance_contract_names(self) -> None:
         source = """
 import importlib.util
