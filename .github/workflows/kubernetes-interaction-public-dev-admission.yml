@@ -157,6 +157,18 @@ jobs:
             "$NATIVE_ROOT/baselines" \
             "$NATIVE_ROOT/bundles" \
             "$sensitive_root"
+          diagnostic_log="$RUN_ROOT/logs/exact-boundary-replay.log"
+          diagnostic_context="prepare-prefix"
+          exec > >(tee -a "$diagnostic_log") 2>&1
+          trap '
+            status=$?
+            if [[ "$status" -ne 0 ]]; then
+              diagnostic=$(tail -c 5000 "$diagnostic_log" | tr "\n" " " | sed "s/%/%25/g")
+              echo "::error title=Exact boundary replay failed ($diagnostic_context)::$diagnostic"
+            fi
+            trap - EXIT
+            exit "$status"
+          ' EXIT
           python scripts/run_kubernetes_interaction_boundary.py \
             --variant state_01 \
             --prepare-only \
@@ -176,6 +188,7 @@ jobs:
             state_08 state_09 state_10 state_11 state_12 state_13
           )
           for variant in "${variants[@]}"; do
+            diagnostic_context="restore-prefix:$variant"
             python scripts/manage_kubernetes_stack.py restore-bundle \
               --snapshot "$sensitive_root/prefix" \
               --registry-database "$registry_database"
@@ -189,6 +202,7 @@ jobs:
               --pre-snapshot-state "$reset_before_snapshot" \
               --wait-seconds 180 \
               --output "$reset"
+            diagnostic_context="trigger-boundary:$variant"
             python scripts/run_kubernetes_interaction_boundary.py \
               --variant "$variant" \
               --trigger-only \
@@ -201,12 +215,14 @@ jobs:
             python scripts/capture_kubernetes_interaction_state_evidence.py \
               --variant "$variant" \
               --output "$native_before_snapshot"
+            diagnostic_context="snapshot-boundary:$variant"
             python scripts/manage_kubernetes_stack.py snapshot-bundle \
               --snapshot "$bundle" \
               --registry-database "$registry_database"
             cp \
               "$bundle/bundle.json" \
               "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+            diagnostic_context="verify-boundary-restore:$variant"
             python scripts/manage_kubernetes_stack.py restore-bundle \
               --snapshot "$bundle" \
               --registry-database "$registry_database"
@@ -221,6 +237,7 @@ jobs:
               --pre-snapshot-state "$native_before_snapshot" \
               --wait-seconds 180 \
               --output "$boundary"
+            diagnostic_context="verify-reference-start:$variant"
             python scripts/manage_kubernetes_stack.py restore-bundle \
               --snapshot "$bundle" \
               --registry-database "$registry_database"
@@ -236,6 +253,7 @@ jobs:
               --expected "$boundary" \
               --wait-seconds 180 \
               --output "$reference_start"
+            diagnostic_context="run-reference:$variant"
             python scripts/run_kubernetes_interaction_control.py \
               --variant "$variant" \
               --output "$NATIVE_ROOT/runtime/$variant-reference.json"
