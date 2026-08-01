@@ -23,6 +23,33 @@ def _read(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _valid_bundle_manifest(payload: dict[str, Any]) -> bool:
+    files = payload.get("files")
+    if (
+        payload.get("schema_version") != "1.0"
+        or payload.get("capture_mode")
+        != "etcd_snapshot_and_quiesced_registry_sqlite"
+        or not isinstance(payload.get("cluster_name"), str)
+        or not payload.get("cluster_name")
+        or not isinstance(payload.get("node_image"), str)
+        or "@sha256:" not in payload.get("node_image", "")
+        or not isinstance(files, dict)
+        or set(files) != {"etcd", "external_registry"}
+    ):
+        return False
+    return all(
+        isinstance(item, dict)
+        and set(item) == {"path", "bytes", "sha256"}
+        and isinstance(item.get("path"), str)
+        and bool(item.get("path"))
+        and isinstance(item.get("bytes"), int)
+        and item["bytes"] > 0
+        and isinstance(item.get("sha256"), str)
+        and len(item["sha256"]) == 64
+        for item in files.values()
+    )
+
+
 def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
     runtime_summary = _read(run_root / "runtime-summary.json")
     baseline_summary = _read(run_root / "baselines" / "summary.json")
@@ -34,11 +61,58 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
         _read(run_root / "runtime" / f"{variant}-reference.json")
         for variant in KUBERNETES_INTERACTION_VARIANTS
     ]
+    bundle_manifests = [
+        _read(
+            run_root
+            / "runtime"
+            / "bundle-manifests"
+            / f"{variant}.json"
+        )
+        for variant in KUBERNETES_INTERACTION_VARIANTS
+    ]
     baseline_reports = [
         _read(run_root / "baselines" / f"{baseline}-{variant}.json")
         for baseline in INTERACTION_BASELINES
         for variant in KUBERNETES_INTERACTION_VARIANTS
     ]
+    exact_reference_pairs = [
+        (
+            run_root
+            / "runtime"
+            / "state-evidence"
+            / f"{variant}-boundary.json",
+            run_root
+            / "runtime"
+            / "state-evidence"
+            / f"{variant}-reference-start.json",
+        )
+        for variant in KUBERNETES_INTERACTION_VARIANTS
+    ]
+    exact_policy_pairs = [
+        (
+            run_root
+            / "runtime"
+            / "state-evidence"
+            / f"{variant}-boundary.json",
+            run_root
+            / "baselines"
+            / "pre-state"
+            / f"{baseline}-{variant}.json",
+        )
+        for baseline in INTERACTION_BASELINES
+        for variant in KUBERNETES_INTERACTION_VARIANTS
+    ]
+
+    def exact_pairs_pass(
+        pairs: list[tuple[Path, Path]],
+    ) -> bool:
+        return all(
+            expected.is_file()
+            and observed.is_file()
+            and expected.read_bytes() == observed.read_bytes()
+            for expected, observed in pairs
+        )
+
     heuristic_rows = baseline_summary.get("heuristics", [])
     checks = {
         "runtime_scenario_matches_active_instance": (
@@ -51,11 +125,25 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
             and runtime_summary.get("reference_pass_count")
             == len(KUBERNETES_INTERACTION_VARIANTS)
         ),
+        "all_thirteen_native_bundle_manifests_are_pinned": (
+            len(bundle_manifests) == len(KUBERNETES_INTERACTION_VARIANTS)
+            and all(_valid_bundle_manifest(item) for item in bundle_manifests)
+            and len(
+                {
+                    item["files"]["etcd"]["sha256"]
+                    for item in bundle_manifests
+                }
+            )
+            == len(KUBERNETES_INTERACTION_VARIANTS)
+        ),
         "reference_reports_match_active_instance": all(
             report.get("scenario_id") == SCENARIO_ID
             and report.get("evaluation", {}).get("passed") is True
             and report.get("control_error") is None
             for report in runtime_reports
+        ),
+        "references_start_from_exact_admitted_boundaries": (
+            exact_pairs_pass(exact_reference_pairs)
         ),
         "all_fixed_policy_reports_present": (
             len(baseline_reports)
@@ -66,6 +154,9 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
         "fixed_policy_reports_match_active_instance": all(
             report.get("scenario_id") == SCENARIO_ID
             for report in baseline_reports
+        ),
+        "fixed_policies_start_from_exact_admitted_boundaries": (
+            exact_pairs_pass(exact_policy_pairs)
         ),
         "fixed_policy_hard_gate_passes": (
             baseline_summary.get("hard_fixed_policy_gate_passed") is True
@@ -88,7 +179,11 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
         "schema_version": "1.0",
         "scenario_id": SCENARIO_ID,
         "reference_report_count": len(runtime_reports),
+        "native_bundle_manifest_count": len(bundle_manifests),
         "fixed_policy_report_count": len(baseline_reports),
+        "exact_replay_comparison_count": (
+            len(exact_reference_pairs) + len(exact_policy_pairs)
+        ),
         "maximum_heuristic_pass_rate": baseline_summary.get(
             "maximum_heuristic_pass_rate"
         ),

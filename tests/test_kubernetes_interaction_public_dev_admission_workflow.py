@@ -27,13 +27,30 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_workflow_runs_complete_fixed_matrix_without_provider(self) -> None:
-        self.assertIn("Replay thirteen native boundaries", self.workflow)
-        self.assertIn("Replay 117 fixed policies", self.workflow)
+        self.assertIn("Replay thirteen exact native boundaries", self.workflow)
+        self.assertIn("Replay 117 fixed policies from exact", self.workflow)
         self.assertIn("verify_kubernetes_interaction_public_dev_admission.py", self.workflow)
         lowered = self.workflow.lower()
         self.assertNotIn("api_key", lowered)
         self.assertNotIn("secrets.", lowered)
         self.assertNotIn("run-native-model", lowered)
+
+    def test_every_consumer_restores_one_uid_preserving_boundary(self) -> None:
+        self.assertIn("Install checksum-pinned etcdutl", self.workflow)
+        self.assertIn("prepare-snapshot-runtime", self.workflow)
+        self.assertIn("snapshot-bundle", self.workflow)
+        self.assertIn("restore-bundle", self.workflow)
+        self.assertIn("--expected", self.workflow)
+        self.assertIn("--wait-seconds 180", self.workflow)
+        baseline_step = self.workflow.index(
+            "Replay 117 fixed policies from exact native boundaries"
+        )
+        admission_step = self.workflow.index(
+            "Build and verify replay-derived hard admission"
+        )
+        baseline_text = self.workflow[baseline_step:admission_step]
+        self.assertIn("restore-bundle", baseline_text)
+        self.assertNotIn("run_kubernetes_interaction_boundary.py", baseline_text)
 
     def test_admission_builder_uses_public_blueprint_explicitly(self) -> None:
         self.assertIn("--blueprint", self.workflow)
@@ -53,7 +70,7 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         )
         tests = self.workflow.index("python -m unittest discover", unset)
         runtime = self.workflow.index(
-            "Replay thirteen native boundaries and references"
+            "Replay thirteen exact native boundaries and references"
         )
         self.assertLess(novelty, unset)
         self.assertLess(unset, tests)

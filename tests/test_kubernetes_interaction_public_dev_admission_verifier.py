@@ -50,6 +50,53 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
         )
         for variant in KUBERNETES_INTERACTION_VARIANTS:
             _write(
+                root
+                / "runtime"
+                / "bundle-manifests"
+                / f"{variant}.json",
+                {
+                    "schema_version": "1.0",
+                    "capture_mode": (
+                        "etcd_snapshot_and_quiesced_registry_sqlite"
+                    ),
+                    "cluster_name": "test-cluster",
+                    "node_image": "kindest/node:test@sha256:" + "a" * 64,
+                    "files": {
+                        "etcd": {
+                            "path": "etcd.snapshot.db",
+                            "bytes": 100,
+                            "sha256": (
+                                f"{int(variant[-2:]):064x}"
+                            ),
+                        },
+                        "external_registry": {
+                            "path": "webhook-sink.sqlite3",
+                            "bytes": 50,
+                            "sha256": "f" * 64,
+                        },
+                    },
+                },
+            )
+            canonical = {
+                "scenario_id": SCENARIO_ID,
+                "variant_id": variant,
+                "state_sha256": f"sha-{variant}",
+            }
+            _write(
+                root
+                / "runtime"
+                / "state-evidence"
+                / f"{variant}-boundary.json",
+                canonical,
+            )
+            _write(
+                root
+                / "runtime"
+                / "state-evidence"
+                / f"{variant}-reference-start.json",
+                canonical,
+            )
+            _write(
                 root / "runtime" / f"{variant}-reference.json",
                 {
                     "scenario_id": SCENARIO_ID,
@@ -59,6 +106,17 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
             )
         for baseline in INTERACTION_BASELINES:
             for variant in KUBERNETES_INTERACTION_VARIANTS:
+                _write(
+                    root
+                    / "baselines"
+                    / "pre-state"
+                    / f"{baseline}-{variant}.json",
+                    {
+                        "scenario_id": SCENARIO_ID,
+                        "variant_id": variant,
+                        "state_sha256": f"sha-{variant}",
+                    },
+                )
                 _write(
                     root / "baselines" / f"{baseline}-{variant}.json",
                     {"scenario_id": SCENARIO_ID},
@@ -98,7 +156,9 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
             report = _verifier_module().verify_public_dev_admission(root)
         self.assertTrue(report["passed"], report)
         self.assertEqual(report["reference_report_count"], 13)
+        self.assertEqual(report["native_bundle_manifest_count"], 13)
         self.assertEqual(report["fixed_policy_report_count"], 117)
+        self.assertEqual(report["exact_replay_comparison_count"], 130)
 
     def test_rejects_a_fixed_policy_matched_group_solver(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -111,6 +171,28 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
             report = _verifier_module().verify_public_dev_admission(root)
         self.assertFalse(report["passed"])
         self.assertFalse(report["checks"]["fixed_policy_hard_gate_passes"])
+
+    def test_rejects_policy_execution_from_a_different_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._fixture(root)
+            path = (
+                root
+                / "baselines"
+                / "pre-state"
+                / f"{INTERACTION_BASELINES[0]}-"
+                f"{KUBERNETES_INTERACTION_VARIANTS[0]}.json"
+            )
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["state_sha256"] = "different-boundary"
+            _write(path, payload)
+            report = _verifier_module().verify_public_dev_admission(root)
+        self.assertFalse(report["passed"])
+        self.assertFalse(
+            report["checks"][
+                "fixed_policies_start_from_exact_admitted_boundaries"
+            ]
+        )
 
 
 if __name__ == "__main__":
