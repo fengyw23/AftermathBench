@@ -91,6 +91,9 @@ def main() -> int:
                     if not passed
                 ],
                 "failures": list(evaluation.failures),
+                "observed_terminal": evaluation.diagnostics.get(
+                    "observed_terminal"
+                ),
             },
             indent=2,
         )

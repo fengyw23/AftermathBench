@@ -8,23 +8,23 @@ from .kubernetes_interaction_faults import (
     interaction_jobs,
 )
 from .kubernetes_interaction_prefix import (
-    APPLICATION,
     API_SERVICE,
     API_V1,
     API_V2,
-    BATCH_STATE,
+    APPLICATION,
     BACKUP_JOB,
+    BATCH_STATE,
     CHANGE_ID,
     CHANGE_RECORD,
     COMPATIBILITY_BRIDGE,
     CONTRACT_CONFIGMAPS,
+    CURRENT_CREDENTIAL,
     CURRENT_CREDENTIAL_GENERATION,
     CURRENT_EPOCH,
     CURRENT_VERSION,
-    CURRENT_CREDENTIAL,
     DATABASE_CATALOG,
-    MIGRATION_LABEL,
     MIGRATION_GENERATE_NAME,
+    MIGRATION_LABEL,
     NAMESPACE,
     NEXT_CREDENTIAL,
     OBSERVER_ROLE,
@@ -32,11 +32,11 @@ from .kubernetes_interaction_prefix import (
     PUBLICATION_LABEL,
     RECOVERY_AUDIT,
     RECOVERY_AUDIT_KEY,
-    RELEASE_LEDGER,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
     REGISTRY_STABLE_KEY,
+    RELEASE_LEDGER,
     SERVICE_ACCOUNT,
     TARGET_CREDENTIAL_GENERATION,
     TARGET_VERSION,
@@ -586,6 +586,33 @@ def evaluate_kubernetes_interaction_recovery(
             "allowed_external_keys": sorted(allowed_keys),
             "actual_external_keys": sorted(actual_keys),
             "protocol_violations": evidence.get("protocol_violations", []),
+            "observed_terminal": {
+                "candidate_present": candidate_present,
+                "change_record_state": change.get("data", {}).get(
+                    f"{CHANGE_ID}.state"
+                ),
+                "release_ledger_status": ledger_data.get(
+                    f"{CHANGE_ID}.status"
+                ),
+                "release_ledger_schema_epoch": ledger_data.get(
+                    f"{CHANGE_ID}.schema_epoch"
+                ),
+                "recovery_audit": {
+                    key: audit_data.get(f"{CHANGE_ID}.{key}")
+                    for key in (
+                        "status",
+                        "schema_epoch",
+                        "api_version",
+                        "worker_version",
+                        "credential_generation",
+                        "migration_job_uid",
+                        "transition_job_uid",
+                        "publication_job_uid",
+                        "preparation_resolution",
+                        "release_resolution",
+                    )
+                },
+            },
         },
     )
 
