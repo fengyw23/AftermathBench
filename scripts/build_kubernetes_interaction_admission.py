@@ -13,15 +13,20 @@ from aftermath_bench.integrations.kubernetes_interaction_prefix import (
     API_V2,
     BATCH_STATE,
     BACKUP_JOB,
+    AUDIT_CONTRACT,
     CHANGE_ID,
     CHANGE_RECORD,
     COMPATIBILITY_BRIDGE,
+    COMPATIBILITY_CONTRACT,
+    CONTROLLER_CONTRACT,
+    CREDENTIAL_CONTRACT,
     CURRENT_VERSION,
     CURRENT_CREDENTIAL,
     DATABASE_CATALOG,
     MIGRATION_LABEL,
     NEXT_CREDENTIAL,
     PUBLICATION_LABEL,
+    PUBLICATION_CONTRACT,
     RECOVERY_AUDIT,
     RECOVERY_AUDIT_KEY,
     REGISTRY_COMPENSATION_KEY,
@@ -30,6 +35,7 @@ from aftermath_bench.integrations.kubernetes_interaction_prefix import (
     REGISTRY_STABLE_KEY,
     RELEASE_LEDGER,
     SCENARIO_ID,
+    SCHEMA_CONTRACT,
     TARGET_VERSION,
     TRANSITION_LABEL,
     WORKER_V1,
@@ -261,21 +267,21 @@ def _observed_graph() -> dict[str, Any]:
         ("closure_event", "ExternalEvent"),
     )
     relations = (
-        _relation("schema_contract", "catalog", "constrains_epoch", _equals("contracts.schema-contract", True), _equals("catalog.preserved", True)),
+        _relation("schema_contract", "catalog", "constrains_epoch", _equals(f"contracts.{SCHEMA_CONTRACT}", True), _equals("catalog.preserved", True)),
         _relation("catalog", "migration_job", "attested_by", _equals("owners.migration_count", 1)),
         _relation("catalog", "api_v2", "constrains_api_epoch", _intersects("consumers.api", "expected.api_version")),
         _relation("catalog", "worker_v2", "constrains_worker_epoch", _intersects("consumers.worker", "expected.worker_version")),
-        _relation("compatibility_contract", "bridge", "governs_lease", _equals("contracts.compatibility-contract", True), _intersects("shared.bridge", "expected.bridge_lease")),
+        _relation("compatibility_contract", "bridge", "governs_lease", _equals(f"contracts.{COMPATIBILITY_CONTRACT}", True), _intersects("shared.bridge", "expected.bridge_lease")),
         _relation("bridge", "worker_v1", "temporarily_compatibilizes", _intersects("consumers.worker", "expected.worker_version")),
         _relation("batch", "worker_v1", "protects_nonreplayable_work", _intersects("shared.batch", "expected.batch_state")),
-        _relation("credential_contract", "current_credential", "governs_rotation", _equals("contracts.credential-contract", True), _intersects("shared.credential_generation", "expected.credential_generation")),
+        _relation("credential_contract", "current_credential", "governs_rotation", _equals(f"contracts.{CREDENTIAL_CONTRACT}", True), _intersects("shared.credential_generation", "expected.credential_generation")),
         _relation("current_credential", "api_v2", "shared_by", _equals("consumers.api_available", True)),
         _relation("current_credential", "worker_v2", "shared_by", _equals("consumers.worker_available", True)),
         _relation("next_credential", "api_v2", "candidate_dependency", _intersects("consumers.candidate_present", "expected.candidate_present")),
-        _relation("controller_contract", "transition_job", "owns_transition", _equals("contracts.controller-contract", True)),
+        _relation("controller_contract", "transition_job", "owns_transition", _equals(f"contracts.{CONTROLLER_CONTRACT}", True)),
         _relation("transition_job", "worker_v2", "advances_worker", _intersects("consumers.worker", "expected.worker_version")),
-        _relation("controller_contract", "publication_job", "owns_publication", _equals("contracts.controller-contract", True)),
-        _relation("publication_contract", "publication_job", "guards_publication", _equals("contracts.publication-contract", True)),
+        _relation("controller_contract", "publication_job", "owns_publication", _equals(f"contracts.{CONTROLLER_CONTRACT}", True)),
+        _relation("publication_contract", "publication_job", "guards_publication", _equals(f"contracts.{PUBLICATION_CONTRACT}", True)),
         _relation("api_v2", "publication_job", "publication_precondition", _intersects("consumers.api", "expected.api_version")),
         _relation("worker_v2", "publication_job", "publication_precondition", _intersects("consumers.worker", "expected.worker_version")),
         _relation("current_credential", "publication_job", "publication_precondition", _intersects("shared.credential_generation", "expected.credential_generation")),
@@ -285,7 +291,7 @@ def _observed_graph() -> dict[str, Any]:
         _relation("release", "release_ledger", "closes_release", _equals("closure.ledger", True)),
         _relation("stable_release", "release_ledger", "preserves_history", _equals("external.stable", True)),
         _relation("release_ledger", "recovery_audit", "reconciled_by", _equals("closure.audit", True)),
-        _relation("audit_contract", "recovery_audit", "defines_fields", _equals("contracts.audit-contract", True)),
+        _relation("audit_contract", "recovery_audit", "defines_fields", _equals(f"contracts.{AUDIT_CONTRACT}", True)),
         _relation("change_record", "recovery_audit", "closes_change", _equals("closure.change", True)),
         _relation("recovery_audit", "closure_event", "emits_closure", _equals("external.closure", True), _equals("external.exactly_once", True)),
         _relation("backup_job", "catalog", "guards_epoch", _equals("preservation.backup", True)),
@@ -351,6 +357,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-directory", type=Path, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument(
+        "--blueprint",
+        type=Path,
+        help=(
+            "Explicit instance blueprint. Defaults to the legacy "
+            "scenario-id directory convention."
+        ),
+    )
     args = parser.parse_args()
     run_root = args.run_directory.resolve()
     runtime = run_root / "runtime"
@@ -394,13 +408,22 @@ def main() -> int:
         ],
     }
     blueprint_path = (
-        repository_root()
-        / "data"
-        / "scenario_blueprints"
-        / SCENARIO_ID
-        / "scenario.json"
+        args.blueprint.resolve()
+        if args.blueprint is not None
+        else (
+            repository_root()
+            / "data"
+            / "scenario_blueprints"
+            / SCENARIO_ID
+            / "scenario.json"
+        )
     )
     blueprint = _read(blueprint_path)
+    if str(blueprint.get("scenario_id", "")) != SCENARIO_ID:
+        raise ValueError(
+            "blueprint scenario_id does not match the active instance: "
+            f"blueprint={blueprint.get('scenario_id')}, active={SCENARIO_ID}"
+        )
     prompt_audit = build_interaction_prompt_audit(
         load_native_scenario(blueprint_path),
         variant_facts={

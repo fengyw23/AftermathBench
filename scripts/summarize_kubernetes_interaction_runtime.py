@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from aftermath_bench.evidence_projection import projection_admission_report
+from aftermath_bench.integrations.kubernetes_interaction_prefix import (
+    SCENARIO_ID,
+)
 from aftermath_bench.integrations.kubernetes_interaction_scope import (
     INTERACTION_FACT_GROUPS,
     KUBERNETES_INTERACTION_VARIANTS,
@@ -51,7 +54,7 @@ def main() -> int:
     )
     projection.update(
         {
-            "scenario_id": "k8s-constraint-interactions-dev-005",
+            "scenario_id": SCENARIO_ID,
             "source": "replayed native Kubernetes failure boundaries",
         }
     )
@@ -87,7 +90,7 @@ def main() -> int:
     }
     summary = {
         "schema_version": "1.0",
-        "scenario_id": "k8s-constraint-interactions-dev-005",
+        "scenario_id": SCENARIO_ID,
         "variant_count": len(boundaries),
         "reference_pass_count": sum(
             bool(report.get("evaluation", {}).get("passed"))
