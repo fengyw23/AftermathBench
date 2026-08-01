@@ -13,6 +13,7 @@ from aftermath_bench.integrations.kubernetes_stack import (
     KubernetesStack,
     _patch_etcd_manifest_data_path,
     _patch_etcd_manifest_snapshot_mount,
+    _patch_static_pod_manifest_replay_token,
 )
 
 
@@ -195,12 +196,15 @@ class KubernetesStackBundleTests(unittest.TestCase):
         with (
             patch.object(
                 KubernetesStack,
-                "_control_plane_container",
-                side_effect=["old-manager", "old-scheduler"],
-            ),
-            patch.object(
-                KubernetesStack,
                 "_docker",
+                side_effect=[
+                    "apiVersion: v1\nkind: Pod\nmetadata:\n  name: manager\n",
+                    "",
+                    "",
+                    "apiVersion: v1\nkind: Pod\nmetadata:\n  name: scheduler\n",
+                    "",
+                    "",
+                ],
             ) as docker,
             patch.object(
                 KubernetesStack,
@@ -225,8 +229,8 @@ class KubernetesStackBundleTests(unittest.TestCase):
             },
         )
         self.assertEqual(
-            [call.args[-1] for call in docker.call_args_list],
-            ["old-manager", "old-scheduler"],
+            [call.args[0] for call in docker.call_args_list],
+            ["exec", "cp", "exec", "exec", "cp", "exec"],
         )
         self.assertEqual(wait_restarted.call_count, 2)
         wait_ready.assert_called_once_with(
@@ -234,47 +238,26 @@ class KubernetesStackBundleTests(unittest.TestCase):
             delay_seconds=0,
         )
 
-    def test_restore_accepts_consumers_that_restart_during_etcd_recovery(
-        self,
-    ) -> None:
-        stack = KubernetesStack(
-            cluster_name="aftermath-kubernetes",
-            node_image="node@sha256:test",
-            config=Path("kind.yaml"),
+    def test_static_pod_replay_token_is_inserted_and_replaced(self) -> None:
+        original = (
+            "apiVersion: v1\n"
+            "kind: Pod\n"
+            "metadata:\n"
+            "  labels:\n"
+            "    component: kube-controller-manager\n"
+            "  name: kube-controller-manager\n"
+            "spec:\n"
+            "  containers: []\n"
         )
-        with (
-            patch.object(
-                KubernetesStack,
-                "_control_plane_container",
-                side_effect=[
-                    "new-manager",
-                    RuntimeError("scheduler is restarting"),
-                ],
-            ),
-            patch.object(KubernetesStack, "_docker") as docker,
-            patch.object(
-                KubernetesStack,
-                "_wait_control_plane_container_restarted",
-                side_effect=["new-manager", "new-scheduler"],
-            ),
-            patch.object(KubernetesStack, "_wait_api_ready"),
-        ):
-            observed = stack._restart_control_plane_consumers(
-                {
-                    "kube-controller-manager": "old-manager",
-                    "kube-scheduler": "old-scheduler",
-                },
-                attempts=2,
-                delay_seconds=0,
-            )
-        self.assertEqual(
-            observed,
-            {
-                "kube-controller-manager": "new-manager",
-                "kube-scheduler": "new-scheduler",
-            },
+        first = _patch_static_pod_manifest_replay_token(original, "a" * 32)
+        second = _patch_static_pod_manifest_replay_token(first, "b" * 32)
+        self.assertIn("  annotations:\n", first)
+        self.assertIn(
+            "    aftermathbench.dev/replay-token: " + "a" * 32,
+            first,
         )
-        docker.assert_not_called()
+        self.assertNotIn("a" * 32, second)
+        self.assertEqual(second.count("aftermathbench.dev/replay-token"), 1)
 
     def test_restore_rejects_incomplete_previous_consumer_identities(self) -> None:
         stack = KubernetesStack(

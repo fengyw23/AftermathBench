@@ -24,6 +24,8 @@ _BUNDLE_FILES = {
     "external_registry": "webhook-sink.sqlite3",
 }
 _ETCD_MANIFEST_PATH = "/etc/kubernetes/manifests/etcd.yaml"
+_CONTROL_PLANE_MANIFEST_ROOT = "/etc/kubernetes/manifests"
+_REPLAY_TOKEN_ANNOTATION = "aftermathbench.dev/replay-token"
 _ETCD_BUNDLE_HOST_ROOT = "/var/lib/aftermath-etcd-bundles"
 _ETCD_BUNDLE_MOUNT = "/aftermath-etcd-bundles"
 _ETCD_BUNDLE_VOLUME = "aftermath-etcd-bundles"
@@ -104,6 +106,55 @@ def _patch_etcd_manifest_data_path(text: str, data_path: str) -> str:
     path_index = path_indexes[0]
     indentation = lines[path_index][: len(lines[path_index]) - len(lines[path_index].lstrip())]
     lines[path_index] = f"{indentation}path: {data_path}"
+    return "\n".join(lines) + "\n"
+
+
+def _patch_static_pod_manifest_replay_token(text: str, token: str) -> str:
+    """Force one kubeadm static Pod to restart without crash-loop backoff."""
+
+    if len(token) != 32 or any(
+        character not in "0123456789abcdef" for character in token
+    ):
+        raise ValueError(
+            "replay token must be 32 lowercase hexadecimal characters"
+        )
+    lines = text.splitlines()
+    metadata_indexes = [
+        index for index, line in enumerate(lines) if line == "metadata:"
+    ]
+    if len(metadata_indexes) != 1:
+        raise ValueError("unsupported kubeadm static-pod metadata shape")
+    metadata_index = metadata_indexes[0]
+    block_end = len(lines)
+    for index in range(metadata_index + 1, len(lines)):
+        if lines[index] and not lines[index][0].isspace():
+            block_end = index
+            break
+    annotation_headers = [
+        index
+        for index in range(metadata_index + 1, block_end)
+        if lines[index] == "  annotations:"
+    ]
+    token_prefix = f"    {_REPLAY_TOKEN_ANNOTATION}:"
+    token_indexes = [
+        index
+        for index in range(metadata_index + 1, block_end)
+        if lines[index].startswith(token_prefix)
+    ]
+    if len(annotation_headers) > 1 or len(token_indexes) > 1:
+        raise ValueError("ambiguous kubeadm static-pod annotations")
+    token_line = f"{token_prefix} {token}"
+    if token_indexes:
+        if not annotation_headers:
+            raise ValueError("replay token is outside an annotations mapping")
+        lines[token_indexes[0]] = token_line
+    elif annotation_headers:
+        lines.insert(annotation_headers[0] + 1, token_line)
+    else:
+        lines[metadata_index + 1 : metadata_index + 1] = [
+            "  annotations:",
+            token_line,
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -300,27 +351,28 @@ class KubernetesStack:
             not previous[component] for component in components
         ):
             raise ValueError("previous control-plane identities are incomplete")
+        replay_token = uuid.uuid4().hex
         for component in components:
-            try:
-                current = self._control_plane_container(component)
-            except RuntimeError:
-                # The static pod may already be between its old and new
-                # container while etcd is being replaced. The identity wait
-                # below is the authoritative liveness check.
-                current = ""
-            if current == previous[component]:
-                try:
-                    self._docker(
-                        "exec",
-                        self.node_container,
-                        "crictl",
-                        "stop",
-                        previous[component],
-                    )
-                except RuntimeError:
-                    # A race in which kubelet removed the old container after
-                    # the read is safe only if a new identity appears below.
-                    pass
+            path = f"{_CONTROL_PLANE_MANIFEST_ROOT}/{component}.yaml"
+            original = self._docker(
+                "exec", self.node_container, "cat", path
+            )
+            patched = _patch_static_pod_manifest_replay_token(
+                original,
+                replay_token,
+            )
+            with tempfile.TemporaryDirectory(
+                prefix=f"aftermath-{component}-manifest-"
+            ) as raw:
+                local = Path(raw) / f"{component}.yaml"
+                local.write_text(patched, encoding="utf-8", newline="\n")
+                remote = f"{path}.aftermath"
+                self._docker(
+                    "cp", str(local), f"{self.node_container}:{remote}"
+                )
+                self._docker(
+                    "exec", self.node_container, "mv", remote, path
+                )
         restarted = {
             component: self._wait_control_plane_container_restarted(
                 component,
