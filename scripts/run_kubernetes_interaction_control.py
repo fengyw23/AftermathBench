@@ -5,13 +5,72 @@ import json
 from pathlib import Path
 
 from aftermath_bench.integrations.kubernetes_api import KubernetesApi
-from aftermath_bench.integrations.kubernetes_interaction_prefix import SCENARIO_ID
+from aftermath_bench.integrations.kubernetes_interaction_prefix import (
+    API_V2,
+    CHANGE_ID,
+    CHANGE_RECORD,
+    NEXT_CREDENTIAL,
+    RECOVERY_AUDIT,
+    RELEASE_LEDGER,
+    SCENARIO_ID,
+    WORKER_V2,
+)
 from aftermath_bench.integrations.kubernetes_interaction_recovery import (
     KubernetesInteractionEnvironment,
     evaluate_kubernetes_interaction_recovery,
     reference_kubernetes_interaction_recovery,
 )
 from aftermath_bench.integrations.kubernetes_stack import KubernetesStack
+
+
+def _named(documents: list[dict], name: str) -> dict:
+    return next(
+        (
+            item
+            for item in documents
+            if item.get("metadata", {}).get("name") == name
+        ),
+        {},
+    )
+
+
+def _observed_terminal(evidence: dict) -> dict:
+    configmaps = evidence.get("configmaps", [])
+    deployments = evidence.get("deployments", [])
+    secrets = evidence.get("secrets", [])
+    change = _named(configmaps, CHANGE_RECORD).get("data", {})
+    ledger = _named(configmaps, RELEASE_LEDGER).get("data", {})
+    audit = _named(configmaps, RECOVERY_AUDIT).get("data", {})
+    return {
+        "candidate_present": all(
+            _named(documents, name)
+            for documents, name in (
+                (deployments, API_V2),
+                (deployments, WORKER_V2),
+                (secrets, NEXT_CREDENTIAL),
+            )
+        ),
+        "change_record_state": change.get(f"{CHANGE_ID}.state"),
+        "release_ledger_status": ledger.get(f"{CHANGE_ID}.status"),
+        "release_ledger_schema_epoch": ledger.get(
+            f"{CHANGE_ID}.schema_epoch"
+        ),
+        "recovery_audit": {
+            key: audit.get(f"{CHANGE_ID}.{key}")
+            for key in (
+                "status",
+                "schema_epoch",
+                "api_version",
+                "worker_version",
+                "credential_generation",
+                "migration_job_uid",
+                "transition_job_uid",
+                "publication_job_uid",
+                "preparation_resolution",
+                "release_resolution",
+            )
+        },
+    }
 
 
 def main() -> int:
@@ -91,9 +150,7 @@ def main() -> int:
                     if not passed
                 ],
                 "failures": list(evaluation.failures),
-                "observed_terminal": evaluation.diagnostics.get(
-                    "observed_terminal"
-                ),
+                "observed_terminal": _observed_terminal(evidence),
             },
             indent=2,
         )

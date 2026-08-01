@@ -586,33 +586,6 @@ def evaluate_kubernetes_interaction_recovery(
             "allowed_external_keys": sorted(allowed_keys),
             "actual_external_keys": sorted(actual_keys),
             "protocol_violations": evidence.get("protocol_violations", []),
-            "observed_terminal": {
-                "candidate_present": candidate_present,
-                "change_record_state": change.get("data", {}).get(
-                    f"{CHANGE_ID}.state"
-                ),
-                "release_ledger_status": ledger_data.get(
-                    f"{CHANGE_ID}.status"
-                ),
-                "release_ledger_schema_epoch": ledger_data.get(
-                    f"{CHANGE_ID}.schema_epoch"
-                ),
-                "recovery_audit": {
-                    key: audit_data.get(f"{CHANGE_ID}.{key}")
-                    for key in (
-                        "status",
-                        "schema_epoch",
-                        "api_version",
-                        "worker_version",
-                        "credential_generation",
-                        "migration_job_uid",
-                        "transition_job_uid",
-                        "publication_job_uid",
-                        "preparation_resolution",
-                        "release_resolution",
-                    )
-                },
-            },
         },
     )
 
