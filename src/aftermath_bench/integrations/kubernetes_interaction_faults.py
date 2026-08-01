@@ -1,28 +1,29 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any
 
 from .kubernetes_api import KubernetesApi
 from .kubernetes_interaction_prefix import (
-    APPLICATION,
     API_SERVICE,
     API_V1,
     API_V2,
+    APPLICATION,
+    BATCH_STATE,
     COMPATIBILITY_BRIDGE,
+    CURRENT_CREDENTIAL,
     CURRENT_EPOCH,
     CURRENT_VERSION,
-    CURRENT_CREDENTIAL,
     DATABASE_CATALOG,
     MIGRATION_LABEL,
     NAMESPACE,
     PUBLICATION_LABEL,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
-    TRANSITION_LABEL,
     TARGET_EPOCH,
     TARGET_VERSION,
-    BATCH_STATE,
+    TRANSITION_LABEL,
     WORKER_V1,
     WORKER_V2,
     interaction_migration_job_manifest,
@@ -157,14 +158,67 @@ class KubernetesInteractionFaultBoundary:
     def _migration(self, state: str) -> dict[str, Any]:
         failed = state == "failed"
         job = self.api.create(interaction_migration_job_manifest(failed=failed))
-        self.api.wait_condition(
-            "job",
-            str(job["metadata"]["name"]),
-            condition="failed" if failed else "complete",
-            namespace=NAMESPACE,
-        )
+        name = str(job["metadata"]["name"])
+        try:
+            self.api.wait_condition(
+                "job",
+                name,
+                condition="failed" if failed else "complete",
+                namespace=NAMESPACE,
+            )
+        except RuntimeError as error:
+            try:
+                observed_job = self.api.get("job", name, namespace=NAMESPACE)
+                pods = self.api.list(
+                    "pods",
+                    namespace=NAMESPACE,
+                    selector=f"job-name={name}",
+                )
+                job_uid = str(observed_job.get("metadata", {}).get("uid", ""))
+                events = [
+                    item
+                    for item in self.api.events(namespace=NAMESPACE)
+                    if str(item.get("involvedObject", {}).get("name", ""))
+                    in {name, *(str(p.get("metadata", {}).get("name", "")) for p in pods)}
+                    or (
+                        job_uid
+                        and str(item.get("involvedObject", {}).get("uid", ""))
+                        == job_uid
+                    )
+                ]
+                diagnostic = {
+                    "job_status": observed_job.get("status", {}),
+                    "pods": [
+                        {
+                            "name": pod.get("metadata", {}).get("name"),
+                            "phase": pod.get("status", {}).get("phase"),
+                            "reason": pod.get("status", {}).get("reason"),
+                            "conditions": pod.get("status", {}).get(
+                                "conditions", []
+                            ),
+                            "container_statuses": pod.get("status", {}).get(
+                                "containerStatuses", []
+                            ),
+                        }
+                        for pod in pods
+                    ],
+                    "events": [
+                        {
+                            "reason": item.get("reason"),
+                            "message": item.get("message"),
+                            "involved": item.get("involvedObject", {}),
+                        }
+                        for item in events[-20:]
+                    ],
+                }
+            except RuntimeError as diagnostic_error:
+                diagnostic = {"diagnostic_error": str(diagnostic_error)}
+            raise RuntimeError(
+                "migration job did not reach its declared terminal condition: "
+                + json.dumps(diagnostic, ensure_ascii=False, separators=(",", ":"))
+            ) from error
         return self.api.get(
-            "job", str(job["metadata"]["name"]), namespace=NAMESPACE
+            "job", name, namespace=NAMESPACE
         )
 
     def _set_consumer(self, component: str, version: str) -> None:
