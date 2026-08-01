@@ -91,9 +91,9 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
     exact_policy_pairs = [
         (
             run_root
-            / "runtime"
-            / "state-evidence"
-            / f"{variant}-boundary.json",
+            / "baselines"
+            / "pre-state"
+            / f"{baseline}-{variant}-boundary.json",
             run_root
             / "baselines"
             / "pre-state"
@@ -155,7 +155,7 @@ def verify_public_dev_admission(run_root: Path) -> dict[str, Any]:
             report.get("scenario_id") == SCENARIO_ID
             for report in baseline_reports
         ),
-        "fixed_policies_start_from_exact_admitted_boundaries": (
+        "fixed_policies_start_from_byte_locked_native_boundaries": (
             exact_pairs_pass(exact_policy_pairs)
         ),
         "fixed_policy_hard_gate_passes": (

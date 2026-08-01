@@ -28,14 +28,16 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
 
     def test_workflow_runs_complete_fixed_matrix_without_provider(self) -> None:
         self.assertIn("Replay thirteen exact native boundaries", self.workflow)
-        self.assertIn("Replay 117 fixed policies from exact", self.workflow)
+        self.assertIn("Replay 117 fixed policies from byte-locked", self.workflow)
         self.assertIn("verify_kubernetes_interaction_public_dev_admission.py", self.workflow)
         lowered = self.workflow.lower()
         self.assertNotIn("api_key", lowered)
         self.assertNotIn("secrets.", lowered)
         self.assertNotIn("run-native-model", lowered)
 
-    def test_every_consumer_restores_one_uid_preserving_boundary(self) -> None:
+    def test_references_restore_and_fixed_policies_byte_lock_boundaries(
+        self,
+    ) -> None:
         self.assertIn("Install checksum-pinned etcdutl", self.workflow)
         self.assertIn("prepare-snapshot-runtime", self.workflow)
         self.assertIn("snapshot-bundle", self.workflow)
@@ -43,14 +45,15 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         self.assertIn("--expected", self.workflow)
         self.assertIn("--wait-seconds 180", self.workflow)
         baseline_step = self.workflow.index(
-            "Replay 117 fixed policies from exact native boundaries"
+            "Replay 117 fixed policies from byte-locked native boundaries"
         )
         admission_step = self.workflow.index(
             "Build and verify replay-derived hard admission"
         )
         baseline_text = self.workflow[baseline_step:admission_step]
-        self.assertIn("restore-bundle", baseline_text)
-        self.assertNotIn("run_kubernetes_interaction_boundary.py", baseline_text)
+        self.assertNotIn("restore-bundle", baseline_text)
+        self.assertIn("run_kubernetes_interaction_boundary.py", baseline_text)
+        self.assertIn("--expected", baseline_text)
         self.assertIn(
             '"src/aftermath_bench/integrations/kubernetes_stack.py"',
             self.workflow,

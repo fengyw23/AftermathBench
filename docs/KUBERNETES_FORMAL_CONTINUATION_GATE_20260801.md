@@ -149,14 +149,21 @@ novelty validator must reject relabelled `dev-005` data.
 
 ### K2 — native validation on the fresh instance
 
-Construct all 13 variants before provider access. For each exact boundary:
+Construct all 13 variants before provider access. For each reference boundary:
 
 - snapshot the bundle;
 - run and replay the reference;
-- run all nine fixed policies;
 - derive hard admission from executable evidence;
 - require the existing task-difficulty gates;
 - prove that one fixed action sequence cannot solve the matched group.
+
+The nine fixed policies are admission probes rather than compared model runs.
+Each policy therefore constructs its own native instance of the same declared
+counterfactual boundary and byte-locks that state immediately before execution.
+It does not claim runtime-generated UIDs equal the reference instance. This
+keeps fixed-policy admission executable without spending an etcd restore for
+all 117 probes. Execution controls and model runs remain bound to the frozen
+reference bundles and may not use this semantic-instance exception.
 
 ### K3 — formal evidence portability
 

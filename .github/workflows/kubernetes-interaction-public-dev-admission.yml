@@ -177,12 +177,12 @@ jobs:
             --output "$run_root/runtime-summary.json" \
             --projection-output "$run_root/projection-witnesses.json"
 
-      - name: Replay 117 fixed policies from exact native boundaries
+      - name: Replay 117 fixed policies from byte-locked native boundaries
         run: |
           run_root="$RUNNER_TEMP/kubernetes-public-dev-admission"
-          sensitive_root="$RUNNER_TEMP/kubernetes-public-dev-sensitive"
-          registry_database="$RUNNER_TEMP/kubernetes-public-dev-registry/webhook-sink.sqlite3"
-          mkdir -p "$run_root/baselines/pre-state"
+          mkdir -p \
+            "$run_root/baselines/pre-state" \
+            "$run_root/baselines/boundary-reports"
           variants=(
             state_01 state_02 state_03 state_04 state_05 state_06 state_07
             state_08 state_09 state_10 state_11 state_12 state_13
@@ -194,16 +194,20 @@ jobs:
           )
           for baseline in "${baselines[@]}"; do
             for variant in "${variants[@]}"; do
-              bundle="$sensitive_root/boundary-$variant"
-              boundary="$run_root/runtime/state-evidence/$variant-boundary.json"
+              boundary="$run_root/baselines/pre-state/$baseline-$variant-boundary.json"
               pre_state="$run_root/baselines/pre-state/$baseline-$variant.json"
-              python scripts/manage_kubernetes_stack.py restore-bundle \
-                --snapshot "$bundle" \
-                --registry-database "$registry_database"
+              python scripts/run_kubernetes_interaction_boundary.py \
+                --variant "$variant" \
+                --prefix-output "$run_root/runtime/prefix.json" \
+                --output \
+                  "$run_root/baselines/boundary-reports/$baseline-$variant.json"
+              python scripts/capture_kubernetes_interaction_state_evidence.py \
+                --variant "$variant" \
+                --output "$boundary"
               python scripts/capture_kubernetes_interaction_state_evidence.py \
                 --variant "$variant" \
                 --expected "$boundary" \
-                --wait-seconds 180 \
+                --wait-seconds 30 \
                 --output "$pre_state"
               python scripts/run_kubernetes_interaction_baseline.py \
                 --baseline "$baseline" \

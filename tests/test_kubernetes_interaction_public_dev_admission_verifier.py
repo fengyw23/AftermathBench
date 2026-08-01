@@ -110,6 +110,17 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
                     root
                     / "baselines"
                     / "pre-state"
+                    / f"{baseline}-{variant}-boundary.json",
+                    {
+                        "scenario_id": SCENARIO_ID,
+                        "variant_id": variant,
+                        "state_sha256": f"sha-{variant}",
+                    },
+                )
+                _write(
+                    root
+                    / "baselines"
+                    / "pre-state"
                     / f"{baseline}-{variant}.json",
                     {
                         "scenario_id": SCENARIO_ID,
@@ -190,7 +201,7 @@ class KubernetesInteractionPublicDevAdmissionVerifierTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertFalse(
             report["checks"][
-                "fixed_policies_start_from_exact_admitted_boundaries"
+                "fixed_policies_start_from_byte_locked_native_boundaries"
             ]
         )
 
