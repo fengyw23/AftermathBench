@@ -5,6 +5,9 @@ import json
 from itertools import combinations
 from typing import Any
 
+from .integrations.kubernetes_interaction_instance import (
+    ACTIVE_KUBERNETES_INTERACTION_INSTANCE as INTERACTION_INSTANCE,
+)
 from .integrations.kubernetes_interaction_prefix import interaction_prefix_manifests
 from .integrations.kubernetes_interaction_scope import derive_interaction_scope
 from .native_kubernetes_interaction_family import (
@@ -65,12 +68,12 @@ def build_interaction_prompt_audit(
         execution_control=False,
     )
     contracts = {
-        "schema": "schema-contract",
-        "compatibility": "compatibility-contract",
-        "credential": "credential-contract",
-        "controller": "controller-contract",
-        "publication": "publication-contract",
-        "closure": "audit-contract",
+        "schema": INTERACTION_INSTANCE.schema_contract,
+        "compatibility": INTERACTION_INSTANCE.compatibility_contract,
+        "credential": INTERACTION_INSTANCE.credential_contract,
+        "controller": INTERACTION_INSTANCE.controller_contract,
+        "publication": INTERACTION_INSTANCE.publication_contract,
+        "closure": INTERACTION_INSTANCE.audit_contract,
     }
     surfaces = [
         _surface("ordinary_initial_message", ordinary_message),
