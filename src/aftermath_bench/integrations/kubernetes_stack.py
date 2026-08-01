@@ -28,6 +28,7 @@ _REPLAY_TOKEN_ANNOTATION = "aftermathbench.dev/replay-token"
 _ETCD_BUNDLE_HOST_ROOT = "/var/lib/aftermath-etcd-bundles"
 _ETCD_BUNDLE_MOUNT = "/aftermath-etcd-bundles"
 _ETCD_BUNDLE_VOLUME = "aftermath-etcd-bundles"
+_CONTROL_PLANE_LEASES = ("kube-controller-manager", "kube-scheduler")
 
 
 def _sha256_file(path: Path) -> str:
@@ -389,7 +390,69 @@ class KubernetesStack:
             attempts=attempts,
             delay_seconds=delay_seconds,
         )
+        self._wait_control_plane_leases_renewed(
+            attempts=attempts,
+            delay_seconds=delay_seconds,
+        )
         return restarted
+
+    def _control_plane_lease_renew_times(self) -> dict[str, str]:
+        payload = json.loads(
+            self._run(
+                (
+                    self.kubectl,
+                    "--context",
+                    self.context,
+                    "get",
+                    "leases.coordination.k8s.io",
+                    *_CONTROL_PLANE_LEASES,
+                    "-n",
+                    "kube-system",
+                    "-o",
+                    "json",
+                )
+            )
+        )
+        observed = {
+            str(item.get("metadata", {}).get("name", "")): str(
+                item.get("spec", {}).get("renewTime", "")
+            )
+            for item in payload.get("items", [])
+        }
+        if set(observed) != set(_CONTROL_PLANE_LEASES) or any(
+            not observed[name] for name in _CONTROL_PLANE_LEASES
+        ):
+            raise RuntimeError(
+                "control-plane leader leases are incomplete: "
+                f"observed={observed}"
+            )
+        return observed
+
+    def _wait_control_plane_leases_renewed(
+        self,
+        *,
+        attempts: int = 180,
+        delay_seconds: float = 1.0,
+    ) -> dict[str, str]:
+        """Prove controllers are actively consuming the restored keyspace."""
+
+        initial = self._control_plane_lease_renew_times()
+        latest = dict(initial)
+        for _attempt in range(attempts):
+            time.sleep(delay_seconds)
+            try:
+                latest = self._control_plane_lease_renew_times()
+            except RuntimeError:
+                continue
+            if all(
+                latest[name] != initial[name]
+                for name in _CONTROL_PLANE_LEASES
+            ):
+                return latest
+        raise RuntimeError(
+            "control-plane leader leases did not renew after exact restore: "
+            f"initial={initial}, latest={latest}"
+        )
 
     def _read_etcd_manifest(self) -> str:
         return self._docker(

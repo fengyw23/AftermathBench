@@ -133,6 +133,12 @@ rebuilding the other two consumers clears their informer caches. Directly
 stopping the same containers repeatedly is forbidden because kubelet can
 interpret it as repeated failure and apply crash-loop backoff.
 
+Container replacement and API readiness alone are insufficient: a restored
+controller can be running before its informers and leader election are ready.
+The restore gate therefore observes both the controller-manager and scheduler
+leader-election Leases renew after the restart before handing the boundary to
+the next reference, policy or model consumer.
+
 Official operational references:
 
 - <https://etcd.io/docs/v3.7/op-guide/recovery/>

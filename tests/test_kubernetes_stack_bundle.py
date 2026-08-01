@@ -155,6 +155,37 @@ class KubernetesStackBundleTests(unittest.TestCase):
             attempts=2,
             delay_seconds=0,
         )
+    def test_restore_waits_for_both_control_plane_leases_to_renew(self) -> None:
+        stack = KubernetesStack(
+            cluster_name="aftermath-kubernetes",
+            node_image="node@sha256:test",
+            config=Path("kind.yaml"),
+        )
+        initial = {
+            "kube-controller-manager": "2026-08-01T18:00:00Z",
+            "kube-scheduler": "2026-08-01T18:00:00Z",
+        }
+        manager_only = initial | {
+            "kube-controller-manager": "2026-08-01T18:00:02Z"
+        }
+        both = manager_only | {
+            "kube-scheduler": "2026-08-01T18:00:03Z"
+        }
+        with (
+            patch.object(
+                KubernetesStack,
+                "_control_plane_lease_renew_times",
+                side_effect=[initial, manager_only, both],
+            ) as observe,
+            patch("time.sleep") as sleep,
+        ):
+            renewed = stack._wait_control_plane_leases_renewed(
+                attempts=2,
+                delay_seconds=0,
+            )
+        self.assertEqual(renewed, both)
+        self.assertEqual(observe.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
 
     def test_wait_for_etcd_restart_does_not_retry_api_wait(self) -> None:
         stack = KubernetesStack(
@@ -214,6 +245,10 @@ class KubernetesStackBundleTests(unittest.TestCase):
                 side_effect=["new-apiserver", "new-manager", "new-scheduler"],
             ) as wait_restarted,
             patch.object(KubernetesStack, "_wait_api_ready") as wait_ready,
+            patch.object(
+                KubernetesStack,
+                "_wait_control_plane_leases_renewed",
+            ) as wait_leases,
         ):
             observed = stack._restart_control_plane_consumers(
                 {
@@ -248,6 +283,10 @@ class KubernetesStackBundleTests(unittest.TestCase):
         )
         self.assertEqual(wait_restarted.call_count, 3)
         wait_ready.assert_called_once_with(
+            attempts=2,
+            delay_seconds=0,
+        )
+        wait_leases.assert_called_once_with(
             attempts=2,
             delay_seconds=0,
         )
