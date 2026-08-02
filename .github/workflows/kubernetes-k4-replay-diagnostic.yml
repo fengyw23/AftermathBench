@@ -25,7 +25,9 @@ jobs:
       K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
       K4_RUN_ID: "30741680378"
       K4_ARTIFACT: kubernetes-execution-control-30741680378
-      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-04
+      AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: data/instance_specs/public-dev-slot-003.json
+      TASK_NAMESPACE: aftermath-settlements
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-05
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,10 +59,20 @@ jobs:
               "k4_run_id": int(os.environ["K4_RUN_ID"]),
               "k4_artifact": os.environ["K4_ARTIFACT"],
               "variant": "state_01",
-              "diagnostic_attempt": 5,
+              "diagnostic_attempt": 6,
           }
           if gate != expected:
               raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
+          instance = json.load(
+              open(
+                  os.environ[
+                      "AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC"
+                  ],
+                  encoding="utf-8",
+              )
+          )
+          if instance.get("namespace") != os.environ["TASK_NAMESPACE"]:
+              raise SystemExit("diagnostic namespace differs from the instance spec")
           PY
           gh api \
             --header "X-GitHub-Api-Version: 2022-11-28" \
@@ -176,7 +188,7 @@ jobs:
           done
           test "$offline_ready" = true
           etcdctl --endpoints=http://127.0.0.1:32379 get \
-            /registry/namespaces/aftermath-interactions --write-out=json \
+            "/registry/namespaces/$TASK_NAMESPACE" --write-out=json \
             | jq -r '.count' \
               > "$DIAGNOSTIC_ROOT/offline-task-namespace-count.txt"
           etcdctl --endpoints=http://127.0.0.1:32379 get \
@@ -242,7 +254,7 @@ jobs:
               --cacert=/etc/kubernetes/pki/etcd/ca.crt \
               --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
               --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
-              get /registry/namespaces/aftermath-interactions --write-out=json \
+              get "/registry/namespaces/$TASK_NAMESPACE" --write-out=json \
             2> "$DIAGNOSTIC_ROOT/live-task-namespace-count.stderr.log" \
             | jq -r '.count' \
               > "$DIAGNOSTIC_ROOT/live-task-namespace-count.txt"
@@ -264,7 +276,7 @@ jobs:
           namespace_ready=false
           for attempt in $(seq 1 30); do
             if kubectl --context kind-aftermath-kubernetes \
-                get namespace aftermath-interactions -o name \
+                get namespace "$TASK_NAMESPACE" -o name \
                 >> "$DIAGNOSTIC_ROOT/namespace-readiness.log" 2>&1
             then
               printf 'ready_after_attempt=%s\n' "$attempt" \
@@ -307,7 +319,7 @@ jobs:
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
           if git status --porcelain --untracked-files=all \
-              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-04/' \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-05/' \
               | grep -q .
           then
             echo "unexpected file outside the replay diagnostic allowlist" >&2
