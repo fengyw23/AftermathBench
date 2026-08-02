@@ -36,9 +36,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate the exact failed run and immutable artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Read and validate the diagnostic gate
         run: |
           python - "$GATE_PATH" "$GITHUB_ENV" <<'PY'
           import json
@@ -53,6 +51,7 @@ jobs:
               "k4_run_id",
               "k4_commit",
               "k4_artifact",
+              "diagnostic_attempt",
           }
           if set(gate) != expected_fields:
               raise SystemExit("diagnostic gate fields are not exact")
@@ -69,11 +68,18 @@ jobs:
               raise SystemExit("diagnostic commit is invalid")
           if artifact != f"kubernetes-execution-control-{run_id}":
               raise SystemExit("diagnostic artifact is not bound to the run")
+          if gate["diagnostic_attempt"] != 2:
+              raise SystemExit("diagnostic attempt is invalid")
           with open(sys.argv[2], "a", encoding="utf-8") as handle:
               handle.write(f"K4_RUN_ID={run_id}\n")
               handle.write(f"K4_COMMIT={commit}\n")
               handle.write(f"K4_ARTIFACT={artifact}\n")
           PY
+
+      - name: Validate the exact failed run and immutable artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           gh api \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "repos/$GITHUB_REPOSITORY/actions/runs/$K4_RUN_ID" \
