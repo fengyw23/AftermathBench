@@ -14,6 +14,10 @@ def _money(value: Any) -> float:
     return float(Decimal(str(value)))
 
 
+def _frappe_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+
 @dataclass(frozen=True)
 class ManufacturingPrefix:
     scenario_id: str
@@ -281,8 +285,8 @@ class ERPNextManufacturingPrefixBuilder:
                 {
                     "time_logs": [
                         {
-                            "from_time": start.isoformat(),
-                            "to_time": (start + timedelta(minutes=60)).isoformat(),
+                            "from_time": _frappe_datetime(start),
+                            "to_time": _frappe_datetime(start + timedelta(minutes=60)),
                             "time_in_mins": 60,
                             "completed_qty": quantity,
                         }
@@ -415,7 +419,7 @@ class ERPNextManufacturingPrefixBuilder:
                     "fg_warehouse": warehouses["finished"],
                     "scrap_warehouse": warehouses["scrap"],
                     "transfer_material_against": "Work Order",
-                    "planned_start_date": now.isoformat(),
+                    "planned_start_date": _frappe_datetime(now),
                 },
             )
         )
@@ -506,8 +510,8 @@ class ERPNextManufacturingPrefixBuilder:
         corrective_template["hour_rate"] = self.fixture["hour_rate"]
         corrective_template["time_logs"] = [
             {
-                "from_time": (now + timedelta(hours=4)).isoformat(),
-                "to_time": (now + timedelta(hours=5)).isoformat(),
+                "from_time": _frappe_datetime(now + timedelta(hours=4)),
+                "to_time": _frappe_datetime(now + timedelta(hours=5)),
                 "time_in_mins": 60,
                 "completed_qty": rework_quantity,
             }

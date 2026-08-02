@@ -194,8 +194,12 @@ class ERPNextManufacturingEnvironment(ERPNextPartialReturnEnvironment):
                         }
                     ],
                     "report_date": now.date().isoformat(),
-                    "inspection_started": now.isoformat(),
-                    "inspection_completed": (now + timedelta(minutes=5)).isoformat(),
+                    "inspection_started": now.replace(tzinfo=None).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "inspection_completed": (now + timedelta(minutes=5))
+                    .replace(tzinfo=None)
+                    .strftime("%Y-%m-%d %H:%M:%S"),
                 },
             )
         )
