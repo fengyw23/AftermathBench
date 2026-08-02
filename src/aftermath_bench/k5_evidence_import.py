@@ -12,7 +12,7 @@ from .strict_json import load_json_strict
 K4_WORKFLOW_PATH = (
     ".github/workflows/kubernetes-interaction-execution-control.yml"
 )
-K4_MODEL_ID = "glm-5.2"
+K4_MODEL_ID = "DeepSeek-V4-Pro"
 K4_EXPECTED_CASES = 13
 _GIT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _ARTIFACT_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")

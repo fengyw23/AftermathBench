@@ -40,7 +40,7 @@ def _summary() -> dict[str, object]:
         "stage": "K4-execution-control",
         "source_run_id": SOURCE_RUN_ID,
         "source_commit": SOURCE_COMMIT,
-        "model": "glm-5.2",
+        "model": "DeepSeek-V4-Pro",
         "expected_cases": 13,
         "minimum_pass_rate": 0.8,
         "completed_runs": 13,

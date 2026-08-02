@@ -55,7 +55,7 @@ class KubernetesK4ExecutionControlWorkflowTests(unittest.TestCase):
                 "source_commit": (
                     "ddd961344ba7390744f509b8d6a76ac97a5c24cc"
                 ),
-                "model": "glm-5.2",
+                "model": "DeepSeek-V4-Pro",
                 "minimum_pass_rate": 0.8,
             },
         )
@@ -79,12 +79,12 @@ class KubernetesK4ExecutionControlWorkflowTests(unittest.TestCase):
         verify = self.workflow.index(
             "Verify frozen inputs and replay-bundle provenance without provider access"
         )
-        provider = self.workflow.index("secrets.BAILIAN_API_KEY")
+        provider = self.workflow.index("secrets.PARATERA_API_KEY")
         model = self.workflow.index("run-native-model", provider)
         self.assertLess(verify, provider)
         self.assertLess(provider, model)
         before_provider = self.workflow[:provider].lower()
-        self.assertNotIn("bailian_api_key", before_provider)
+        self.assertNotIn("paratera_api_key", before_provider)
         self.assertIn("verify_formal_input_lock", self.workflow[verify:provider])
         self.assertIn("verify_public_evidence_safe.py", self.workflow[verify:provider])
 
