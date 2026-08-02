@@ -25,7 +25,7 @@ jobs:
       K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
       K4_RUN_ID: "30741680378"
       K4_ARTIFACT: kubernetes-execution-control-30741680378
-      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-03
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +57,7 @@ jobs:
               "k4_run_id": int(os.environ["K4_RUN_ID"]),
               "k4_artifact": os.environ["K4_ARTIFACT"],
               "variant": "state_01",
-              "diagnostic_attempt": 4,
+              "diagnostic_attempt": 5,
           }
           if gate != expected:
               raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
@@ -176,11 +176,17 @@ jobs:
           done
           test "$offline_ready" = true
           etcdctl --endpoints=http://127.0.0.1:32379 get \
-            /registry/namespaces/aftermath-interactions --count-only \
-            > "$DIAGNOSTIC_ROOT/offline-task-namespace-count.txt"
+            /registry/namespaces/aftermath-interactions --write-out=json \
+            | jq -r '.count' \
+              > "$DIAGNOSTIC_ROOT/offline-task-namespace-count.txt"
           etcdctl --endpoints=http://127.0.0.1:32379 get \
-            /registry/ --prefix --count-only \
-            > "$DIAGNOSTIC_ROOT/offline-registry-key-count.txt"
+            /registry/ --prefix --write-out=json \
+            | jq -r '.count' \
+              > "$DIAGNOSTIC_ROOT/offline-registry-key-count.txt"
+          grep -Eq '^[0-9]+$' \
+            "$DIAGNOSTIC_ROOT/offline-task-namespace-count.txt"
+          grep -Eq '^[0-9]+$' \
+            "$DIAGNOSTIC_ROOT/offline-registry-key-count.txt"
           kill "$offline_pid"
           wait "$offline_pid" || true
           trap - EXIT
@@ -236,9 +242,10 @@ jobs:
               --cacert=/etc/kubernetes/pki/etcd/ca.crt \
               --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
               --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
-              get /registry/namespaces/aftermath-interactions --count-only \
-            > "$DIAGNOSTIC_ROOT/live-task-namespace-count.txt" \
-            2> "$DIAGNOSTIC_ROOT/live-task-namespace-count.stderr.log"
+              get /registry/namespaces/aftermath-interactions --write-out=json \
+            2> "$DIAGNOSTIC_ROOT/live-task-namespace-count.stderr.log" \
+            | jq -r '.count' \
+              > "$DIAGNOSTIC_ROOT/live-task-namespace-count.txt"
           docker exec aftermath-kubernetes-control-plane \
             crictl exec "$etcd_container" \
             etcdctl \
@@ -246,11 +253,16 @@ jobs:
               --cacert=/etc/kubernetes/pki/etcd/ca.crt \
               --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
               --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
-              get /registry/ --prefix --count-only \
-            > "$DIAGNOSTIC_ROOT/live-registry-key-count.txt" \
-            2> "$DIAGNOSTIC_ROOT/live-registry-key-count.stderr.log"
+              get /registry/ --prefix --write-out=json \
+            2> "$DIAGNOSTIC_ROOT/live-registry-key-count.stderr.log" \
+            | jq -r '.count' \
+              > "$DIAGNOSTIC_ROOT/live-registry-key-count.txt"
+          grep -Eq '^[0-9]+$' \
+            "$DIAGNOSTIC_ROOT/live-task-namespace-count.txt"
+          grep -Eq '^[0-9]+$' \
+            "$DIAGNOSTIC_ROOT/live-registry-key-count.txt"
           namespace_ready=false
-          for attempt in $(seq 1 180); do
+          for attempt in $(seq 1 30); do
             if kubectl --context kind-aftermath-kubernetes \
                 get namespace aftermath-interactions -o name \
                 >> "$DIAGNOSTIC_ROOT/namespace-readiness.log" 2>&1
@@ -295,7 +307,7 @@ jobs:
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
           if git status --porcelain --untracked-files=all \
-              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-03/' \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-04/' \
               | grep -q .
           then
             echo "unexpected file outside the replay diagnostic allowlist" >&2
