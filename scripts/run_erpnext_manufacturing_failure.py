@@ -198,7 +198,10 @@ def main() -> int:
 
     if args.variant == "database_committed_response_lost":
         time.sleep(2)
-    gateway_events = _request_json("http://127.0.0.1:9091/admin/events").get(
+    # The shared ERPNext fault gateway exposes the persisted audit at
+    # ``/audit``.  ``/admin/reset`` is only the mutating reset endpoint; there
+    # is deliberately no companion ``/admin/events`` route.
+    gateway_events = _request_json("http://127.0.0.1:9091/audit").get(
         "events", []
     )
     evidence = ERPNextManufacturingEvidenceCollector(adapter).collect(prefix)
