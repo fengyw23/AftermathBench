@@ -391,6 +391,73 @@ jobs:
             > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
           test -s "$FORMAL_OUTPUT/completion/declarations.json"
 
+      - name: Publish non-sensitive K4 aggregate metrics
+        if: always()
+        continue-on-error: true
+        run: |
+          python - \
+            "$CONTROL_ROOT/model-runs/summary.json" \
+            "$RUN_ROOT/k4-public-summary.json" \
+            "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          summary_path = Path(sys.argv[1])
+          output_path = Path(sys.argv[2])
+          step_summary_path = Path(sys.argv[3])
+          raw = (
+              json.loads(summary_path.read_text(encoding="utf-8"))
+              if summary_path.is_file()
+              else {}
+          )
+          public = {
+              "schema_version": "1.0",
+              "stage": "K4-execution-control",
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_commit": os.environ["SOURCE_COMMIT"],
+              "model": os.environ["MODEL_ID"],
+              "expected_cases": 13,
+              "minimum_pass_rate": float(os.environ["CONTROL_MIN_PASS_RATE"]),
+              "completed_runs": int(raw.get("completed_runs", 0)),
+              "task_pass_rate": float(raw.get("task_pass_rate", 0.0)),
+              "matched_group_count": int(raw.get("matched_group_count", 0)),
+              "matched_group_success_rate": float(
+                  raw.get("matched_group_success_rate", 0.0)
+              ),
+              "component_pass_rates": dict(raw.get("component_pass_rates", {})),
+              "failure_type_counts": dict(raw.get("failure_type_counts", {})),
+              "execution_control_counts": dict(
+                  raw.get("execution_control_counts", {})
+              ),
+              "run_error_count": len(raw.get("run_errors", [])),
+          }
+          output_path.parent.mkdir(parents=True, exist_ok=True)
+          output_path.write_text(
+              json.dumps(public, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with step_summary_path.open("a", encoding="utf-8") as handle:
+              handle.write("## Kubernetes K4 execution control\n\n")
+              handle.write("| Metric | Result |\n|---|---:|\n")
+              handle.write(
+                  f"| Completed controls | {public['completed_runs']} / 13 |\n"
+              )
+              handle.write(
+                  f"| Recovery Integrity Pass@1 | "
+                  f"{public['task_pass_rate']:.1%} |\n"
+              )
+              handle.write(
+                  f"| Preregistered gate | "
+                  f"{public['minimum_pass_rate']:.1%} |\n"
+              )
+              handle.write(
+                  f"| Provider / collection errors | "
+                  f"{public['run_error_count']} |\n"
+              )
+          PY
+
       - name: Seal K4 evidence and enforce the control gate
         if: always()
         run: |
@@ -398,6 +465,7 @@ jobs:
           test -f "$RUN_ROOT/control-gate-passed"
           test "$(cat "$RUN_ROOT/control-collection-status.txt")" = "0"
           test -s "$FORMAL_OUTPUT/completion/declarations.json"
+          test -s "$RUN_ROOT/k4-public-summary.json"
           python scripts/verify_public_evidence_safe.py \
             --root "$RUN_ROOT" \
             --root "$FORMAL_OUTPUT" \
