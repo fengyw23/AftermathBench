@@ -70,9 +70,16 @@ class ForgejoHiddenLifecycleWorkflowTests(unittest.TestCase):
 
     def test_frozen_source_revision_is_used_for_model_execution(self) -> None:
         self.assertIn("git worktree add --detach", self.text)
+        build = self.text.index("Build pinned Forgejo runtime")
+        start = self.text.index(
+            "Start empty stack required by native bundle restore"
+        )
         consume = self.text.index(
             "Consume frozen instance with one ordinary model evaluation"
         )
+        self.assertLess(build, start)
+        self.assertLess(start, consume)
+        self.assertIn("manage_forgejo_stack.py up", self.text[start:consume])
         self.assertIn('cd "$source_root"', self.text[consume:])
         self.assertIn("recover_forgejo_evaluation_credentials.py", self.text)
 

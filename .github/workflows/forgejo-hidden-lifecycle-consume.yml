@@ -183,6 +183,14 @@ jobs:
             --report "$RUNNER_TEMP/forgejo-source-verification.json" \
             > "$RUNNER_TEMP/forgejo-source-build.log" 2>&1
 
+      - name: Start empty stack required by native bundle restore
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/aftermath-frozen-source"
+          cd "$source_root"
+          PYTHONPATH=src python scripts/manage_forgejo_stack.py up \
+            > "$RUNNER_TEMP/forgejo-empty-stack.log" 2>&1
+
       - name: Select one provider before hidden task access
         env:
           REQUESTED_PROVIDER: ${{ inputs.provider_profile }}
