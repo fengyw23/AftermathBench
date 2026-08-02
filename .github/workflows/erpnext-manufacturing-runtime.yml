@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   native-replay:
@@ -19,6 +19,7 @@ jobs:
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
       RUN_ROOT: runtimes/erpnext/.runtime/manufacturing-rework
       BLUEPRINT: data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json
+      GENERATED_SCENARIO: data/scenarios/erpnext-manufacturing-rework-dev-001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -135,6 +136,32 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Derive strict native hard admission
+        run: |
+          if ! python scripts/build_erpnext_manufacturing_admission.py \
+            --runtime-directory "$RUN_ROOT/runtime" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$GENERATED_SCENARIO" \
+            > "$RUN_ROOT/logs/admission.log" 2>&1
+          then
+            cat "$RUN_ROOT/logs/admission.log"
+            annotation="$({ tail -n 60 "$RUN_ROOT/logs/admission.log" || true; } \
+              | sed 's/%/%25/g; s/\r/%0D/g' \
+              | awk 'BEGIN { ORS="%0A" } { print }')"
+            echo "::error title=Manufacturing hard admission failed::$annotation"
+            exit 1
+          fi
+          cat "$RUN_ROOT/logs/admission.log"
+
+      - name: Publish admitted scenario to evidence branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force "$GENERATED_SCENARIO"
+          git commit -m "data(erpnext): generate manufacturing rework evidence"
+          git push --force origin \
+            HEAD:refs/heads/generated/erpnext-manufacturing-rework-dev-001
+
       - name: Capture diagnostics
         if: always()
         run: |
@@ -156,6 +183,7 @@ jobs:
           name: erpnext-manufacturing-rework-${{ github.run_id }}
           path: |
             runtimes/erpnext/.runtime/manufacturing-rework/
+            data/scenarios/erpnext-manufacturing-rework-dev-001/
           if-no-files-found: warn
 
       - name: Tear down services

@@ -221,11 +221,6 @@ def _build_graph(
         ),
         ("final_general_ledger", "General Ledger", final_entry["name"]),
         (
-            "unrelated_general_ledger",
-            "General Ledger",
-            prefix["unrelated_stock_entry"],
-        ),
-        (
             "quality_release_delivery",
             "External Delivery",
             prefix["corrective_job_card"],
@@ -410,11 +405,25 @@ def _build_graph(
                 _clause(f"{selector}.docstatus", expected=1),
             )
         )
-    for document, general_ledger in (
+    general_ledger_pairs = [
         ("accepted_manufacture", "accepted_general_ledger"),
         ("final_manufacture", "final_general_ledger"),
-        ("unrelated_stock_entry", "unrelated_general_ledger"),
+    ]
+    if any(
+        str(row.get("voucher_no")) == str(prefix["unrelated_stock_entry"])
+        for row in evidence.get("gl_entries", [])
     ):
+        entities.append(
+            (
+                "unrelated_general_ledger",
+                "General Ledger",
+                prefix["unrelated_stock_entry"],
+            )
+        )
+        general_ledger_pairs.append(
+            ("unrelated_stock_entry", "unrelated_general_ledger")
+        )
+    for document, general_ledger in general_ledger_pairs:
         relations.append(
             _relation(
                 document,
