@@ -11,6 +11,9 @@ from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
     evaluate_forgejo_package_provenance_recovery,
     reference_forgejo_package_provenance_recovery,
 )
+from aftermath_bench.integrations.forgejo_publication_recovery import (
+    relevant_release_deliveries,
+)
 from aftermath_bench.integrations.forgejo_web import ForgejoWebSession
 
 
@@ -56,13 +59,49 @@ def main() -> int:
         for event in trace
         if event["tool"] not in environment.MUTATION_TOOLS
     ]
+    before = boundary["failure_boundary_evidence"]
+    target_tag = str(prefix["package_index_release_tag"])
+    before_files = {
+        str(item.get("name")) for item in before["target_package_files"]
+    }
+    after_files = {
+        str(item.get("name")) for item in final_state["target_package_files"]
+    }
+    before_releases = {
+        str(item.get("tag_name")) for item in before["releases"]
+    }
+    after_releases = {
+        str(item.get("tag_name")) for item in final_state["releases"]
+    }
+    before_external = {
+        str(item.get("key"))
+        for item in relevant_release_deliveries(
+            before["external_deliveries"], target_tag
+        )
+    }
+    after_external = {
+        str(item.get("key"))
+        for item in relevant_release_deliveries(
+            final_state["external_deliveries"], target_tag
+        )
+    }
     repaired_groups = {
-        "package_files": evaluation.checks["exact_provenance_file_set"],
-        "index_release": evaluation.checks["one_package_index_release"],
-        "external_consumers": evaluation.checks[
-            "both_index_consumers_applied"
-        ],
-        "tracking_closure": evaluation.checks["tracking_issues_closed"],
+        "package_files": before_files != after_files,
+        "index_release": (
+            (target_tag in before_releases) != (target_tag in after_releases)
+        ),
+        "external_consumers": before_external != after_external,
+        "milestone": (
+            before["release_milestone"].get("state")
+            != final_state["release_milestone"].get("state")
+        ),
+        **{
+            f"tracking_issue_{index}": (
+                before["tracking_issues"][index].get("state")
+                != final_state["tracking_issues"][index].get("state")
+            )
+            for index in range(len(prefix["tracking_issue_indexes"]))
+        },
     }
     payload = {
         "schema_version": "1.0",
