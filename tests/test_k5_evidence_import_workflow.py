@@ -34,22 +34,18 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
         self.assertIn("contents: write", self.workflow)
 
     def test_exact_successful_k4_run_and_artifact_are_required(self) -> None:
-        self.assertIn('and .status == "completed"', self.workflow)
-        self.assertIn('and .conclusion == "success"', self.workflow)
+        self.assertIn("validate_k5_evidence_import.py gate", self.workflow)
+        self.assertIn("validate_k5_evidence_import.py provenance", self.workflow)
+        self.assertIn('--run-metadata "$RUNNER_TEMP/k4-run.json"', self.workflow)
         self.assertIn(
-            'and .path == ".github/workflows/'
-            'kubernetes-interaction-execution-control.yml"',
+            '--artifacts-metadata "$RUNNER_TEMP/k4-artifacts.json"',
             self.workflow,
         )
-        self.assertIn(".head_sha == $commit", self.workflow)
-        self.assertIn("kubernetes-execution-control-", self.workflow)
-        self.assertIn(".expired == false", self.workflow)
-        self.assertIn("length == 1", self.workflow)
+        self.assertIn('gh run download "$K4_RUN_ID"', self.workflow)
 
     def test_artifact_roots_and_symlinks_are_rejected_by_default(self) -> None:
-        self.assertIn('allowed = {"generated", "scenarios", "evidence"}', self.workflow)
-        self.assertIn("observed != allowed", self.workflow)
-        self.assertIn("path.is_symlink()", self.workflow)
+        self.assertIn("validate_k5_evidence_import.py artifact", self.workflow)
+        self.assertIn('--stage "$stage"', self.workflow)
         safety_calls = [
             block
             for block in self.workflow.split("verify_public_evidence_safe.py")[1:]
@@ -58,17 +54,17 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
         self.assertNotIn("--allow-native-restore-archives", self.workflow)
 
     def test_scientific_gate_binds_source_model_cases_and_threshold(self) -> None:
-        for expected in (
-            'summary.get("source_run_id") == gate["source_run_id"]',
-            'summary.get("source_commit") == gate["source_commit"]',
-            'summary.get("model") == "glm-5.2"',
-            'summary.get("expected_cases") == 13',
-            'summary.get("completed_runs") == 13',
-            'summary.get("run_error_count") == 0',
-            '== 13',
-        ):
-            self.assertIn(expected, self.workflow)
-        self.assertIn('float(gate["minimum_pass_rate"])', self.workflow)
+        provenance = self.workflow.index(
+            "validate_k5_evidence_import.py provenance"
+        )
+        download = self.workflow.index("Download the immutable K4 artifact")
+        artifact = self.workflow.index("validate_k5_evidence_import.py artifact")
+        import_step = self.workflow.index(
+            "Import repository-safe evidence and derive release binding candidate"
+        )
+        self.assertLess(provenance, download)
+        self.assertLess(download, artifact)
+        self.assertLess(artifact, import_step)
 
     def test_import_derives_but_does_not_bind_release_candidate(self) -> None:
         self.assertIn("generate_formal_release_binding.py", self.workflow)
