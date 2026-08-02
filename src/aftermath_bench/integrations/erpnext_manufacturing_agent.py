@@ -179,7 +179,9 @@ class ERPNextManufacturingEnvironment(ERPNextPartialReturnEnvironment):
             self.adapter.create_resource(
                 "Quality Inspection",
                 {
-                    "inspection_type": "In Process",
+                    "inspection_type": (
+                        "Incoming" if reference_type == "Stock Entry" else "In Process"
+                    ),
                     "reference_type": reference_type,
                     "reference_name": reference_name,
                     "item_code": item_code,

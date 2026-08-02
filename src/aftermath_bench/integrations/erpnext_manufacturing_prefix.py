@@ -33,6 +33,7 @@ class ManufacturingPrefix:
     corrective_job_card: str
     accepted_quality_inspection: str
     rejected_quality_inspection: str
+    material_quality_inspections: tuple[str, ...]
     accepted_manufacture_stock_entry: str
     material_transfer_stock_entry: str
     unrelated_stock_entry: str
@@ -241,7 +242,9 @@ class ERPNextManufacturingPrefixBuilder:
             self.adapter.create_resource(
                 "Quality Inspection",
                 {
-                    "inspection_type": "In Process",
+                    "inspection_type": (
+                        "Incoming" if reference_type == "Stock Entry" else "In Process"
+                    ),
                     "reference_type": reference_type,
                     "reference_name": reference_name,
                     "item_code": item_code,
@@ -435,6 +438,23 @@ class ERPNextManufacturingPrefixBuilder:
             quantity=total_quantity,
             trace=trace,
         )
+        material_inspections = []
+        for item in transfer.get("items", []):
+            if not item.get("t_warehouse"):
+                continue
+            inspection = self._create_inspection(
+                reference_type="Stock Entry",
+                reference_name=str(transfer["name"]),
+                item_code=str(item["item_code"]),
+                quantity=float(item["qty"]),
+                accepted=True,
+                trace=trace,
+            )
+            material_inspections.append(str(inspection["name"]))
+        if len(material_inspections) != len(self.fixture["raw_items"]):
+            raise RuntimeError(
+                "each transferred raw-material row requires one accepted inspection"
+            )
         transfer = _payload(
             self.adapter.submit_document("Stock Entry", transfer["name"])
         )
@@ -535,6 +555,7 @@ class ERPNextManufacturingPrefixBuilder:
             corrective_job_card=str(corrective["name"]),
             accepted_quality_inspection=str(accepted_inspection["name"]),
             rejected_quality_inspection=str(rejected_inspection["name"]),
+            material_quality_inspections=tuple(material_inspections),
             accepted_manufacture_stock_entry=str(accepted_entry["name"]),
             material_transfer_stock_entry=str(transfer["name"]),
             unrelated_stock_entry=str(seed["name"]),
