@@ -227,11 +227,40 @@ two hours, exceeding the earlier 240-minute job budget when combined with
 formal packaging. The continuation consumes the immutable uploaded evidence
 and cannot rewrite the admitted native trajectories.
 
+Supersession note (2026-08-02): the two runs above still prove the exact-replay
+and formal-input packaging mechanisms, but they are no longer the active K4
+input. A pre-K4 trajectory audit found that the explicit execution-control
+target required the failed change's three candidate artifacts to be absent
+while a broad preservation sentence simultaneously said to preserve every
+pre-existing object identity. The historical GLM-5.2 control's only failure,
+`state_02`, followed the preservation sentence and retained the candidate
+credential. That is an instruction-contract ambiguity, not a recovery error.
+
+Commit `4f033a9f7f2d479586a747621390fcf69a4d4c5e` therefore made candidate
+artifact disposition explicit and limited preservation to the identities and
+evidence that the evaluator actually protects. The first replacement source
+run, `30733609127`, was rejected before native startup because the new K4
+workflow had copied the fresh scenario identifier into infrastructure code;
+the novelty gate correctly treated that as an identity leak. Commit
+`8a967fcdc5ebd224b367cbb98768e1af00a6b222` now derives all K4 identity fields
+from the frozen scenario instead. Its provider-free replacement source run is
+[30733738216](https://github.com/fengyw23/AftermathBench/actions/runs/30733738216).
+Until that run succeeds and produces both the public formal-input artifact and
+the short-lived exact replay bundles, no K4 gate may be committed.
+
 ### K4 — execution control and model evaluation
 
 Run the explicit-scope execution control first. It must achieve at least 80%
 and any failure must be an execution failure rather than boundary drift. Only
 then run the ordinary-condition model experiment from exact restored bundles.
+
+The K4 workflow is intentionally gate-only. For every variant it restores the
+K3 byte-locked boundary, recaptures canonical state, byte-compares that capture
+with the locked evidence, verifies the formal input lock, and only then exposes
+the step-scoped Bailian credential. It publishes a non-sensitive aggregate
+summary containing the 13-case completion count, pass rate, component rates,
+failure counts and provider-error count. Model messages and native restore
+archives are not part of that summary.
 
 ### K5 — deliberate release binding
 
@@ -239,6 +268,14 @@ Audit the uploaded artifact for credentials and unrestricted native restore
 state. Import only the safe repository-ready scenario and formal evidence.
 Bind the Kubernetes slot only after local runtime, formal-role, release-manifest
 and full test validation succeeds.
+
+The K5 import path is also gate-only and provider-free. Its independent Python
+validator rejects duplicate JSON keys, a mismatched workflow or commit, an
+expired/empty/undigested artifact, non-discrete or sub-threshold 13-case scores,
+extra archive roots, symlinks and unsafe public evidence. A successful import
+generates `k5-release-binding-candidate.json`; it deliberately does **not** edit
+`data/release_manifest.json`. Release-slot promotion therefore remains a
+separate reviewed decision rather than a side effect of a green model run.
 
 ## Failure branches
 
