@@ -19,6 +19,7 @@ from scripts.verify_kubernetes_interaction_instance_novelty import (
     find_identity_overlaps,
     semantic_change_report,
     validate_bound_blueprint,
+    validate_reuse_seal,
 )
 
 
@@ -112,6 +113,58 @@ class KubernetesInteractionInstanceTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "sha256"):
                 validate_bound_blueprint(instance, path)
+
+    def test_reuse_seal_replays_the_initial_novelty_proof(self) -> None:
+        instance = KubernetesInteractionInstanceSpec.from_path(self.spec_path)
+        seal = (
+            self.root
+            / "data"
+            / "admission_seals"
+            / "kubernetes-public-dev-slot-003-initial-novelty.json"
+        )
+        proof = validate_reuse_seal(
+            seal,
+            root=self.root,
+            instance=instance,
+            instance_spec_path=self.spec_path,
+            bound_blueprint_path=self.blueprint_path,
+        )
+        self.assertEqual(
+            proof["source_commit"],
+            "8a967fcdc5ebd224b367cbb98768e1af00a6b222",
+        )
+        self.assertEqual(
+            proof["historical_scanned_candidate_file_count"],
+            0,
+        )
+        self.assertEqual(
+            proof["derived_evidence_roots"],
+            ["data/diagnostics/kubernetes/k4-30741680378"],
+        )
+
+    def test_reuse_seal_cannot_hide_the_entire_diagnostic_tree(self) -> None:
+        instance = KubernetesInteractionInstanceSpec.from_path(self.spec_path)
+        source = (
+            self.root
+            / "data"
+            / "admission_seals"
+            / "kubernetes-public-dev-slot-003-initial-novelty.json"
+        )
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        payload["derived_evidence_roots"] = [
+            "data/diagnostics/kubernetes"
+        ]
+        with tempfile.TemporaryDirectory() as raw:
+            seal = Path(raw) / "seal.json"
+            seal.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "specific descendants"):
+                validate_reuse_seal(
+                    seal,
+                    root=self.root,
+                    instance=instance,
+                    instance_spec_path=self.spec_path,
+                    bound_blueprint_path=self.blueprint_path,
+                )
 
     def test_public_instance_drives_runtime_manifests_and_gold(self) -> None:
         instance = KubernetesInteractionInstanceSpec.from_path(self.spec_path)

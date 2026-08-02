@@ -264,6 +264,15 @@ admission step that deletes and recreates kind, restores representative
 before formal inputs are frozen. K4 remains blocked until the replacement K3
 run succeeds under this stronger cross-cluster portability check.
 
+The replacement is a post-admission rerun of the same public instance. Its
+novelty check therefore uses a versioned reuse seal instead of pretending the
+instance identities have never appeared in the repository. The seal binds the
+unchanged instance specification and blueprint to commit
+`8a967fcdc5ebd224b367cbb98768e1af00a6b222`, recomputes the zero-overlap scan at
+that historical commit, and permits current overlaps only inside the specific
+derived K4 diagnostic directory. It cannot exempt source code, the entire
+diagnostic tree, a changed instance, or a non-ancestor commit.
+
 ### K4 — execution control and model evaluation
 
 Run the explicit-scope execution control first. It must achieve at least 80%

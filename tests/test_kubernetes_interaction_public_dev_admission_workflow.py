@@ -165,6 +165,12 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
             "data/scenario_blueprints/public-dev-slot-003/scenario.json",
             self.workflow,
         )
+        self.assertIn("--reuse-seal", self.workflow)
+        self.assertIn(
+            "data/admission_seals/"
+            "kubernetes-public-dev-slot-003-initial-novelty.json",
+            self.workflow,
+        )
 
     def test_historical_regressions_run_without_active_instance_override(
         self,

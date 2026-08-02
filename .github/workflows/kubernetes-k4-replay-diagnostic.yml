@@ -26,7 +26,6 @@ jobs:
       K4_RUN_ID: "30741680378"
       K4_ARTIFACT: kubernetes-execution-control-30741680378
       AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: data/instance_specs/public-dev-slot-003.json
-      TASK_NAMESPACE: aftermath-settlements
       DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-05
     steps:
       - uses: actions/checkout@v4
@@ -71,8 +70,11 @@ jobs:
                   encoding="utf-8",
               )
           )
-          if instance.get("namespace") != os.environ["TASK_NAMESPACE"]:
-              raise SystemExit("diagnostic namespace differs from the instance spec")
+          namespace = instance.get("namespace")
+          if not isinstance(namespace, str) or not namespace:
+              raise SystemExit("instance spec has no diagnostic namespace")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"TASK_NAMESPACE={namespace}\n")
           PY
           gh api \
             --header "X-GitHub-Api-Version: 2022-11-28" \
