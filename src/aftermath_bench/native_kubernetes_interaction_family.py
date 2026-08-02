@@ -5,12 +5,15 @@ from typing import Any
 
 from .integrations.kubernetes_api import KubernetesApi
 from .integrations.kubernetes_interaction_prefix import (
+    API_V2,
     APPLICATION,
     CHANGE_ID,
+    NEXT_CREDENTIAL,
     RECOVERY_AUDIT_KEY,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
+    WORKER_V2,
 )
 from .integrations.kubernetes_interaction_recovery import (
     KubernetesInteractionEnvironment,
@@ -68,6 +71,13 @@ def _control_target(variant: str) -> dict[str, Any]:
             "transition_owner": transition,
             "publication_owner": publication,
         },
+        "candidate_artifact_disposition": {
+            API_V2: "preserve" if expected["candidate_present"] else "delete",
+            WORKER_V2: "preserve" if expected["candidate_present"] else "delete",
+            NEXT_CREDENTIAL: (
+                "preserve" if expected["candidate_present"] else "delete"
+            ),
+        },
         "records": {
             "change_record": f"{CHANGE_ID}.state=resolved",
             "release_ledger": {
@@ -118,9 +128,14 @@ def _control_target(variant: str) -> dict[str, Any]:
             ),
         },
         "preservation": (
-            "Preserve every pre-existing controller owner, object identity, "
-            "migration/backup artifact, contract record and accepted external "
-            "event. Merge-patch only the change-specific record fields."
+            "Preserve all stable consumer, Service, current-credential and RBAC "
+            "identities; all migration and backup evidence; every controller "
+            "owner retained by terminal_state; all immutable contract records; "
+            "and every accepted external event. Candidate target-version "
+            "Deployments and the next-generation credential are governed only "
+            "by candidate_artifact_disposition: delete exactly those three when "
+            "it says delete, and preserve them when it says preserve. "
+            "Merge-patch only the change-specific mutable record fields."
         ),
     }
 

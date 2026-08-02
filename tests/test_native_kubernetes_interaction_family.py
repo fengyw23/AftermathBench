@@ -5,11 +5,14 @@ from pathlib import Path
 
 from aftermath_bench.integrations.kubernetes_interaction_faults import SURFACE_ERROR
 from aftermath_bench.integrations.kubernetes_interaction_prefix import (
+    API_V2,
+    NEXT_CREDENTIAL,
     RECOVERY_AUDIT_KEY,
     REGISTRY_COMPENSATION_KEY,
     REGISTRY_PREPARE_KEY,
     REGISTRY_RELEASE_KEY,
     REGISTRY_STABLE_KEY,
+    WORKER_V2,
 )
 from aftermath_bench.integrations.kubernetes_interaction_recovery import (
     _expected_terminal,
@@ -75,6 +78,38 @@ class NativeKubernetesInteractionFamilyTest(unittest.TestCase):
         self.assertIn('"bridge_lease": "active"', message)
         self.assertIn("one suspended transition Job", message)
         self.assertIn('"compensation_required": false', message)
+
+    def test_aborted_control_unambiguously_removes_only_candidate_artifacts(
+        self,
+    ) -> None:
+        target = _control_target("state_02")
+        self.assertEqual(
+            target["terminal_state"]["target_candidate_artifacts"],
+            "absent",
+        )
+        self.assertEqual(
+            target["candidate_artifact_disposition"],
+            {
+                API_V2: "delete",
+                WORKER_V2: "delete",
+                NEXT_CREDENTIAL: "delete",
+            },
+        )
+        preservation = target["preservation"]
+        self.assertIn("governed only by candidate_artifact_disposition", preservation)
+        self.assertIn("delete exactly those three when it says delete", preservation)
+        self.assertNotIn("Preserve every pre-existing", preservation)
+
+    def test_committed_control_preserves_candidate_artifacts(self) -> None:
+        target = _control_target("state_10")
+        self.assertEqual(
+            target["terminal_state"]["target_candidate_artifacts"],
+            "present",
+        )
+        self.assertEqual(
+            set(target["candidate_artifact_disposition"].values()),
+            {"preserve"},
+        )
 
     def test_control_target_matches_evaluator_terminal_for_every_variant(
         self,
