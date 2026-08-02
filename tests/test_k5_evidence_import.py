@@ -23,7 +23,7 @@ SOURCE_COMMIT = "2" * 40
 
 def _gate_payload() -> dict[str, object]:
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "stage": "K5-evidence-import",
         "k4_run_id": RUN_ID,
         "k4_commit": K4_COMMIT,
@@ -31,6 +31,7 @@ def _gate_payload() -> dict[str, object]:
         "k4_artifact": f"kubernetes-execution-control-{RUN_ID}",
         "k4_artifact_digest": "sha256:" + "a" * 64,
         "formal_repair_mode": "none",
+        "formal_repair_revision": 1,
         "source_run_id": SOURCE_RUN_ID,
         "source_commit": SOURCE_COMMIT,
         "minimum_pass_rate": 0.8,

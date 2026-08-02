@@ -33,6 +33,14 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
         self.assertIn("actions: read", self.workflow)
         self.assertIn("contents: write", self.workflow)
 
+    def test_repair_uses_the_same_locked_instance_spec_as_k4(self) -> None:
+        self.assertIn(
+            "AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC", self.workflow
+        )
+        self.assertIn(
+            "data/instance_specs/public-dev-slot-003.json", self.workflow
+        )
+
     def test_exact_reviewed_k4_run_and_artifact_are_required(self) -> None:
         self.assertIn("validate_k5_evidence_import.py gate", self.workflow)
         self.assertIn("validate_k5_evidence_import.py provenance", self.workflow)

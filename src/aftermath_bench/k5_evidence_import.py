@@ -26,6 +26,7 @@ _GATE_FIELDS = frozenset(
         "k4_artifact",
         "k4_artifact_digest",
         "formal_repair_mode",
+        "formal_repair_revision",
         "source_run_id",
         "source_commit",
         "minimum_pass_rate",
@@ -64,6 +65,7 @@ class K5EvidenceImportGate:
     k4_artifact: str
     k4_artifact_digest: str
     formal_repair_mode: str
+    formal_repair_revision: int
     source_run_id: int
     source_commit: str
     minimum_pass_rate: float
@@ -72,7 +74,7 @@ class K5EvidenceImportGate:
     def from_mapping(cls, value: Any) -> K5EvidenceImportGate:
         if not isinstance(value, Mapping) or set(value) != _GATE_FIELDS:
             raise K5EvidenceImportError("K5 gate fields are not exact")
-        if value.get("schema_version") != "1.1":
+        if value.get("schema_version") != "1.2":
             raise K5EvidenceImportError("K5 gate schema is invalid")
         if value.get("stage") != "K5-evidence-import":
             raise K5EvidenceImportError("K5 gate stage is invalid")
@@ -106,6 +108,9 @@ class K5EvidenceImportGate:
             raise K5EvidenceImportError(
                 "K4 conclusion and formal repair mode are incompatible"
             )
+        repair_revision = value.get("formal_repair_revision")
+        if type(repair_revision) is not int or repair_revision <= 0:
+            raise K5EvidenceImportError("formal repair revision is invalid")
         threshold = value.get("minimum_pass_rate")
         if type(threshold) not in {int, float} or isinstance(threshold, bool):
             raise K5EvidenceImportError("minimum_pass_rate is invalid")
@@ -123,6 +128,7 @@ class K5EvidenceImportGate:
             k4_artifact=str(value["k4_artifact"]),
             k4_artifact_digest=str(value["k4_artifact_digest"]),
             formal_repair_mode=str(repair_mode),
+            formal_repair_revision=repair_revision,
             source_run_id=int(value["source_run_id"]),
             source_commit=str(value["source_commit"]),
             minimum_pass_rate=float(threshold),
@@ -140,6 +146,7 @@ class K5EvidenceImportGate:
             "K4_ARTIFACT_DIGEST": self.k4_artifact_digest,
             "K4_EXPECTED_CONCLUSION": self.k4_expected_conclusion,
             "K4_FORMAL_REPAIR_MODE": self.formal_repair_mode,
+            "K4_FORMAL_REPAIR_REVISION": str(self.formal_repair_revision),
             "SOURCE_RUN_ID": str(self.source_run_id),
             "SOURCE_COMMIT": self.source_commit,
             "CONTROL_MIN_PASS_RATE": str(self.minimum_pass_rate),
@@ -318,7 +325,7 @@ def build_k5_import_provenance(
         gate=gate,
     )
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "stage": "K5-evidence-import",
         "import_gate_commit": import_gate_commit,
         "k4_run_id": gate.k4_run_id,
@@ -326,6 +333,7 @@ def build_k5_import_provenance(
         "k4_expected_conclusion": gate.k4_expected_conclusion,
         "formal_repair": {
             "mode": gate.formal_repair_mode,
+            "revision": gate.formal_repair_revision,
             "repair_commit": import_gate_commit,
             "model_was_rerun": False,
         },
