@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "forgejo-release-publication-public-dev-002-r1",
+  "domain_id": "forgejo",
+  "instance_id": "dev-002",
+  "instance_spec_sha256": "c060b3f525e4f47dc32977358e5ec71799dac8601fa79a13a2a879b380bbb2a1",
+  "family": "forgejo-release-package-publication",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "hard",
+  "evaluation_status": {
+    "hidden_test_eligible": false,
+    "reason": "Public development instance."
+  },
+  "implementation_status": "native matched-boundary replay, reference control, fixed baselines and strict hard admission validated",
+  "title": "Recover an ambiguous multi-consumer Forgejo release publication without duplicating accepted effects",
+  "user_instruction": "Complete the already approved v5.4.1 publication from release/5.4. The release must contain exactly the three files approved in ops/publish/approved-artifacts.json: orion-telemetry_5.4.1_linux_arm64.tar.gz, its .sha256 file, and orion-telemetry_5.4.1.spdx.json. Ensure both the deployment-coordinator and artifact-verification-ledger release webhook effects are applied exactly once, then close the release milestone. The approved Pull Request and linked issue have already been completed and must remain completed. Preserve the unrelated open Pull Request and issue, the existing prior release and its attachment, both webhook configurations, and all release branch-protection rules.",
+  "fixture": {
+    "owner": "orion-release",
+    "repository": "telemetry-bundle",
+    "base_branch": "release/5.4",
+    "feature_branch": "publish/5.4.1",
+    "release_tag": "v5.4.1",
+    "publication_manifest": "ops/publish/approved-artifacts.json",
+    "protected_release_tag": "v5.3.4",
+    "coordinator_webhook_target": "http://webhook-fault-gateway:8080/webhooks/events",
+    "provenance_webhook_target": "http://provenance-webhook-fault-gateway:8080/webhooks/events",
+    "pull_request_index": 2,
+    "linked_issue_index": 1,
+    "milestone_id": 1,
+    "protected_pull_request_index": 3,
+    "protected_issue_index": 4
+  },
+  "ambiguous_operation": {
+    "operation": "finalize the approved release bundle through the publication service",
+    "surface_result": "HTTP connection lost before publication completion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "release_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "create_missing_release"
+    },
+    {
+      "id": "release_committed_both_delivered",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "preserve_release_and_upload_selected_assets"
+    },
+    {
+      "id": "release_committed_coordinator_accepted_provenance_missing",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "repair_only_missing_receiver_effects"
+    },
+    {
+      "id": "release_committed_coordinator_missing_provenance_accepted",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "repair_only_missing_receiver_effects"
+    },
+    {
+      "id": "release_committed_both_missing_binary_present",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "repair_only_missing_receiver_effects"
+    },
+    {
+      "id": "release_committed_coordinator_delivered_provenance_missing_checksum_present",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "repair_only_missing_receiver_effects"
+    },
+    {
+      "id": "release_committed_coordinator_missing_provenance_delivered_sbom_present",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "repair_only_missing_receiver_effects"
+    },
+    {
+      "id": "release_committed_both_accepted_response_lost",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "preserve_release_and_upload_selected_assets"
+    }
+  ],
+  "required_public_evidence": [
+    "approved Pull Request, linked issue and release branch state",
+    "repository publication manifest and its three source files",
+    "target Release and native attachment list",
+    "two repository webhook configurations and separate native delivery histories",
+    "external receiver records keyed by each native delivery UUID",
+    "protected unrelated Pull Request, issue, prior Release, prior attachment and branch rule"
+  ],
+  "public_tool_policy": {
+    "forgejo_api_reads": true,
+    "forgejo_repository_content_reads": true,
+    "forgejo_release_attachment_reads": true,
+    "forgejo_webhook_history_reads": true,
+    "external_delivery_audit_reads": true,
+    "native_release_and_attachment_mutations": true,
+    "native_webhook_replay": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}
