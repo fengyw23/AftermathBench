@@ -1,0 +1,478 @@
+name: forgejo-hidden-lifecycle-consume
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_profile:
+        description: Provider profile; auto probes Bailian then Zhipu before hidden access
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - bailian
+          - zhipu
+      model:
+        description: Frozen hidden evaluation model identifier
+        required: true
+        default: glm-5.2
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  consume-exact-frozen-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      FREEZE_RUN_ID: "30760265324"
+      FREEZE_ARTIFACT_ID: "8837641697"
+      FREEZE_ARTIFACT_NAME: forgejo-publication-candidate-30760265324
+      FREEZE_ARTIFACT_DIGEST: sha256:eec0beb4dfb2853e6c373d2665fb34f298c7758736c2ebd6b59f066f8607c6c2
+      FREEZE_SOURCE_COMMIT: af0b76c6a5d34cbe5a0882dfd00ff37f75fbf9c3
+      FREEZE_PUBLIC_COMMITMENT: 44aac0bb90805e7c0889f44d388a752a7513c7b9b7d24433b525a75bd932bb6c
+      FREEZE_CIPHERTEXT_SHA256: b9455055f8b128dddd576c1e7f9aee6fcc5b57d4d67f7d1d417cba85807ef04a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download the preregistered sealed artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sealed_root="$RUNNER_TEMP/forgejo-sealed-source"
+          mkdir -p "$sealed_root"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$FREEZE_RUN_ID" \
+            > "$RUNNER_TEMP/freeze-run.json"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$FREEZE_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/freeze-artifact.json"
+          python - \
+            "$RUNNER_TEMP/freeze-run.json" \
+            "$RUNNER_TEMP/freeze-artifact.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          artifact = json.load(open(sys.argv[2], encoding="utf-8"))
+          expected = {
+              "run_id": int(os.environ["FREEZE_RUN_ID"]),
+              "artifact_id": int(os.environ["FREEZE_ARTIFACT_ID"]),
+              "artifact_name": os.environ["FREEZE_ARTIFACT_NAME"],
+              "artifact_digest": os.environ["FREEZE_ARTIFACT_DIGEST"],
+              "source_commit": os.environ["FREEZE_SOURCE_COMMIT"],
+          }
+          checks = {
+              "run_id": int(run["id"]) == expected["run_id"],
+              "run_success": run["conclusion"] == "success",
+              "source_commit": run["head_sha"] == expected["source_commit"],
+              "artifact_id": int(artifact["id"]) == expected["artifact_id"],
+              "artifact_name": artifact["name"] == expected["artifact_name"],
+              "artifact_digest": artifact.get("digest") == expected["artifact_digest"],
+              "artifact_not_expired": not artifact["expired"],
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"sealed artifact provenance failed: {failures}")
+          print(json.dumps({"sealed_artifact_provenance": checks}))
+          PY
+          gh run download "$FREEZE_RUN_ID" \
+            --name "$FREEZE_ARTIFACT_NAME" \
+            --dir "$sealed_root"
+          test -s "$sealed_root/hidden-bundle.tar.gz.enc"
+          test -s "$sealed_root/pre-model-commitment.json"
+          test -s "$sealed_root/sealed-bundle.json"
+
+      - name: Verify ciphertext and public commitment
+        run: |
+          set -euo pipefail
+          sealed_root="$RUNNER_TEMP/forgejo-sealed-source"
+          python - \
+            "$sealed_root/sealed-bundle.json" \
+            "$sealed_root/pre-model-commitment.json" \
+            "$sealed_root/hidden-bundle.tar.gz.enc" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          sealed = json.load(open(sys.argv[1], encoding="utf-8"))
+          commitment = json.load(open(sys.argv[2], encoding="utf-8"))
+          observed_ciphertext = hashlib.sha256(open(sys.argv[3], "rb").read()).hexdigest()
+          expected_commitment = os.environ["FREEZE_PUBLIC_COMMITMENT"]
+          expected_ciphertext = os.environ["FREEZE_CIPHERTEXT_SHA256"]
+          checks = {
+              "lifecycle_frozen_unseen": sealed["lifecycle_status"] == "frozen_unseen",
+              "source_run": int(sealed["source_run_id"]) == int(os.environ["FREEZE_RUN_ID"]),
+              "source_commit": sealed["source_commit"] == os.environ["FREEZE_SOURCE_COMMIT"],
+              "commitment_metadata": sealed["public_commitment_sha256"] == expected_commitment,
+              "commitment_document": commitment["public_commitment_sha256"] == expected_commitment,
+              "ciphertext_metadata": sealed["ciphertext_sha256"] == expected_ciphertext,
+              "ciphertext_bytes": observed_ciphertext == expected_ciphertext,
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"sealed bundle verification failed: {failures}")
+          print(json.dumps({"sealed_bundle_verification": checks}))
+          PY
+
+      - name: Decrypt and verify before provider credentials exist
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          sealed_root="$RUNNER_TEMP/forgejo-sealed-source"
+          run_root="$RUNNER_TEMP/forgejo-hidden-consume"
+          archive="$RUNNER_TEMP/forgejo-hidden-private.tar.gz"
+          mkdir -p "$run_root"
+          openssl enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 200000 \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$sealed_root/hidden-bundle.tar.gz.enc" \
+            -out "$archive"
+          python scripts/extract_sealed_hidden_bundle.py \
+            --archive "$archive" \
+            --destination "$run_root"
+          rm -f "$archive"
+          PYTHONPATH=src python scripts/verify_frozen_bundle.py \
+            --bundle-root "$run_root/private" \
+            --private-attestation "$run_root/private/freeze.json" \
+            --public-commitment "$run_root/private/public-commitment.json" \
+            --allow-unbound usage-ledger.json \
+            > "$RUNNER_TEMP/pre-consume-freeze-verification.log" 2>&1
+          PYTHONPATH=src python scripts/verify_hidden_test_eligibility.py \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --freeze "$run_root/private/freeze.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            > "$RUNNER_TEMP/pre-consume-eligibility.log" 2>&1
+          cp "$run_root/private/public-commitment.json" \
+            "$run_root/public-commitment.json"
+
+      - name: Materialize the exact frozen source revision
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/aftermath-frozen-source"
+          git worktree add --detach "$source_root" "$FREEZE_SOURCE_COMMIT"
+          test "$(git -C "$source_root" rev-parse HEAD)" = "$FREEZE_SOURCE_COMMIT"
+
+      - name: Build pinned Forgejo runtime
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/aftermath-frozen-source"
+          cd "$source_root"
+          PYTHONPATH=src python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUNNER_TEMP/forgejo-source-verification.json" \
+            > "$RUNNER_TEMP/forgejo-source-build.log" 2>&1
+
+      - name: Select one provider before hidden task access
+        env:
+          REQUESTED_PROVIDER: ${{ inputs.provider_profile }}
+          REQUESTED_MODEL: ${{ inputs.model }}
+          BAILIAN_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          ZHIPU_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+        run: |
+          set -euo pipefail
+          probe_payload="$RUNNER_TEMP/provider-probe.json"
+          python - "$REQUESTED_MODEL" "$probe_payload" <<'PY'
+          import json
+          import sys
+          json.dump(
+              {
+                  "model": sys.argv[1],
+                  "messages": [{"role": "user", "content": "Reply OK."}],
+                  "max_tokens": 4,
+                  "temperature": 0,
+              },
+              open(sys.argv[2], "w", encoding="utf-8"),
+          )
+          PY
+          probe_provider() {
+            local profile="$1"
+            local base_url="$2"
+            local key="$3"
+            local response="$RUNNER_TEMP/provider-probe-$profile.json"
+            if [ -z "$key" ]
+            then
+              return 1
+            fi
+            local status
+            status="$(curl --silent --show-error \
+              --connect-timeout 20 \
+              --max-time 90 \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --header "Authorization: Bearer $key" \
+              --data-binary "@$probe_payload" \
+              "$base_url/chat/completions" || true)"
+            if [[ "$status" =~ ^2[0-9][0-9]$ ]]
+            then
+              selected_profile="$profile"
+              selected_base_url="$base_url"
+              selected_api_key="$key"
+              return 0
+            fi
+            return 1
+          }
+          requested="${REQUESTED_PROVIDER:-auto}"
+          selected_profile=""
+          selected_base_url=""
+          selected_api_key=""
+          if [ "$requested" = "auto" ] || [ "$requested" = "bailian" ]
+          then
+            probe_provider \
+              bailian \
+              'https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1' \
+              "$BAILIAN_KEY" || true
+          fi
+          if [ -z "$selected_profile" ] && \
+             { [ "$requested" = "auto" ] || [ "$requested" = "zhipu" ]; }
+          then
+            probe_provider \
+              zhipu \
+              'https://open.bigmodel.cn/api/coding/paas/v4' \
+              "$ZHIPU_KEY" || true
+          fi
+          if [ -z "$selected_profile" ]
+          then
+            echo "No configured provider passed the non-hidden preflight." >&2
+            exit 2
+          fi
+          echo "::add-mask::$selected_api_key"
+          echo "AFTERMATH_API_KEY=$selected_api_key" >> "$GITHUB_ENV"
+          echo "AFTERMATH_MODEL_BASE_URL=$selected_base_url" >> "$GITHUB_ENV"
+          echo "SELECTED_PROVIDER_PROFILE=$selected_profile" >> "$GITHUB_ENV"
+          echo "MODEL_ID=$REQUESTED_MODEL" >> "$GITHUB_ENV"
+          echo "Selected provider profile: $selected_profile"
+
+      - name: Consume frozen instance with one ordinary model evaluation
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/aftermath-frozen-source"
+          helper_root="$GITHUB_WORKSPACE"
+          run_root="$RUNNER_TEMP/forgejo-hidden-consume"
+          credentials="$source_root/runtimes/forgejo/.runtime/credentials.json"
+          compose_file="$source_root/runtimes/forgejo/compose.yaml"
+          owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$run_root/private/instance.json")"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$run_root/private/blueprint.json"
+          )
+          mkdir -p "$run_root/private/model/repetition-01"
+          evaluation_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-hidden-evaluation"
+          last_index=$((${#variants[@]} - 1))
+          run_status=0
+          cd "$source_root"
+          for index in "${!variants[@]}"
+          do
+            variant="${variants[$index]}"
+            PYTHONPATH=src python scripts/manage_forgejo_stack.py restore-bundle \
+              --snapshot "$run_root/private/snapshots/$variant" \
+              > "$run_root/private/model/repetition-01/$variant-restore.log" 2>&1
+            PYTHONPATH=src python \
+              "$helper_root/scripts/recover_forgejo_evaluation_credentials.py" \
+              --compose-file "$compose_file" \
+              --username "$owner" \
+              --token-name "hidden-$variant" \
+              --output "$credentials" \
+              > "$run_root/private/model/repetition-01/$variant-credentials.log" 2>&1
+            finalize_args=()
+            if [ "$index" -eq "$last_index" ]
+            then
+              finalize_args=(--hidden-finalize)
+            fi
+            output="$run_root/private/model/repetition-01/$variant.json"
+            for attempt in 1 2
+            do
+              rm -f "$output"
+              if PYTHONPATH=src python -m aftermath_bench run-native-model \
+                  --provider openai-compatible \
+                  --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                  --model "$MODEL_ID" \
+                  --scenario "$run_root/private/scenario/scenario.json" \
+                  --credentials "$credentials" \
+                  --prefix "$run_root/private/runtime/prefix.json" \
+                  --failure-report "$run_root/private/runtime/$variant-boundary.json" \
+                  --max-turns 25 \
+                  --hidden-freeze "$run_root/private/freeze.json" \
+                  --hidden-usage-ledger "$run_root/private/usage-ledger.json" \
+                  --hidden-evaluation-id "$evaluation_id" \
+                  "${finalize_args[@]}" \
+                  --output "$output" \
+                  > "$run_root/private/model/repetition-01/$variant-attempt-$attempt.log" 2>&1
+              then
+                break
+              fi
+              if [ -s "$output" ]
+              then
+                break
+              fi
+              PYTHONPATH=src python scripts/manage_forgejo_stack.py restore-bundle \
+                --snapshot "$run_root/private/snapshots/$variant" \
+                > "$run_root/private/model/repetition-01/$variant-retry-restore.log" 2>&1
+              PYTHONPATH=src python \
+                "$helper_root/scripts/recover_forgejo_evaluation_credentials.py" \
+                --compose-file "$compose_file" \
+                --username "$owner" \
+                --token-name "hidden-$variant" \
+                --output "$credentials" \
+                > "$run_root/private/model/repetition-01/$variant-retry-credentials.log" 2>&1
+            done
+            if [ ! -s "$output" ]
+            then
+              run_status=1
+            fi
+          done
+          PYTHONPATH=src python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/private/model" \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --expected-execution-control false \
+            --output "$run_root/private/model/summary.json" \
+            > "$run_root/private/model/summary.log" 2>&1 \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Build non-sensitive lifecycle receipt
+        if: always()
+        run: |
+          set -euo pipefail
+          run_root="$RUNNER_TEMP/forgejo-hidden-consume"
+          if [ ! -s "$run_root/private/public-commitment.json" ] || \
+             [ ! -s "$run_root/private/usage-ledger.json" ]
+          then
+            exit 0
+          fi
+          provider="${SELECTED_PROVIDER_PROFILE:-not_selected}"
+          model="${MODEL_ID:-${{ inputs.model }}}"
+          summary_args=()
+          if [ -s "$run_root/private/model/summary.json" ]
+          then
+            summary_args=(
+              --model-summary "$run_root/private/model/summary.json"
+            )
+          fi
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python \
+            "$GITHUB_WORKSPACE/scripts/summarize_consumed_hidden_evaluation.py" \
+            --commitment "$run_root/private/public-commitment.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            "${summary_args[@]}" \
+            --provider-profile "$provider" \
+            --model "$model" \
+            --evaluation-run-id "$GITHUB_RUN_ID" \
+            --freeze-run-id "$FREEZE_RUN_ID" \
+            --freeze-artifact-id "$FREEZE_ARTIFACT_ID" \
+            --freeze-artifact-digest "$FREEZE_ARTIFACT_DIGEST" \
+            --ciphertext-sha256 "$FREEZE_CIPHERTEXT_SHA256" \
+            --output "$run_root/public/result.json"
+          cp "$run_root/private/public-commitment.json" \
+            "$run_root/public/pre-model-commitment.json"
+
+      - name: Seal post-evaluation private evidence
+        if: always()
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          run_root="$RUNNER_TEMP/forgejo-hidden-consume"
+          if [ ! -d "$run_root/private" ]
+          then
+            exit 0
+          fi
+          mkdir -p "$run_root/public"
+          archive="$RUNNER_TEMP/forgejo-hidden-consumed-private.tar.gz"
+          ciphertext="$run_root/public/consumed-bundle.tar.gz.enc"
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -czf "$archive" \
+            -C "$run_root" private
+          openssl enc \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 200000 \
+            -salt \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$archive" \
+            -out "$ciphertext"
+          rm -f "$archive"
+          python - \
+            "$run_root/public/result.json" \
+            "$ciphertext" \
+            "$run_root/public/consumed-bundle.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          result_path, ciphertext_path, output_path = sys.argv[1:]
+          result = (
+              json.load(open(result_path, encoding="utf-8"))
+              if os.path.isfile(result_path)
+              else {}
+          )
+          payload = {
+              "schema_version": "1.0",
+              "lifecycle_status": result.get("lifecycle_status", "incomplete"),
+              "source_freeze_run_id": int(os.environ["FREEZE_RUN_ID"]),
+              "evaluation_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "public_commitment_sha256": os.environ["FREEZE_PUBLIC_COMMITMENT"],
+              "cipher": "aes-256-cbc-pbkdf2-sha256",
+              "pbkdf2_iterations": 200000,
+              "ciphertext_file": os.path.basename(ciphertext_path),
+              "ciphertext_sha256": hashlib.sha256(open(ciphertext_path, "rb").read()).hexdigest(),
+              "public_result_sha256": (
+                  hashlib.sha256(open(result_path, "rb").read()).hexdigest()
+                  if os.path.isfile(result_path)
+                  else None
+              ),
+          }
+          open(output_path, "w", encoding="utf-8").write(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n"
+          )
+          PY
+
+      - name: Upload public receipt and encrypted audit bundle only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-hidden-lifecycle-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-hidden-consume/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge plaintext hidden state and runtime
+        if: always()
+        run: |
+          source_root="$RUNNER_TEMP/aftermath-frozen-source"
+          if [ -d "$source_root" ]
+          then
+            cd "$source_root"
+            PYTHONPATH=src python scripts/manage_forgejo_stack.py purge || true
+            rm -f runtimes/forgejo/.runtime/credentials.json
+            cd "$GITHUB_WORKSPACE"
+            git worktree remove --force "$source_root" || true
+          fi
+          rm -rf "$RUNNER_TEMP/forgejo-hidden-consume/private"
+          rm -rf "$RUNNER_TEMP/forgejo-sealed-source"
+          rm -f "$RUNNER_TEMP/forgejo-hidden-private.tar.gz"
+          rm -f "$RUNNER_TEMP/forgejo-hidden-consumed-private.tar.gz"
