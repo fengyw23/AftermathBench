@@ -1525,63 +1525,135 @@ def _validate_input_semantics(
             sha_field="terminal_state_sha256",
             local_hashes=reference_files,
         )
-        if (
-            reset.get("reset_verified") is not True
-            or reset_snapshot is None
-            or reset_snapshot.get("scenario_id") != prepared.scenario_id
-            or reset_snapshot.get("variant_id") != variant
-            or reset_snapshot.get("phase") != "reset"
-            or reset_snapshot.get("reset_verified") is not True
-            or reset_snapshot.get("prefix_file_sha256") != prefix_sha256
-            or boundary.get("boundary_validation_passed") is not True
-            or boundary_state is None
-            or boundary_state.get("scenario_id") != prepared.scenario_id
-            or boundary_state.get("variant_id") != variant
-            or boundary_state.get("phase") != "boundary"
-            or boundary_state.get("reset_snapshot_sha256")
-            != reset.get("reset_snapshot_sha256")
-            or failure_surface is None
-            or failure_surface.get("scenario_id") != prepared.scenario_id
-            or failure_surface.get("variant_id") != variant
-            or failure_surface.get("phase") != "failure_surface"
-            or not isinstance(failure_surface.get("operation"), str)
-            or not failure_surface.get("operation")
-            or not isinstance(failure_surface.get("surface_result"), str)
-            or not failure_surface.get("surface_result")
-            or raw_failure_report is None
-            or not raw_failure_report
-            or reference_start is None
-            or reference.get("reference_start_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference_start != boundary_state
-            or boundary.get("reset_snapshot_sha256")
-            != reset.get("reset_snapshot_sha256")
-            or reference.get("evaluator_passed") is not True
-            or reference.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference_trace is None
-            or reference_trace.get("scenario_id") != prepared.scenario_id
-            or reference_trace.get("variant_id") != variant
-            or reference_trace.get("phase") != "reference_trace"
-            or reference_trace.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference_trace.get("input_envelope_sha256")
-            != reference_dependencies
-            or not isinstance(reference_trace.get("steps"), list)
-            or not reference_trace.get("steps")
-            or terminal_state is None
-            or terminal_state.get("scenario_id") != prepared.scenario_id
-            or terminal_state.get("variant_id") != variant
-            or terminal_state.get("phase") != "terminal"
-            or terminal_state.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or terminal_state.get("evaluator_envelope_sha256")
-            != evaluator_envelope_hash
-            or not isinstance(terminal_state.get("evaluation"), dict)
-            or terminal_state["evaluation"].get("passed") is not True
-        ):
+        semantic_checks = {
+            "reset_envelope_verified": reset.get("reset_verified") is True,
+            "reset_snapshot_bound": reset_snapshot is not None,
+            "reset_scenario_bound": (
+                reset_snapshot is not None
+                and reset_snapshot.get("scenario_id") == prepared.scenario_id
+            ),
+            "reset_variant_bound": (
+                reset_snapshot is not None
+                and reset_snapshot.get("variant_id") == variant
+            ),
+            "reset_phase_bound": (
+                reset_snapshot is not None
+                and reset_snapshot.get("phase") == "reset"
+            ),
+            "reset_snapshot_verified": (
+                reset_snapshot is not None
+                and reset_snapshot.get("reset_verified") is True
+            ),
+            "reset_prefix_bound": (
+                reset_snapshot is not None
+                and reset_snapshot.get("prefix_file_sha256") == prefix_sha256
+            ),
+            "boundary_envelope_verified": (
+                boundary.get("boundary_validation_passed") is True
+            ),
+            "boundary_state_bound": boundary_state is not None,
+            "boundary_scenario_bound": (
+                boundary_state is not None
+                and boundary_state.get("scenario_id") == prepared.scenario_id
+            ),
+            "boundary_variant_bound": (
+                boundary_state is not None
+                and boundary_state.get("variant_id") == variant
+            ),
+            "boundary_phase_bound": (
+                boundary_state is not None
+                and boundary_state.get("phase") == "boundary"
+            ),
+            "boundary_reset_bound": (
+                boundary_state is not None
+                and boundary_state.get("reset_snapshot_sha256")
+                == reset.get("reset_snapshot_sha256")
+                and boundary.get("reset_snapshot_sha256")
+                == reset.get("reset_snapshot_sha256")
+            ),
+            "failure_surface_bound": failure_surface is not None,
+            "failure_surface_identity_bound": (
+                failure_surface is not None
+                and failure_surface.get("scenario_id") == prepared.scenario_id
+                and failure_surface.get("variant_id") == variant
+                and failure_surface.get("phase") == "failure_surface"
+            ),
+            "failure_surface_operation_present": (
+                failure_surface is not None
+                and isinstance(failure_surface.get("operation"), str)
+                and bool(failure_surface.get("operation"))
+            ),
+            "failure_surface_result_present": (
+                failure_surface is not None
+                and isinstance(failure_surface.get("surface_result"), str)
+                and bool(failure_surface.get("surface_result"))
+            ),
+            "raw_failure_report_present": bool(raw_failure_report),
+            "reference_start_bound": reference_start is not None,
+            "reference_start_hash_bound": (
+                reference.get("reference_start_state_sha256")
+                == boundary.get("boundary_state_sha256")
+            ),
+            "reference_starts_from_boundary": reference_start == boundary_state,
+            "reference_evaluator_passed": (
+                reference.get("evaluator_passed") is True
+            ),
+            "reference_boundary_bound": (
+                reference.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+            ),
+            "reference_trace_bound": reference_trace is not None,
+            "reference_trace_identity_bound": (
+                reference_trace is not None
+                and reference_trace.get("scenario_id") == prepared.scenario_id
+                and reference_trace.get("variant_id") == variant
+                and reference_trace.get("phase") == "reference_trace"
+            ),
+            "reference_trace_boundary_bound": (
+                reference_trace is not None
+                and reference_trace.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+            ),
+            "reference_trace_inputs_bound": (
+                reference_trace is not None
+                and reference_trace.get("input_envelope_sha256")
+                == reference_dependencies
+            ),
+            "reference_trace_nonempty": (
+                reference_trace is not None
+                and isinstance(reference_trace.get("steps"), list)
+                and bool(reference_trace.get("steps"))
+            ),
+            "terminal_state_bound": terminal_state is not None,
+            "terminal_identity_bound": (
+                terminal_state is not None
+                and terminal_state.get("scenario_id") == prepared.scenario_id
+                and terminal_state.get("variant_id") == variant
+                and terminal_state.get("phase") == "terminal"
+            ),
+            "terminal_boundary_bound": (
+                terminal_state is not None
+                and terminal_state.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+            ),
+            "terminal_evaluator_bound": (
+                terminal_state is not None
+                and terminal_state.get("evaluator_envelope_sha256")
+                == evaluator_envelope_hash
+            ),
+            "terminal_evaluation_passed": (
+                terminal_state is not None
+                and isinstance(terminal_state.get("evaluation"), dict)
+                and terminal_state["evaluation"].get("passed") is True
+            ),
+        }
+        failed_semantics = [
+            name for name, passed in semantic_checks.items() if not passed
+        ]
+        if failed_semantics:
             raise FormalEvidenceBuildError(
-                f"input evidence semantics failed for variant {variant}"
+                f"input evidence semantics failed for variant {variant}: "
+                + ", ".join(failed_semantics)
             )
 
 
