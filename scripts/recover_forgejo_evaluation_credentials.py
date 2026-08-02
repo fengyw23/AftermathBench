@@ -49,6 +49,7 @@ def main() -> int:
         args.username,
         "--password",
         password,
+        "--must-change-password=false",
         capture_output=True,
     )
     token_result = stack.run(

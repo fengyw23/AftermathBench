@@ -90,6 +90,8 @@ class ForgejoCredentialRecoveryTests(unittest.TestCase):
             self.assertEqual(result["token"], "token-value")
             self.assertTrue(result["password"])
             self.assertEqual(stack.run.call_count, 2)
+            password_call = stack.run.call_args_list[0].args
+            self.assertIn("--must-change-password=false", password_call)
 
 
 class HiddenConsumptionSummaryTests(unittest.TestCase):
