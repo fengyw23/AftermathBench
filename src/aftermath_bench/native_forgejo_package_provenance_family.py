@@ -167,6 +167,11 @@ FORGEJO_PACKAGE_PROVENANCE_TOOL_DEFINITIONS = (
         _schema(_MILESTONE, ("milestone_id",)),
     ),
     ToolDefinition(
+        "close_issue",
+        "Close one package tracking issue after its stated obligation is verified.",
+        _schema(_INDEX, ("index",)),
+    ),
+    ToolDefinition(
         "wait_for_webhook_history_change",
         "Wait for a new delivery UUID and its exact downstream receiver record.",
         _schema(
@@ -210,6 +215,7 @@ def forgejo_package_provenance_initial_message(
             "pull_request_index",
             "linked_issue_index",
             "milestone_id",
+            "tracking_issue_indexes",
             "package_name",
             "package_version",
             "protected_package_version",
@@ -239,7 +245,8 @@ def forgejo_package_provenance_initial_message(
             "package-index Release only after all four files exist. Correlate both "
             "native delivery histories with the receiver ledger, replay only an "
             "effect that is genuinely absent, close the milestone and verify all "
-            "preservation requirements."
+            "three tracking issues only after their stated obligations hold, and "
+            "verify all preservation requirements."
         )
     return message
 

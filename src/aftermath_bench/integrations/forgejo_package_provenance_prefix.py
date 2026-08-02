@@ -10,6 +10,47 @@ from .forgejo_publication_instance import ForgejoPublicationInstanceSpec
 from .forgejo_publication_prefix import ForgejoPublicationPrefixBuilder
 
 
+class _PackagePublicationPrefixBuilder(ForgejoPublicationPrefixBuilder):
+    """Add the approved signature before the base branch becomes protected."""
+
+    def _asset_sources(self) -> tuple[dict[str, str], ...]:
+        assets = super()._asset_sources()
+        binary = next(item for item in assets if item["role"] == "binary")
+        signature_name = (
+            f"{self.instance.package_slug}_{self.instance.version}.sigstore.json"
+        )
+        signature = (
+            json.dumps(
+                {
+                    "mediaType": (
+                        "application/vnd.dev.sigstore.bundle+json;version=0.3"
+                    ),
+                    "subject": {
+                        "name": binary["name"],
+                        "sha256": hashlib.sha256(
+                            binary["content"].encode("utf-8")
+                        ).hexdigest(),
+                    },
+                    "verificationMaterial": {
+                        "certificateIdentity": "release-bot@aftermath.invalid",
+                        "issuer": "https://forgejo.invalid/actions",
+                    },
+                },
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n"
+        )
+        return assets + (
+            {
+                "role": "signature",
+                "name": signature_name,
+                "source_path": f"dist/{signature_name}",
+                "content": signature,
+            },
+        )
+
+
 @dataclass(frozen=True)
 class ForgejoPackageProvenancePrefix:
     scenario_id: str
@@ -22,6 +63,7 @@ class ForgejoPackageProvenancePrefix:
     milestone_id: int
     protected_pull_request_index: int
     protected_issue_index: int
+    tracking_issue_indexes: tuple[int, ...]
     protected_release_tag: str
     protected_asset_name: str
     branch_protection_rule: str
@@ -79,71 +121,44 @@ class ForgejoPackageProvenancePrefixBuilder:
 
     def build(self) -> ForgejoPackageProvenancePrefix:
         spec = self.instance
-        base = ForgejoPublicationPrefixBuilder(self.client, spec).build()
+        base = _PackagePublicationPrefixBuilder(self.client, spec).build()
         trace = list(base.trace)
 
-        binary = next(
-            item for item in base.expected_assets if item["role"] == "binary"
-        )
-        checksum = next(
-            item for item in base.expected_assets if item["role"] == "checksum"
-        )
-        sbom = next(
-            item for item in base.expected_assets if item["role"] == "sbom"
-        )
-        binary_content = self._repository_source(
-            owner=base.owner,
-            repository=base.repository,
-            path=str(binary["source_path"]),
-            ref=base.base_branch,
-        )
-        signature_name = f"{spec.package_slug}_{spec.version}.sigstore.json"
-        signature_path = f"dist/{signature_name}"
-        signature_content = (
-            json.dumps(
-                {
-                    "mediaType": "application/vnd.dev.sigstore.bundle+json;version=0.3",
-                    "subject": {
-                        "name": str(binary["name"]),
-                        "sha256": self._sha256(binary_content),
-                    },
-                    "verificationMaterial": {
-                        "certificateIdentity": "release-bot@aftermath.invalid",
-                        "issuer": "https://forgejo.invalid/actions",
-                    },
-                },
-                sort_keys=True,
-                indent=2,
+        tracking_issue_indexes: list[int] = []
+        for title, body in (
+            (
+                "Verify the 3.7.0 package signature and SBOM",
+                "Close only after the target package files match approved sources.",
+            ),
+            (
+                "Reconcile the 3.7.0 package index release",
+                "Close only after exactly one index Release exists.",
+            ),
+            (
+                "Audit 3.7.0 downstream package notifications",
+                "Close only after both receiver effects are present exactly once.",
+            ),
+        ):
+            issue = self.client.create_issue(
+                base.owner,
+                base.repository,
+                title=title,
+                body=body,
+                milestone=base.milestone_id,
             )
-            + "\n"
-        ).encode("utf-8")
-        created_signature = self.client.create_file(
-            base.owner,
-            base.repository,
-            path=signature_path,
-            content=signature_content.decode("utf-8"),
-            branch=base.base_branch,
-            message="Record approved package signature bundle",
-        )
-        trace.append(
-            {
-                "tool": "create_file",
-                "arguments": {
-                    "path": signature_path,
-                    "branch": base.base_branch,
-                },
-                "result": created_signature,
-                "kind": "write",
-                "status": "success",
-            }
-        )
+            tracking_issue_indexes.append(int(issue["number"]))
+            trace.append(
+                {
+                    "tool": "create_issue",
+                    "arguments": {"title": title},
+                    "result": issue,
+                    "kind": "write",
+                    "status": "success",
+                }
+            )
 
         expected = []
-        for role, source in (
-            ("binary", binary),
-            ("checksum", checksum),
-            ("sbom", sbom),
-        ):
+        for source in base.expected_assets:
             content = self._repository_source(
                 owner=base.owner,
                 repository=base.repository,
@@ -152,20 +167,12 @@ class ForgejoPackageProvenancePrefixBuilder:
             )
             expected.append(
                 {
-                    "role": role,
+                    "role": source["role"],
                     "name": str(source["name"]),
                     "source_path": str(source["source_path"]),
                     "sha256": self._sha256(content),
                 }
             )
-        expected.append(
-            {
-                "role": "signature",
-                "name": signature_name,
-                "source_path": signature_path,
-                "sha256": self._sha256(signature_content),
-            }
-        )
 
         protected_version = spec.protected_release_tag.removeprefix("v")
         protected_contents = {
@@ -234,6 +241,7 @@ class ForgejoPackageProvenancePrefixBuilder:
             milestone_id=base.milestone_id,
             protected_pull_request_index=base.protected_pull_request_index,
             protected_issue_index=base.protected_issue_index,
+            tracking_issue_indexes=tuple(tracking_issue_indexes),
             protected_release_tag=base.protected_release_tag,
             protected_asset_name=base.protected_asset_name,
             branch_protection_rule=base.branch_protection_rule,

@@ -46,16 +46,33 @@ def main() -> int:
         final_state,
         prefix=prefix,
     )
+    mutation_tools = [
+        event["tool"]
+        for event in trace
+        if event["tool"] in environment.MUTATION_TOOLS
+    ]
+    query_tools = [
+        event["tool"]
+        for event in trace
+        if event["tool"] not in environment.MUTATION_TOOLS
+    ]
+    repaired_groups = {
+        "package_files": evaluation.checks["exact_provenance_file_set"],
+        "index_release": evaluation.checks["one_package_index_release"],
+        "external_consumers": evaluation.checks[
+            "both_index_consumers_applied"
+        ],
+        "tracking_closure": evaluation.checks["tracking_issues_closed"],
+    }
     payload = {
         "schema_version": "1.0",
         "scenario_id": prefix["scenario_id"],
         "variant": boundary["variant"],
         "reference_trace": trace,
-        "mutation_tools": sorted(environment.MUTATION_TOOLS),
-        "query_tools": sorted(
-            set(environment.TOOL_NAMES) - set(environment.MUTATION_TOOLS)
-        ),
-        "downstream_repairs": 3,
+        "mutation_tools": mutation_tools,
+        "query_tools": query_tools,
+        "repaired_groups": repaired_groups,
+        "downstream_repairs": sum(repaired_groups.values()),
         "semantic_recovery_direction": {
             "package_request_not_reached": "publish_missing_version",
             "package_binary_committed_response_lost": (

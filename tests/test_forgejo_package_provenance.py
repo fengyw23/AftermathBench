@@ -36,6 +36,7 @@ def _prefix() -> dict:
         "branch_protection_rule": "release/*",
         "coordinator_hook_id": 11,
         "provenance_hook_id": 12,
+        "tracking_issue_indexes": [21, 22, 23],
     }
 
 
@@ -44,6 +45,11 @@ def _evidence() -> dict:
         "target_pull": {"merged": True, "state": "closed"},
         "linked_issue": {"state": "closed"},
         "release_milestone": {"state": "closed"},
+        "tracking_issues": [
+            {"number": 21, "state": "closed"},
+            {"number": 22, "state": "closed"},
+            {"number": 23, "state": "closed"},
+        ],
         "packages": [
             {"name": "telemetry-cli", "version": "3.6.4"},
             {"name": "telemetry-cli", "version": "3.7.0"},

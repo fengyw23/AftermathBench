@@ -77,6 +77,66 @@ jobs:
           done
           cp "$RUNNER_TEMP/forgejo-source-verification.json" \
             "$run_root/source-verification.json"
+
+      - name: Replay fixed-policy baselines
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-package-provenance"
+          variants=(
+            package_request_not_reached
+            package_binary_committed_response_lost
+            package_complete_index_missing
+            package_complete_index_accepted_response_lost
+          )
+          baselines=(
+            no_op
+            blind_full_publish
+            assume_package_exists
+            metadata_only
+            replay_all_failed
+            close_only
+          )
+          mkdir -p "$run_root/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore \
+                --snapshot "$runtime_root/package-prefix.tar.gz"
+              python scripts/run_forgejo_package_provenance_boundary.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/runtime/prefix.json" \
+                --variant "$variant" \
+                --output "$run_root/runtime/$baseline-$variant-boundary.json"
+              python scripts/run_forgejo_package_provenance_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/runtime/prefix.json" \
+                --boundary "$run_root/runtime/$baseline-$variant-boundary.json" \
+                --baseline "$baseline" \
+                --output "$run_root/baselines/$baseline-$variant.json"
+            done
+          done
+          python scripts/summarize_native_baselines.py \
+            --run-directory "$run_root/baselines" \
+            --scenario data/scenario_blueprints/forgejo-package-provenance-dev-001/scenario.json \
+            --output "$run_root/baselines/summary.json"
+          python - "$run_root/baselines/summary.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          rates = [item["pass_rate"] for item in summary["heuristics"]]
+          matched = [
+              item["name"]
+              for item in summary["heuristics"]
+              if item["matched_group_success"]
+          ]
+          if max(rates, default=1.0) >= 0.5 or matched:
+              raise SystemExit(
+                  f"hard baseline gate failed: rates={rates}, matched={matched}"
+              )
+          PY
           python scripts/build_evidence_file_manifest.py \
             --root "$run_root" \
             --output "$run_root/evidence-manifest.json"

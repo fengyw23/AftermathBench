@@ -119,6 +119,14 @@ def evaluate_forgejo_package_provenance_recovery(
             evidence.get("release_milestone", {}).get("state")
         )
         == "closed",
+        "tracking_issues_closed": (
+            len(evidence.get("tracking_issues", []))
+            == len(prefix["tracking_issue_indexes"])
+            and all(
+                str(item.get("state")) == "closed"
+                for item in evidence.get("tracking_issues", [])
+            )
+        ),
     }
     preservation_checks = {
         "approved_pull_preserved": (
@@ -212,6 +220,7 @@ class ForgejoPackageProvenanceEnvironment:
         "create_package_index_release",
         "replay_webhook",
         "close_milestone",
+        "close_issue",
         "wait_for_webhook_history_change",
     )
     MUTATION_TOOLS = (
@@ -219,6 +228,7 @@ class ForgejoPackageProvenanceEnvironment:
         "create_package_index_release",
         "replay_webhook",
         "close_milestone",
+        "close_issue",
     )
 
     def __init__(
@@ -400,6 +410,10 @@ class ForgejoPackageProvenanceEnvironment:
                 int(kwargs["milestone_id"]),
                 state="closed",
             ),
+            "close_issue": lambda: self.api.patch(
+                f"/repos/{owner}/{repository}/issues/{int(kwargs['index'])}",
+                {"state": "closed"},
+            ),
             "wait_for_webhook_history_change": lambda: (
                 self._wait_for_webhook_history_change(
                     int(kwargs["hook_id"]),
@@ -530,6 +544,12 @@ class ForgejoPackageProvenanceEnvironment:
                 self.repository,
                 int(self.prefix["milestone_id"]),
             ),
+            "tracking_issues": [
+                self.api.get(
+                    f"/repos/{self.owner}/{self.repository}/issues/{int(index)}"
+                )
+                for index in self.prefix["tracking_issue_indexes"]
+            ],
             "packages": self.api.list_packages(
                 self.owner,
                 package_type="generic",
@@ -589,6 +609,8 @@ def reference_forgejo_package_provenance_recovery(
 
     call("get_pull_request", index=prefix["pull_request_index"])
     call("get_issue", index=prefix["linked_issue_index"])
+    for index in prefix["tracking_issue_indexes"]:
+        call("get_issue", index=index)
     milestone = call("get_milestone", milestone_id=prefix["milestone_id"])
     packages = call("list_packages", query=prefix["package_name"])
     target_package = next(
@@ -692,6 +714,8 @@ def reference_forgejo_package_provenance_recovery(
                 )
     if milestone.get("state") != "closed":
         call("close_milestone", milestone_id=prefix["milestone_id"])
+    for index in prefix["tracking_issue_indexes"]:
+        call("close_issue", index=index)
     call("list_packages", query=prefix["package_name"])
     call(
         "list_package_files",
