@@ -101,6 +101,8 @@ def evaluate_forgejo_package_provenance_recovery(
 
     target_pull = evidence.get("target_pull", {})
     target_issue = evidence.get("linked_issue", {})
+    protected_pull = evidence.get("protected_pull", {})
+    protected_issue = evidence.get("protected_issue", {})
     goal_checks = {
         "target_package_version_exists": isinstance(
             evidence.get("target_package"), dict
@@ -134,6 +136,13 @@ def evaluate_forgejo_package_provenance_recovery(
             and str(target_pull.get("state")) == "closed"
         ),
         "linked_issue_preserved": str(target_issue.get("state")) == "closed",
+        "unrelated_pull_preserved": (
+            not bool(protected_pull.get("merged"))
+            and str(protected_pull.get("state")) == "open"
+        ),
+        "unrelated_issue_preserved": (
+            str(protected_issue.get("state")) == "open"
+        ),
         "protected_package_version_preserved": isinstance(
             evidence.get("protected_package"), dict
         ),
@@ -538,6 +547,15 @@ class ForgejoPackageProvenanceEnvironment:
             "linked_issue": self.api.get(
                 f"/repos/{self.owner}/{self.repository}/issues/"
                 f"{int(self.prefix['linked_issue_index'])}"
+            ),
+            "protected_pull": self.api.get_pull_request(
+                self.owner,
+                self.repository,
+                int(self.prefix["protected_pull_request_index"]),
+            ),
+            "protected_issue": self.api.get(
+                f"/repos/{self.owner}/{self.repository}/issues/"
+                f"{int(self.prefix['protected_issue_index'])}"
             ),
             "release_milestone": self.api.get_milestone(
                 self.owner,

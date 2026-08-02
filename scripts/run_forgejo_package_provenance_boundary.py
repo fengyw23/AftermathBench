@@ -65,6 +65,19 @@ def _upload_role(
     )
 
 
+def _role_payload(
+    api: ForgejoAPI,
+    prefix: dict[str, Any],
+    role: str,
+) -> tuple[dict[str, Any], bytes]:
+    item = next(
+        value
+        for value in prefix["expected_package_files"]
+        if value["role"] == role
+    )
+    return item, _source_bytes(api, prefix, item["source_path"])
+
+
 def _wait_histories(
     web: ForgejoWebSession,
     prefix: dict[str, Any],
@@ -125,11 +138,25 @@ def main() -> int:
     specification = PACKAGE_PROVENANCE_VARIANTS[args.variant]
     for role in specification.preloaded_file_roles:
         _upload_role(api, prefix, role)
+    pending_binary: tuple[dict[str, Any], bytes] | None = None
+    if specification.attempted_operation == "upload_binary":
+        # Read the approved source before arming the one-shot transport seam.
+        # The ambiguous failure must wrap the native package PUT itself, not
+        # an earlier repository query used to construct the request body.
+        pending_binary = _role_payload(api, prefix, "binary")
     specification = faults.arm(args.variant)
     actual_error: str | None = None
     try:
         if specification.attempted_operation == "upload_binary":
-            _upload_role(api, prefix, "binary")
+            assert pending_binary is not None
+            item, content = pending_binary
+            api.upload_generic_package_file(
+                prefix["owner"],
+                name=prefix["package_name"],
+                version=prefix["package_version"],
+                filename=item["name"],
+                content=content,
+            )
         else:
             api.create_release(
                 prefix["owner"],
@@ -184,8 +211,36 @@ def main() -> int:
         for item in state["releases"]
         if item.get("tag_name") == prefix["package_index_release_tag"]
     ]
+    api_gateway_audit = _get_json("http://127.0.0.1:9091/audit")
+    expected_method = (
+        "PUT"
+        if specification.attempted_operation == "upload_binary"
+        else "POST"
+    )
+    expected_path_fragment = (
+        f"/api/packages/{prefix['owner']}/generic/"
+        f"{prefix['package_name']}/{prefix['package_version']}/"
+        if specification.attempted_operation == "upload_binary"
+        else f"/api/v1/repos/{prefix['owner']}/{prefix['repository']}/releases"
+    )
+    ambiguous_events = [
+        item
+        for item in api_gateway_audit.get("events", [])
+        if item.get("method") == expected_method
+        and expected_path_fragment in str(item.get("path"))
+        and item.get("mode") == specification.api_mode
+    ]
+    expected_outcome = (
+        "upstream_completed_response_dropped"
+        if specification.api_mode == "drop_response"
+        else "request_suppressed"
+    )
     checks = {
         "surface_error_observed": actual_error is not None,
+        "ambiguous_write_hit_fault_seam_once": (
+            len(ambiguous_events) == 1
+            and ambiguous_events[0].get("outcome") == expected_outcome
+        ),
         "package_files_match_variant": observed_roles == expected_roles,
         "release_commit_matches_variant": (
             len(target_releases) == (1 if specification.release_committed else 0)
@@ -210,7 +265,7 @@ def main() -> int:
         },
         "harness_error_type": actual_error,
         "failure_boundary_evidence": state,
-        "api_gateway_audit": _get_json("http://127.0.0.1:9091/audit"),
+        "api_gateway_audit": api_gateway_audit,
         "coordinator_gateway_audit": _get_json("http://127.0.0.1:9093/audit"),
         "provenance_gateway_audit": _get_json("http://127.0.0.1:9094/audit"),
         "checks": checks,

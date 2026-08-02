@@ -67,6 +67,7 @@ class ForgejoPackageProvenancePrefix:
     protected_release_tag: str
     protected_asset_name: str
     branch_protection_rule: str
+    manifest_path: str
     package_name: str
     package_version: str
     protected_package_version: str
@@ -245,6 +246,7 @@ class ForgejoPackageProvenancePrefixBuilder:
             protected_release_tag=base.protected_release_tag,
             protected_asset_name=base.protected_asset_name,
             branch_protection_rule=base.branch_protection_rule,
+            manifest_path=base.manifest_path,
             package_name=spec.package_slug,
             package_version=spec.version,
             protected_package_version=protected_version,
