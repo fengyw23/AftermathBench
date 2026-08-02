@@ -52,7 +52,7 @@ class PrivateModelFailureClassifierTests(unittest.TestCase):
             )
             self.assertEqual(
                 payload["terminal_exception_type_counts"],
-                {"RuntimeError": 1, "ValueError": 1},
+                {"RuntimeError": 1, "TimeoutError": 1, "ValueError": 1},
             )
             self.assertNotIn("hidden-name-123", text)
             self.assertNotIn("private body", text)
