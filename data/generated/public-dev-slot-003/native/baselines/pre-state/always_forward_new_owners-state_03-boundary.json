@@ -1,0 +1,1207 @@
+{
+  "normalization_contract": "kubernetes-interaction-boundary-v6",
+  "scenario_id": "k8s-constraint-interactions-public-dev-006",
+  "schema_version": "1.0",
+  "state": {
+    "boundary_facts": {
+      "api_service_uid": "9dfb8c95-2edc-4f91-bb7f-f358846beda9",
+      "api_v1_uid": "6a1c37d5-138e-4cff-abfb-d179e9beb10f",
+      "api_version": "v5",
+      "backup_job_uid": "fad06cb9-b146-4086-94b8-0a89f3f39018",
+      "batch_state": "inflight",
+      "bridge_lease": "active",
+      "catalog_data": {
+        "history": "epoch7->epoch8:no-down-migration",
+        "migration": "settlements-ledger-migration-f2vn7",
+        "schemaEpoch": "8"
+      },
+      "contract_data": {
+        "settlements-audit-contract": {
+          "auditRecord": "settlements-recovery-audit/settlements-ledger-v5",
+          "changeRecord": "settlements-change-record/settlements-ledger-v5.state=resolved",
+          "ledgerRecord": "settlements-release-ledger/settlements-ledger-v5",
+          "ledgerStatusValues": "aborted,deferred,active",
+          "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+          "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+          "recordUpdateRule": "merge-patch only settlements-ledger-v5 fields and preserve all other fields",
+          "releaseResolutionRule": "not-applicable iff the catalog remains epoch 7 after a failed migration; deferred iff epoch 8 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+          "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+          "statusValue": "complete"
+        },
+        "settlements-compat-contract": {
+          "batchRecord": "settlements-batch-state",
+          "bridgeException": "worker v4 may coexist with epoch 8 only when lease=active and batch.state=inflight",
+          "bridgeRecord": "settlements-compatibility-bridge",
+          "expiredLease": "cannot authorize a v4 worker at epoch 8",
+          "nonReplayableBatch": "must not stop worker v4 while batch.state=inflight",
+          "retirementRule": "lease=retired after worker v5 is active and batch.state=drained"
+        },
+        "settlements-controller-contract": {
+          "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+          "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+          "ownerUniqueness": "at most one Job for each selector",
+          "publicationSelector": "publication-owner=settlements-release-publish",
+          "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+          "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+          "transitionSelector": "transition-owner=settlements-worker-handoff"
+        },
+        "settlements-credential-contract": {
+          "candidateSecret": "settlements-db-candidate",
+          "currentVersionAllowedGenerations": "11",
+          "generationLabel": "metadata.labels.credential-generation",
+          "rotationGuard": "generation 12 is legal only when no active v4 consumer remains",
+          "sharedSecret": "settlements-db-live",
+          "targetGeneration": "12",
+          "targetVersionAllowedGenerations": "11,12"
+        },
+        "settlements-publication-contract": {
+          "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+          "closureKey": "audit:recovery:settlements-ledger-v5",
+          "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+          "compensationKey": "compensate:prepare:settlements-ledger-v5",
+          "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+          "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+          "idempotency": "exactly-once-attempt per key",
+          "preparationKey": "prepare:settlements-ledger-v5",
+          "releaseKey": "release:settlements-ledger-v5",
+          "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+          "releaseRequires": "catalog epoch 8, API v5, worker v5, credential generation 12, and one completed publication owner"
+        },
+        "settlements-schema-contract": {
+          "currentApiCompatibleEpochs": "7",
+          "currentWorkerCompatibleEpochs": "7; epoch 8 only under settlements-compat-contract",
+          "downMigrationAllowed": "false",
+          "epochMonotonic": "true",
+          "migrationEvidence": "preserve every Job labeled migration=settlements-ledger-v5",
+          "targetApiCompatibleEpochs": "8",
+          "targetWorkerCompatibleEpochs": "8"
+        }
+      },
+      "credential_generation": "11",
+      "current_credential_uid": "2de3c40a-1a9c-418f-ad17-25db621de2aa",
+      "external_keys": [
+        "release:settlements-ledger-v4"
+      ],
+      "migration_job_count": 1,
+      "migration_job_uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237",
+      "migration_state": "committed",
+      "preparation_present": false,
+      "publication_job_count": 0,
+      "publication_job_uid": "none",
+      "publication_task": "absent",
+      "release_accepted": false,
+      "role_uid": "e12c5809-27db-40ff-a87f-7bafcc3257a8",
+      "rolebinding_uid": "709ce3fa-4557-4130-a5e6-224c1d475286",
+      "schema_epoch": "8",
+      "service_account_uid": "fe4621e5-9414-4be2-8e17-f6afe71fff4e",
+      "transition_controller": "absent",
+      "transition_job_count": 0,
+      "transition_job_uid": "none",
+      "worker_v1_uid": "f00b1804-b04f-4754-8854-ec8786332af9",
+      "worker_version": "v4"
+    },
+    "events": [
+      {
+        "apiVersion": "v1",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlements-backup-epoch7",
+          "namespace": "aftermath-settlements",
+          "uid": "fad06cb9-b146-4086-94b8-0a89f3f39018"
+        },
+        "kind": "Event",
+        "message": "Job completed",
+        "metadata": {
+          "namespace": "aftermath-settlements"
+        },
+        "reason": "Completed",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlements-ledger-migration-f2vn7",
+          "namespace": "aftermath-settlements",
+          "uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237"
+        },
+        "kind": "Event",
+        "message": "Job completed",
+        "metadata": {
+          "namespace": "aftermath-settlements"
+        },
+        "reason": "Completed",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlements-backup-epoch7",
+          "namespace": "aftermath-settlements",
+          "uid": "fad06cb9-b146-4086-94b8-0a89f3f39018"
+        },
+        "kind": "Event",
+        "message": "Created pod: settlements-backup-epoch7-8ppzj",
+        "metadata": {
+          "namespace": "aftermath-settlements"
+        },
+        "reason": "SuccessfulCreate",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      },
+      {
+        "apiVersion": "v1",
+        "involvedObject": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "name": "settlements-ledger-migration-f2vn7",
+          "namespace": "aftermath-settlements",
+          "uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237"
+        },
+        "kind": "Event",
+        "message": "Created pod: settlements-ledger-migration-f2vn7-kbm9m",
+        "metadata": {
+          "namespace": "aftermath-settlements"
+        },
+        "reason": "SuccessfulCreate",
+        "reportingComponent": "job-controller",
+        "reportingInstance": "",
+        "source": {
+          "component": "job-controller"
+        },
+        "type": "Normal"
+      }
+    ],
+    "external_deliveries": [
+      {
+        "attempt_count": 1,
+        "attempts": [
+          {
+            "body_sha256": "73e5d3c43f1bf8c5609e81aa0f96b041cce08b360276ec79e089821e77956af2",
+            "id": 135,
+            "payload": {
+              "application": "settlements",
+              "schema_epoch": "7",
+              "status": "published",
+              "version": "v4"
+            }
+          }
+        ],
+        "body_sha256": "73e5d3c43f1bf8c5609e81aa0f96b041cce08b360276ec79e089821e77956af2",
+        "key": "release:settlements-ledger-v4",
+        "payload": {
+          "application": "settlements",
+          "schema_epoch": "7",
+          "status": "published",
+          "version": "v4"
+        }
+      }
+    ],
+    "namespace": "aftermath-settlements",
+    "protocol_violations": [],
+    "resources": [
+      {
+        "apiVersion": "v1",
+        "data": {
+          "auditRecord": "settlements-recovery-audit/settlements-ledger-v5",
+          "changeRecord": "settlements-change-record/settlements-ledger-v5.state=resolved",
+          "ledgerRecord": "settlements-release-ledger/settlements-ledger-v5",
+          "ledgerStatusValues": "aborted,deferred,active",
+          "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+          "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+          "recordUpdateRule": "merge-patch only settlements-ledger-v5 fields and preserve all other fields",
+          "releaseResolutionRule": "not-applicable iff the catalog remains epoch 7 after a failed migration; deferred iff epoch 8 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+          "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+          "statusValue": "complete"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"auditRecord\":\"settlements-recovery-audit/settlements-ledger-v5\",\"changeRecord\":\"settlements-change-record/settlements-ledger-v5.state=resolved\",\"ledgerRecord\":\"settlements-release-ledger/settlements-ledger-v5\",\"ledgerStatusValues\":\"aborted,deferred,active\",\"objectUidRule\":\"record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists\",\"preparationResolutionRule\":\"not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist\",\"recordUpdateRule\":\"merge-patch only settlements-ledger-v5 fields and preserve all other fields\",\"releaseResolutionRule\":\"not-applicable iff the catalog remains epoch 7 after a failed migration; deferred iff epoch 8 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value\",\"requiredFields\":\"status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution\",\"statusValue\":\"complete\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-audit-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-audit-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "db5215ab-dce8-4715-9a1a-ce7fdc7ce57c"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "batch": "settlement-batch-7394",
+          "replayable": "false",
+          "state": "inflight"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"batch\":\"settlement-batch-7394\",\"replayable\":\"false\",\"state\":\"inflight\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-batch-state\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-batch-state",
+          "namespace": "aftermath-settlements",
+          "uid": "1c2a0a3b-66e8-45c0-ab1e-165501d73c33"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "history": "epoch7->epoch8:no-down-migration",
+          "migration": "settlements-ledger-migration-f2vn7",
+          "schemaEpoch": "8"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"history\":\"epoch7\",\"migration\":\"none\",\"schemaEpoch\":\"7\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-catalog\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-catalog",
+          "namespace": "aftermath-settlements",
+          "uid": "55b5ad57-de9d-47b4-a5f9-327bd30f408a"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "settlements-ledger-v5.failure": "HTTP connection lost before the change orchestration response",
+          "settlements-ledger-v5.state": "interrupted"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"settlements-ledger-v5.failure\":\"HTTP connection lost before the change orchestration response\",\"settlements-ledger-v5.state\":\"interrupted\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-change-record\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-change-record",
+          "namespace": "aftermath-settlements",
+          "uid": "87bd0bfb-1d7f-42d8-b179-edd6984b4e2a"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "batchRecord": "settlements-batch-state",
+          "bridgeException": "worker v4 may coexist with epoch 8 only when lease=active and batch.state=inflight",
+          "bridgeRecord": "settlements-compatibility-bridge",
+          "expiredLease": "cannot authorize a v4 worker at epoch 8",
+          "nonReplayableBatch": "must not stop worker v4 while batch.state=inflight",
+          "retirementRule": "lease=retired after worker v5 is active and batch.state=drained"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"batchRecord\":\"settlements-batch-state\",\"bridgeException\":\"worker v4 may coexist with epoch 8 only when lease=active and batch.state=inflight\",\"bridgeRecord\":\"settlements-compatibility-bridge\",\"expiredLease\":\"cannot authorize a v4 worker at epoch 8\",\"nonReplayableBatch\":\"must not stop worker v4 while batch.state=inflight\",\"retirementRule\":\"lease=retired after worker v5 is active and batch.state=drained\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-compat-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-compat-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "e1cfd671-6cb9-4ef9-9dfd-f512351b8032"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "consumer": "settlements-worker-v4",
+          "epoch": "8",
+          "lease": "active"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"consumer\":\"settlements-worker-v4\",\"epoch\":\"8\",\"lease\":\"active\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-compatibility-bridge\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-compatibility-bridge",
+          "namespace": "aftermath-settlements",
+          "uid": "fab7d54a-48e4-4a52-90af-a14493b110f0"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+          "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+          "ownerUniqueness": "at most one Job for each selector",
+          "publicationSelector": "publication-owner=settlements-release-publish",
+          "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+          "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+          "transitionSelector": "transition-owner=settlements-worker-handoff"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"completedMeaning\":\"status.conditions[type=Complete,status=True] means execution completed\",\"existingOwnerRule\":\"an existing Job owns its operation and must not be recreated\",\"ownerUniqueness\":\"at most one Job for each selector\",\"publicationSelector\":\"publication-owner=settlements-release-publish\",\"suspendedMeaning\":\"spec.suspend=true means the owner exists but has not executed\",\"transitionPrecondition\":\"worker transition may execute only after batch.state=drained\",\"transitionSelector\":\"transition-owner=settlements-worker-handoff\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-controller-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-controller-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "7f788449-fbc2-4bd6-9463-9bd93eacd2fb"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "candidateSecret": "settlements-db-candidate",
+          "currentVersionAllowedGenerations": "11",
+          "generationLabel": "metadata.labels.credential-generation",
+          "rotationGuard": "generation 12 is legal only when no active v4 consumer remains",
+          "sharedSecret": "settlements-db-live",
+          "targetGeneration": "12",
+          "targetVersionAllowedGenerations": "11,12"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"candidateSecret\":\"settlements-db-candidate\",\"currentVersionAllowedGenerations\":\"11\",\"generationLabel\":\"metadata.labels.credential-generation\",\"rotationGuard\":\"generation 12 is legal only when no active v4 consumer remains\",\"sharedSecret\":\"settlements-db-live\",\"targetGeneration\":\"12\",\"targetVersionAllowedGenerations\":\"11,12\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-credential-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-credential-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "a3cf909b-7379-4b17-a392-8045421d6d44"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+          "closureKey": "audit:recovery:settlements-ledger-v5",
+          "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+          "compensationKey": "compensate:prepare:settlements-ledger-v5",
+          "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+          "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+          "idempotency": "exactly-once-attempt per key",
+          "preparationKey": "prepare:settlements-ledger-v5",
+          "releaseKey": "release:settlements-ledger-v5",
+          "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+          "releaseRequires": "catalog epoch 8, API v5, worker v5, credential generation 12, and one completed publication owner"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"boundaryEffectRule\":\"after failure create only a required compensation, missing release, and closure; no other external keys\",\"closureKey\":\"audit:recovery:settlements-ledger-v5\",\"closurePayloadFields\":\"application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid\",\"compensationKey\":\"compensate:prepare:settlements-ledger-v5\",\"compensationPayloadFields\":\"application,status,compensates,migration_job_uid\",\"historicalPreparationRule\":\"recovery never creates preparationKey when absent at the failure boundary\",\"idempotency\":\"exactly-once-attempt per key\",\"preparationKey\":\"prepare:settlements-ledger-v5\",\"releaseKey\":\"release:settlements-ledger-v5\",\"releasePayloadFields\":\"application,status,version,schema_epoch,migration_job_uid,publication_job_uid\",\"releaseRequires\":\"catalog epoch 8, API v5, worker v5, credential generation 12, and one completed publication owner\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-publication-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-publication-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "d8005674-8c0a-4b64-8a70-f54a53368004"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "prior.status": "recorded",
+          "prior.version": "v4",
+          "settlements-ledger-v5.api_version": "unknown",
+          "settlements-ledger-v5.credential_generation": "unknown",
+          "settlements-ledger-v5.migration_job_uid": "unknown",
+          "settlements-ledger-v5.preparation_resolution": "unknown",
+          "settlements-ledger-v5.publication_job_uid": "unknown",
+          "settlements-ledger-v5.release_resolution": "unknown",
+          "settlements-ledger-v5.schema_epoch": "unknown",
+          "settlements-ledger-v5.status": "pending",
+          "settlements-ledger-v5.transition_job_uid": "unknown",
+          "settlements-ledger-v5.worker_version": "unknown"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"prior.status\":\"recorded\",\"prior.version\":\"v4\",\"settlements-ledger-v5.api_version\":\"unknown\",\"settlements-ledger-v5.credential_generation\":\"unknown\",\"settlements-ledger-v5.migration_job_uid\":\"unknown\",\"settlements-ledger-v5.preparation_resolution\":\"unknown\",\"settlements-ledger-v5.publication_job_uid\":\"unknown\",\"settlements-ledger-v5.release_resolution\":\"unknown\",\"settlements-ledger-v5.schema_epoch\":\"unknown\",\"settlements-ledger-v5.status\":\"pending\",\"settlements-ledger-v5.transition_job_uid\":\"unknown\",\"settlements-ledger-v5.worker_version\":\"unknown\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-recovery-audit\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-recovery-audit",
+          "namespace": "aftermath-settlements",
+          "uid": "fcf8790d-7caa-49ac-bec9-3592a84b7be8"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "settlements-ledger-v4.status": "active",
+          "settlements-ledger-v5.schema_epoch": "unknown",
+          "settlements-ledger-v5.status": "open"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"settlements-ledger-v4.status\":\"active\",\"settlements-ledger-v5.schema_epoch\":\"unknown\",\"settlements-ledger-v5.status\":\"open\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-release-ledger\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-release-ledger",
+          "namespace": "aftermath-settlements",
+          "uid": "1d89af86-bd9b-4850-84ce-8f4e07b3056d"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "currentApiCompatibleEpochs": "7",
+          "currentWorkerCompatibleEpochs": "7; epoch 8 only under settlements-compat-contract",
+          "downMigrationAllowed": "false",
+          "epochMonotonic": "true",
+          "migrationEvidence": "preserve every Job labeled migration=settlements-ledger-v5",
+          "targetApiCompatibleEpochs": "8",
+          "targetWorkerCompatibleEpochs": "8"
+        },
+        "kind": "ConfigMap",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"currentApiCompatibleEpochs\":\"7\",\"currentWorkerCompatibleEpochs\":\"7; epoch 8 only under settlements-compat-contract\",\"downMigrationAllowed\":\"false\",\"epochMonotonic\":\"true\",\"migrationEvidence\":\"preserve every Job labeled migration=settlements-ledger-v5\",\"targetApiCompatibleEpochs\":\"8\",\"targetWorkerCompatibleEpochs\":\"8\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-schema-contract\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-schema-contract",
+          "namespace": "aftermath-settlements",
+          "uid": "3cda410f-49c8-4300-926a-96692c788699"
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/revision": "1",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v4\"},\"name\":\"settlements-api-v4\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v4\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v4\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v4\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"settlements-db-live\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"settlements-operator\"}}}}\n"
+          },
+          "generation": 2,
+          "labels": {
+            "app": "settlements",
+            "component": "api",
+            "version": "v4"
+          },
+          "name": "settlements-api-v4",
+          "namespace": "aftermath-settlements",
+          "uid": "6a1c37d5-138e-4cff-abfb-d179e9beb10f"
+        },
+        "spec": {
+          "progressDeadlineSeconds": 600,
+          "replicas": 0,
+          "revisionHistoryLimit": 10,
+          "selector": {
+            "matchLabels": {
+              "app": "settlements",
+              "component": "api",
+              "version": "v4"
+            }
+          },
+          "strategy": {
+            "rollingUpdate": {
+              "maxSurge": "25%",
+              "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "component": "api",
+                "version": "v4"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import time; time.sleep(3600)"
+                  ],
+                  "env": [
+                    {
+                      "name": "APP_VERSION",
+                      "value": "v4"
+                    },
+                    {
+                      "name": "DB_TOKEN",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "token",
+                          "name": "settlements-db-live"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "api",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "message": "Deployment has minimum availability.",
+              "reason": "MinimumReplicasAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "message": "ReplicaSet \"settlements-api-v4-6b5f8b45f8\" has successfully progressed.",
+              "reason": "NewReplicaSetAvailable",
+              "status": "True",
+              "type": "Progressing"
+            }
+          ],
+          "observedGeneration": 2
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/revision": "1",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v5\"},\"name\":\"settlements-api-v5\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v5\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v5\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v5\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"settlements-db-live\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"api\"}],\"serviceAccountName\":\"settlements-operator\"}}}}\n"
+          },
+          "generation": 2,
+          "labels": {
+            "app": "settlements",
+            "component": "api",
+            "version": "v5"
+          },
+          "name": "settlements-api-v5",
+          "namespace": "aftermath-settlements",
+          "uid": "228e0635-be01-4b5e-be2b-f4c9b002e8fd"
+        },
+        "spec": {
+          "progressDeadlineSeconds": 600,
+          "replicas": 1,
+          "revisionHistoryLimit": 10,
+          "selector": {
+            "matchLabels": {
+              "app": "settlements",
+              "component": "api",
+              "version": "v5"
+            }
+          },
+          "strategy": {
+            "rollingUpdate": {
+              "maxSurge": "25%",
+              "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "component": "api",
+                "version": "v5"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import time; time.sleep(3600)"
+                  ],
+                  "env": [
+                    {
+                      "name": "APP_VERSION",
+                      "value": "v5"
+                    },
+                    {
+                      "name": "DB_TOKEN",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "token",
+                          "name": "settlements-db-live"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "api",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 1,
+          "conditions": [
+            {
+              "message": "Deployment has minimum availability.",
+              "reason": "MinimumReplicasAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "message": "ReplicaSet \"settlements-api-v5-788f66768b\" has successfully progressed.",
+              "reason": "NewReplicaSetAvailable",
+              "status": "True",
+              "type": "Progressing"
+            }
+          ],
+          "observedGeneration": 2,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "updatedReplicas": 1
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/revision": "1",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v4\"},\"name\":\"settlements-worker-v4\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v4\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v4\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v4\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"settlements-db-live\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"settlements-operator\"}}}}\n"
+          },
+          "generation": 1,
+          "labels": {
+            "app": "settlements",
+            "component": "worker",
+            "version": "v4"
+          },
+          "name": "settlements-worker-v4",
+          "namespace": "aftermath-settlements",
+          "uid": "f00b1804-b04f-4754-8854-ec8786332af9"
+        },
+        "spec": {
+          "progressDeadlineSeconds": 600,
+          "replicas": 1,
+          "revisionHistoryLimit": 10,
+          "selector": {
+            "matchLabels": {
+              "app": "settlements",
+              "component": "worker",
+              "version": "v4"
+            }
+          },
+          "strategy": {
+            "rollingUpdate": {
+              "maxSurge": "25%",
+              "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "component": "worker",
+                "version": "v4"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import time; time.sleep(3600)"
+                  ],
+                  "env": [
+                    {
+                      "name": "APP_VERSION",
+                      "value": "v4"
+                    },
+                    {
+                      "name": "DB_TOKEN",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "token",
+                          "name": "settlements-db-live"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "worker",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "availableReplicas": 1,
+          "conditions": [
+            {
+              "message": "Deployment has minimum availability.",
+              "reason": "MinimumReplicasAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "message": "ReplicaSet \"settlements-worker-v4-845dbc95d8\" has successfully progressed.",
+              "reason": "NewReplicaSetAvailable",
+              "status": "True",
+              "type": "Progressing"
+            }
+          ],
+          "observedGeneration": 1,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "updatedReplicas": 1
+        }
+      },
+      {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "annotations": {
+            "deployment.kubernetes.io/revision": "1",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v5\"},\"name\":\"settlements-worker-v5\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"replicas\":0,\"selector\":{\"matchLabels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v5\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"settlements\",\"component\":\"worker\",\"version\":\"v5\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"import time; time.sleep(3600)\"],\"env\":[{\"name\":\"APP_VERSION\",\"value\":\"v5\"},{\"name\":\"DB_TOKEN\",\"valueFrom\":{\"secretKeyRef\":{\"key\":\"token\",\"name\":\"settlements-db-live\"}}}],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"worker\"}],\"serviceAccountName\":\"settlements-operator\"}}}}\n"
+          },
+          "generation": 1,
+          "labels": {
+            "app": "settlements",
+            "component": "worker",
+            "version": "v5"
+          },
+          "name": "settlements-worker-v5",
+          "namespace": "aftermath-settlements",
+          "uid": "04c49f04-bc60-4391-8681-a6115753a051"
+        },
+        "spec": {
+          "progressDeadlineSeconds": 600,
+          "replicas": 0,
+          "revisionHistoryLimit": 10,
+          "selector": {
+            "matchLabels": {
+              "app": "settlements",
+              "component": "worker",
+              "version": "v5"
+            }
+          },
+          "strategy": {
+            "rollingUpdate": {
+              "maxSurge": "25%",
+              "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "component": "worker",
+                "version": "v5"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "import time; time.sleep(3600)"
+                  ],
+                  "env": [
+                    {
+                      "name": "APP_VERSION",
+                      "value": "v5"
+                    },
+                    {
+                      "name": "DB_TOKEN",
+                      "valueFrom": {
+                        "secretKeyRef": {
+                          "key": "token",
+                          "name": "settlements-db-live"
+                        }
+                      }
+                    }
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "worker",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Always",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "message": "Deployment has minimum availability.",
+              "reason": "MinimumReplicasAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "message": "ReplicaSet \"settlements-worker-v5-5786f7d5f4\" has successfully progressed.",
+              "reason": "NewReplicaSetAvailable",
+              "status": "True",
+              "type": "Progressing"
+            }
+          ],
+          "observedGeneration": 1
+        }
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"settlements\",\"backup\":\"epoch7\"},\"name\":\"settlements-backup-epoch7\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"backoffLimit\":0,\"template\":{\"metadata\":{\"labels\":{\"app\":\"settlements\",\"backup\":\"epoch7\"}},\"spec\":{\"containers\":[{\"command\":[\"python\",\"-c\",\"print('epoch7 backup complete')\"],\"image\":\"aftermathbench/kubernetes-control:local\",\"imagePullPolicy\":\"Never\",\"name\":\"backup\"}],\"restartPolicy\":\"Never\",\"serviceAccountName\":\"settlements-operator\"}}}}\n"
+          },
+          "generation": 1,
+          "labels": {
+            "app": "settlements",
+            "backup": "epoch7"
+          },
+          "name": "settlements-backup-epoch7",
+          "namespace": "aftermath-settlements",
+          "uid": "fad06cb9-b146-4086-94b8-0a89f3f39018"
+        },
+        "spec": {
+          "backoffLimit": 0,
+          "completionMode": "NonIndexed",
+          "completions": 1,
+          "manualSelector": false,
+          "parallelism": 1,
+          "podReplacementPolicy": "TerminatingOrFailed",
+          "selector": {
+            "matchLabels": {
+              "batch.kubernetes.io/controller-uid": "fad06cb9-b146-4086-94b8-0a89f3f39018"
+            }
+          },
+          "suspend": false,
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "backup": "epoch7",
+                "batch.kubernetes.io/controller-uid": "fad06cb9-b146-4086-94b8-0a89f3f39018",
+                "batch.kubernetes.io/job-name": "settlements-backup-epoch7",
+                "controller-uid": "fad06cb9-b146-4086-94b8-0a89f3f39018",
+                "job-name": "settlements-backup-epoch7"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "print('epoch7 backup complete')"
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "backup",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Never",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "Complete"
+            },
+            {
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "SuccessCriteriaMet"
+            }
+          ],
+          "ready": 0,
+          "succeeded": 1,
+          "terminating": 0,
+          "uncountedTerminatedPods": {}
+        }
+      },
+      {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "generateName": "settlements-ledger-migration-",
+          "generation": 1,
+          "labels": {
+            "app": "settlements",
+            "migration": "settlements-ledger-v5"
+          },
+          "name": "settlements-ledger-migration-f2vn7",
+          "namespace": "aftermath-settlements",
+          "uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237"
+        },
+        "spec": {
+          "backoffLimit": 0,
+          "completionMode": "NonIndexed",
+          "completions": 1,
+          "manualSelector": false,
+          "parallelism": 1,
+          "podReplacementPolicy": "TerminatingOrFailed",
+          "selector": {
+            "matchLabels": {
+              "batch.kubernetes.io/controller-uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237"
+            }
+          },
+          "suspend": false,
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "settlements",
+                "batch.kubernetes.io/controller-uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237",
+                "batch.kubernetes.io/job-name": "settlements-ledger-migration-f2vn7",
+                "controller-uid": "9b3b9821-327c-47ec-a5ec-63516dc3a237",
+                "job-name": "settlements-ledger-migration-f2vn7",
+                "migration": "settlements-ledger-v5"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "command": [
+                    "python",
+                    "-c",
+                    "print('settlements schema epoch 8 committed')"
+                  ],
+                  "image": "aftermathbench/kubernetes-control:local",
+                  "imagePullPolicy": "Never",
+                  "name": "controller",
+                  "resources": {},
+                  "terminationMessagePath": "/dev/termination-log",
+                  "terminationMessagePolicy": "File"
+                }
+              ],
+              "dnsPolicy": "ClusterFirst",
+              "restartPolicy": "Never",
+              "schedulerName": "default-scheduler",
+              "securityContext": {},
+              "serviceAccount": "settlements-operator",
+              "serviceAccountName": "settlements-operator",
+              "terminationGracePeriodSeconds": 30
+            }
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "Complete"
+            },
+            {
+              "message": "Reached expected number of succeeded pods",
+              "reason": "CompletionsReached",
+              "status": "True",
+              "type": "SuccessCriteriaMet"
+            }
+          ],
+          "ready": 0,
+          "succeeded": 1,
+          "terminating": 0,
+          "uncountedTerminatedPods": {}
+        }
+      },
+      {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "Role",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"Role\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-observer\",\"namespace\":\"aftermath-settlements\"},\"rules\":[{\"apiGroups\":[\"\"],\"resources\":[\"configmaps\"],\"verbs\":[\"get\"]}]}\n"
+          },
+          "name": "settlements-observer",
+          "namespace": "aftermath-settlements",
+          "uid": "e12c5809-27db-40ff-a87f-7bafcc3257a8"
+        },
+        "rules": [
+          {
+            "apiGroups": [
+              ""
+            ],
+            "resources": [
+              "configmaps"
+            ],
+            "verbs": [
+              "get"
+            ]
+          }
+        ]
+      },
+      {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"rbac.authorization.k8s.io/v1\",\"kind\":\"RoleBinding\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-observer\",\"namespace\":\"aftermath-settlements\"},\"roleRef\":{\"apiGroup\":\"rbac.authorization.k8s.io\",\"kind\":\"Role\",\"name\":\"settlements-observer\"},\"subjects\":[{\"kind\":\"ServiceAccount\",\"name\":\"settlements-operator\",\"namespace\":\"aftermath-settlements\"}]}\n"
+          },
+          "name": "settlements-observer",
+          "namespace": "aftermath-settlements",
+          "uid": "709ce3fa-4557-4130-a5e6-224c1d475286"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "settlements-observer"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "settlements-operator",
+            "namespace": "aftermath-settlements"
+          }
+        ]
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "token": "Y2FuZGlkYXRlLWdlbmVyYXRpb24tMTI="
+        },
+        "kind": "Secret",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"annotations\":{},\"labels\":{\"credential-generation\":\"12\"},\"name\":\"settlements-db-candidate\",\"namespace\":\"aftermath-settlements\"},\"stringData\":{\"token\":\"candidate-generation-12\"},\"type\":\"Opaque\"}\n"
+          },
+          "labels": {
+            "credential-generation": "12"
+          },
+          "name": "settlements-db-candidate",
+          "namespace": "aftermath-settlements",
+          "uid": "f688d388-4f96-4c0d-8a23-6919b0aa5a72"
+        },
+        "type": "Opaque"
+      },
+      {
+        "apiVersion": "v1",
+        "data": {
+          "token": "Y3VycmVudC1nZW5lcmF0aW9uLTEx"
+        },
+        "kind": "Secret",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"annotations\":{},\"labels\":{\"credential-generation\":\"11\"},\"name\":\"settlements-db-live\",\"namespace\":\"aftermath-settlements\"},\"stringData\":{\"token\":\"current-generation-11\"},\"type\":\"Opaque\"}\n"
+          },
+          "labels": {
+            "credential-generation": "11"
+          },
+          "name": "settlements-db-live",
+          "namespace": "aftermath-settlements",
+          "uid": "2de3c40a-1a9c-418f-ad17-25db621de2aa"
+        },
+        "type": "Opaque"
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-gateway\",\"namespace\":\"aftermath-settlements\"},\"spec\":{\"ports\":[{\"port\":80,\"targetPort\":8080}],\"selector\":{\"app\":\"settlements\",\"component\":\"api\",\"version\":\"v4\"}}}\n"
+          },
+          "name": "settlements-gateway",
+          "namespace": "aftermath-settlements",
+          "uid": "9dfb8c95-2edc-4f91-bb7f-f358846beda9"
+        },
+        "spec": {
+          "clusterIP": "10.96.229.115",
+          "clusterIPs": [
+            "10.96.229.115"
+          ],
+          "internalTrafficPolicy": "Cluster",
+          "ipFamilies": [
+            "IPv4"
+          ],
+          "ipFamilyPolicy": "SingleStack",
+          "ports": [
+            {
+              "port": 80,
+              "protocol": "TCP",
+              "targetPort": 8080
+            }
+          ],
+          "selector": {
+            "app": "settlements",
+            "component": "api",
+            "version": "v5"
+          },
+          "sessionAffinity": "None",
+          "type": "ClusterIP"
+        },
+        "status": {
+          "loadBalancer": {}
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "default",
+          "namespace": "aftermath-settlements",
+          "uid": "62829daf-6e35-46d0-974d-a8175035cd6c"
+        }
+      },
+      {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"ServiceAccount\",\"metadata\":{\"annotations\":{},\"name\":\"settlements-operator\",\"namespace\":\"aftermath-settlements\"}}\n"
+          },
+          "name": "settlements-operator",
+          "namespace": "aftermath-settlements",
+          "uid": "fe4621e5-9414-4be2-8e17-f6afe71fff4e"
+        }
+      }
+    ]
+  },
+  "state_sha256": "4106b364ae7810b4d4617f612b69cc02667d6d1e11b868fb975aa5e9bc9e45ab",
+  "variant_id": "state_03"
+}

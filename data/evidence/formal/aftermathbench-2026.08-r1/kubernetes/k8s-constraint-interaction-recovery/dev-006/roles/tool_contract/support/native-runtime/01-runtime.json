@@ -1,0 +1,73 @@
+{
+  "schema_version": "0.1",
+  "runtime_id": "kubernetes-v1.34",
+  "role": "primary_cloud_operations_runtime",
+  "tool_provenance_manifest": "data/runtimes/kubernetes-v1.34/tool_provenance.json",
+  "upstream_components": [
+    {
+      "repository": "https://github.com/kubernetes-sigs/kind",
+      "revision": "9a205e8c8540557602240f8766d3c95c51c23c4c",
+      "branch": "v0.30.0",
+      "license": "Apache-2.0"
+    },
+    {
+      "repository": "https://github.com/kubernetes/kubernetes",
+      "revision": "f28b4c9efbca5c5c0af716d9f2d5702667ee8a45",
+      "branch": "v1.34.0",
+      "license": "Apache-2.0"
+    }
+  ],
+  "open_runtime_evidence": {
+    "server_implementation_source": true,
+    "schema_migrations_source": true,
+    "transaction_logic_source": true,
+    "source_build_recipe": true,
+    "redistributable_inputs": true,
+    "fault_injection_without_business_logic_reimplementation": true
+  },
+  "fault_seams": [
+    {
+      "id": "kubernetes-deployment-patch-controller-boundary",
+      "source_path": "staging/src/k8s.io/apiserver/pkg/endpoints/handlers/patch.go",
+      "symbol": "PatchResource",
+      "supporting_paths": [
+        "staging/src/k8s.io/apiserver/pkg/storage/etcd3/store.go",
+        "pkg/controller/deployment/deployment_controller.go",
+        "pkg/controller/deployment/sync.go"
+      ],
+      "observable_outcomes": [
+        "patch_request_not_reached",
+        "deployment_spec_committed_response_lost",
+        "deployment_spec_committed_controller_reconcile_pending",
+        "new_replicaset_created_rollout_pending"
+      ],
+      "forbidden_injection": "Do not invent a partially written Kubernetes object or split one etcd transaction into field-level pseudo-commits."
+    }
+  ],
+  "execution_validation": {
+    "container_images_digest_pinned": true,
+    "built_from_source": true,
+    "deterministic_reset_verified": true,
+    "fault_variants_replayed": true,
+    "terminal_checks_replayed": true
+  },
+  "declared_status": {
+    "source_audit": "passed",
+    "execution": "admitted"
+  },
+  "admission_evidence": {
+    "validated_at": "2026-07-29",
+    "head_sha": "6ccea9518039e41bc5a227c480cf7bb8ddd4cfbb",
+    "workflow_run": "https://github.com/fengyw23/AftermathBench/actions/runs/30431311972",
+    "evidence_manifest": "data/evidence/kubernetes-native-recovery-control-20260729/admission.json",
+    "source_audit": "source_audit.json",
+    "source_and_reset_validation_run": "https://github.com/fengyw23/AftermathBench/actions/runs/30428735478",
+    "source_and_reset_validation_head_sha": "d9706c260e4197108ed7ef51deb3276f8f9feafc",
+    "source_and_reset_validation_artifact_id": 8714642934,
+    "source_verification": "data/evidence/kubernetes-native-reset-20260729/kubernetes-source-verification.json",
+    "reset_verification": "data/evidence/kubernetes-native-reset-20260729/kubernetes-reset-validation.json",
+    "fault_and_reference_validation_run": "https://github.com/fengyw23/AftermathBench/actions/runs/30431311972",
+    "fault_and_reference_validation_head_sha": "6ccea9518039e41bc5a227c480cf7bb8ddd4cfbb",
+    "fault_and_reference_evidence": "data/evidence/kubernetes-native-recovery-control-20260729"
+  }
+}

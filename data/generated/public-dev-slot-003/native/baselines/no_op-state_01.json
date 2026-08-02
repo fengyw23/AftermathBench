@@ -1,0 +1,167 @@
+{
+  "schema_version": "0.5",
+  "scenario_id": "k8s-constraint-interactions-public-dev-006",
+  "variant": "state_01",
+  "baseline": "no_op",
+  "semantic_recovery_direction": "discard_failed_change",
+  "trace": [],
+  "baseline_error": null,
+  "evaluation": {
+    "passed": false,
+    "components": {
+      "goal_completion": false,
+      "repair_completeness": false,
+      "preservation": true,
+      "protocol_safety": false
+    },
+    "checks": {
+      "catalog_preserved": true,
+      "api_consumer_matches_scope": true,
+      "api_service_matches_consumer": true,
+      "api_backend_available": true,
+      "worker_consumer_matches_scope": true,
+      "worker_backend_available": true,
+      "shared_credential_matches_scope": true,
+      "bridge_matches_scope": true,
+      "batch_matches_scope": true,
+      "candidate_artifacts_match_commit": false,
+      "transition_owner_closed_correctly": true,
+      "publication_owner_closed_correctly": true,
+      "change_record_closed": false,
+      "release_ledger_closed": false,
+      "audit_records_observed_facts": false,
+      "closure_event_records_observed_facts": false,
+      "preparation_obligation_closed": true,
+      "release_obligation_closed": true,
+      "contracts_preserved": true,
+      "migration_evidence_preserved": true,
+      "backup_preserved": true,
+      "stable_consumer_identity_preserved": true,
+      "shared_identity_preserved": true,
+      "rbac_preserved": true,
+      "prior_release_preserved": true,
+      "no_protocol_violation": true,
+      "boundary_effect_envelope_respected": false,
+      "all_external_effects_exactly_once": true,
+      "no_duplicate_migration_job": true,
+      "no_duplicate_transition_owner": true,
+      "no_duplicate_publication_owner": true
+    },
+    "diagnostics": {
+      "semantic_recovery_direction": "discard_failed_change",
+      "boundary_facts": {
+        "schema_epoch": "7",
+        "migration_state": "failed",
+        "api_version": "v4",
+        "worker_version": "v4",
+        "credential_generation": "11",
+        "bridge_lease": "active",
+        "batch_state": "inflight",
+        "transition_controller": "absent",
+        "publication_task": "absent",
+        "preparation_present": false,
+        "release_accepted": false,
+        "external_keys": [
+          "release:settlements-ledger-v4"
+        ],
+        "catalog_data": {
+          "history": "epoch7",
+          "migration": "none",
+          "schemaEpoch": "7"
+        },
+        "contract_data": {
+          "settlements-schema-contract": {
+            "currentApiCompatibleEpochs": "7",
+            "currentWorkerCompatibleEpochs": "7; epoch 8 only under settlements-compat-contract",
+            "downMigrationAllowed": "false",
+            "epochMonotonic": "true",
+            "migrationEvidence": "preserve every Job labeled migration=settlements-ledger-v5",
+            "targetApiCompatibleEpochs": "8",
+            "targetWorkerCompatibleEpochs": "8"
+          },
+          "settlements-compat-contract": {
+            "batchRecord": "settlements-batch-state",
+            "bridgeException": "worker v4 may coexist with epoch 8 only when lease=active and batch.state=inflight",
+            "bridgeRecord": "settlements-compatibility-bridge",
+            "expiredLease": "cannot authorize a v4 worker at epoch 8",
+            "nonReplayableBatch": "must not stop worker v4 while batch.state=inflight",
+            "retirementRule": "lease=retired after worker v5 is active and batch.state=drained"
+          },
+          "settlements-credential-contract": {
+            "candidateSecret": "settlements-db-candidate",
+            "currentVersionAllowedGenerations": "11",
+            "generationLabel": "metadata.labels.credential-generation",
+            "rotationGuard": "generation 12 is legal only when no active v4 consumer remains",
+            "sharedSecret": "settlements-db-live",
+            "targetGeneration": "12",
+            "targetVersionAllowedGenerations": "11,12"
+          },
+          "settlements-controller-contract": {
+            "completedMeaning": "status.conditions[type=Complete,status=True] means execution completed",
+            "existingOwnerRule": "an existing Job owns its operation and must not be recreated",
+            "ownerUniqueness": "at most one Job for each selector",
+            "publicationSelector": "publication-owner=settlements-release-publish",
+            "suspendedMeaning": "spec.suspend=true means the owner exists but has not executed",
+            "transitionPrecondition": "worker transition may execute only after batch.state=drained",
+            "transitionSelector": "transition-owner=settlements-worker-handoff"
+          },
+          "settlements-publication-contract": {
+            "boundaryEffectRule": "after failure create only a required compensation, missing release, and closure; no other external keys",
+            "closureKey": "audit:recovery:settlements-ledger-v5",
+            "closurePayloadFields": "application,status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid",
+            "compensationKey": "compensate:prepare:settlements-ledger-v5",
+            "compensationPayloadFields": "application,status,compensates,migration_job_uid",
+            "historicalPreparationRule": "recovery never creates preparationKey when absent at the failure boundary",
+            "idempotency": "exactly-once-attempt per key",
+            "preparationKey": "prepare:settlements-ledger-v5",
+            "releaseKey": "release:settlements-ledger-v5",
+            "releasePayloadFields": "application,status,version,schema_epoch,migration_job_uid,publication_job_uid",
+            "releaseRequires": "catalog epoch 8, API v5, worker v5, credential generation 12, and one completed publication owner"
+          },
+          "settlements-audit-contract": {
+            "auditRecord": "settlements-recovery-audit/settlements-ledger-v5",
+            "changeRecord": "settlements-change-record/settlements-ledger-v5.state=resolved",
+            "ledgerRecord": "settlements-release-ledger/settlements-ledger-v5",
+            "ledgerStatusValues": "aborted,deferred,active",
+            "objectUidRule": "record exact metadata.uid whenever the matching Job exists, regardless of phase; use none only when no matching Job exists",
+            "preparationResolutionRule": "not-created iff preparation absent; compensated iff preparation and compensation exist; released iff preparation and release exist",
+            "recordUpdateRule": "merge-patch only settlements-ledger-v5 fields and preserve all other fields",
+            "releaseResolutionRule": "not-applicable iff the catalog remains epoch 7 after a failed migration; deferred iff epoch 8 is temporarily served through the active worker bridge and release preconditions are not yet legal; present iff release exists; missing is not a terminal value",
+            "requiredFields": "status,schema_epoch,api_version,worker_version,credential_generation,migration_job_uid,transition_job_uid,publication_job_uid,preparation_resolution,release_resolution",
+            "statusValue": "complete"
+          }
+        },
+        "migration_job_count": 1,
+        "migration_job_uid": "de68e8eb-3859-4600-9040-971923fcf666",
+        "transition_job_count": 0,
+        "transition_job_uid": "none",
+        "publication_job_count": 0,
+        "publication_job_uid": "none",
+        "api_v1_uid": "7d480052-7968-4533-9ac4-dbda9566c7a8",
+        "worker_v1_uid": "d8aa8a12-0d9f-4b23-a2b3-d47614cca9b8",
+        "api_service_uid": "b577a6cd-bae1-49eb-9979-2becacd812b3",
+        "current_credential_uid": "4508e595-c34c-452f-8cc0-4288aa59054d",
+        "backup_job_uid": "6476a933-d9d2-419d-8fe8-74d643a3610e",
+        "service_account_uid": "317ef9e1-7d3f-4f01-a90b-45fdefec412e",
+        "role_uid": "54a64f4a-8214-4b53-8c96-be93be7bab41",
+        "rolebinding_uid": "1fcf3890-d0c8-4685-b129-ab00fe8673f2"
+      },
+      "allowed_external_keys": [
+        "audit:recovery:settlements-ledger-v5",
+        "release:settlements-ledger-v4"
+      ],
+      "actual_external_keys": [
+        "release:settlements-ledger-v4"
+      ],
+      "protocol_violations": []
+    },
+    "failures": [
+      "candidate_artifacts_match_commit",
+      "change_record_closed",
+      "release_ledger_closed",
+      "audit_records_observed_facts",
+      "closure_event_records_observed_facts",
+      "boundary_effect_envelope_respected"
+    ]
+  }
+}
