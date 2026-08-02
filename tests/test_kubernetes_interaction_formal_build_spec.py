@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import copy
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
+from aftermath_bench.integrations.kubernetes_interaction_instance import (
+    KubernetesInteractionInstanceSpec,
+)
 from aftermath_bench.kubernetes_interaction_formal_build_spec import (
     KubernetesInteractionFormalBuildSpecError,
     _evaluator_role,
+    _instance_spec_sha256,
     _tool_role,
     _validate_reference,
 )
@@ -94,6 +99,25 @@ class KubernetesInteractionFormalBuildSpecTests(unittest.TestCase):
             "boundary_facts",
             evaluator["primary_payload"]["scored_state_fields"],
         )
+
+    def test_instance_binding_uses_canonical_json_not_file_bytes(self) -> None:
+        source = (
+            self.root
+            / "data"
+            / "instance_specs"
+            / "public-dev-slot-003.json"
+        )
+        instance = KubernetesInteractionInstanceSpec.from_path(source)
+        payload = json.loads(source.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as temporary:
+            reformatted = Path(temporary) / "instance.json"
+            reformatted.write_text(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            self.assertNotEqual(source.read_bytes(), reformatted.read_bytes())
+            self.assertEqual(_instance_spec_sha256(source), instance.sha256)
+            self.assertEqual(_instance_spec_sha256(reformatted), instance.sha256)
 
 
 if __name__ == "__main__":

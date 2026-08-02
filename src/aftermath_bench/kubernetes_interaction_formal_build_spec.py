@@ -9,6 +9,9 @@ from typing import Any
 
 from .core import canonical_fingerprint
 from .formal_evidence_builder import verify_formal_input_lock
+from .integrations.kubernetes_interaction_instance import (
+    KubernetesInteractionInstanceSpec,
+)
 from .integrations.kubernetes_interaction_recovery import (
     KubernetesInteractionEnvironment,
     evaluate_kubernetes_interaction_recovery,
@@ -195,6 +198,15 @@ def _json_state_sha256(state: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _instance_spec_sha256(path: Path) -> str:
+    """Return the semantic digest used by scenario instance bindings."""
+
+    try:
+        return KubernetesInteractionInstanceSpec.from_path(path).sha256
+    except (OSError, TypeError, ValueError) as error:
+        raise _error(f"invalid Kubernetes instance spec: {error}") from error
+
+
 def _validate_active_scenario(
     root: Path,
     scenario_path: str | Path,
@@ -221,7 +233,7 @@ def _validate_active_scenario(
     ):
         raise _error("active Kubernetes scenario is not the admitted public-dev slot")
     instance_path, _ = _repo_file(root, _INSTANCE_SPEC, label="Kubernetes instance spec")
-    instance_sha = sha256_file(instance_path)
+    instance_sha = _instance_spec_sha256(instance_path)
     try:
         declared_sha = require_sha256(
             raw.get("instance_spec_sha256"),
