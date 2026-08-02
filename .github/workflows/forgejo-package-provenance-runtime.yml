@@ -1,0 +1,104 @@
+name: forgejo-package-provenance-runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-native-package-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      INSTANCE_SPEC: data/instance_specs/forgejo-package-provenance-dev-001.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run focused deterministic tests
+        run: |
+          python -m unittest discover -s tests -p 'test_forgejo_api.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_package_provenance.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned Forgejo from source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUNNER_TEMP/forgejo-source-verification.json"
+
+      - name: Build and freeze the package prefix
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-package-provenance"
+          mkdir -p "$runtime_root" "$run_root/runtime"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup
+          python scripts/build_forgejo_package_provenance_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$run_root/runtime/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/package-prefix.tar.gz"
+
+      - name: Replay four boundaries and reference recoveries
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-package-provenance"
+          variants=(
+            package_request_not_reached
+            package_binary_committed_response_lost
+            package_complete_index_missing
+            package_complete_index_accepted_response_lost
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore \
+              --snapshot "$runtime_root/package-prefix.tar.gz"
+            python scripts/run_forgejo_package_provenance_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$run_root/runtime/$variant-boundary.json"
+            python scripts/run_forgejo_package_provenance_control.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$run_root/runtime/prefix.json" \
+              --boundary "$run_root/runtime/$variant-boundary.json" \
+              --output "$run_root/runtime/$variant-reference.json"
+          done
+          cp "$RUNNER_TEMP/forgejo-source-verification.json" \
+            "$run_root/source-verification.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$run_root" \
+            --output "$run_root/evidence-manifest.json"
+
+      - name: Capture diagnostics and remove credentials
+        if: always()
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          run_root="$RUNNER_TEMP/forgejo-package-provenance"
+          mkdir -p "$run_root"
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$run_root/compose-ps.txt" 2>&1 || true
+          rm -f "$runtime_root/credentials.json"
+          rm -f "$runtime_root/package-prefix.tar.gz"
+
+      - name: Upload package-provenance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-package-provenance-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-package-provenance
+          if-no-files-found: error
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true

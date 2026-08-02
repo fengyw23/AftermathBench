@@ -16,6 +16,18 @@ class ForgejoAPI:
     token: str
     timeout: int = 30
 
+    @property
+    def server_url(self) -> str:
+        """Return the Forgejo origin used by non-v1 package routes."""
+
+        parsed = urllib.parse.urlsplit(self.base_url.rstrip("/"))
+        path = parsed.path.rstrip("/")
+        if path.endswith("/api/v1"):
+            path = path[: -len("/api/v1")]
+        return urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, path, "", "")
+        ).rstrip("/")
+
     def _request(
         self,
         method: str,
@@ -84,6 +96,41 @@ class ForgejoAPI:
             detail = error.read().decode("utf-8", errors="replace")
             raise RuntimeError(
                 f"Forgejo API {method} {path} returned HTTP "
+                f"{error.code}: {detail[:1000]}"
+            ) from error
+
+    def _request_package_bytes(
+        self,
+        method: str,
+        path: str,
+        body: bytes | None = None,
+    ) -> bytes:
+        """Call Forgejo's native ``/api/packages`` registry surface."""
+
+        request = urllib.request.Request(
+            f"{self.server_url}/{path.lstrip('/')}",
+            data=body,
+            headers={
+                "Accept": "application/octet-stream",
+                "Authorization": f"token {self.token}",
+                **(
+                    {"Content-Type": "application/octet-stream"}
+                    if body is not None
+                    else {}
+                ),
+            },
+            method=method,
+        )
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=self.timeout,
+            ) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"Forgejo package API {method} {path} returned HTTP "
                 f"{error.code}: {detail[:1000]}"
             ) from error
 
@@ -457,6 +504,119 @@ class ForgejoAPI:
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no release attachment")
         return result
+
+    def list_packages(
+        self,
+        owner: str,
+        *,
+        package_type: str = "generic",
+        query: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params = {"type": package_type, "limit": "50"}
+        if query:
+            params["q"] = query
+        result = self.get(f"/packages/{owner}", query=params)
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no package list")
+        return [item for item in result if isinstance(item, dict)]
+
+    def get_package(
+        self,
+        owner: str,
+        *,
+        package_type: str,
+        name: str,
+        version: str,
+    ) -> dict[str, Any]:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, package_type, name, version)
+        ]
+        result = self.get("/packages/" + "/".join(components))
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no package document")
+        return result
+
+    def list_package_files(
+        self,
+        owner: str,
+        *,
+        package_type: str,
+        name: str,
+        version: str,
+    ) -> list[dict[str, Any]]:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, package_type, name, version)
+        ]
+        result = self.get(
+            "/packages/" + "/".join(components) + "/files"
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no package file list")
+        return [item for item in result if isinstance(item, dict)]
+
+    def link_package(
+        self,
+        owner: str,
+        *,
+        package_type: str,
+        name: str,
+        repository: str,
+    ) -> Any:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, package_type, name)
+        ]
+        encoded_repository = urllib.parse.quote(repository, safe="")
+        return self.post(
+            "/packages/"
+            + "/".join(components)
+            + f"/-/link/{encoded_repository}",
+            {},
+        )
+
+    def upload_generic_package_file(
+        self,
+        owner: str,
+        *,
+        name: str,
+        version: str,
+        filename: str,
+        content: bytes,
+    ) -> None:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, name, version, filename)
+        ]
+        self._request_package_bytes(
+            "PUT",
+            "/api/packages/"
+            + components[0]
+            + "/generic/"
+            + "/".join(components[1:]),
+            content,
+        )
+
+    def download_generic_package_file(
+        self,
+        owner: str,
+        *,
+        name: str,
+        version: str,
+        filename: str,
+    ) -> bytes:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, name, version, filename)
+        ]
+        return self._request_package_bytes(
+            "GET",
+            "/api/packages/"
+            + components[0]
+            + "/generic/"
+            + "/".join(components[1:]),
+        )
 
     def list_issues(
         self,

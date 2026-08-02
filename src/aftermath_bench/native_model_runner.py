@@ -41,6 +41,9 @@ from .native_family import (
     NativeRuntimeContext,
 )
 from .native_forgejo_family import FORGEJO_RELEASE_FAMILY
+from .native_forgejo_package_provenance_family import (
+    FORGEJO_PACKAGE_PROVENANCE_FAMILY,
+)
 from .native_forgejo_publication_family import FORGEJO_PUBLICATION_FAMILY
 from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
@@ -746,6 +749,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         SALES_RETURN_FAMILY,
         FORGEJO_RELEASE_FAMILY,
         FORGEJO_PUBLICATION_FAMILY,
+        FORGEJO_PACKAGE_PROVENANCE_FAMILY,
         KUBERNETES_ROLLOUT_FAMILY,
         KUBERNETES_SETTLEMENT_FAMILY,
         KUBERNETES_SETTLEMENT_V2_FAMILY,

@@ -101,6 +101,52 @@ class ForgejoAPITest(unittest.TestCase):
         self.assertEqual(request.data, b"approved-bundle")
         self.assertEqual(result["id"], 11)
 
+    def test_generic_package_upload_uses_native_registry_route(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).upload_generic_package_file(
+                "aftermath",
+                name="recovery-agent",
+                version="2.4.1",
+                filename="recovery-agent.sig",
+                content=b"signed-provenance",
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/packages/aftermath/generic/"
+            "recovery-agent/2.4.1/recovery-agent.sig",
+        )
+        self.assertEqual(request.method, "PUT")
+        self.assertEqual(request.data, b"signed-provenance")
+        self.assertEqual(request.headers["Authorization"], "token secret-token")
+
+    def test_package_metadata_uses_v1_api(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response([{"name": "recovery-agent"}]),
+        ) as opener:
+            result = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).list_packages(
+                "aftermath",
+                package_type="generic",
+                query="recovery-agent",
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/packages/aftermath?"
+            "type=generic&limit=50&q=recovery-agent",
+        )
+        self.assertEqual(result[0]["name"], "recovery-agent")
+
 
 if __name__ == "__main__":
     unittest.main()
