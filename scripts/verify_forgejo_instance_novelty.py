@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import re
 import subprocess
+import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -44,9 +47,7 @@ def tracked_paths(root: Path) -> list[Path]:
         capture_output=True,
     )
     return [
-        root / item.decode("utf-8")
-        for item in completed.stdout.split(b"\0")
-        if item
+        root / item.decode("utf-8") for item in completed.stdout.split(b"\0") if item
     ]
 
 
@@ -57,25 +58,20 @@ def validate_bound_blueprint(
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError(
-            "bound blueprint must be a readable JSON object"
-        ) from exc
+        raise ValueError("bound blueprint must be a readable JSON object") from exc
     if not isinstance(payload, dict):
         raise TypeError("bound blueprint must be a JSON object")
     if (
         not isinstance(payload.get("scenario_id"), str)
         or payload["scenario_id"] != instance.scenario_id
     ):
-        raise ValueError(
-            "bound blueprint scenario_id does not match instance spec"
-        )
+        raise ValueError("bound blueprint scenario_id does not match instance spec")
     if (
         not isinstance(payload.get("instance_spec_sha256"), str)
         or payload["instance_spec_sha256"] != instance.sha256
     ):
         raise ValueError(
-            "bound blueprint instance_spec_sha256 does not match "
-            "instance spec"
+            "bound blueprint instance_spec_sha256 does not match instance spec"
         )
     return path.resolve()
 
@@ -89,14 +85,8 @@ def novelty_scan_paths(
 ) -> list[Path]:
     excluded = {instance_spec_path.resolve()}
     if bound_blueprint_path is not None:
-        excluded.add(
-            validate_bound_blueprint(instance, bound_blueprint_path)
-        )
-    return [
-        path
-        for path in paths
-        if path.resolve() not in excluded
-    ]
+        excluded.add(validate_bound_blueprint(instance, bound_blueprint_path))
+    return [path for path in paths if path.resolve() not in excluded]
 
 
 def find_overlaps(
@@ -106,11 +96,16 @@ def find_overlaps(
     corpus: list[tuple[Path, str]] = []
     for path in paths:
         try:
-            corpus.append(
-                (path, path.read_text(encoding="utf-8", errors="ignore"))
-            )
+            corpus.append((path, path.read_text(encoding="utf-8", errors="ignore")))
         except OSError:
             continue
+    return _find_overlaps_in_corpus(instance, corpus)
+
+
+def _find_overlaps_in_corpus(
+    instance: dict[str, Any],
+    corpus: list[tuple[Path, str]],
+) -> list[dict[str, str]]:
     overlaps = []
     for field in IDENTITY_FIELDS:
         value = str(instance.get(field, ""))
@@ -120,6 +115,40 @@ def find_overlaps(
             if value in text:
                 overlaps.append({"field": field, "path": path.as_posix()})
     return overlaps
+
+
+def find_overlaps_in_commit(
+    instance: dict[str, Any],
+    *,
+    root: Path,
+    commit: str,
+    excluded_paths: set[str],
+) -> list[dict[str, str]]:
+    """Replay the novelty scan against the exact pre-admission Git tree."""
+
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ValueError("historical novelty commit must be a full SHA-1")
+    completed = subprocess.run(
+        ["git", "archive", "--format=tar", commit],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    corpus: list[tuple[Path, str]] = []
+    with tarfile.open(fileobj=io.BytesIO(completed.stdout), mode="r:") as archive:
+        for member in archive.getmembers():
+            if not member.isfile() or member.name in excluded_paths:
+                continue
+            stream = archive.extractfile(member)
+            if stream is None:
+                continue
+            corpus.append(
+                (
+                    root / member.name,
+                    stream.read().decode("utf-8", errors="ignore"),
+                )
+            )
+    return _find_overlaps_in_corpus(instance, corpus)
 
 
 def main() -> int:
@@ -146,9 +175,7 @@ def main() -> int:
     args = parser.parse_args()
     root = args.repository_root.resolve()
     try:
-        instance = ForgejoPublicationInstanceSpec.from_path(
-            args.instance_spec
-        )
+        instance = ForgejoPublicationInstanceSpec.from_path(args.instance_spec)
         all_tracked_paths = tracked_paths(root)
         scan_paths = novelty_scan_paths(
             all_tracked_paths,
@@ -173,9 +200,7 @@ def main() -> int:
         "checked_field_count": len(IDENTITY_FIELDS),
         "tracked_file_count": len(all_tracked_paths),
         "scanned_file_count": len(scan_paths),
-        "excluded_tracked_file_count": (
-            len(all_tracked_paths) - len(scan_paths)
-        ),
+        "excluded_tracked_file_count": (len(all_tracked_paths) - len(scan_paths)),
         "overlaps": overlaps,
     }
     print(json.dumps(report, ensure_ascii=False))

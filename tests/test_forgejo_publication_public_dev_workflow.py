@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -10,9 +11,7 @@ from aftermath_bench.integrations.forgejo_publication_instance import (
     ForgejoPublicationInstanceSpec,
 )
 from scripts.verify_forgejo_instance_novelty import (
-    find_overlaps,
-    novelty_scan_paths,
-    tracked_paths,
+    find_overlaps_in_commit,
 )
 
 
@@ -45,21 +44,29 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             self.text,
         )
 
-    def test_committed_workflow_does_not_leak_instance_identity(self) -> None:
+    def test_pre_admission_commit_does_not_leak_instance_identity(self) -> None:
         root = Path.cwd()
         instance_path = root / "data/instance_specs/public-dev-slot-002.json"
         blueprint_path = (
             root / "data/scenario_blueprints/public-dev-slot-002/scenario.json"
         )
         instance = ForgejoPublicationInstanceSpec.from_path(instance_path)
-        scan_paths = novelty_scan_paths(
-            tracked_paths(root),
-            instance_spec_path=instance_path,
-            instance=instance,
-            bound_blueprint_path=blueprint_path,
+        provenance = json.loads(
+            (
+                root
+                / "data/generated/formal-imports/forgejo-public-dev-slot-002/import-provenance.json"
+            ).read_text(encoding="utf-8")
         )
         self.assertEqual(
-            find_overlaps(instance.as_dict(), scan_paths),
+            find_overlaps_in_commit(
+                instance.as_dict(),
+                root=root,
+                commit=provenance["source_commit"],
+                excluded_paths={
+                    instance_path.relative_to(root).as_posix(),
+                    blueprint_path.relative_to(root).as_posix(),
+                },
+            ),
             [],
         )
 
@@ -328,12 +335,14 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
 
     def test_formal_build_failures_surface_captured_logs(self) -> None:
         input_section = self.text[
-            self.text.index("Freeze the five formal input roles"):
-            self.text.index("Run execution controls")
+            self.text.index("Freeze the five formal input roles") : self.text.index(
+                "Run execution controls"
+            )
         ]
         completion_section = self.text[
-            self.text.index("Complete and validate"):
-            self.text.index("Seal the public evidence archive")
+            self.text.index("Complete and validate") : self.text.index(
+                "Seal the public evidence archive"
+            )
         ]
         for section, expected in (
             (
@@ -386,8 +395,9 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
         self,
     ) -> None:
         section = self.text[
-            self.text.index("Run execution controls"):
-            self.text.index("Complete and validate")
+            self.text.index("Run execution controls") : self.text.index(
+                "Complete and validate"
+            )
         ]
         self.assertIn("restore_and_capture_boundary()", section)
         self.assertIn("run_control_once()", section)
@@ -417,8 +427,7 @@ class ForgejoPublicationPublicDevWorkflowTests(unittest.TestCase):
             self.assertIn(
                 variant,
                 Path(
-                    "data/scenario_blueprints/"
-                    "public-dev-slot-002/scenario.json"
+                    "data/scenario_blueprints/public-dev-slot-002/scenario.json"
                 ).read_text(encoding="utf-8"),
             )
         self.assertIn("--expected-execution-control true", self.text)
