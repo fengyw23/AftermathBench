@@ -399,6 +399,7 @@ class ERPNextManufacturingPrefixBuilder:
                             "workstation": self.fixture["workstation"],
                             "time_in_mins": 60,
                             "hour_rate": self.fixture["hour_rate"],
+                            "batch_size": accepted_quantity,
                         }
                     ],
                 },
