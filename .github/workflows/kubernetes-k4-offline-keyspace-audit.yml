@@ -1,0 +1,176 @@
+name: kubernetes-k4-offline-keyspace-audit
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/kubernetes-public-dev-slot-003-k4-offline-keyspace.json"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  audit-frozen-keyspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      K3_RUN_ID: "30733738216"
+      K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate the immutable audit declaration
+        run: |
+          python - data/control_gates/kubernetes-public-dev-slot-003-k4-offline-keyspace.json <<'PY'
+          import json
+          import os
+          import sys
+
+          gate = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "schema_version": "1.0",
+              "stage": "K4-offline-keyspace-audit",
+              "k3_run_id": int(os.environ["K3_RUN_ID"]),
+              "k3_private_artifact": os.environ["K3_PRIVATE_ARTIFACT"],
+              "variant": "state_01",
+          }
+          if gate != expected:
+              raise SystemExit(f"offline keyspace gate drifted: {gate!r}")
+          PY
+
+      - name: Download the short-lived exact replay bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.K3_PRIVATE_ARTIFACT }}
+          path: ${{ runner.temp }}/k3-private
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.K3_RUN_ID }}
+
+      - name: Install checksum-pinned etcd tools
+        run: |
+          etcd_url="https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz"
+          etcd_sha="4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" "$etcd_url"
+          echo "$etcd_sha  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/bin"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcd" \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdctl" \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
+            "$RUNNER_TEMP/bin/"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Restore offline and enumerate only key names
+        run: |
+          snapshot="$RUNNER_TEMP/k3-private/boundary-state_01/etcd.snapshot.db"
+          offline="$RUNNER_TEMP/k4-offline-keyspace"
+          test ! -e "$DIAGNOSTIC_ROOT"
+          mkdir -p "$DIAGNOSTIC_ROOT"
+          etcdutl snapshot restore "$snapshot" \
+            --data-dir="$offline" \
+            --name=diagnostic \
+            --initial-cluster=diagnostic=http://127.0.0.1:32380 \
+            --initial-advertise-peer-urls=http://127.0.0.1:32380 \
+            --initial-cluster-token=aftermath-keyspace-audit \
+            > "$DIAGNOSTIC_ROOT/restore.log" \
+            2> "$DIAGNOSTIC_ROOT/restore.stderr.log"
+          etcd \
+            --name=diagnostic \
+            --data-dir="$offline" \
+            --listen-client-urls=http://127.0.0.1:32379 \
+            --advertise-client-urls=http://127.0.0.1:32379 \
+            --listen-peer-urls=http://127.0.0.1:32380 \
+            --initial-advertise-peer-urls=http://127.0.0.1:32380 \
+            --initial-cluster=diagnostic=http://127.0.0.1:32380 \
+            --initial-cluster-state=new \
+            > "$DIAGNOSTIC_ROOT/etcd.log" 2>&1 &
+          offline_pid=$!
+          trap 'kill "$offline_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 30); do
+            if etcdctl --endpoints=http://127.0.0.1:32379 endpoint health \
+                > /dev/null 2>&1
+            then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = true
+          etcdctl --endpoints=http://127.0.0.1:32379 get \
+            /registry/ --prefix --keys-only --write-out=json \
+            > "$RUNNER_TEMP/registry-keys.json"
+          python - \
+            "$RUNNER_TEMP/registry-keys.json" \
+            "$DIAGNOSTIC_ROOT/keyspace-summary.json" <<'PY'
+          import base64
+          import json
+          import sys
+          from collections import Counter
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          keys = sorted(
+              base64.b64decode(item["key"]).decode("utf-8", errors="replace")
+              for item in payload.get("kvs", [])
+          )
+          summary = {
+              "schema_version": "1.0",
+              "total_registry_keys": len(keys),
+              "aftermath_keys": [key for key in keys if "aftermath" in key],
+              "task_namespace_keys": [
+                  key
+                  for key in keys
+                  if key.startswith("/registry/namespaces/")
+                  and key.endswith("/aftermath-interactions")
+              ],
+              "task_scoped_keys": [
+                  key for key in keys if "/aftermath-interactions/" in key
+              ],
+              "resource_prefix_counts": dict(
+                  sorted(
+                      Counter(
+                          "/".join(key.split("/")[:3])
+                          for key in keys
+                          if key.startswith("/registry/")
+                      ).items()
+                  )
+              ),
+          }
+          with open(sys.argv[2], "w", encoding="utf-8") as handle:
+              json.dump(summary, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+          kill "$offline_pid"
+          wait "$offline_pid" || true
+          trap - EXIT
+          python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
+
+      - name: Commit only the offline keyspace audit
+        run: |
+          git add -- "$DIAGNOSTIC_ROOT"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit/' \
+              | grep -q .
+          then
+            echo "unexpected file outside the keyspace audit allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "record frozen Kubernetes keyspace audit"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Purge the private replay material
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/k3-private" "$RUNNER_TEMP/k4-offline-keyspace"
