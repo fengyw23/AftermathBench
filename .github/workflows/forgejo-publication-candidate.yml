@@ -270,6 +270,77 @@ jobs:
             "${control_args[@]}" \
             --output "$run_root/public/result.json"
 
+      - name: Seal an unseen private bundle for later evaluation
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_execution_control }}
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          python scripts/verify_hidden_test_eligibility.py \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --freeze "$run_root/private/freeze.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            > "$RUNNER_TEMP/forgejo-pre-seal-eligibility.log" 2>&1
+          archive="$RUNNER_TEMP/forgejo-hidden-private.tar.gz"
+          ciphertext="$run_root/public/hidden-bundle.tar.gz.enc"
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -czf "$archive" \
+            -C "$run_root" private
+          openssl enc \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 200000 \
+            -salt \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$archive" \
+            -out "$ciphertext"
+          rm -f "$archive"
+          python - \
+            "$run_root/private/public-commitment.json" \
+            "$ciphertext" \
+            "$run_root/public/sealed-bundle.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          commitment_path = Path(sys.argv[1])
+          ciphertext_path = Path(sys.argv[2])
+          output_path = Path(sys.argv[3])
+          commitment = json.loads(
+              commitment_path.read_text(encoding="utf-8")
+          )
+          payload = {
+              "schema_version": "1.0",
+              "lifecycle_status": "frozen_unseen",
+              "source_commit": os.environ["GITHUB_SHA"],
+              "source_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "source_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "public_commitment_sha256": commitment[
+                  "public_commitment_sha256"
+              ],
+              "cipher": "aes-256-cbc-pbkdf2-sha256",
+              "pbkdf2_iterations": 200000,
+              "ciphertext_file": ciphertext_path.name,
+              "ciphertext_sha256": hashlib.sha256(
+                  ciphertext_path.read_bytes()
+              ).hexdigest(),
+          }
+          output_path.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          test -s "$ciphertext"
+          test -s "$run_root/public/sealed-bundle.json"
+
       - name: Upload commitment and aggregate only
         if: always()
         uses: actions/upload-artifact@v4
@@ -277,6 +348,7 @@ jobs:
           name: forgejo-publication-candidate-${{ github.run_id }}
           path: ${{ runner.temp }}/forgejo-candidate/public/
           if-no-files-found: error
+          retention-days: 90
 
       - name: Purge all private state
         if: always()

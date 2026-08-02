@@ -26,6 +26,39 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             self.text[upload:],
         )
 
+    def test_manual_freeze_can_seal_an_unseen_bundle_without_a_model(self) -> None:
+        seal = self.text.index(
+            "Seal an unseen private bundle for later evaluation"
+        )
+        upload = self.text.index(
+            "Upload commitment and aggregate only"
+        )
+        section = self.text[seal:upload]
+        self.assertIn(
+            "github.event_name == 'workflow_dispatch' && "
+            "!inputs.run_execution_control",
+            section,
+        )
+        self.assertIn("secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY", section)
+        self.assertIn("verify_hidden_test_eligibility.py", section)
+        self.assertIn("hidden-bundle.tar.gz.enc", section)
+        self.assertIn("frozen_unseen", section)
+        self.assertIn("ciphertext_sha256", section)
+        self.assertNotIn("run-native-model", section)
+
+    def test_only_ciphertext_and_public_metadata_leave_the_runner(self) -> None:
+        seal = self.text.index(
+            "Seal an unseen private bundle for later evaluation"
+        )
+        upload = self.text.index(
+            "Upload commitment and aggregate only"
+        )
+        purge = self.text.index("Purge all private state")
+        self.assertIn("openssl enc", self.text[seal:upload])
+        self.assertIn("rm -f \"$archive\"", self.text[seal:upload])
+        self.assertIn("retention-days: 90", self.text[upload:purge])
+        self.assertNotIn("private/", self.text[upload:purge])
+
     def test_freeze_precedes_step_scoped_model_credential(self) -> None:
         freeze = self.text.index(
             "Admit and freeze before any provider request"
