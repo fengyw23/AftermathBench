@@ -143,6 +143,9 @@ class ForgejoStackTest(unittest.TestCase):
         ]
         self.assertEqual(len(stop_calls), 2)
         self.assertEqual(len(start_calls), 2)
+        for call in stop_calls:
+            self.assertIn("--timeout", call)
+            self.assertIn("2", call)
         for call in (*stop_calls, *start_calls):
             for service in (
                 "forgejo",

@@ -21,6 +21,7 @@ BUNDLE_SERVICES = (
     "provenance-webhook-fault-gateway",
     "webhook-sink",
 )
+QUIESCE_TIMEOUT_SECONDS = "2"
 
 
 @dataclass
@@ -115,6 +116,8 @@ class ForgejoStack:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.run(
             "stop",
+            "--timeout",
+            QUIESCE_TIMEOUT_SECONDS,
             "api-fault-gateway",
             "forgejo",
         )
@@ -145,6 +148,8 @@ class ForgejoStack:
             raise FileNotFoundError(path)
         self.run(
             "stop",
+            "--timeout",
+            QUIESCE_TIMEOUT_SECONDS,
             "api-fault-gateway",
             "forgejo",
             "webhook-fault-gateway",
@@ -188,7 +193,9 @@ class ForgejoStack:
         directory.mkdir(parents=True, exist_ok=True)
         forgejo_archive = directory / "forgejo-data.tar.gz"
         sink_archive = directory / "webhook-sink-data.tar.gz"
-        self.run("stop", *BUNDLE_SERVICES)
+        self.run(
+            "stop", "--timeout", QUIESCE_TIMEOUT_SECONDS, *BUNDLE_SERVICES
+        )
         try:
             for service, archive in (
                 ("forgejo", forgejo_archive),
@@ -252,7 +259,9 @@ class ForgejoStack:
                 "Forgejo state bundle hash mismatch: "
                 f"expected={manifest}, observed={observed}"
             )
-        self.run("stop", *BUNDLE_SERVICES)
+        self.run(
+            "stop", "--timeout", QUIESCE_TIMEOUT_SECONDS, *BUNDLE_SERVICES
+        )
         try:
             for service, archive in (
                 ("forgejo", forgejo_archive),
