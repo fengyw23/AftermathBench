@@ -25,7 +25,7 @@ jobs:
       K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
       K4_RUN_ID: "30741680378"
       K4_ARTIFACT: kubernetes-execution-control-30741680378
-      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-01
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-02
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +57,7 @@ jobs:
               "k4_run_id": int(os.environ["K4_RUN_ID"]),
               "k4_artifact": os.environ["K4_ARTIFACT"],
               "variant": "state_01",
-              "diagnostic_attempt": 2,
+              "diagnostic_attempt": 3,
           }
           if gate != expected:
               raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
@@ -172,6 +172,20 @@ jobs:
             --registry-database "$registry_database" \
             > "$DIAGNOSTIC_ROOT/restore.json" \
             2> "$DIAGNOSTIC_ROOT/restore.stderr.log"
+          namespace_ready=false
+          for attempt in $(seq 1 180); do
+            if kubectl --context kind-aftermath-kubernetes \
+                get namespace aftermath-interactions -o name \
+                >> "$DIAGNOSTIC_ROOT/namespace-readiness.log" 2>&1
+            then
+              printf 'ready_after_attempt=%s\n' "$attempt" \
+                >> "$DIAGNOSTIC_ROOT/namespace-readiness.log"
+              namespace_ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$namespace_ready" = true
           sample=0
           for delay in 0 5 10 15 30; do
             sleep "$delay"
@@ -204,7 +218,7 @@ jobs:
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
           if git status --porcelain --untracked-files=all \
-              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-01/' \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-02/' \
               | grep -q .
           then
             echo "unexpected file outside the replay diagnostic allowlist" >&2
