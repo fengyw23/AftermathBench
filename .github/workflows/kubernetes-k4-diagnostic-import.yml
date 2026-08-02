@@ -68,7 +68,7 @@ jobs:
               raise SystemExit("diagnostic commit is invalid")
           if artifact != f"kubernetes-execution-control-{run_id}":
               raise SystemExit("diagnostic artifact is not bound to the run")
-          if gate["diagnostic_attempt"] != 2:
+          if gate["diagnostic_attempt"] != 3:
               raise SystemExit("diagnostic attempt is invalid")
           with open(sys.argv[2], "a", encoding="utf-8") as handle:
               handle.write(f"K4_RUN_ID={run_id}\n")
@@ -143,14 +143,15 @@ jobs:
           mkdir -p \
             "$DIAGNOSTIC_ROOT/model-runs" \
             "$DIAGNOSTIC_ROOT/logs"
+          test -f "$source_root/k4-public-summary.json"
+          test -f "$source_root/control/model-runs/summary.json"
           cp "$source_root/k4-public-summary.json" "$DIAGNOSTIC_ROOT/"
-          cp "$source_root/control/model-runs/summary.json" "$DIAGNOSTIC_ROOT/model-runs/"
-          cp "$source_root/control/model-runs/repetition-01/"*.json "$DIAGNOSTIC_ROOT/model-runs/"
-          find "$source_root/logs" -maxdepth 1 -type f \
-            \( -name 'control-*.log' -o -name 'formal-complete-*.log' \) \
-            -exec cp '{}' "$DIAGNOSTIC_ROOT/logs/" \;
+          cp -a "$source_root/control/model-runs/." "$DIAGNOSTIC_ROOT/model-runs/"
+          cp -a "$source_root/logs/." "$DIAGNOSTIC_ROOT/logs/"
           cp "$RUNNER_TEMP/k4-run.json" "$DIAGNOSTIC_ROOT/run-metadata.json"
           cp "$RUNNER_TEMP/k4-artifacts.json" "$DIAGNOSTIC_ROOT/artifacts-metadata.json"
+          find "$DIAGNOSTIC_ROOT" -type f -printf '%P\n' | sort \
+            > "$DIAGNOSTIC_ROOT/file-inventory.txt"
           python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
 
       - name: Commit only the failed-run diagnostic package
