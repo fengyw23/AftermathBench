@@ -175,9 +175,13 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
     def test_historical_regressions_run_without_active_instance_override(
         self,
     ) -> None:
+        checkout = self.workflow.index("uses: actions/checkout@v4")
         novelty = self.workflow.index(
-            "verify_kubernetes_interaction_instance_novelty.py"
+            "verify_kubernetes_interaction_instance_novelty.py",
+            checkout,
         )
+        checkout_section = self.workflow[checkout:novelty]
+        self.assertIn("fetch-depth: 0", checkout_section)
         unset = self.workflow.index(
             "unset AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC"
         )
