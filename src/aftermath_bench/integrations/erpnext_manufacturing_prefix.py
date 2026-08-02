@@ -408,23 +408,42 @@ class ERPNextManufacturingPrefixBuilder:
         bom = _payload(self.adapter.submit_document("BOM", bom["name"]))
         self._trace(trace, "submit BOM", bom)
 
-        work_order = _payload(
-            self.adapter.create_resource(
-                "Work Order",
+        # The ERPNext form calls ``make_work_order`` when a BOM is selected.
+        # A bare REST insert does not perform that client-side transition, so
+        # it can create a Work Order with required items but no operations and
+        # therefore no Job Cards.  Obtain the draft from ERPNext's own factory
+        # instead of reproducing BOM expansion in benchmark code.
+        work_order_template = _payload(
+            self.adapter.call_method(
+                "erpnext.manufacturing.doctype.work_order.work_order.make_work_order",
                 {
-                    "production_item": finished["item_code"],
                     "bom_no": bom["name"],
+                    "item": finished["item_code"],
                     "qty": total_quantity,
                     "company": company,
-                    "stock_uom": "Nos",
-                    "source_warehouse": self.STORES_WAREHOUSE,
-                    "wip_warehouse": warehouses["wip"],
-                    "fg_warehouse": warehouses["finished"],
-                    "scrap_warehouse": warehouses["scrap"],
-                    "transfer_material_against": "Work Order",
-                    "planned_start_date": _frappe_datetime(now),
+                    "use_multi_level_bom": 0,
                 },
             )
+        )
+        for transient_field in ("name", "__islocal", "__unsaved"):
+            work_order_template.pop(transient_field, None)
+        work_order_template.update(
+            {
+                "production_item": finished["item_code"],
+                "bom_no": bom["name"],
+                "qty": total_quantity,
+                "company": company,
+                "stock_uom": "Nos",
+                "source_warehouse": self.STORES_WAREHOUSE,
+                "wip_warehouse": warehouses["wip"],
+                "fg_warehouse": warehouses["finished"],
+                "scrap_warehouse": warehouses["scrap"],
+                "transfer_material_against": "Work Order",
+                "planned_start_date": _frappe_datetime(now),
+            }
+        )
+        work_order = _payload(
+            self.adapter.create_resource("Work Order", work_order_template)
         )
         self._trace(trace, "create Work Order", work_order)
         work_order = _payload(

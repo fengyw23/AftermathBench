@@ -67,6 +67,21 @@ jobs:
       - name: Replay four ambiguous boundaries and references
         run: |
           runtime_root="runtimes/erpnext/.runtime"
+          run_checked() {
+            title="$1"
+            log="$2"
+            shift 2
+            if ! "$@" > "$log" 2>&1
+            then
+              cat "$log"
+              annotation="$({ tail -n 45 "$log" || true; } \
+                | sed 's/%/%25/g; s/\r/%0D/g' \
+                | awk 'BEGIN { ORS="%0A" } { print }')"
+              echo "::error title=$title::$annotation"
+              return 1
+            fi
+            cat "$log"
+          }
           variants=(
             request_not_reached
             database_committed_response_lost
@@ -76,7 +91,9 @@ jobs:
           for variant in "${variants[@]}"
           do
             echo "::group::$variant"
-            python scripts/run_erpnext_manufacturing_failure.py \
+            run_checked "Manufacturing boundary failed: $variant" \
+              "$RUN_ROOT/logs/$variant-boundary.log" \
+              python scripts/run_erpnext_manufacturing_failure.py \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
@@ -86,7 +103,9 @@ jobs:
               --snapshot "$RUN_ROOT/bundles/boundary-$variant"
             python scripts/manage_erpnext_stack.py restore-bundle \
               --snapshot "$RUN_ROOT/bundles/boundary-$variant"
-            python scripts/run_erpnext_manufacturing_control.py \
+            run_checked "Manufacturing reference failed: $variant" \
+              "$RUN_ROOT/logs/$variant-reference.log" \
+              python scripts/run_erpnext_manufacturing_control.py \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
