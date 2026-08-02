@@ -131,6 +131,50 @@ class ERPNextRelationTest(unittest.TestCase):
             ["PAY-SALES"],
         )
 
+    def test_finds_corrective_job_card_through_native_link(self) -> None:
+        related = find_related_documents(
+            source_doctype="Job Card",
+            source_name="PO-JOB-REJECTED",
+            target_doctype="Job Card",
+            relation_type="corrected_by",
+            documents=[
+                {
+                    "name": "PO-JOB-CORRECTIVE",
+                    "for_job_card": "PO-JOB-REJECTED",
+                    "is_corrective_job_card": 1,
+                },
+                {"name": "PO-JOB-OTHER", "for_job_card": "PO-JOB-OTHER-BASE"},
+            ],
+        )
+        self.assertEqual(
+            [item["document"]["name"] for item in related],
+            ["PO-JOB-CORRECTIVE"],
+        )
+
+    def test_manufacturing_quality_relation_requires_reference_type(self) -> None:
+        related = find_related_documents(
+            source_doctype="Stock Entry",
+            source_name="MAT-STE-REWORK",
+            target_doctype="Quality Inspection",
+            relation_type="inspected_by",
+            documents=[
+                {
+                    "name": "QI-STOCK",
+                    "reference_type": "Stock Entry",
+                    "reference_name": "MAT-STE-REWORK",
+                },
+                {
+                    "name": "QI-JOB",
+                    "reference_type": "Job Card",
+                    "reference_name": "MAT-STE-REWORK",
+                },
+            ],
+        )
+        self.assertEqual(
+            [item["document"]["name"] for item in related],
+            ["QI-STOCK"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

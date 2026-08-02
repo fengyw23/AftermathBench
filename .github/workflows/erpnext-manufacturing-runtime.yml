@@ -1,0 +1,118 @@
+name: erpnext-manufacturing-rework-runtime
+
+on:
+  push:
+    branches:
+      - erpnext-manufacturing-runtime
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      RUN_ROOT: runtimes/erpnext/.runtime/manufacturing-rework
+      BLUEPRINT: data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate code and pinned runtime metadata
+        run: |
+          python -m unittest discover -s tests -p 'test_erpnext_manufacturing*.py' -v
+          python -m unittest discover -s tests -p 'test_native_erpnext_manufacturing_family.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          mkdir -p "$RUN_ROOT/logs" "$RUN_ROOT/runtime" "$RUN_ROOT/bundles"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Build native manufacturing prefix
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          if ! python scripts/build_erpnext_manufacturing_prefix.py \
+            --scenario "$BLUEPRINT" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$RUN_ROOT/runtime/prefix.json" \
+            > "$RUN_ROOT/logs/prefix.log" 2>&1
+          then
+            cat "$RUN_ROOT/logs/prefix.log"
+            docker compose \
+              --project-name aftermath-erpnext \
+              --file runtimes/erpnext/compose.yaml \
+              logs --no-color --tail 300 backend queue-short queue-long
+            exit 1
+          fi
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/bundles/prefix"
+
+      - name: Replay four ambiguous boundaries and references
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          for variant in "${variants[@]}"
+          do
+            echo "::group::$variant"
+            python scripts/run_erpnext_manufacturing_failure.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
+              --output "$RUN_ROOT/runtime/$variant.json"
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            python scripts/run_erpnext_manufacturing_control.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --output "$RUN_ROOT/runtime/$variant-reference.json"
+            echo "::endgroup::"
+          done
+
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all > "$RUN_ROOT/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color --tail 500 \
+            > "$RUN_ROOT/compose.log" 2>&1 || true
+          rm -f runtimes/erpnext/.runtime/credentials.json
+
+      - name: Upload native replay
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-manufacturing-rework-${{ github.run_id }}
+          path: |
+            runtimes/erpnext/.runtime/manufacturing-rework/
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge || true

@@ -110,6 +110,46 @@ RELATION_RULES = (
         "Sales Invoice",
         ("return_against",),
     ),
+    ERPNextRelationRule(
+        "manufactured_by",
+        "BOM",
+        "Work Order",
+        ("bom_no",),
+    ),
+    ERPNextRelationRule(
+        "scheduled_by",
+        "Work Order",
+        "Job Card",
+        ("work_order",),
+    ),
+    ERPNextRelationRule(
+        "corrected_by",
+        "Job Card",
+        "Job Card",
+        ("for_job_card",),
+    ),
+    ERPNextRelationRule(
+        "posted_by",
+        "Work Order",
+        "Stock Entry",
+        ("work_order",),
+    ),
+    ERPNextRelationRule(
+        "inspected_by",
+        "Job Card",
+        "Quality Inspection",
+        ("reference_name",),
+        ("reference_type",),
+        "Job Card",
+    ),
+    ERPNextRelationRule(
+        "inspected_by",
+        "Stock Entry",
+        "Quality Inspection",
+        ("reference_name",),
+        ("reference_type",),
+        "Stock Entry",
+    ),
 )
 
 
