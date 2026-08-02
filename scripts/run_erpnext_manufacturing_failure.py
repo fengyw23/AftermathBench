@@ -196,15 +196,25 @@ def main() -> int:
     finally:
         fault.disarm_transport_after_failure(args.variant)
 
-    if args.variant == "database_committed_response_lost":
-        time.sleep(2)
     # The shared ERPNext fault gateway exposes the persisted audit at
     # ``/audit``.  ``/admin/reset`` is only the mutating reset endpoint; there
     # is deliberately no companion ``/admin/events`` route.
     gateway_events = _request_json("http://127.0.0.1:9091/audit").get(
         "events", []
     )
-    evidence = ERPNextManufacturingEvidenceCollector(adapter).collect(prefix)
+    collector = ERPNextManufacturingEvidenceCollector(adapter)
+    evidence = collector.collect(prefix)
+    if args.variant == "database_committed_response_lost":
+        deadline = time.monotonic() + 30
+        while (
+            (
+                evidence.get("quality_release_delivery") is None
+                or _unfinished_jobs(evidence, str(prefix["corrective_job_card"]))
+            )
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.5)
+            evidence = collector.collect(prefix)
     validation = validate_manufacturing_boundary(
         args.variant,
         evidence,
