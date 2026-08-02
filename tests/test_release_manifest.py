@@ -492,7 +492,7 @@ class ReleaseManifestTest(unittest.TestCase):
             "control_evidence_sha256": control_summary[1],
         }
 
-    def test_current_checkpoint_binds_first_formal_public_dev_slot(
+    def test_current_checkpoint_binds_two_formal_public_dev_slots(
         self,
     ) -> None:
         report = validate_release_manifest(
@@ -501,24 +501,29 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertTrue(report.passed, report.failures)
         self.assertEqual(report.release_state, "partial_release")
         self.assertEqual(
-            report.observed["hard_development_candidate_count"], 2
+            report.observed["hard_development_candidate_count"], 1
         )
         self.assertEqual(
-            report.observed["hard_development_candidate_case_count"], 21
+            report.observed["hard_development_candidate_case_count"], 13
         )
-        self.assertEqual(report.observed["formal_verified_slot_count"], 1)
-        self.assertEqual(report.observed["missing_formal_slot_count"], 35)
+        self.assertEqual(report.observed["formal_verified_slot_count"], 2)
+        self.assertEqual(report.observed["missing_formal_slot_count"], 34)
         formal = [
             binding
             for binding in report.bindings
             if binding["quality_role"] == "release_slot"
         ]
-        self.assertEqual(len(formal), 1)
+        self.assertEqual(len(formal), 2)
         self.assertEqual(
-            formal[0]["scenario_id"],
-            "erpnext-sales-return-public-dev-001-r1",
+            {binding["scenario_id"] for binding in formal},
+            {
+                "erpnext-sales-return-public-dev-001-r1",
+                "forgejo-release-publication-public-dev-002-r1",
+            },
         )
-        self.assertTrue(formal[0]["formal_evidence_ready"])
+        self.assertTrue(
+            all(binding["formal_evidence_ready"] for binding in formal)
+        )
         for binding in report.bindings:
             self.assertTrue(
                 binding["checks"][

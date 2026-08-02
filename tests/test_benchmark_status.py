@@ -12,20 +12,20 @@ class BenchmarkStatusTest(unittest.TestCase):
 
         self.assertEqual(report["planned"]["target_case_count"], 183)
         self.assertTrue(report["planned"]["matrix_valid"])
-        self.assertEqual(report["implemented"]["scenario_count"], 10)
+        self.assertEqual(report["implemented"]["scenario_count"], 11)
         self.assertEqual(
-            report["implemented"]["formal_release_scenario_count"], 1
+            report["implemented"]["formal_release_scenario_count"], 2
         )
         self.assertEqual(
-            report["implemented"]["formal_release_matched_case_count"], 4
+            report["implemented"]["formal_release_matched_case_count"], 12
         )
         self.assertEqual(report["release_state"], "partial_release")
         self.assertEqual(
-            report["implemented"]["hard_development_candidate_count"], 2
+            report["implemented"]["hard_development_candidate_count"], 1
         )
         self.assertEqual(
             report["implemented"]["hard_development_candidate_case_count"],
-            21,
+            13,
         )
         self.assertTrue(report["release_manifest"]["passed"])
 

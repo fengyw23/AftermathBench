@@ -49,7 +49,8 @@ class FormalReleaseBindingTest(unittest.TestCase):
         expected = next(
             binding
             for binding in manifest["scenario_bindings"]
-            if binding["quality_role"] == "release_slot"
+            if binding["scenario_id"]
+            == "erpnext-sales-return-public-dev-001-r1"
         )
         self.assertEqual(generated, expected)
 
