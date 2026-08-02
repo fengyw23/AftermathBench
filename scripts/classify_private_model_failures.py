@@ -34,7 +34,11 @@ _CLASSIFIERS = (
     ),
     (
         "native_authentication_error",
-        re.compile(r"401|403|Unauthorized|Forbidden|credentials", re.IGNORECASE),
+        re.compile(
+            r"(?:HTTP(?: Error| status)?\s*)?(?:401|403)\b|"
+            r"Unauthorized|Forbidden",
+            re.IGNORECASE,
+        ),
     ),
     (
         "native_runtime_error",
@@ -62,11 +66,18 @@ def main() -> int:
     args = parser.parse_args()
     logs = sorted(args.run_directory.rglob("*-attempt-*.log"))
     counts: Counter[str] = Counter()
+    exception_types: Counter[str] = Counter()
     nonempty = 0
     for path in logs:
         text = path.read_text(encoding="utf-8", errors="replace")
         nonempty += int(bool(text.strip()))
         counts[classify(text)] += 1
+        observed_types = re.findall(
+            r"(?m)^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception))\s*:",
+            text,
+        )
+        if observed_types:
+            exception_types[observed_types[-1].rsplit(".", 1)[-1]] += 1
     trajectories = [
         path
         for path in args.run_directory.rglob("*.json")
@@ -78,6 +89,9 @@ def main() -> int:
         "nonempty_attempt_log_count": nonempty,
         "trajectory_count": len(trajectories),
         "classification_counts": dict(sorted(counts.items())),
+        "terminal_exception_type_counts": dict(
+            sorted(exception_types.items())
+        ),
         "raw_log_text_published": False,
         "variant_identities_published": False,
         "task_content_published": False,

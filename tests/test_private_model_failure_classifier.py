@@ -23,6 +23,10 @@ class PrivateModelFailureClassifierTests(unittest.TestCase):
                 "RuntimeError: model endpoint returned HTTP 429: private body",
                 encoding="utf-8",
             )
+            (runs / "secret-c-attempt-1.log").write_text(
+                "credentials=/private/credentials.json\nValueError: hidden",
+                encoding="utf-8",
+            )
             output = root / "result.json"
             with patch(
                 "sys.argv",
@@ -37,10 +41,18 @@ class PrivateModelFailureClassifierTests(unittest.TestCase):
                 self.assertEqual(classifier.main(), 0)
             text = output.read_text(encoding="utf-8")
             payload = json.loads(text)
-            self.assertEqual(payload["attempt_log_count"], 2)
+            self.assertEqual(payload["attempt_log_count"], 3)
             self.assertEqual(
                 payload["classification_counts"],
-                {"provider_http_error": 1, "provider_timeout": 1},
+                {
+                    "provider_http_error": 1,
+                    "provider_timeout": 1,
+                    "unknown": 1,
+                },
+            )
+            self.assertEqual(
+                payload["terminal_exception_type_counts"],
+                {"RuntimeError": 1, "ValueError": 1},
             )
             self.assertNotIn("hidden-name-123", text)
             self.assertNotIn("private body", text)
