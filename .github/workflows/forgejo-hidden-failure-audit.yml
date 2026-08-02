@@ -1,0 +1,121 @@
+name: forgejo-hidden-failure-audit
+
+on:
+  push:
+    branches:
+      - forgejo-hidden-failure-audit
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  classify-encrypted-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_RUN_ID: "30762877469"
+      SOURCE_ARTIFACT_ID: "8838727089"
+      SOURCE_ARTIFACT_NAME: forgejo-hidden-lifecycle-30762877469
+      SOURCE_ARTIFACT_DIGEST: sha256:5b9365ee76f6c6a9c0e4d1cde95301b5ee4e7eee160e38670d8f2eb8f873d4ea
+      SOURCE_CIPHERTEXT_SHA256: 0d0966e66460635b849e472a0984c80d6632d5ed292b47ff1ddf61055a908462
+      PUBLIC_COMMITMENT: 44aac0bb90805e7c0889f44d388a752a7513c7b9b7d24433b525a75bd932bb6c
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download and verify the failed encrypted evaluation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifact_root="$RUNNER_TEMP/hidden-failure-artifact"
+          mkdir -p "$artifact_root"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/source-artifact.json"
+          python - "$RUNNER_TEMP/source-artifact.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          artifact = json.load(open(sys.argv[1], encoding="utf-8"))
+          checks = {
+              "id": int(artifact["id"]) == int(os.environ["SOURCE_ARTIFACT_ID"]),
+              "name": artifact["name"] == os.environ["SOURCE_ARTIFACT_NAME"],
+              "digest": artifact.get("digest") == os.environ["SOURCE_ARTIFACT_DIGEST"],
+              "run": int(artifact["workflow_run"]["id"]) == int(os.environ["SOURCE_RUN_ID"]),
+              "not_expired": not artifact["expired"],
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"source artifact verification failed: {failures}")
+          print(json.dumps({"source_artifact_verification": checks}))
+          PY
+          gh run download "$SOURCE_RUN_ID" \
+            --name "$SOURCE_ARTIFACT_NAME" \
+            --dir "$artifact_root"
+          echo "$SOURCE_CIPHERTEXT_SHA256  $artifact_root/consumed-bundle.tar.gz.enc" \
+            | sha256sum --check
+          python - "$artifact_root/result.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          result = json.load(open(sys.argv[1], encoding="utf-8"))
+          checks = {
+              "commitment": result["public_commitment_sha256"] == os.environ["PUBLIC_COMMITMENT"],
+              "lifecycle_locked": result["lifecycle_status"] == "evaluation_locked",
+              "source_run": int(result["evaluation"]["run_id"]) == int(os.environ["SOURCE_RUN_ID"]),
+              "zero_completed": result["evaluation"]["aggregate"]["completed_runs"] == 0,
+              "eight_run_errors": result["evaluation"]["aggregate"]["run_error_count"] == 8,
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"public failure receipt verification failed: {failures}")
+          print(json.dumps({"public_failure_receipt_verification": checks}))
+          PY
+
+      - name: Decrypt privately and emit counts only
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          artifact_root="$RUNNER_TEMP/hidden-failure-artifact"
+          audit_root="$RUNNER_TEMP/hidden-failure-audit"
+          unseal_root="$RUNNER_TEMP/hidden-failure-unsealed"
+          archive="$RUNNER_TEMP/hidden-failure-private.tar.gz"
+          mkdir -p "$audit_root/public" "$unseal_root"
+          openssl enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 200000 \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$artifact_root/consumed-bundle.tar.gz.enc" \
+            -out "$archive"
+          PYTHONPATH=src python scripts/extract_sealed_hidden_bundle.py \
+            --archive "$archive" \
+            --destination "$unseal_root"
+          rm -f "$archive"
+          PYTHONPATH=src python scripts/classify_private_model_failures.py \
+            --run-directory "$unseal_root/private/model" \
+            --output "$audit_root/public/failure-classification.json"
+
+      - name: Upload redacted classification only
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-hidden-failure-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/hidden-failure-audit/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge plaintext and encrypted inputs
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/hidden-failure-unsealed"
+          rm -rf "$RUNNER_TEMP/hidden-failure-artifact"
+          rm -f "$RUNNER_TEMP/hidden-failure-private.tar.gz"
