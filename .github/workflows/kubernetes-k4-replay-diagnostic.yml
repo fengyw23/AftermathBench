@@ -25,7 +25,7 @@ jobs:
       K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
       K4_RUN_ID: "30741680378"
       K4_ARTIFACT: kubernetes-execution-control-30741680378
-      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-02
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-03
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +57,7 @@ jobs:
               "k4_run_id": int(os.environ["K4_RUN_ID"]),
               "k4_artifact": os.environ["K4_ARTIFACT"],
               "variant": "state_01",
-              "diagnostic_attempt": 3,
+              "diagnostic_attempt": 4,
           }
           if gate != expected:
               raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
@@ -127,8 +127,63 @@ jobs:
           install -m 0755 \
             "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
             "$RUNNER_TEMP/bin/etcdutl"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcd" \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdctl" \
+            "$RUNNER_TEMP/bin/"
           chmod +x "$RUNNER_TEMP/bin/kubectl"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Inspect the frozen snapshot keyspace offline
+        id: offline_snapshot
+        continue-on-error: true
+        run: |
+          snapshot="$RUNNER_TEMP/k3-private/boundary-state_01/etcd.snapshot.db"
+          offline="$RUNNER_TEMP/k4-offline-etcd"
+          mkdir -p "$DIAGNOSTIC_ROOT"
+          etcdutl snapshot status "$snapshot" --write-out=json \
+            > "$DIAGNOSTIC_ROOT/offline-snapshot-status.json" \
+            2> "$DIAGNOSTIC_ROOT/offline-snapshot-status.stderr.log"
+          etcdutl snapshot restore "$snapshot" \
+            --data-dir="$offline" \
+            --name=diagnostic \
+            --initial-cluster=diagnostic=http://127.0.0.1:32380 \
+            --initial-advertise-peer-urls=http://127.0.0.1:32380 \
+            --initial-cluster-token=aftermath-diagnostic \
+            > "$DIAGNOSTIC_ROOT/offline-restore.log" \
+            2> "$DIAGNOSTIC_ROOT/offline-restore.stderr.log"
+          etcd \
+            --name=diagnostic \
+            --data-dir="$offline" \
+            --listen-client-urls=http://127.0.0.1:32379 \
+            --advertise-client-urls=http://127.0.0.1:32379 \
+            --listen-peer-urls=http://127.0.0.1:32380 \
+            --initial-advertise-peer-urls=http://127.0.0.1:32380 \
+            --initial-cluster=diagnostic=http://127.0.0.1:32380 \
+            --initial-cluster-state=new \
+            > "$DIAGNOSTIC_ROOT/offline-etcd.log" 2>&1 &
+          offline_pid=$!
+          trap 'kill "$offline_pid" 2>/dev/null || true' EXIT
+          offline_ready=false
+          for attempt in $(seq 1 30); do
+            if etcdctl --endpoints=http://127.0.0.1:32379 endpoint health \
+                > /dev/null 2>&1
+            then
+              offline_ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$offline_ready" = true
+          etcdctl --endpoints=http://127.0.0.1:32379 get \
+            /registry/namespaces/aftermath-interactions --count-only \
+            > "$DIAGNOSTIC_ROOT/offline-task-namespace-count.txt"
+          etcdctl --endpoints=http://127.0.0.1:32379 get \
+            /registry/ --prefix --count-only \
+            > "$DIAGNOSTIC_ROOT/offline-registry-key-count.txt"
+          kill "$offline_pid"
+          wait "$offline_pid" || true
+          trap - EXIT
 
       - name: Start a fresh native cluster and registry
         run: |
@@ -164,14 +219,36 @@ jobs:
           expected="$RUNNER_TEMP/k4-artifact/generated/public-dev-slot-003/native/runtime/state-evidence/state_01-boundary.json"
           bundle="$RUNNER_TEMP/k3-private/boundary-state_01"
           registry_database="$RUNNER_TEMP/k4-replay-registry/webhook-sink.sqlite3"
-          test ! -e "$DIAGNOSTIC_ROOT"
-          mkdir -p "$DIAGNOSTIC_ROOT"
+          test -d "$DIAGNOSTIC_ROOT"
           cp "$expected" "$DIAGNOSTIC_ROOT/expected-state_01-boundary.json"
           python scripts/manage_kubernetes_stack.py restore-bundle \
             --snapshot "$bundle" \
             --registry-database "$registry_database" \
             > "$DIAGNOSTIC_ROOT/restore.json" \
             2> "$DIAGNOSTIC_ROOT/restore.stderr.log"
+          etcd_container=$(docker exec aftermath-kubernetes-control-plane \
+            crictl ps --name etcd --state Running -q)
+          test -n "$etcd_container"
+          docker exec aftermath-kubernetes-control-plane \
+            crictl exec "$etcd_container" \
+            etcdctl \
+              --endpoints=https://127.0.0.1:2379 \
+              --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+              --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+              --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
+              get /registry/namespaces/aftermath-interactions --count-only \
+            > "$DIAGNOSTIC_ROOT/live-task-namespace-count.txt" \
+            2> "$DIAGNOSTIC_ROOT/live-task-namespace-count.stderr.log"
+          docker exec aftermath-kubernetes-control-plane \
+            crictl exec "$etcd_container" \
+            etcdctl \
+              --endpoints=https://127.0.0.1:2379 \
+              --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+              --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
+              --key=/etc/kubernetes/pki/etcd/healthcheck-client.key \
+              get /registry/ --prefix --count-only \
+            > "$DIAGNOSTIC_ROOT/live-registry-key-count.txt" \
+            2> "$DIAGNOSTIC_ROOT/live-registry-key-count.stderr.log"
           namespace_ready=false
           for attempt in $(seq 1 180); do
             if kubectl --context kind-aftermath-kubernetes \
@@ -218,7 +295,7 @@ jobs:
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
           if git status --porcelain --untracked-files=all \
-              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-02/' \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-03/' \
               | grep -q .
           then
             echo "unexpected file outside the replay diagnostic allowlist" >&2
@@ -232,7 +309,9 @@ jobs:
 
       - name: Preserve the diagnostic failure conclusion
         if: always()
-        run: test '${{ steps.replay.outcome }}' = success
+        run: |
+          test '${{ steps.offline_snapshot.outcome }}' = success
+          test '${{ steps.replay.outcome }}' = success
 
       - name: Purge native services and private replay material
         if: always()
