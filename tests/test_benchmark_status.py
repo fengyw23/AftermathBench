@@ -12,12 +12,28 @@ class BenchmarkStatusTest(unittest.TestCase):
 
         self.assertEqual(report["planned"]["target_case_count"], 183)
         self.assertTrue(report["planned"]["matrix_valid"])
-        self.assertEqual(report["implemented"]["scenario_count"], 12)
         self.assertEqual(
-            report["implemented"]["formal_release_scenario_count"], 3
+            report["implemented"]["scenario_count"],
+            len(report["scenarios"]),
+        )
+        covered = {
+            (row["domain_id"], row["family_id"])
+            for row in report["scenarios"]
+            if row["family_in_target_matrix"]
+        }
+        self.assertEqual(
+            report["implemented"]["unique_target_family_coverage_count"],
+            len(covered),
         )
         self.assertEqual(
-            report["implemented"]["formal_release_matched_case_count"], 25
+            report["implemented"]["missing_target_family_count"],
+            report["planned"]["family_count"] - len(covered),
+        )
+        self.assertEqual(
+            report["implemented"]["formal_release_scenario_count"],
+            report["release_manifest"]["observed"][
+                "formal_verified_slot_count"
+            ],
         )
         self.assertEqual(report["release_state"], "partial_release")
         self.assertEqual(

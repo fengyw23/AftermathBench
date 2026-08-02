@@ -103,6 +103,16 @@ def build_benchmark_status() -> dict[str, Any]:
     family_mapped_rows = [
         row for row in scenario_rows if row["family_in_target_matrix"]
     ]
+    mapped_family_keys = {
+        (str(row["domain_id"]), str(row["family_id"]))
+        for row in family_mapped_rows
+    }
+    hard_family_keys = {
+        (str(row["domain_id"]), str(row["family_id"]))
+        for row in runtime_admitted_hard_rows
+        if row["family_in_target_matrix"]
+    }
+    missing_family_keys = sorted(set(matrix_families) - mapped_family_keys)
 
     release = validate_release_manifest(
         load_release_manifest(default_release_manifest_path()),
@@ -123,6 +133,13 @@ def build_benchmark_status() -> dict[str, Any]:
                 int(row["matched_state_count"]) for row in scenario_rows
             ),
             "matrix_family_mapped_scenario_count": len(family_mapped_rows),
+            "unique_target_family_coverage_count": len(mapped_family_keys),
+            "hard_admitted_target_family_count": len(hard_family_keys),
+            "missing_target_family_count": len(missing_family_keys),
+            "missing_target_families": [
+                {"domain_id": domain_id, "family_id": family_id}
+                for domain_id, family_id in missing_family_keys
+            ],
             "hard_admitted_scenario_count": len(hard_rows),
             "hard_admitted_matched_case_count": sum(
                 int(row["matched_state_count"]) for row in hard_rows
