@@ -1,0 +1,425 @@
+name: kubernetes-interaction-execution-control
+
+# K4 is deliberately inert until a reviewed gate file is committed after the
+# provider-free source run succeeds. The workflow definition itself therefore
+# cannot spend model quota.
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/kubernetes-public-dev-slot-003-k4.json"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  run-locked-execution-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      PYTHONPATH: src
+      AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: >-
+        data/instance_specs/public-dev-slot-003.json
+      SOURCE_RUN_ID: "30732216059"
+      SOURCE_COMMIT: "d18170bf936d546a4befef42d128aa2352fd8fe4"
+      PUBLIC_ARTIFACT: kubernetes-public-dev-admission-30732216059
+      PRIVATE_ARTIFACT: kubernetes-private-replay-30732216059
+      RUN_ROOT: data/generated/public-dev-slot-003
+      NATIVE_ROOT: data/generated/public-dev-slot-003/native
+      CONTROL_ROOT: data/generated/public-dev-slot-003/control
+      SCENARIO_DIRECTORY: data/scenarios/public-dev-slot-003
+      FORMAL_OUTPUT: >-
+        data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
+      AFTERMATH_MODEL_BASE_URL: >-
+        https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      MODEL_ID: glm-5.2
+      CONTROL_MIN_PASS_RATE: "0.8"
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - name: Checkout reviewed gate declaration
+        uses: actions/checkout@v4
+        with:
+          path: trigger
+
+      - name: Checkout the exact formal-input producer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          path: source
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Verify gate and immutable source run before artifact download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python - "$GITHUB_WORKSPACE/trigger/data/control_gates/kubernetes-public-dev-slot-003-k4.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          gate = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "schema_version": "1.0",
+              "stage": "K4-execution-control",
+              "source_run_id": int(os.environ["SOURCE_RUN_ID"]),
+              "source_commit": os.environ["SOURCE_COMMIT"],
+              "model": os.environ["MODEL_ID"],
+              "minimum_pass_rate": float(os.environ["CONTROL_MIN_PASS_RATE"]),
+          }
+          if gate != expected:
+              raise SystemExit(f"K4 gate declaration drifted: {gate!r}")
+          PY
+          run_json="$RUNNER_TEMP/source-run.json"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > "$run_json"
+          jq -e \
+            --arg commit "$SOURCE_COMMIT" \
+            '.head_sha == $commit and .status == "completed" and .conclusion == "success"' \
+            "$run_json" > /dev/null
+
+      - name: Download immutable public input evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PUBLIC_ARTIFACT }}
+          path: source/data
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Download short-lived exact replay bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PRIVATE_ARTIFACT }}
+          path: ${{ runner.temp }}/kubernetes-private-replay
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify frozen inputs and replay-bundle provenance without provider access
+        run: |
+          replay_root="$RUNNER_TEMP/kubernetes-private-replay"
+          test -s "$NATIVE_ROOT/public-dev-admission-verification.json"
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+          test -s "$replay_root/prefix/bundle.json"
+          python scripts/verify_kubernetes_interaction_public_dev_admission.py \
+            --run-directory "$NATIVE_ROOT" \
+            --output "$RUN_ROOT/k4-source-admission-verification.json"
+          cmp \
+            "$replay_root/prefix/bundle.json" \
+            "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
+          variants=(
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07
+            state_08 state_09 state_10 state_11 state_12 state_13
+          )
+          for variant in "${variants[@]}"; do
+            cmp \
+              "$replay_root/boundary-$variant/bundle.json" \
+              "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+          done
+          python - <<'PY'
+          from aftermath_bench.formal_evidence_builder import verify_formal_input_lock
+
+          variants = [f"state_{index:02d}" for index in range(1, 14)]
+          for variant in variants:
+              verify_formal_input_lock(
+                  "data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/"
+                  "k8s-constraint-interaction-recovery/dev-006/formal-input-lock.json",
+                  root=".",
+                  scenario_id="k8s-constraint-interactions-public-dev-006",
+                  domain_id="kubernetes",
+                  family_id="k8s-constraint-interaction-recovery",
+                  instance_id="dev-006",
+                  variant_id=variant,
+                  failure_report_path=(
+                      "data/generated/public-dev-slot-003/native/runtime/"
+                      f"{variant}-boundary.json"
+                  ),
+                  prefix_path=(
+                      "data/generated/public-dev-slot-003/native/runtime/prefix.json"
+                  ),
+              )
+          PY
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives
+
+      - name: Build pinned kind and install pinned runtime tools
+        run: |
+          git clone --no-checkout \
+            https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
+            9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && \
+            go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          kubectl_url="https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" "$kubectl_url"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" "$kubectl_url.sha256"
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" \
+            | sha256sum --check
+          etcd_url="https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz"
+          etcd_sha="4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" "$etcd_url"
+          echo "$etcd_sha  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
+            "$RUNNER_TEMP/bin/etcdutl"
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Start native Kubernetes and durable external registry
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes \
+            aftermathbench/kubernetes-control:local
+          registry_root="$RUNNER_TEMP/kubernetes-k4-registry"
+          mkdir -p "$registry_root"
+          docker run --detach \
+            --name aftermath-interaction-registry \
+            --user "$(id -u):$(id -g)" \
+            --publish 127.0.0.1:9092:8080 \
+            --mount "type=bind,src=$registry_root,dst=/data" \
+            aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          registry_ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9092/health; then
+              registry_ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$registry_ready" = true
+          python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+          mkdir -p \
+            "$CONTROL_ROOT/model-runs/repetition-01" \
+            "$CONTROL_ROOT/pre-model-boundaries" \
+            "$RUN_ROOT/logs" \
+            "$RUN_ROOT/specs"
+          printf '{}\n' > "$RUNNER_TEMP/kubernetes-k4-credentials.json"
+          cat > "$RUN_ROOT/k4-manifest.json" <<JSON
+          {
+            "schema_version": "1.0",
+            "stage": "K4-execution-control",
+            "source_run_id": $SOURCE_RUN_ID,
+            "source_commit": "$SOURCE_COMMIT",
+            "model": "$MODEL_ID",
+            "minimum_pass_rate": $CONTROL_MIN_PASS_RATE
+          }
+          JSON
+
+      - name: Run execution controls from exact frozen boundaries
+        id: controls
+        continue-on-error: true
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          replay_root="$RUNNER_TEMP/kubernetes-private-replay"
+          registry_database="$RUNNER_TEMP/kubernetes-k4-registry/webhook-sink.sqlite3"
+          credentials="$RUNNER_TEMP/kubernetes-k4-credentials.json"
+          formal_lock="$FORMAL_OUTPUT/formal-input-lock.json"
+          variants=(
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07
+            state_08 state_09 state_10 state_11 state_12 state_13
+          )
+          restore_and_capture_boundary() {
+            local variant="$1"
+            local bundle="$replay_root/boundary-$variant"
+            local pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            python scripts/manage_kubernetes_stack.py restore-bundle \
+              --snapshot "$bundle" \
+              --registry-database "$registry_database" \
+              > "$RUN_ROOT/logs/restore-$variant.log" 2>&1
+            python scripts/capture_kubernetes_interaction_state_evidence.py \
+              --variant "$variant" \
+              --phase boundary \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --bundle-manifest "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" \
+              --reset-evidence "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --pre-snapshot-state "$NATIVE_ROOT/runtime/state-evidence/$variant-pre-snapshot.json" \
+              --expected "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              --wait-seconds 180 \
+              --output "$pre_model" \
+              > "$RUN_ROOT/logs/pre-model-$variant.log" 2>&1
+            cmp \
+              "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              "$pre_model"
+          }
+          run_control_once() {
+            local variant="$1"
+            local output="$2"
+            local log_path="$3"
+            local pre_model="$4"
+            python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+              --credentials "$credentials" \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --model-timeout-seconds 1200 \
+              --max-turns 30 \
+              --execution-control \
+              --formal-input-lock "$formal_lock" \
+              --pre-model-boundary-evidence "$pre_model" \
+              --output "$output" \
+              > "$log_path" 2>&1
+          }
+          valid_trajectory() {
+            local output="$1"
+            local variant="$2"
+            test -s "$output" \
+              && python scripts/validate_native_control_trajectory.py \
+                --trajectory "$output" \
+                --variant "$variant" \
+                > /dev/null 2>&1
+          }
+          collection_status=0
+          for variant in "${variants[@]}"; do
+            output="$CONTROL_ROOT/model-runs/repetition-01/$variant.json"
+            pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            restore_and_capture_boundary "$variant"
+            rm -f "$output"
+            run_control_once \
+              "$variant" "$output" \
+              "$RUN_ROOT/logs/control-$variant.log" "$pre_model" || true
+            if ! valid_trajectory "$output" "$variant"; then
+              echo "::warning::execution control $variant produced no valid trajectory; retrying once from the exact boundary"
+              restore_and_capture_boundary "$variant"
+              rm -f "$output"
+              run_control_once \
+                "$variant" "$output" \
+                "$RUN_ROOT/logs/control-$variant-retry.log" "$pre_model" || true
+            fi
+            if ! valid_trajectory "$output" "$variant"; then
+              echo "::error::execution control $variant produced no valid trajectory"
+              collection_status=1
+            fi
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$CONTROL_ROOT/model-runs" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --expected-execution-control true \
+            --output "$CONTROL_ROOT/model-runs/summary.json" \
+            > "$RUN_ROOT/logs/control-summary.log" 2>&1 \
+            || collection_status=1
+          if python scripts/validate_native_control_summary.py \
+              --summary "$CONTROL_ROOT/model-runs/summary.json" \
+              --expected-cases 13 \
+              --minimum-pass-rate "$CONTROL_MIN_PASS_RATE" \
+              > "$RUN_ROOT/logs/control-gate.log" 2>&1
+          then
+            touch "$RUN_ROOT/control-gate-passed"
+          fi
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives \
+            --secret-env AFTERMATH_API_KEY \
+            > "$RUN_ROOT/logs/provider-secret-scan.log" 2>&1
+          touch "$RUNNER_TEMP/kubernetes-k4-provider-scan.ok"
+          printf '%s\n' "$collection_status" \
+            > "$RUN_ROOT/control-collection-status.txt"
+
+      - name: Complete and validate the seven-role formal package
+        id: formal_completion
+        if: always()
+        continue-on-error: true
+        run: |
+          python scripts/build_evidence_file_manifest.py \
+            --root "$CONTROL_ROOT" \
+            --output "$CONTROL_ROOT/files.json" \
+            > "$RUN_ROOT/logs/control-files.log" 2>&1
+          capture_args=(
+            --capture-bundle-manifest \
+              "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
+          )
+          for variant in \
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
+            state_08 state_09 state_10 state_11 state_12 state_13
+          do
+            capture_args+=(
+              --capture-bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+            )
+          done
+          python scripts/generate_kubernetes_interaction_formal_build_spec.py \
+            --phase complete \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --control-manifest "$CONTROL_ROOT/files.json" \
+            --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            > "$RUN_ROOT/logs/formal-complete-spec.log" 2>&1
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            --phase complete \
+            > "$RUN_ROOT/logs/formal-complete-build.log" 2>&1
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+
+      - name: Seal K4 evidence and enforce the control gate
+        if: always()
+        run: |
+          test -f "$RUNNER_TEMP/kubernetes-k4-provider-scan.ok"
+          test -f "$RUN_ROOT/control-gate-passed"
+          test "$(cat "$RUN_ROOT/control-collection-status.txt")" = "0"
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --root "$SCENARIO_DIRECTORY" \
+            --allow-native-restore-archives
+
+      - name: Upload K4 execution-control evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-execution-control-${{ github.run_id }}
+          path: |
+            source/data/generated/public-dev-slot-003/
+            source/data/scenarios/public-dev-slot-003/
+            source/data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006/
+
+      - name: Purge native services and replay material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/kubernetes-k4-credentials.json"
+          docker rm --force aftermath-interaction-registry || true
+          python scripts/manage_kubernetes_stack.py down || true
+          rm -rf -- \
+            "$RUNNER_TEMP/kubernetes-private-replay" \
+            "$RUNNER_TEMP/kubernetes-k4-registry"
