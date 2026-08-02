@@ -20,15 +20,18 @@ from aftermath_bench.native_formal_spec import (
 )
 from aftermath_bench.release_manifest import TRUSTED_FORMAL_EVALUATORS
 
-
 OUTPUT = "data/evidence/formal/release/domain/family/dev-001"
 
 
 class NativeFormalSpecTest(unittest.TestCase):
-    def test_second_native_domain_has_a_trusted_evaluator(self) -> None:
-        self.assertIn(
-            "erpnext-sales-return-exchange-reconciliation",
-            TRUSTED_FORMAL_EVALUATORS,
+    def test_all_formal_native_domains_have_trusted_evaluators(self) -> None:
+        self.assertTrue(
+            {
+                "erpnext-sales-return-exchange-reconciliation",
+                "forgejo-release-package-publication",
+                "k8s-constraint-interaction-recovery",
+            }
+            <= set(TRUSTED_FORMAL_EVALUATORS)
         )
 
     def test_domain_neutral_contract_builds_all_seven_roles(self) -> None:

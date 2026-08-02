@@ -21,6 +21,9 @@ from .integrations.erpnext_sales_return_evaluator import (
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
+from .integrations.kubernetes_interaction_recovery import (
+    evaluate_kubernetes_interaction_recovery,
+)
 from .native_admission import (
     NativeAdmissionReport,
     native_admission_report_payload,
@@ -79,6 +82,9 @@ TRUSTED_FORMAL_EVALUATORS: dict[
     ),
     "erpnext-sales-return-exchange-reconciliation": (
         evaluate_sales_return_recovery
+    ),
+    "k8s-constraint-interaction-recovery": (
+        evaluate_kubernetes_interaction_recovery
     ),
 }
 
