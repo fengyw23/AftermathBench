@@ -90,57 +90,79 @@ jobs:
       - name: Import evidence and repair only the post-model formal package
         run: |
           stage="$RUNNER_TEMP/k4-artifact"
+          repair_root="$RUNNER_TEMP/kubernetes-k5-formal-source"
           test ! -e "$GENERATED_ROOT"
           test ! -e "$SCENARIO_ROOT"
           test ! -e "$FORMAL_ROOT"
+          git worktree add --detach "$repair_root" "$SOURCE_COMMIT"
+          cp \
+            "$GITHUB_WORKSPACE/src/aftermath_bench/kubernetes_interaction_formal_build_spec.py" \
+            "$repair_root/src/aftermath_bench/kubernetes_interaction_formal_build_spec.py"
           mkdir -p \
-            "$(dirname "$GENERATED_ROOT")" \
-            "$(dirname "$SCENARIO_ROOT")" \
-            "$(dirname "$FORMAL_ROOT")"
-          cp -a "$stage/generated/public-dev-slot-003" "$GENERATED_ROOT"
-          cp -a "$stage/scenarios/public-dev-slot-003" "$SCENARIO_ROOT"
+            "$repair_root/$(dirname "$GENERATED_ROOT")" \
+            "$repair_root/$(dirname "$SCENARIO_ROOT")" \
+            "$repair_root/$(dirname "$FORMAL_ROOT")"
+          cp -a \
+            "$stage/generated/public-dev-slot-003" \
+            "$repair_root/$GENERATED_ROOT"
+          cp -a \
+            "$stage/scenarios/public-dev-slot-003" \
+            "$repair_root/$SCENARIO_ROOT"
           cp -a \
             "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006" \
-            "$FORMAL_ROOT"
+            "$repair_root/$FORMAL_ROOT"
           if [ "$K4_FORMAL_REPAIR_MODE" = \
               "effective-default-argument-normalization-v1" ]
           then
-            python scripts/build_evidence_file_manifest.py \
-              --root "$GENERATED_ROOT/control" \
-              --output "$GENERATED_ROOT/control/files.json"
-            capture_args=(
-              --capture-bundle-manifest \
-                "$GENERATED_ROOT/native/runtime/bundle-manifests/prefix.json"
-            )
-            for variant in \
-              state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
-              state_08 state_09 state_10 state_11 state_12 state_13
-            do
-              capture_args+=(
+            (
+              cd "$repair_root"
+              test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+              python scripts/build_evidence_file_manifest.py \
+                --root "$GENERATED_ROOT/control" \
+                --output "$GENERATED_ROOT/control/files.json"
+              capture_args=(
                 --capture-bundle-manifest \
-                  "$GENERATED_ROOT/native/runtime/bundle-manifests/$variant.json"
+                  "$GENERATED_ROOT/native/runtime/bundle-manifests/prefix.json"
               )
-            done
-            python scripts/generate_kubernetes_interaction_formal_build_spec.py \
-              --phase complete \
-              --benchmark-release-id aftermathbench-2026.08-r1 \
-              --scenario "$SCENARIO_ROOT/scenario.json" \
-              --runtime-manifest "$GENERATED_ROOT/native/files.json" \
-              --capture-directory "$GENERATED_ROOT/native/runtime/state-evidence" \
-              "${capture_args[@]}" \
-              --control-manifest "$GENERATED_ROOT/control/files.json" \
-              --model-input-lock "$FORMAL_ROOT/formal-input-lock.json" \
-              --formal-output-directory "$FORMAL_ROOT" \
-              --output-spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
-              --root .
-            python scripts/build_formal_evidence.py \
-              --spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
-              --root . \
-              --phase complete
+              for variant in \
+                state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
+                state_08 state_09 state_10 state_11 state_12 state_13
+              do
+                capture_args+=(
+                  --capture-bundle-manifest \
+                    "$GENERATED_ROOT/native/runtime/bundle-manifests/$variant.json"
+                )
+              done
+              python scripts/generate_kubernetes_interaction_formal_build_spec.py \
+                --phase complete \
+                --benchmark-release-id aftermathbench-2026.08-r1 \
+                --scenario "$SCENARIO_ROOT/scenario.json" \
+                --runtime-manifest "$GENERATED_ROOT/native/files.json" \
+                --capture-directory "$GENERATED_ROOT/native/runtime/state-evidence" \
+                "${capture_args[@]}" \
+                --control-manifest "$GENERATED_ROOT/control/files.json" \
+                --model-input-lock "$FORMAL_ROOT/formal-input-lock.json" \
+                --formal-output-directory "$FORMAL_ROOT" \
+                --output-spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
+                --root .
+              python scripts/build_formal_evidence.py \
+                --spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
+                --root . \
+                --phase complete
+            )
           elif [ "$K4_FORMAL_REPAIR_MODE" != "none" ]; then
             echo "unsupported K4 formal repair mode" >&2
             exit 2
           fi
+          test -s "$repair_root/$FORMAL_ROOT/completion/declarations.json"
+          mkdir -p \
+            "$(dirname "$GENERATED_ROOT")" \
+            "$(dirname "$SCENARIO_ROOT")" \
+            "$(dirname "$FORMAL_ROOT")"
+          cp -a "$repair_root/$GENERATED_ROOT" "$GENERATED_ROOT"
+          cp -a "$repair_root/$SCENARIO_ROOT" "$SCENARIO_ROOT"
+          cp -a "$repair_root/$FORMAL_ROOT" "$FORMAL_ROOT"
+          git worktree remove --force "$repair_root"
           test -s "$FORMAL_ROOT/completion/declarations.json"
           python scripts/generate_formal_release_binding.py \
             --scenario "$SCENARIO_ROOT/scenario.json" \
