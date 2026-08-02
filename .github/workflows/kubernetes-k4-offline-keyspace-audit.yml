@@ -18,7 +18,8 @@ jobs:
     env:
       K3_RUN_ID: "30733738216"
       K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
-      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit
+      AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC: data/instance_specs/public-dev-slot-003.json
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit-corrected
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,6 +39,7 @@ jobs:
               "k3_run_id": int(os.environ["K3_RUN_ID"]),
               "k3_private_artifact": os.environ["K3_PRIVATE_ARTIFACT"],
               "variant": "state_01",
+              "diagnostic_attempt": 2,
           }
           if gate != expected:
               raise SystemExit(f"offline keyspace gate drifted: {gate!r}")
@@ -111,29 +113,33 @@ jobs:
             > "$RUNNER_TEMP/registry-keys.json"
           python - \
             "$RUNNER_TEMP/registry-keys.json" \
-            "$DIAGNOSTIC_ROOT/keyspace-summary.json" <<'PY'
+            "$DIAGNOSTIC_ROOT/keyspace-summary.json" \
+            "$AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC" <<'PY'
           import base64
           import json
           import sys
           from collections import Counter
 
           payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          instance = json.load(open(sys.argv[3], encoding="utf-8"))
+          namespace = str(instance["namespace"])
           keys = sorted(
               base64.b64decode(item["key"]).decode("utf-8", errors="replace")
               for item in payload.get("kvs", [])
           )
           summary = {
               "schema_version": "1.0",
+              "instance_scenario_id": instance["scenario_id"],
+              "task_namespace": namespace,
               "total_registry_keys": len(keys),
               "aftermath_keys": [key for key in keys if "aftermath" in key],
               "task_namespace_keys": [
                   key
                   for key in keys
-                  if key.startswith("/registry/namespaces/")
-                  and key.endswith("/aftermath-interactions")
+                  if key == f"/registry/namespaces/{namespace}"
               ],
               "task_scoped_keys": [
-                  key for key in keys if "/aftermath-interactions/" in key
+                  key for key in keys if f"/{namespace}/" in key
               ],
               "resource_prefix_counts": dict(
                   sorted(
@@ -159,7 +165,7 @@ jobs:
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
           if git status --porcelain --untracked-files=all \
-              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit/' \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/offline-keyspace-audit-corrected/' \
               | grep -q .
           then
             echo "unexpected file outside the keyspace audit allowlist" >&2
