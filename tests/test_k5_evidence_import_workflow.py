@@ -41,7 +41,7 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
             "data/instance_specs/public-dev-slot-003.json", self.workflow
         )
 
-    def test_repair_runs_at_exact_input_producer_with_one_audited_overlay(self) -> None:
+    def test_repair_runs_at_exact_input_producer_with_audited_overlays(self) -> None:
         self.assertIn(
             'git worktree add --detach "$repair_root" "$SOURCE_COMMIT"',
             self.workflow,
@@ -53,6 +53,7 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
         self.assertIn(
             "kubernetes_interaction_formal_build_spec.py", self.workflow
         )
+        self.assertIn("release_manifest.py", self.workflow)
 
     def test_exact_reviewed_k4_run_and_artifact_are_required(self) -> None:
         self.assertIn("validate_k5_evidence_import.py gate", self.workflow)
@@ -66,7 +67,7 @@ class KubernetesK5EvidenceImportWorkflowTests(unittest.TestCase):
 
     def test_post_model_repair_is_provider_free_and_does_not_rerun_model(self) -> None:
         self.assertIn(
-            "effective-default-argument-normalization-v1", self.workflow
+            "k4-post-control-formalization-v1", self.workflow
         )
         self.assertIn(
             "generate_kubernetes_interaction_formal_build_spec.py",

@@ -124,9 +124,7 @@ class K5EvidenceImportTests(unittest.TestCase):
 
         recovery_payload = _gate_payload() | {
             "k4_expected_conclusion": "failure",
-            "formal_repair_mode": (
-                "effective-default-argument-normalization-v1"
-            ),
+            "formal_repair_mode": "k4-post-control-formalization-v1",
         }
         recovery_gate = K5EvidenceImportGate.from_mapping(recovery_payload)
         validate_k4_run_metadata(
@@ -136,7 +134,7 @@ class K5EvidenceImportTests(unittest.TestCase):
     def test_gate_rejects_unreviewed_failure_or_repair_mode(self) -> None:
         for conclusion, mode in (
             ("failure", "none"),
-            ("success", "effective-default-argument-normalization-v1"),
+            ("success", "k4-post-control-formalization-v1"),
             ("failure", "arbitrary-repair"),
         ):
             with self.subTest(conclusion=conclusion, mode=mode):

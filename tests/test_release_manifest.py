@@ -21,6 +21,7 @@ from aftermath_bench.native_scenario import NativeScenario, load_native_scenario
 from aftermath_bench.release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
     FORMAL_EVIDENCE_ROLES,
+    _invoke_trusted_formal_evaluator,
     _validate_admission_release_binding,
     _validate_control_summary,
     _validate_hidden_bundle,
@@ -74,6 +75,43 @@ class ResetSnapshotBindingTests(unittest.TestCase):
                 }
             )
         )
+
+
+class TrustedFormalEvaluatorProtocolTests(unittest.TestCase):
+    def test_preserves_frozen_kubernetes_evaluator_signature(self) -> None:
+        observed: list[dict[str, object]] = []
+
+        def evaluator(evidence: dict[str, object]) -> str:
+            observed.append(evidence)
+            return "kubernetes-result"
+
+        evidence = {"state": "terminal"}
+        result = _invoke_trusted_formal_evaluator(
+            evaluator,
+            family_id="k8s-constraint-interaction-recovery",
+            evidence=evidence,
+            prefix={"trace": []},
+        )
+        self.assertEqual(result, "kubernetes-result")
+        self.assertEqual(observed, [evidence])
+
+    def test_current_protocol_receives_prefix(self) -> None:
+        def evaluator(
+            evidence: dict[str, object],
+            *,
+            prefix: dict[str, object],
+        ) -> tuple[dict[str, object], dict[str, object]]:
+            return evidence, prefix
+
+        evidence = {"state": "terminal"}
+        prefix = {"trace": []}
+        result = _invoke_trusted_formal_evaluator(
+            evaluator,
+            family_id="forgejo-release-package-publication",
+            evidence=evidence,
+            prefix=prefix,
+        )
+        self.assertEqual(result, (evidence, prefix))
 
 
 class ReleaseManifestTest(unittest.TestCase):

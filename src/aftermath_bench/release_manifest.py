@@ -89,6 +89,25 @@ TRUSTED_FORMAL_EVALUATORS: dict[
 }
 
 
+def _invoke_trusted_formal_evaluator(
+    evaluator: Callable[..., Any],
+    *,
+    family_id: str,
+    evidence: dict[str, Any],
+    prefix: dict[str, Any],
+) -> Any:
+    """Invoke the evaluator protocol frozen for each formal family.
+
+    The Kubernetes interaction evaluator was input-locked before formal
+    evaluators received a common ``prefix`` keyword. Preserve that exact
+    evaluator rather than changing a frozen scientific input.
+    """
+
+    if family_id == "k8s-constraint-interaction-recovery":
+        return evaluator(evidence)
+    return evaluator(evidence, prefix=prefix)
+
+
 @dataclass(frozen=True)
 class ReleaseManifestReport:
     benchmark_release_id: str
@@ -727,8 +746,10 @@ def _validate_completed_formal_chain(
             ):
                 return False
             try:
-                recomputed = evaluator(
-                    terminal["final_evidence"],
+                recomputed = _invoke_trusted_formal_evaluator(
+                    evaluator,
+                    family_id=family_id,
+                    evidence=terminal["final_evidence"],
                     prefix=prefix,
                 )
             except (KeyError, TypeError, ValueError):
@@ -866,8 +887,10 @@ def _validate_completed_formal_chain(
             if not isinstance(trajectory.get("final_evidence"), dict):
                 return False
             try:
-                recomputed = evaluator(
-                    trajectory["final_evidence"],
+                recomputed = _invoke_trusted_formal_evaluator(
+                    evaluator,
+                    family_id=family_id,
+                    evidence=trajectory["final_evidence"],
                     prefix=prefix,
                 )
             except (KeyError, TypeError, ValueError):

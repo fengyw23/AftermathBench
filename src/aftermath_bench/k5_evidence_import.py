@@ -101,7 +101,7 @@ class K5EvidenceImportGate:
             ("success", "none"),
             (
                 "failure",
-                "effective-default-argument-normalization-v1",
+                "k4-post-control-formalization-v1",
             ),
         }
         if (expected_conclusion, repair_mode) not in supported_pairs:
