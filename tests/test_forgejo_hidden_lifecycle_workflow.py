@@ -56,6 +56,8 @@ class ForgejoHiddenLifecycleWorkflowTests(unittest.TestCase):
         self.assertNotIn("--execution-control", section)
         self.assertIn("--expected-execution-control false", section)
         self.assertIn("--hidden-finalize", section)
+        self.assertIn("record_progress", section)
+        self.assertIn("active_variant_ordinal", section)
 
     def test_public_artifact_contains_no_plaintext_private_directory(self) -> None:
         upload = self.text.index(

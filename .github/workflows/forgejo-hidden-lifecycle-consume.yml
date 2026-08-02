@@ -279,6 +279,36 @@ jobs:
               "$run_root/private/blueprint.json"
           )
           mkdir -p "$run_root/private/model/repetition-01"
+          mkdir -p "$run_root/public"
+          record_progress() {
+            local stage="$1"
+            local ordinal="$2"
+            local completed="$3"
+            python - \
+              "$run_root/public/run-progress.json" \
+              "$stage" \
+              "$ordinal" \
+              "$completed" \
+              "${#variants[@]}" <<'PY'
+          import json
+          import sys
+
+          output, stage, ordinal, completed, expected = sys.argv[1:]
+          open(output, "w", encoding="utf-8").write(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "active_stage": stage,
+                      "active_variant_ordinal": int(ordinal),
+                      "completed_variants": int(completed),
+                      "expected_variants": int(expected),
+                  },
+                  indent=2,
+              )
+              + "\n"
+          )
+          PY
+          }
           evaluation_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-hidden-evaluation"
           last_index=$((${#variants[@]} - 1))
           run_status=0
@@ -286,9 +316,12 @@ jobs:
           for index in "${!variants[@]}"
           do
             variant="${variants[$index]}"
+            ordinal=$((index + 1))
+            record_progress restore "$ordinal" "$index"
             PYTHONPATH=src python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$run_root/private/snapshots/$variant" \
               > "$run_root/private/model/repetition-01/$variant-restore.log" 2>&1
+            record_progress credential_recovery "$ordinal" "$index"
             PYTHONPATH=src python \
               "$helper_root/scripts/recover_forgejo_evaluation_credentials.py" \
               --compose-file "$compose_file" \
@@ -296,6 +329,7 @@ jobs:
               --token-name "hidden-$variant" \
               --output "$credentials" \
               > "$run_root/private/model/repetition-01/$variant-credentials.log" 2>&1
+            record_progress model_evaluation "$ordinal" "$index"
             finalize_args=()
             if [ "$index" -eq "$last_index" ]
             then
@@ -342,6 +376,7 @@ jobs:
             then
               run_status=1
             fi
+            record_progress variant_complete "$ordinal" "$ordinal"
           done
           PYTHONPATH=src python scripts/summarize_native_model_runs.py \
             --run-directory "$run_root/private/model" \
@@ -350,6 +385,7 @@ jobs:
             --output "$run_root/private/model/summary.json" \
             > "$run_root/private/model/summary.log" 2>&1 \
             || run_status=1
+          record_progress evaluation_complete "${#variants[@]}" "${#variants[@]}"
           exit "$run_status"
 
       - name: Build non-sensitive lifecycle receipt
