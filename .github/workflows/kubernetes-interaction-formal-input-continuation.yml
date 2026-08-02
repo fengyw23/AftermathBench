@@ -1,0 +1,112 @@
+name: kubernetes-interaction-formal-input-continuation
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - ".github/workflows/kubernetes-interaction-formal-input-continuation.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  freeze-inputs-from-admitted-native-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      SOURCE_RUN_ID: "30723666432"
+      SOURCE_COMMIT: "62ce525cc7ea8172eee89033250c6029489fa8fe"
+      ARTIFACT_NAME: kubernetes-public-dev-admission-30723666432
+      RUN_ROOT: data/generated/public-dev-slot-003
+      NATIVE_ROOT: data/generated/public-dev-slot-003/native
+      SCENARIO_DIRECTORY: data/scenarios/public-dev-slot-003
+      FORMAL_OUTPUT: >-
+        data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download immutable admitted evidence from the source run
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: .
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify source provenance and completed native admission
+        run: |
+          test "$SOURCE_COMMIT" = "62ce525cc7ea8172eee89033250c6029489fa8fe"
+          test -s "$NATIVE_ROOT/runtime-summary.json"
+          test -s "$NATIVE_ROOT/baselines/summary.json"
+          test -s "$NATIVE_ROOT/public-dev-admission-verification.json"
+          test -s "$NATIVE_ROOT/files.json"
+          test -s "$SCENARIO_DIRECTORY/scenario.json"
+          python scripts/verify_kubernetes_interaction_public_dev_admission.py \
+            --run-directory "$NATIVE_ROOT" \
+            --output "$RUN_ROOT/continuation-admission-verification.json"
+
+      - name: Freeze the five formal input roles without provider access
+        run: |
+          diagnostic_log="$RUNNER_TEMP/formal-input-continuation.log"
+          exec > >(tee -a "$diagnostic_log") 2>&1
+          trap '
+            status=$?
+            if [[ "$status" -ne 0 ]]; then
+              diagnostic=$(tail -c 4000 "$diagnostic_log" | tr "\n" " " | sed "s/%/%25/g")
+              echo "::error title=Formal input continuation failed::$diagnostic"
+            fi
+            trap - EXIT
+            exit "$status"
+          ' EXIT
+          capture_args=(
+            --capture-bundle-manifest \
+              "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
+          )
+          for variant in \
+            state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
+            state_08 state_09 state_10 state_11 state_12 state_13
+          do
+            capture_args+=(
+              --capture-bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+            )
+          done
+          mkdir -p "$RUN_ROOT/specs"
+          python scripts/generate_kubernetes_interaction_formal_build_spec.py \
+            --phase inputs \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json" \
+            --runtime-manifest "$NATIVE_ROOT/files.json" \
+            --capture-directory "$NATIVE_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root .
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            --phase inputs
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$FORMAL_OUTPUT" \
+            --allow-native-restore-archives
+
+      - name: Upload continued formal input evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-formal-input-continuation-${{ github.run_id }}
+          path: |
+            data/generated/public-dev-slot-003/
+            data/scenarios/public-dev-slot-003/
+            data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006/
