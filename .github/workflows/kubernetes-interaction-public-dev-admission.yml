@@ -372,6 +372,18 @@ jobs:
             --root "$FORMAL_OUTPUT" \
             --allow-native-restore-archives
 
+      - name: Upload short-lived exact replay bundles for execution control
+        uses: actions/upload-artifact@v4
+        with:
+          # These archives contain only the disposable kind control-plane and
+          # local webhook-registry state. They are not release evidence. K4
+          # consumes them to start the model from the byte-locked boundaries
+          # and the retention window prevents them becoming a public dataset.
+          name: kubernetes-private-replay-${{ github.run_id }}
+          path: ${{ runner.temp }}/kubernetes-public-dev-sensitive/
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Upload public-development admission evidence
         if: always()
         uses: actions/upload-artifact@v4

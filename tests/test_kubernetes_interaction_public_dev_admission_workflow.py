@@ -51,6 +51,29 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         self.assertIn("formal-input-lock.json", self.workflow)
         self.assertNotIn("secrets.", self.workflow.lower())
 
+    def test_exact_replay_bundles_are_short_lived_and_separate_from_release_evidence(
+        self,
+    ) -> None:
+        freeze = self.workflow.index(
+            "Freeze the five formal input roles without provider access"
+        )
+        private_upload = self.workflow.index(
+            "Upload short-lived exact replay bundles for execution control"
+        )
+        public_upload = self.workflow.index(
+            "Upload public-development admission evidence"
+        )
+        purge = self.workflow.index("Purge native services")
+        self.assertLess(freeze, private_upload)
+        self.assertLess(private_upload, public_upload)
+        self.assertLess(public_upload, purge)
+        private_section = self.workflow[private_upload:public_upload]
+        public_section = self.workflow[public_upload:purge]
+        self.assertIn("kubernetes-public-dev-sensitive/", private_section)
+        self.assertIn("retention-days: 1", private_section)
+        self.assertIn("if-no-files-found: error", private_section)
+        self.assertNotIn("kubernetes-public-dev-sensitive", public_section)
+
     def test_formal_inputs_use_one_reset_and_thirteen_exact_boundary_bundles(
         self,
     ) -> None:
