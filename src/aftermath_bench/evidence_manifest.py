@@ -13,7 +13,11 @@ def build_file_manifest(
     directory = Path(root)
     excluded = set(exclude or ())
     files = []
-    for path in sorted(directory.rglob("*")):
+    candidates = sorted(
+        directory.rglob("*"),
+        key=lambda path: path.relative_to(directory).as_posix(),
+    )
+    for path in candidates:
         if not path.is_file():
             continue
         relative = path.relative_to(directory).as_posix()

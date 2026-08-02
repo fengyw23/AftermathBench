@@ -60,6 +60,29 @@ jobs:
             --run-directory "$NATIVE_ROOT" \
             --output "$RUN_ROOT/continuation-admission-verification.json"
 
+      - name: Canonicalize the exact runtime inventory without changing evidence
+        run: |
+          original="$RUNNER_TEMP/original-runtime-files.json"
+          cp "$NATIVE_ROOT/files.json" "$original"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$NATIVE_ROOT" \
+            --output "$NATIVE_ROOT/files.json"
+          python - "$original" "$NATIVE_ROOT/files.json" <<'PY'
+          import json
+          import sys
+
+          before = json.load(open(sys.argv[1], encoding="utf-8"))
+          after = json.load(open(sys.argv[2], encoding="utf-8"))
+          before_entries = {item["path"]: item for item in before["files"]}
+          after_entries = {item["path"]: item for item in after["files"]}
+          assert before_entries == after_entries
+          assert before["file_count"] == after["file_count"]
+          assert before["total_bytes"] == after["total_bytes"]
+          assert [item["path"] for item in after["files"]] == sorted(
+              after_entries
+          )
+          PY
+
       - name: Freeze the five formal input roles without provider access
         run: |
           diagnostic_log="$RUNNER_TEMP/formal-input-continuation.log"
