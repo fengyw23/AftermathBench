@@ -105,7 +105,7 @@ TOP_CONFERENCE_FULL_PROFILE = ReleaseProfile(
         (
             "kubernetes",
             "k8s-constraint-interaction-recovery",
-            "dev-005",
+            "dev-006",
             13,
         ),
         (

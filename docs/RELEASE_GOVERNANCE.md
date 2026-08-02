@@ -34,12 +34,14 @@ The slot's domain, family, instance and split must exactly match the matrix.
 
 ## Development checkpoint
 
-`aftermathbench-dev-2026.08-r1` contains two selected hard candidates:
+`aftermathbench-2026.08-r1` currently binds one formal public-development
+slot in each native domain:
 
 | Domain | Family | Instance | Variants |
 |---|---|---:|---:|
+| ERPNext | `erpnext-sales-return-exchange-reconciliation` | `dev-001` | 4 |
 | Forgejo | `forgejo-release-package-publication` | `dev-002` | 8 |
-| Kubernetes | `k8s-constraint-interaction-recovery` | `dev-005` | 13 |
+| Kubernetes | `k8s-constraint-interaction-recovery` | `dev-006` | 13 |
 
 Each binding verifies:
 

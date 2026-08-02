@@ -530,7 +530,7 @@ class ReleaseManifestTest(unittest.TestCase):
             "control_evidence_sha256": control_summary[1],
         }
 
-    def test_current_checkpoint_binds_two_formal_public_dev_slots(
+    def test_current_checkpoint_binds_three_formal_public_dev_slots(
         self,
     ) -> None:
         report = validate_release_manifest(
@@ -539,24 +539,25 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertTrue(report.passed, report.failures)
         self.assertEqual(report.release_state, "partial_release")
         self.assertEqual(
-            report.observed["hard_development_candidate_count"], 1
+            report.observed["hard_development_candidate_count"], 0
         )
         self.assertEqual(
-            report.observed["hard_development_candidate_case_count"], 13
+            report.observed["hard_development_candidate_case_count"], 0
         )
-        self.assertEqual(report.observed["formal_verified_slot_count"], 2)
-        self.assertEqual(report.observed["missing_formal_slot_count"], 34)
+        self.assertEqual(report.observed["formal_verified_slot_count"], 3)
+        self.assertEqual(report.observed["missing_formal_slot_count"], 33)
         formal = [
             binding
             for binding in report.bindings
             if binding["quality_role"] == "release_slot"
         ]
-        self.assertEqual(len(formal), 2)
+        self.assertEqual(len(formal), 3)
         self.assertEqual(
             {binding["scenario_id"] for binding in formal},
             {
                 "erpnext-sales-return-public-dev-001-r1",
                 "forgejo-release-publication-public-dev-002-r1",
+                "k8s-constraint-interactions-public-dev-006",
             },
         )
         self.assertTrue(
