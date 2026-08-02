@@ -22,7 +22,10 @@ _GATE_FIELDS = frozenset(
         "stage",
         "k4_run_id",
         "k4_commit",
+        "k4_expected_conclusion",
         "k4_artifact",
+        "k4_artifact_digest",
+        "formal_repair_mode",
         "source_run_id",
         "source_commit",
         "minimum_pass_rate",
@@ -57,7 +60,10 @@ class K5EvidenceImportError(ValueError):
 class K5EvidenceImportGate:
     k4_run_id: int
     k4_commit: str
+    k4_expected_conclusion: str
     k4_artifact: str
+    k4_artifact_digest: str
+    formal_repair_mode: str
     source_run_id: int
     source_commit: str
     minimum_pass_rate: float
@@ -66,7 +72,7 @@ class K5EvidenceImportGate:
     def from_mapping(cls, value: Any) -> K5EvidenceImportGate:
         if not isinstance(value, Mapping) or set(value) != _GATE_FIELDS:
             raise K5EvidenceImportError("K5 gate fields are not exact")
-        if value.get("schema_version") != "1.0":
+        if value.get("schema_version") != "1.1":
             raise K5EvidenceImportError("K5 gate schema is invalid")
         if value.get("stage") != "K5-evidence-import":
             raise K5EvidenceImportError("K5 gate stage is invalid")
@@ -83,6 +89,23 @@ class K5EvidenceImportGate:
             raise K5EvidenceImportError(
                 "K4 artifact name is not bound to the run id"
             )
+        if _ARTIFACT_DIGEST.fullmatch(
+            str(value.get("k4_artifact_digest", ""))
+        ) is None:
+            raise K5EvidenceImportError("K4 artifact digest is invalid")
+        expected_conclusion = value.get("k4_expected_conclusion")
+        repair_mode = value.get("formal_repair_mode")
+        supported_pairs = {
+            ("success", "none"),
+            (
+                "failure",
+                "effective-default-argument-normalization-v1",
+            ),
+        }
+        if (expected_conclusion, repair_mode) not in supported_pairs:
+            raise K5EvidenceImportError(
+                "K4 conclusion and formal repair mode are incompatible"
+            )
         threshold = value.get("minimum_pass_rate")
         if type(threshold) not in {int, float} or isinstance(threshold, bool):
             raise K5EvidenceImportError("minimum_pass_rate is invalid")
@@ -96,7 +119,10 @@ class K5EvidenceImportGate:
         return cls(
             k4_run_id=int(value["k4_run_id"]),
             k4_commit=str(value["k4_commit"]),
+            k4_expected_conclusion=str(expected_conclusion),
             k4_artifact=str(value["k4_artifact"]),
+            k4_artifact_digest=str(value["k4_artifact_digest"]),
+            formal_repair_mode=str(repair_mode),
             source_run_id=int(value["source_run_id"]),
             source_commit=str(value["source_commit"]),
             minimum_pass_rate=float(threshold),
@@ -111,6 +137,9 @@ class K5EvidenceImportGate:
             "K4_RUN_ID": str(self.k4_run_id),
             "K4_COMMIT": self.k4_commit,
             "K4_ARTIFACT": self.k4_artifact,
+            "K4_ARTIFACT_DIGEST": self.k4_artifact_digest,
+            "K4_EXPECTED_CONCLUSION": self.k4_expected_conclusion,
+            "K4_FORMAL_REPAIR_MODE": self.formal_repair_mode,
             "SOURCE_RUN_ID": str(self.source_run_id),
             "SOURCE_COMMIT": self.source_commit,
             "CONTROL_MIN_PASS_RATE": str(self.minimum_pass_rate),
@@ -128,7 +157,8 @@ def validate_k4_run_metadata(
         "run_id": value.get("id") == gate.k4_run_id,
         "commit": value.get("head_sha") == gate.k4_commit,
         "status": value.get("status") == "completed",
-        "conclusion": value.get("conclusion") == "success",
+        "conclusion": value.get("conclusion")
+        == gate.k4_expected_conclusion,
         "workflow": value.get("path") == K4_WORKFLOW_PATH,
     }
     failures = [name for name, passed in checks.items() if not passed]
@@ -165,7 +195,8 @@ def select_k4_artifact_metadata(
         "digest": _ARTIFACT_DIGEST.fullmatch(
             str(artifact.get("digest", ""))
         )
-        is not None,
+        is not None
+        and artifact.get("digest") == gate.k4_artifact_digest,
     }
     failures = [name for name, passed in checks.items() if not passed]
     if failures:
@@ -224,6 +255,8 @@ def validate_k4_public_summary(
 
 def validate_k4_artifact_layout(
     stage: str | Path,
+    *,
+    require_completion: bool = True,
 ) -> dict[str, Path]:
     root = Path(stage).resolve(strict=True)
     if not root.is_dir():
@@ -257,13 +290,18 @@ def validate_k4_artifact_layout(
         raise K5EvidenceImportError("K4 generated evidence is missing")
     if not paths["scenario"].is_file():
         raise K5EvidenceImportError("K4 scenario is missing")
+    input_lock = paths["formal"] / "formal-input-lock.json"
+    if not input_lock.is_file():
+        raise K5EvidenceImportError("K4 formal input lock is missing")
     declarations = paths["formal"] / "completion" / "declarations.json"
-    if not declarations.is_file():
+    if require_completion and not declarations.is_file():
         raise K5EvidenceImportError("K4 formal declarations are missing")
     paths["summary"] = paths["generated"] / "k4-public-summary.json"
     if not paths["summary"].is_file():
         raise K5EvidenceImportError("K4 public summary is missing")
-    paths["declarations"] = declarations
+    paths["input_lock"] = input_lock
+    if declarations.is_file():
+        paths["declarations"] = declarations
     return paths
 
 
@@ -280,11 +318,17 @@ def build_k5_import_provenance(
         gate=gate,
     )
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "stage": "K5-evidence-import",
         "import_gate_commit": import_gate_commit,
         "k4_run_id": gate.k4_run_id,
         "k4_commit": gate.k4_commit,
+        "k4_expected_conclusion": gate.k4_expected_conclusion,
+        "formal_repair": {
+            "mode": gate.formal_repair_mode,
+            "repair_commit": import_gate_commit,
+            "model_was_rerun": False,
+        },
         "source_run_id": gate.source_run_id,
         "source_commit": gate.source_commit,
         "artifact": {

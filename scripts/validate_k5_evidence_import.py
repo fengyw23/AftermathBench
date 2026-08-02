@@ -46,6 +46,14 @@ def main() -> int:
     artifact_parser = subparsers.add_parser("artifact")
     artifact_parser.add_argument("--gate", type=Path, required=True)
     artifact_parser.add_argument("--stage", type=Path, required=True)
+    artifact_parser.add_argument(
+        "--allow-missing-completion",
+        action="store_true",
+        help=(
+            "Allow a scientifically complete K4 artifact whose formal "
+            "completion failed after model execution."
+        ),
+    )
 
     args = parser.parse_args()
     gate = K5EvidenceImportGate.from_path(args.gate)
@@ -70,7 +78,10 @@ def main() -> int:
         _write_json(args.output, provenance)
         print(json.dumps(provenance, sort_keys=True))
         return 0
-    paths = validate_k4_artifact_layout(args.stage)
+    paths = validate_k4_artifact_layout(
+        args.stage,
+        require_completion=not args.allow_missing_completion,
+    )
     summary = load_json_strict(paths["summary"])
     validate_k4_public_summary(summary, gate=gate)
     print(

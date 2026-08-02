@@ -11,6 +11,7 @@ from aftermath_bench.integrations.kubernetes_interaction_instance import (
 )
 from aftermath_bench.kubernetes_interaction_formal_build_spec import (
     KubernetesInteractionFormalBuildSpecError,
+    _effective_control_arguments,
     _evaluator_role,
     _instance_spec_sha256,
     _tool_role,
@@ -118,6 +119,22 @@ class KubernetesInteractionFormalBuildSpecTests(unittest.TestCase):
             self.assertNotEqual(source.read_bytes(), reformatted.read_bytes())
             self.assertEqual(_instance_spec_sha256(source), instance.sha256)
             self.assertEqual(_instance_spec_sha256(reformatted), instance.sha256)
+
+    def test_control_audit_accepts_the_environment_default_namespace(self) -> None:
+        self.assertEqual(
+            _effective_control_arguments(
+                {},
+                namespace="aftermath-settlements",
+            ),
+            {"namespace": "aftermath-settlements"},
+        )
+        self.assertEqual(
+            _effective_control_arguments(
+                {"namespace": "explicit", "resource": "jobs"},
+                namespace="aftermath-settlements",
+            ),
+            {"namespace": "explicit", "resource": "jobs"},
+        )
 
 
 if __name__ == "__main__":

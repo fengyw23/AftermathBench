@@ -596,6 +596,18 @@ def _validate_reference(
     return tuple(sorted(payload["evaluation"]["checks"]))
 
 
+def _effective_control_arguments(
+    arguments: dict[str, Any],
+    *,
+    namespace: str,
+) -> dict[str, Any]:
+    """Mirror the public environment's documented default namespace."""
+
+    effective = dict(arguments)
+    effective.setdefault("namespace", namespace)
+    return effective
+
+
 def _validate_control_trajectory(
     payload: dict[str, Any],
     *,
@@ -651,7 +663,14 @@ def _validate_control_trajectory(
             if result is None or result.get("name") != call.get("name"):
                 raise _error(f"Kubernetes execution control {variant_id} has an unpaired tool call")
             flattened.append(
-                (str(call["name"]), dict(call.get("arguments", {})), result.get("result"))
+                (
+                    str(call["name"]),
+                    _effective_control_arguments(
+                        dict(call.get("arguments", {})),
+                        namespace=str(scenario.raw["fixture"]["namespace"]),
+                    ),
+                    result.get("result"),
+                )
             )
     events = payload.get("environment_tool_events")
     if not isinstance(events, list) or len(events) != len(flattened):

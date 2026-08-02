@@ -1,9 +1,11 @@
 name: kubernetes-k5-evidence-import
 
 # Import is deliberately inert until a reviewed declaration names one
-# completed K4 run. It never receives a provider credential and it does
+# scientifically complete K4 model run. It never receives a provider credential and it does
 # not edit the release manifest: the imported evidence and generated binding
-# candidate remain subject to an independent release review.
+# candidate remain subject to an independent release review. A reviewed gate
+# may admit a failed workflow conclusion only for the explicitly supported
+# post-model formalization defect; the model trajectories are never rerun.
 on:
   push:
     branches:
@@ -39,7 +41,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate reviewed K5 declaration and completed K4 provenance
+      - name: Validate reviewed K5 declaration and immutable K4 provenance
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -76,13 +78,14 @@ jobs:
           stage="$RUNNER_TEMP/k4-artifact"
           python scripts/validate_k5_evidence_import.py artifact \
             --gate "$GATE_PATH" \
-            --stage "$stage"
+            --stage "$stage" \
+            --allow-missing-completion
           python scripts/verify_public_evidence_safe.py \
             --root "$stage/generated/public-dev-slot-003" \
             --root "$stage/scenarios/public-dev-slot-003" \
             --root "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006"
 
-      - name: Import repository-safe evidence and derive release binding candidate
+      - name: Import evidence and repair only the post-model formal package
         run: |
           stage="$RUNNER_TEMP/k4-artifact"
           test ! -e "$GENERATED_ROOT"
@@ -97,6 +100,46 @@ jobs:
           cp -a \
             "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006" \
             "$FORMAL_ROOT"
+          if [ "$K4_FORMAL_REPAIR_MODE" = \
+              "effective-default-argument-normalization-v1" ]
+          then
+            python scripts/build_evidence_file_manifest.py \
+              --root "$GENERATED_ROOT/control" \
+              --output "$GENERATED_ROOT/control/files.json"
+            capture_args=(
+              --capture-bundle-manifest \
+                "$GENERATED_ROOT/native/runtime/bundle-manifests/prefix.json"
+            )
+            for variant in \
+              state_01 state_02 state_03 state_04 state_05 state_06 state_07 \
+              state_08 state_09 state_10 state_11 state_12 state_13
+            do
+              capture_args+=(
+                --capture-bundle-manifest \
+                  "$GENERATED_ROOT/native/runtime/bundle-manifests/$variant.json"
+              )
+            done
+            python scripts/generate_kubernetes_interaction_formal_build_spec.py \
+              --phase complete \
+              --benchmark-release-id aftermathbench-2026.08-r1 \
+              --scenario "$SCENARIO_ROOT/scenario.json" \
+              --runtime-manifest "$GENERATED_ROOT/native/files.json" \
+              --capture-directory "$GENERATED_ROOT/native/runtime/state-evidence" \
+              "${capture_args[@]}" \
+              --control-manifest "$GENERATED_ROOT/control/files.json" \
+              --model-input-lock "$FORMAL_ROOT/formal-input-lock.json" \
+              --formal-output-directory "$FORMAL_ROOT" \
+              --output-spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
+              --root .
+            python scripts/build_formal_evidence.py \
+              --spec "$GENERATED_ROOT/specs/k5-formal-repair.json" \
+              --root . \
+              --phase complete
+          elif [ "$K4_FORMAL_REPAIR_MODE" != "none" ]; then
+            echo "unsupported K4 formal repair mode" >&2
+            exit 2
+          fi
+          test -s "$FORMAL_ROOT/completion/declarations.json"
           python scripts/generate_formal_release_binding.py \
             --scenario "$SCENARIO_ROOT/scenario.json" \
             --formal-declarations "$FORMAL_ROOT/completion/declarations.json" \
