@@ -7,7 +7,8 @@
 > matched cases. The target matrix still has 35 open slots and no hidden-test
 > release, so the repository derives `partial_release`, not a complete
 > benchmark. See
-> [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md).
+> [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md) and
+> the current [progress-first execution focus](docs/EXECUTION_FOCUS_20260802.md).
 
 **AftermathBench** evaluates whether a tool-using agent can recover a complex,
 persistent environment after a tool call returns an ambiguous failure.
