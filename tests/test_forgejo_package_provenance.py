@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from aftermath_bench.integrations.forgejo_package_provenance_faults import (
     PACKAGE_PROVENANCE_VARIANTS,
@@ -10,6 +11,7 @@ from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
 )
 from aftermath_bench.native_forgejo_package_provenance_family import (
     FORGEJO_PACKAGE_PROVENANCE_FAMILY,
+    forgejo_package_provenance_initial_message,
 )
 from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
 
@@ -137,6 +139,39 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertFalse(report.passed)
         self.assertFalse(report.components["repair_completeness"])
         self.assertTrue(report.components["preservation"])
+
+    def test_prompt_exposes_exact_failed_call_but_not_hidden_outcome(self) -> None:
+        prefix = {
+            **_prefix(),
+            "owner": "aftermath",
+            "repository": "telemetry-cli",
+            "base_branch": "release/3.7",
+            "pull_request_index": 1,
+            "linked_issue_index": 1,
+            "milestone_id": 1,
+            "trace": [],
+        }
+        message = forgejo_package_provenance_initial_message(
+            scenario=SimpleNamespace(
+                raw={"user_instruction": "Complete the approved package."}
+            ),
+            prefix=prefix,
+            failure_report={
+                "latest_attempt": {
+                    "tool": "upload_package_file_from_repository",
+                    "arguments": {
+                        "source_path": "dist/telemetry.tar.gz",
+                        "filename": "telemetry.tar.gz",
+                        "ref": "release/3.7",
+                    },
+                    "result": {"ok": False, "error": "connection lost"},
+                }
+            },
+        )
+        self.assertIn("upload_package_file_from_repository", message)
+        self.assertIn("telemetry.tar.gz", message)
+        self.assertNotIn("request_not_reached", message)
+        self.assertNotIn("response_lost", message)
 
 
 if __name__ == "__main__":

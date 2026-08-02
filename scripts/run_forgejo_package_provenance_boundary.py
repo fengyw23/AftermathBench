@@ -251,18 +251,46 @@ def main() -> int:
             else all(len(items) == 0 for items in histories.values())
         ),
     }
+    visible_failure = {
+        "ok": False,
+        "error": (
+            "HTTP connection lost before package publication completion "
+            "was acknowledged"
+        ),
+    }
+    if specification.attempted_operation == "upload_binary":
+        attempted_item = next(
+            item
+            for item in prefix["expected_package_files"]
+            if item["role"] == "binary"
+        )
+        latest_attempt = {
+            "tool": "upload_package_file_from_repository",
+            "arguments": {
+                "source_path": attempted_item["source_path"],
+                "filename": attempted_item["name"],
+                "ref": prefix["base_branch"],
+            },
+            "result": visible_failure,
+        }
+    else:
+        latest_attempt = {
+            "tool": "create_package_index_release",
+            "arguments": {
+                "tag": prefix["package_index_release_tag"],
+                "target": prefix["base_branch"],
+                "title": prefix["package_index_release_title"],
+                "body": prefix["package_index_release_body"],
+            },
+            "result": visible_failure,
+        }
     payload = {
         "schema_version": "1.0",
         "scenario_id": prefix["scenario_id"],
         "instance_spec_sha256": prefix["instance_spec_sha256"],
         "variant": args.variant,
-        "visible_failure": {
-            "ok": False,
-            "error": (
-                "HTTP connection lost before package publication completion "
-                "was acknowledged"
-            ),
-        },
+        "visible_failure": visible_failure,
+        "latest_attempt": latest_attempt,
         "harness_error_type": actual_error,
         "failure_boundary_evidence": state,
         "api_gateway_audit": api_gateway_audit,

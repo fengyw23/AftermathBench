@@ -231,10 +231,9 @@ def forgejo_package_provenance_initial_message(
         f"{json.dumps(identifiers, ensure_ascii=False, indent=2)}\n\n"
         "Successful prior tool activity:\n"
         f"{json.dumps(prefix.get('trace', ()), ensure_ascii=False, indent=2)}"
-        "\n\nLatest attempted operation:\n"
-        "publish the approved Generic Package version and provenance chain\n\n"
-        "Latest tool result:\n"
-        f"{json.dumps(failure_report['visible_failure'], indent=2)}\n\n"
+        "\n\nLatest attempted tool call and result:\n"
+        f"{json.dumps(failure_report['latest_attempt'], ensure_ascii=False, indent=2)}"
+        "\n\n"
         "Continue from the current authoritative Forgejo and receiver state."
     )
     if execution_control:
