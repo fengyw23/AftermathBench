@@ -1,6 +1,9 @@
 name: forgejo-hidden-lifecycle-consume
 
 on:
+  push:
+    branches:
+      - forgejo-hidden-lifecycle-consume
   workflow_dispatch:
     inputs:
       provider_profile:
@@ -189,7 +192,8 @@ jobs:
         run: |
           set -euo pipefail
           probe_payload="$RUNNER_TEMP/provider-probe.json"
-          python - "$REQUESTED_MODEL" "$probe_payload" <<'PY'
+          requested_model="${REQUESTED_MODEL:-glm-5.2}"
+          python - "$requested_model" "$probe_payload" <<'PY'
           import json
           import sys
           json.dump(
@@ -258,7 +262,7 @@ jobs:
           echo "AFTERMATH_API_KEY=$selected_api_key" >> "$GITHUB_ENV"
           echo "AFTERMATH_MODEL_BASE_URL=$selected_base_url" >> "$GITHUB_ENV"
           echo "SELECTED_PROVIDER_PROFILE=$selected_profile" >> "$GITHUB_ENV"
-          echo "MODEL_ID=$REQUESTED_MODEL" >> "$GITHUB_ENV"
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
           echo "Selected provider profile: $selected_profile"
 
       - name: Consume frozen instance with one ordinary model evaluation
@@ -359,7 +363,7 @@ jobs:
             exit 0
           fi
           provider="${SELECTED_PROVIDER_PROFILE:-not_selected}"
-          model="${MODEL_ID:-${{ inputs.model }}}"
+          model="${MODEL_ID:-glm-5.2}"
           summary_args=()
           if [ -s "$run_root/private/model/summary.json" ]
           then
