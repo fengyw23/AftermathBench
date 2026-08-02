@@ -313,6 +313,41 @@ jobs:
               data/scenario_blueprints/public-dev-slot-003/scenario.json \
             --output "$NATIVE_ROOT/baselines/summary.json"
 
+      - name: Prove representative bundles on a fresh kind cluster
+        run: |
+          sensitive_root="$RUNNER_TEMP/kubernetes-public-dev-sensitive"
+          registry_database="$RUNNER_TEMP/kubernetes-public-dev-registry/webhook-sink.sqlite3"
+          cross_cluster_root="$NATIVE_ROOT/cross-cluster-replay"
+          mkdir -p "$cross_cluster_root"
+          python scripts/manage_kubernetes_stack.py down
+          python scripts/manage_kubernetes_stack.py up
+          kind load docker-image --name aftermath-kubernetes \
+            aftermathbench/kubernetes-control:local
+          python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+          for variant in state_01 state_13; do
+            python scripts/manage_kubernetes_stack.py restore-bundle \
+              --snapshot "$sensitive_root/boundary-$variant" \
+              --registry-database "$registry_database" \
+              > "$RUN_ROOT/logs/cross-cluster-restore-$variant.log" 2>&1
+            python scripts/capture_kubernetes_interaction_state_evidence.py \
+              --variant "$variant" \
+              --phase boundary \
+              --prefix "$NATIVE_ROOT/runtime/prefix.json" \
+              --bundle-manifest \
+                "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" \
+              --reset-evidence \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
+              --pre-snapshot-state \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-pre-snapshot.json" \
+              --expected \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              --wait-seconds 180 \
+              --output \
+                "$cross_cluster_root/$variant.json" \
+              > "$RUN_ROOT/logs/cross-cluster-capture-$variant.log" 2>&1
+          done
+
       - name: Build and verify replay-derived hard admission
         run: |
           python scripts/build_kubernetes_interaction_admission.py \

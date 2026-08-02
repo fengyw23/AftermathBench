@@ -116,16 +116,47 @@ class KubernetesInteractionPublicDevAdmissionWorkflowTests(unittest.TestCase):
         baseline_step = self.workflow.index(
             "Replay 117 fixed policies from byte-locked native boundaries"
         )
-        admission_step = self.workflow.index(
-            "Build and verify replay-derived hard admission"
+        portability_step = self.workflow.index(
+            "Prove representative bundles on a fresh kind cluster"
         )
-        baseline_text = self.workflow[baseline_step:admission_step]
+        baseline_text = self.workflow[baseline_step:portability_step]
         self.assertNotIn("restore-bundle", baseline_text)
         self.assertIn("run_kubernetes_interaction_boundary.py", baseline_text)
         self.assertIn("--expected", baseline_text)
         self.assertIn(
             '"src/aftermath_bench/integrations/kubernetes_stack.py"',
             self.workflow,
+        )
+
+    def test_representative_boundaries_replay_on_a_new_cluster(self) -> None:
+        baseline = self.workflow.index(
+            "Replay 117 fixed policies from byte-locked native boundaries"
+        )
+        portability = self.workflow.index(
+            "Prove representative bundles on a fresh kind cluster"
+        )
+        admission = self.workflow.index(
+            "Build and verify replay-derived hard admission"
+        )
+        self.assertLess(baseline, portability)
+        self.assertLess(portability, admission)
+        section = self.workflow[portability:admission]
+        self.assertLess(
+            section.index("manage_kubernetes_stack.py down"),
+            section.index("manage_kubernetes_stack.py up"),
+        )
+        self.assertIn(
+            "kind load docker-image --name aftermath-kubernetes",
+            section,
+        )
+        self.assertIn("for variant in state_01 state_13", section)
+        self.assertIn('boundary-$variant', section)
+        self.assertIn('$variant-boundary.json', section)
+        self.assertIn('--expected \\\n', section)
+        self.assertIn('"$cross_cluster_root/$variant.json"', section)
+        self.assertIn(
+            'cross_cluster_root="$NATIVE_ROOT/cross-cluster-replay"',
+            section,
         )
 
     def test_admission_builder_uses_public_blueprint_explicitly(self) -> None:

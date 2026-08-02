@@ -3,7 +3,8 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 def task_prefix_projection(prefix: Mapping[str, Any]) -> dict[str, Any]:
@@ -26,7 +27,7 @@ def task_prefix_projection(prefix: Mapping[str, Any]) -> dict[str, Any]:
             state["objects"] = [
                 item
                 for item in objects
-                if not _is_kind_root_ca(item)
+                if not is_runtime_root_ca_configmap(item)
             ]
     return projected
 
@@ -41,7 +42,7 @@ def task_prefix_sha256(prefix: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _is_kind_root_ca(item: Any) -> bool:
+def is_runtime_root_ca_configmap(item: Any) -> bool:
     if not isinstance(item, dict) or item.get("kind") != "ConfigMap":
         return False
     metadata = item.get("metadata")
@@ -49,3 +50,10 @@ def _is_kind_root_ca(item: Any) -> bool:
         isinstance(metadata, dict)
         and metadata.get("name") == "kube-root-ca.crt"
     )
+
+
+__all__ = [
+    "is_runtime_root_ca_configmap",
+    "task_prefix_projection",
+    "task_prefix_sha256",
+]

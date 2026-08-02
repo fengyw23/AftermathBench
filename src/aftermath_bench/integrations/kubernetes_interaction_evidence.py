@@ -5,12 +5,12 @@ import json
 from copy import deepcopy
 from typing import Any
 
+from ..kubernetes_pairing import is_runtime_root_ca_configmap
 from .kubernetes_api import KubernetesApi
 from .kubernetes_interaction_prefix import NAMESPACE, SCENARIO_ID
 from .kubernetes_interaction_recovery import KubernetesInteractionEnvironment
 
-
-NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v5"
+NORMALIZATION_CONTRACT = "kubernetes-interaction-boundary-v6"
 
 # This task exposes Events as supporting diagnostics for workload transitions.
 # Only Job Events carry failure evidence not already represented by an
@@ -140,6 +140,7 @@ def canonicalize_interaction_snapshot(snapshot: dict[str, Any]) -> dict[str, Any
         canonical_kubernetes_object(document)
         for group in resource_groups
         for document in snapshot.get(group, ())
+        if not is_runtime_root_ca_configmap(document)
     ]
     resources.sort(key=_object_key)
     events = [

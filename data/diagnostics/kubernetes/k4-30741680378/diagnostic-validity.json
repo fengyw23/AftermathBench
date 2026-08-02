@@ -9,8 +9,12 @@
     "cross-cluster-replay-02": "invalid for root-cause inference: it queried the default namespace aftermath-interactions rather than the frozen public instance namespace",
     "cross-cluster-replay-03": "partially valid: raw snapshot and live etcd counts are valid, but the selected namespace key was the wrong default namespace",
     "cross-cluster-replay-04": "partially valid: raw registry counts are valid, but the selected namespace key was the wrong default namespace",
-    "offline-keyspace-audit": "partially valid: the raw key list proves the snapshot contains aftermath-settlements; the empty task_namespace_keys field used the wrong hard-coded default namespace"
+    "offline-keyspace-audit": "partially valid: the raw key list proves the snapshot contains aftermath-settlements; the empty task_namespace_keys field used the wrong hard-coded default namespace",
+    "offline-keyspace-audit-corrected": "valid: the frozen snapshot contains the public instance namespace and every task-scoped resource key",
+    "cross-cluster-replay-05": "valid: five stable captures from a fresh cluster each differ from the frozen state only at the runtime-generated kube-root-ca.crt certificate"
   },
   "correct_public_instance_namespace": "aftermath-settlements",
-  "next_required_evidence": "repeat cross-cluster replay with data/instance_specs/public-dev-slot-003.json active"
+  "root_cause": "the v5 formal boundary included the fresh kind cluster's runtime-generated kube-root-ca.crt certificate even though it is not task evidence and the repository task projection already excludes it",
+  "resolution": "boundary-v6 excludes only kube-root-ca.crt, preserves all authored and scored objects, and requires representative bundles to replay after deleting and recreating kind during K3 admission",
+  "next_required_evidence": "rerun K3 under boundary-v6, then rerun K4 from the new immutable artifacts"
 }

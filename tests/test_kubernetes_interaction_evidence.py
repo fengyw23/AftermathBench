@@ -163,6 +163,36 @@ class KubernetesInteractionEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(state["resources"], [])
 
+    def test_runtime_root_ca_is_not_task_boundary_evidence(self) -> None:
+        runtime_projection = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "kube-root-ca.crt",
+                "namespace": "aftermath-interactions",
+                "uid": "cluster-specific-uid",
+            },
+            "data": {"ca.crt": "cluster-specific-certificate"},
+        }
+        authored = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "schema-contract",
+                "namespace": "aftermath-interactions",
+                "uid": "persistent-uid",
+            },
+            "data": {"epoch": "2"},
+        }
+        state = canonicalize_interaction_snapshot(
+            {"configmaps": [runtime_projection, authored]}
+        )
+        self.assertEqual(len(state["resources"]), 1)
+        self.assertEqual(
+            state["resources"][0]["metadata"]["name"],
+            "schema-contract",
+        )
+
     def test_kubernetes_condition_order_is_semantically_normalized(self) -> None:
         document = {
             "apiVersion": "apps/v1",

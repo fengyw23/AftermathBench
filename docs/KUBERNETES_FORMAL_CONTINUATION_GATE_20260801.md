@@ -80,7 +80,7 @@ explicit, versioned normalization contract. It may omit a volatile field only
 when the model neither needs it for a valid decision nor can be scored on it.
 UIDs and external idempotency identities may not be normalized away.
 
-The implemented `kubernetes-interaction-boundary-v5` contract separates
+The implemented `kubernetes-interaction-boundary-v6` contract separates
 persistent recovery authority from controller-runtime projections. Empirical
 two-consumer replay showed that rewinding etcd after one consumer has run makes
 kubelet recreate workload Pods and makes Deployment/ReplicaSet controllers
@@ -91,10 +91,14 @@ The canonical boundary retains all scored ConfigMap, Secret, Service,
 Deployment, Job and RBAC identities, authored specifications, Job evidence,
 contract facts and external idempotency records. It excludes Pods and
 Deployment/ReplicaSet/Pod lifecycle Events, and treats Kubernetes condition
-arrays as maps keyed by condition type. These excluded fields are neither read
-by the evaluator nor used by the reference recovery to derive scope. Ordinary
-live tools may still expose them as diagnostics; they are not claimed as exact
-persistent boundary authority.
+arrays as maps keyed by condition type. Version 6 additionally excludes the
+automatically projected `kube-root-ca.crt` ConfigMap: every fresh kind cluster
+creates a different root certificate, while that certificate is neither
+authored task state nor read by the evaluator or reference recovery. All other
+ConfigMaps, object UIDs, contracts and external identities remain exact. These
+excluded fields are neither read by the evaluator nor used by the reference
+recovery to derive scope. Ordinary live tools may still expose them as
+diagnostics; they are not claimed as exact persistent boundary authority.
 
 ### Restore proof
 
@@ -245,8 +249,20 @@ the novelty gate correctly treated that as an identity leak. Commit
 `8a967fcdc5ebd224b367cbb98768e1af00a6b222` now derives all K4 identity fields
 from the frozen scenario instead. Its provider-free replacement source run is
 [30733738216](https://github.com/fengyw23/AftermathBench/actions/runs/30733738216).
-Until that run succeeds and produces both the public formal-input artifact and
-the short-lived exact replay bundles, no K4 gate may be committed.
+Run `30733738216` succeeded and produced both the public formal-input artifact
+and the short-lived exact replay bundles. The first K4 run, `30741680378`, was
+nevertheless rejected before any model call: a restored boundary on a newly
+created kind cluster differed from the frozen capture. Corrected diagnostics
+(`30744116130` and `30744159752`) proved that the snapshot contained all task
+records and that five stable recaptures differed at exactly one path, the
+fresh cluster's projected `kube-root-ca.crt` certificate. No GLM-5.2 score can
+be inferred from that run because it completed zero model trials.
+
+Boundary v6 removes only that non-task runtime projection and adds a K3
+admission step that deletes and recreates kind, restores representative
+`state_01` and `state_13` bundles, and byte-compares their normalized task state
+before formal inputs are frozen. K4 remains blocked until the replacement K3
+run succeeds under this stronger cross-cluster portability check.
 
 ### K4 — execution control and model evaluation
 

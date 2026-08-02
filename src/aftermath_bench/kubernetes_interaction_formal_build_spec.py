@@ -425,7 +425,7 @@ def _validate_capture_common(
         or capture.get("variant_id") != variant_id
         or capture.get("phase") != phase
         or capture.get("normalization_contract")
-        != "kubernetes-interaction-boundary-v5"
+        != "kubernetes-interaction-boundary-v6"
         or capture.get("prefix_file_sha256") != prefix_sha256
         or not isinstance(state, dict)
         or capture.get("state_sha256") != _json_state_sha256(state)
