@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import subprocess
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +25,7 @@ from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
 from .integrations.kubernetes_interaction_recovery import (
+    KubernetesInteractionEvaluation,
     evaluate_kubernetes_interaction_recovery,
 )
 from .native_admission import (
@@ -95,6 +99,8 @@ def _invoke_trusted_formal_evaluator(
     family_id: str,
     evidence: dict[str, Any],
     prefix: dict[str, Any],
+    root: Path | None = None,
+    instance_spec_path: Path | None = None,
 ) -> Any:
     """Invoke the evaluator protocol frozen for each formal family.
 
@@ -103,9 +109,95 @@ def _invoke_trusted_formal_evaluator(
     evaluator rather than changing a frozen scientific input.
     """
 
+    if (
+        family_id == "k8s-constraint-interaction-recovery"
+        and instance_spec_path is not None
+    ):
+        if root is None:
+            raise ValueError("isolated evaluator requires a repository root")
+        script = """
+import json
+from dataclasses import asdict
+from aftermath_bench.integrations.kubernetes_interaction_recovery import (
+    evaluate_kubernetes_interaction_recovery,
+)
+evidence = json.load(__import__('sys').stdin)
+print(json.dumps(asdict(evaluate_kubernetes_interaction_recovery(evidence))))
+"""
+        environment = os.environ.copy()
+        environment[
+            "AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC"
+        ] = str(instance_spec_path)
+        source_root = str(root / "src")
+        environment["PYTHONPATH"] = os.pathsep.join(
+            value
+            for value in (source_root, environment.get("PYTHONPATH", ""))
+            if value
+        )
+        try:
+            process = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=root,
+                env=environment,
+                input=json.dumps(evidence, ensure_ascii=False),
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
+            )
+            payload = json.loads(process.stdout)
+            return KubernetesInteractionEvaluation(
+                passed=bool(payload["passed"]),
+                components=dict(payload["components"]),
+                checks=dict(payload["checks"]),
+                diagnostics=dict(payload["diagnostics"]),
+            )
+        except (
+            OSError,
+            subprocess.SubprocessError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+        ) as error:
+            raise ValueError(
+                "isolated Kubernetes evaluator failed"
+            ) from error
     if family_id == "k8s-constraint-interaction-recovery":
         return evaluator(evidence)
     return evaluator(evidence, prefix=prefix)
+
+
+def _kubernetes_evaluator_instance_spec(
+    *,
+    root: Path,
+    scenario: NativeScenario,
+) -> Path | None:
+    """Find the instance spec only when the active evaluator is mismatched."""
+
+    if scenario.family_id != "k8s-constraint-interaction-recovery":
+        return None
+    from .integrations.kubernetes_interaction_instance import (
+        ACTIVE_KUBERNETES_INTERACTION_INSTANCE,
+        KubernetesInteractionInstanceSpec,
+    )
+
+    expected = str(scenario.raw.get("instance_spec_sha256", ""))
+    if expected == ACTIVE_KUBERNETES_INTERACTION_INSTANCE.sha256:
+        return None
+    candidates: list[Path] = []
+    spec_root = root / "data" / "instance_specs"
+    if spec_root.is_dir():
+        for path in sorted(spec_root.glob("*.json")):
+            try:
+                if KubernetesInteractionInstanceSpec.from_path(path).sha256 == expected:
+                    candidates.append(path.resolve())
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+    if len(candidates) != 1:
+        raise ValueError(
+            "Kubernetes formal scenario does not resolve one instance spec"
+        )
+    return candidates[0]
 
 
 @dataclass(frozen=True)
@@ -652,6 +744,13 @@ def _validate_completed_formal_chain(
         != (scenario_id, domain_id, family_id, instance_id, variants)
     ):
         return False
+    try:
+        evaluator_instance_spec = _kubernetes_evaluator_instance_spec(
+            root=root,
+            scenario=scenario,
+        )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
 
     reset_payload = role_payloads["reset_evidence"]
     reset_files = role_file_hashes["reset_evidence"]
@@ -751,6 +850,8 @@ def _validate_completed_formal_chain(
                     family_id=family_id,
                     evidence=terminal["final_evidence"],
                     prefix=prefix,
+                    root=root,
+                    instance_spec_path=evaluator_instance_spec,
                 )
             except (KeyError, TypeError, ValueError):
                 return False
@@ -892,6 +993,8 @@ def _validate_completed_formal_chain(
                     family_id=family_id,
                     evidence=trajectory["final_evidence"],
                     prefix=prefix,
+                    root=root,
+                    instance_spec_path=evaluator_instance_spec,
                 )
             except (KeyError, TypeError, ValueError):
                 return False
