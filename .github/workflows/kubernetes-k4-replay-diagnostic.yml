@@ -57,6 +57,7 @@ jobs:
               "k4_run_id": int(os.environ["K4_RUN_ID"]),
               "k4_artifact": os.environ["K4_ARTIFACT"],
               "variant": "state_01",
+              "diagnostic_attempt": 2,
           }
           if gate != expected:
               raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
@@ -157,6 +158,8 @@ jobs:
           python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
 
       - name: Restore state_01 and capture time-separated semantic drift
+        id: replay
+        continue-on-error: true
         run: |
           expected="$RUNNER_TEMP/k4-artifact/generated/public-dev-slot-003/native/runtime/state-evidence/state_01-boundary.json"
           bundle="$RUNNER_TEMP/k3-private/boundary-state_01"
@@ -167,7 +170,8 @@ jobs:
           python scripts/manage_kubernetes_stack.py restore-bundle \
             --snapshot "$bundle" \
             --registry-database "$registry_database" \
-            > "$DIAGNOSTIC_ROOT/restore.json"
+            > "$DIAGNOSTIC_ROOT/restore.json" \
+            2> "$DIAGNOSTIC_ROOT/restore.stderr.log"
           sample=0
           for delay in 0 5 10 15 30; do
             sleep "$delay"
@@ -176,15 +180,26 @@ jobs:
             actual="$DIAGNOSTIC_ROOT/actual-$label.json"
             python scripts/capture_kubernetes_interaction_state_evidence.py \
               --variant state_01 \
-              --output "$actual"
+              --output "$actual" \
+              > "$DIAGNOSTIC_ROOT/capture-$label.log" \
+              2> "$DIAGNOSTIC_ROOT/capture-$label.stderr.log"
             python scripts/compare_kubernetes_replay_state.py \
               --expected "$expected" \
               --actual "$actual" \
-              --output "$DIAGNOSTIC_ROOT/diff-$label.json"
+              --output "$DIAGNOSTIC_ROOT/diff-$label.json" \
+              > "$DIAGNOSTIC_ROOT/compare-$label.log" \
+              2> "$DIAGNOSTIC_ROOT/compare-$label.stderr.log"
           done
+
+      - name: Safety-scan partial or complete replay diagnostics
+        id: safety
+        if: always()
+        run: |
+          test -d "$DIAGNOSTIC_ROOT"
           python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
 
       - name: Commit only the cross-cluster replay diagnostic
+        if: always() && steps.safety.outcome == 'success'
         run: |
           git add -- "$DIAGNOSTIC_ROOT"
           test -n "$(git diff --cached --name-only)"
@@ -200,6 +215,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "record Kubernetes cross-cluster replay drift"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Preserve the diagnostic failure conclusion
+        if: always()
+        run: test '${{ steps.replay.outcome }}' = success
 
       - name: Purge native services and private replay material
         if: always()
