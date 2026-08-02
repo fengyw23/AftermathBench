@@ -2,14 +2,15 @@
 
 ## Purpose
 
-This checkpoint decides whether the paused long-running goal can safely resume
-with the Kubernetes formal public-development slice. It audits the current
-runtime against the repository's exact-boundary evidence contract and replaces
-the previous immediate plan with a gated implementation order.
+This checkpoint records why the paused long-running goal was initially blocked
+and the evidence that now permits it to resume with the Kubernetes formal
+public-development slice. It audits the runtime against the repository's
+exact-boundary evidence contract and keeps every later model run behind a
+provider-free input lock.
 
-The high-level goal remains correct. The next implementation step must change.
-It is not yet valid to parameterize `dev-005`, run another model experiment, or
-bind a Kubernetes release slot.
+The high-level goal remains correct. K0--K3 are now complete. The next valid
+implementation step is K4 execution control; an ordinary-condition model run
+or release-slot binding is still premature.
 
 ## Current verified position
 
@@ -19,12 +20,18 @@ bind a Kubernetes release slot.
   reference recovery 13/13, 117 fixed-policy runs, and ordinary GLM-5.2 1/13.
 - The Kubernetes scenario has already been exposed to a model and cannot be
   promoted by changing its split or instance metadata.
-- There is no fresh Kubernetes public-development instance, Kubernetes formal
-  build-spec adapter, or seven-role formal evidence package.
-- The current workflow reconstructs each boundary by deleting and recreating
-  the namespace and resetting/reseeding the external event registry.
+- A fresh Kubernetes public-development instance now exists with 13 exact
+  native failure boundaries and 13 distinct recovery signatures.
+- The formal build-spec adapter freezes reset evidence, boundary bundle, tool
+  contract, evaluator and reference bundle before provider access.
+- The admitted source run completed 13/13 reference recoveries, all 117 fixed
+  policies and replay-derived hard admission.
+- Exact reset restores restart the API server, controller-manager, scheduler
+  and kubelet, and require controller and node Leases to renew before exposing
+  the restored state to a new consumer.
 
-The last item is a correctness blocker, not merely missing packaging.
+The remaining boundary is deliberate: execution control and ordinary model
+evaluation have not yet run against the frozen formal inputs.
 
 ## Exact-boundary problem
 
@@ -199,15 +206,26 @@ Build the same seven roles used by the ERPNext slot:
 Freeze the five provider-input roles and their input lock before any model
 credential is made available.
 
-Implementation status (2026-08-02): the repository now contains the
-Kubernetes-specific formal build-spec adapter and a provider-free workflow
-stage. The stage creates one exact reset bundle, derives all thirteen failure
-boundaries from restores of that bundle, snapshots each boundary together with
-the external registry, and proves both reset and boundary replay against their
-pre-snapshot canonical bytes. It then recomputes every reference evaluation and
-freezes the five input roles. This status is **implemented but not yet
-CI-admitted** until the updated public-development workflow completes and its
-formal input lock is inspected. K4 remains prohibited before that result.
+Implementation status (2026-08-02): **K3 is CI-admitted** through two linked,
+provider-free GitHub Actions runs.
+
+- [Source admission run 30723666432](https://github.com/fengyw23/AftermathBench/actions/runs/30723666432)
+  at commit `62ce525cc7ea8172eee89033250c6029489fa8fe` created one exact reset bundle,
+  restored and snapshotted all 13 native failure boundaries, recomputed 13/13
+  reference recoveries, completed all 117 fixed-policy probes, and passed the
+  replay-derived hard admission gate.
+- [Formal-input continuation run 30731884466](https://github.com/fengyw23/AftermathBench/actions/runs/30731884466)
+  downloaded that run's immutable artifact, reverified source provenance and
+  completed admission, canonicalized only the order of the exact runtime file
+  inventory while proving that every path, byte count and SHA-256 stayed
+  identical, froze all five provider-input roles, generated the formal input
+  lock, and passed the public-evidence safety scan.
+
+The split is an engineering continuation, not a relaxed evidence path. The
+first run's 13 exact-reference replays and 117 native policies each took about
+two hours, exceeding the earlier 240-minute job budget when combined with
+formal packaging. The continuation consumes the immutable uploaded evidence
+and cannot rewrite the admitted native trajectories.
 
 ### K4 — execution control and model evaluation
 
@@ -241,6 +259,8 @@ a fresh instance. Historical `dev-005` results remain development evidence.
 ## Resume condition
 
 The paused goal can resume without changing its objective. Its first active
-slice must be K0 only. The automatic loop may proceed to K1–K5 only after the
-snapshot-replay proof is green and committed. It must not spend provider calls,
-generate hidden tests, or make a second release-slot claim before that gate.
+slice must be K4: explicit-scope execution control against the frozen formal
+inputs. Provider-backed ordinary-condition evaluation remains prohibited until
+that control achieves the stated threshold and any failures are shown to be
+execution failures rather than boundary drift. Hidden-test generation and a
+Kubernetes release-slot claim remain K5 work.

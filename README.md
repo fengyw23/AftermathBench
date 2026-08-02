@@ -140,9 +140,12 @@ selected formal portability to ERPNext as the next slice. That slice is now
 complete; the
 [ERPNext formal public-development checkpoint](docs/ERPNEXT_FORMAL_PUBLIC_DEV_CHECKPOINT_20260801.md)
 records the workflow, artifact audit, repository binding and remaining
-scientific limits. The next slice applies the same protocol to a fresh
-Kubernetes public-development instance. Model-consumed development scenarios
-will not be relabeled as release data.
+scientific limits. The same provider-free protocol has now admitted a fresh
+Kubernetes public-development instance through formal input freeze; the
+[Kubernetes continuation checkpoint](docs/KUBERNETES_FORMAL_CONTINUATION_GATE_20260801.md)
+records the linked source and continuation runs. The next slice is explicit-scope
+execution control against those frozen inputs. Model-consumed development
+scenarios will not be relabeled as release data.
 
 ## Cross-model native results
 
