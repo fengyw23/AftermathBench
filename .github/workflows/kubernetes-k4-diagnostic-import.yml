@@ -68,7 +68,7 @@ jobs:
               raise SystemExit("diagnostic commit is invalid")
           if artifact != f"kubernetes-execution-control-{run_id}":
               raise SystemExit("diagnostic artifact is not bound to the run")
-          if gate["diagnostic_attempt"] != 3:
+          if gate["diagnostic_attempt"] != 4:
               raise SystemExit("diagnostic attempt is invalid")
           with open(sys.argv[2], "a", encoding="utf-8") as handle:
               handle.write(f"K4_RUN_ID={run_id}\n")
@@ -140,18 +140,61 @@ jobs:
           stage="$RUNNER_TEMP/k4-artifact"
           source_root="$stage/generated/public-dev-slot-003"
           test ! -e "$DIAGNOSTIC_ROOT"
-          mkdir -p \
-            "$DIAGNOSTIC_ROOT/model-runs" \
-            "$DIAGNOSTIC_ROOT/logs"
-          test -f "$source_root/k4-public-summary.json"
-          test -f "$source_root/control/model-runs/summary.json"
-          cp "$source_root/k4-public-summary.json" "$DIAGNOSTIC_ROOT/"
-          cp -a "$source_root/control/model-runs/." "$DIAGNOSTIC_ROOT/model-runs/"
-          cp -a "$source_root/logs/." "$DIAGNOSTIC_ROOT/logs/"
-          cp "$RUNNER_TEMP/k4-run.json" "$DIAGNOSTIC_ROOT/run-metadata.json"
-          cp "$RUNNER_TEMP/k4-artifacts.json" "$DIAGNOSTIC_ROOT/artifacts-metadata.json"
-          find "$DIAGNOSTIC_ROOT" -type f -printf '%P\n' | sort \
-            > "$DIAGNOSTIC_ROOT/file-inventory.txt"
+          python - \
+            "$source_root" \
+            "$DIAGNOSTIC_ROOT" \
+            "$RUNNER_TEMP/k4-run.json" \
+            "$RUNNER_TEMP/k4-artifacts.json" <<'PY'
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          target.mkdir(parents=True)
+          candidates = {
+              "k4-public-summary.json": source / "k4-public-summary.json",
+              "model-runs": source / "control" / "model-runs",
+              "logs": source / "logs",
+              "run-metadata.json": Path(sys.argv[3]),
+              "artifacts-metadata.json": Path(sys.argv[4]),
+          }
+          copied = []
+          missing = []
+          for destination, item in candidates.items():
+              output = target / destination
+              if not item.exists():
+                  missing.append(destination)
+                  continue
+              if item.is_dir():
+                  shutil.copytree(item, output)
+              else:
+                  shutil.copy2(item, output)
+              copied.append(destination)
+          inventory = sorted(
+              path.relative_to(target).as_posix()
+              for path in target.rglob("*")
+              if path.is_file()
+          )
+          (target / "diagnostic-collection.json").write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "copied_roots": copied,
+                      "missing_roots": missing,
+                      "files_before_manifest": inventory,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Safety-scan the selected diagnostic package
+        run: |
           python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
 
       - name: Commit only the failed-run diagnostic package
