@@ -26,6 +26,13 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             self.text[upload:],
         )
 
+    def test_checkout_keeps_history_needed_by_novelty_proofs(self) -> None:
+        checkout = self.text.index("uses: actions/checkout@v4")
+        materialize = self.text.index(
+            "Materialize private candidate without model credentials"
+        )
+        self.assertIn("fetch-depth: 0", self.text[checkout:materialize])
+
     def test_manual_freeze_can_seal_an_unseen_bundle_without_a_model(self) -> None:
         seal = self.text.index(
             "Seal an unseen private bundle for later evaluation"
