@@ -1,0 +1,212 @@
+name: kubernetes-k4-replay-diagnostic
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/kubernetes-public-dev-slot-003-k4-replay-diagnostic.json"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: kubernetes-k4-replay-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  diagnose-cross-cluster-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      K3_RUN_ID: "30733738216"
+      K3_PRIVATE_ARTIFACT: kubernetes-private-replay-30733738216
+      K4_RUN_ID: "30741680378"
+      K4_ARTIFACT: kubernetes-execution-control-30741680378
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-01
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Validate the immutable diagnostic declaration
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - data/control_gates/kubernetes-public-dev-slot-003-k4-replay-diagnostic.json <<'PY'
+          import json
+          import os
+          import sys
+
+          gate = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected = {
+              "schema_version": "1.0",
+              "stage": "K4-cross-cluster-replay-diagnostic",
+              "k3_run_id": int(os.environ["K3_RUN_ID"]),
+              "k3_private_artifact": os.environ["K3_PRIVATE_ARTIFACT"],
+              "k4_run_id": int(os.environ["K4_RUN_ID"]),
+              "k4_artifact": os.environ["K4_ARTIFACT"],
+              "variant": "state_01",
+          }
+          if gate != expected:
+              raise SystemExit(f"replay diagnostic gate drifted: {gate!r}")
+          PY
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$K3_RUN_ID" \
+            --jq '.status == "completed" and .conclusion == "success"' \
+            | grep -qx true
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$K4_RUN_ID" \
+            --jq '.status == "completed" and .conclusion == "failure"' \
+            | grep -qx true
+
+      - name: Download the frozen public boundary
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.K4_ARTIFACT }}
+          path: ${{ runner.temp }}/k4-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.K4_RUN_ID }}
+
+      - name: Download the short-lived exact replay bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.K3_PRIVATE_ARTIFACT }}
+          path: ${{ runner.temp }}/k3-private
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.K3_RUN_ID }}
+
+      - name: Verify the selected state_01 inputs
+        run: |
+          expected="$RUNNER_TEMP/k4-artifact/generated/public-dev-slot-003/native/runtime/state-evidence/state_01-boundary.json"
+          bundle="$RUNNER_TEMP/k3-private/boundary-state_01"
+          manifest="$RUNNER_TEMP/k4-artifact/generated/public-dev-slot-003/native/runtime/bundle-manifests/state_01.json"
+          test -s "$expected"
+          test -s "$bundle/bundle.json"
+          cmp "$bundle/bundle.json" "$manifest"
+
+      - name: Build pinned kind and install pinned runtime tools
+        run: |
+          git clone --no-checkout \
+            https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin \
+            9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && \
+            go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          kubectl_url="https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bin/kubectl" "$kubectl_url"
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/kubectl.sha256" "$kubectl_url.sha256"
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" \
+            | sha256sum --check
+          etcd_url="https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz"
+          etcd_sha="4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "$archive" "$etcd_url"
+          echo "$etcd_sha  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 0755 \
+            "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" \
+            "$RUNNER_TEMP/bin/etcdutl"
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Start a fresh native cluster and registry
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile \
+            --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes \
+            aftermathbench/kubernetes-control:local
+          registry_root="$RUNNER_TEMP/k4-replay-registry"
+          mkdir -p "$registry_root"
+          docker run --detach \
+            --name aftermath-interaction-registry \
+            --user "$(id -u):$(id -g)" \
+            --publish 127.0.0.1:9092:8080 \
+            --mount "type=bind,src=$registry_root,dst=/data" \
+            aftermathbench/kubernetes-control:local \
+            python -m runtime_services.webhook_sink
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9092/health; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = true
+          python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+
+      - name: Restore state_01 and capture time-separated semantic drift
+        run: |
+          expected="$RUNNER_TEMP/k4-artifact/generated/public-dev-slot-003/native/runtime/state-evidence/state_01-boundary.json"
+          bundle="$RUNNER_TEMP/k3-private/boundary-state_01"
+          registry_database="$RUNNER_TEMP/k4-replay-registry/webhook-sink.sqlite3"
+          test ! -e "$DIAGNOSTIC_ROOT"
+          mkdir -p "$DIAGNOSTIC_ROOT"
+          cp "$expected" "$DIAGNOSTIC_ROOT/expected-state_01-boundary.json"
+          python scripts/manage_kubernetes_stack.py restore-bundle \
+            --snapshot "$bundle" \
+            --registry-database "$registry_database" \
+            > "$DIAGNOSTIC_ROOT/restore.json"
+          sample=0
+          for delay in 0 5 10 15 30; do
+            sleep "$delay"
+            sample=$((sample + 1))
+            label=$(printf '%02d' "$sample")
+            actual="$DIAGNOSTIC_ROOT/actual-$label.json"
+            python scripts/capture_kubernetes_interaction_state_evidence.py \
+              --variant state_01 \
+              --output "$actual"
+            python scripts/compare_kubernetes_replay_state.py \
+              --expected "$expected" \
+              --actual "$actual" \
+              --output "$DIAGNOSTIC_ROOT/diff-$label.json"
+          done
+          python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
+
+      - name: Commit only the cross-cluster replay diagnostic
+        run: |
+          git add -- "$DIAGNOSTIC_ROOT"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/cross-cluster-replay-01/' \
+              | grep -q .
+          then
+            echo "unexpected file outside the replay diagnostic allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "record Kubernetes cross-cluster replay drift"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Purge native services and private replay material
+        if: always()
+        run: |
+          docker rm --force aftermath-interaction-registry || true
+          python scripts/manage_kubernetes_stack.py down || true
+          rm -rf -- \
+            "$RUNNER_TEMP/k3-private" \
+            "$RUNNER_TEMP/k4-artifact" \
+            "$RUNNER_TEMP/k4-replay-registry"
