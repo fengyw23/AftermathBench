@@ -15,11 +15,11 @@ from .benchmark_matrix import (
     validate_benchmark_matrix,
 )
 from .hidden_test_eligibility import verify_hidden_test_eligibility
-from .integrations.forgejo_publication_recovery import (
-    evaluate_forgejo_publication_recovery,
-)
 from .integrations.erpnext_sales_return_evaluator import (
     evaluate_sales_return_recovery,
+)
+from .integrations.forgejo_publication_recovery import (
+    evaluate_forgejo_publication_recovery,
 )
 from .native_admission import (
     NativeAdmissionReport,
@@ -103,6 +103,27 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def bound_reset_snapshot_sha256(payload: dict[str, Any]) -> str | None:
+    """Resolve the canonical or native name for the bound reset file hash."""
+
+    digests = [
+        payload[field]
+        for field in ("reset_snapshot_sha256", "reset_evidence_file_sha256")
+        if field in payload
+    ]
+    if (
+        not digests
+        or any(
+            not isinstance(digest, str)
+            or _SHA256.fullmatch(digest) is None
+            for digest in digests
+        )
+        or len(set(digests)) != 1
+    ):
+        return None
+    return digests[0]
 
 
 def default_release_manifest_path() -> Path:
@@ -1221,7 +1242,7 @@ def validate_formal_evidence_roles(
             or boundary_state.get("scenario_id") != scenario_id
             or boundary_state.get("variant_id") != variant_id
             or boundary_state.get("phase") != "boundary"
-            or boundary_state.get("reset_snapshot_sha256")
+            or bound_reset_snapshot_sha256(boundary_state)
             != reset.get("reset_snapshot_sha256")
             or failure_surface is None
             or failure_surface.get("scenario_id") != scenario_id

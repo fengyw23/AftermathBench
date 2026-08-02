@@ -12,19 +12,20 @@ from aftermath_bench.benchmark_matrix import (
     benchmark_family_index,
     load_benchmark_matrix,
 )
+from aftermath_bench.native_admission import validate_native_scenario
 from aftermath_bench.native_freeze import (
     append_usage_event,
     build_frozen_bundle,
 )
-from aftermath_bench.native_admission import validate_native_scenario
 from aftermath_bench.native_scenario import NativeScenario, load_native_scenario
 from aftermath_bench.release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
     FORMAL_EVIDENCE_ROLES,
-    _validate_control_summary,
     _validate_admission_release_binding,
+    _validate_control_summary,
     _validate_hidden_bundle,
     _validate_variant_semantics,
+    bound_reset_snapshot_sha256,
     default_release_manifest_path,
     derive_release_state,
     file_sha256,
@@ -33,6 +34,46 @@ from aftermath_bench.release_manifest import (
     validate_release_manifest,
 )
 from aftermath_bench.schema import repository_root
+
+
+class ResetSnapshotBindingTests(unittest.TestCase):
+    def test_accepts_canonical_or_native_reset_hash_name(self) -> None:
+        digest = "a" * 64
+        self.assertEqual(
+            bound_reset_snapshot_sha256({"reset_snapshot_sha256": digest}),
+            digest,
+        )
+        self.assertEqual(
+            bound_reset_snapshot_sha256(
+                {"reset_evidence_file_sha256": digest}
+            ),
+            digest,
+        )
+        self.assertEqual(
+            bound_reset_snapshot_sha256(
+                {
+                    "reset_snapshot_sha256": digest,
+                    "reset_evidence_file_sha256": digest,
+                }
+            ),
+            digest,
+        )
+
+    def test_rejects_missing_invalid_or_conflicting_reset_hashes(self) -> None:
+        self.assertIsNone(bound_reset_snapshot_sha256({}))
+        self.assertIsNone(
+            bound_reset_snapshot_sha256(
+                {"reset_evidence_file_sha256": "not-a-sha256"}
+            )
+        )
+        self.assertIsNone(
+            bound_reset_snapshot_sha256(
+                {
+                    "reset_snapshot_sha256": "a" * 64,
+                    "reset_evidence_file_sha256": "b" * 64,
+                }
+            )
+        )
 
 
 class ReleaseManifestTest(unittest.TestCase):

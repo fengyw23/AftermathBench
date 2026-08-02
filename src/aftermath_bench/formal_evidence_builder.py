@@ -20,6 +20,7 @@ from .release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
     FORMAL_EVIDENCE_ROLES,
     MIN_EXECUTION_CONTROL_PASS_RATE,
+    bound_reset_snapshot_sha256,
     file_sha256,
     validate_formal_evidence_roles,
 )
@@ -1566,7 +1567,7 @@ def _validate_input_semantics(
             ),
             "boundary_reset_bound": (
                 boundary_state is not None
-                and boundary_state.get("reset_snapshot_sha256")
+                and bound_reset_snapshot_sha256(boundary_state)
                 == reset.get("reset_snapshot_sha256")
                 and boundary.get("reset_snapshot_sha256")
                 == reset.get("reset_snapshot_sha256")
