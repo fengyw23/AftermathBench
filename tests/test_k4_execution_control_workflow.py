@@ -33,7 +33,7 @@ class KubernetesK4ExecutionControlWorkflowTests(unittest.TestCase):
         self,
     ) -> None:
         self.assertIn(
-            'SOURCE_COMMIT: "8a967fcdc5ebd224b367cbb98768e1af00a6b222"',
+            'SOURCE_COMMIT: "ddd961344ba7390744f509b8d6a76ac97a5c24cc"',
             self.workflow,
         )
 
@@ -51,22 +51,22 @@ class KubernetesK4ExecutionControlWorkflowTests(unittest.TestCase):
             {
                 "schema_version": "1.0",
                 "stage": "K4-execution-control",
-                "source_run_id": 30733738216,
+                "source_run_id": 30745076781,
                 "source_commit": (
-                    "8a967fcdc5ebd224b367cbb98768e1af00a6b222"
+                    "ddd961344ba7390744f509b8d6a76ac97a5c24cc"
                 ),
                 "model": "glm-5.2",
                 "minimum_pass_rate": 0.8,
             },
         )
-        self.assertIn('SOURCE_RUN_ID: "30733738216"', self.workflow)
+        self.assertIn('SOURCE_RUN_ID: "30745076781"', self.workflow)
         self.assertIn("ref: ${{ env.SOURCE_COMMIT }}", self.workflow)
         self.assertIn(
-            "kubernetes-public-dev-admission-30733738216",
+            "kubernetes-public-dev-admission-30745076781",
             self.workflow,
         )
         self.assertIn(
-            "kubernetes-private-replay-30733738216",
+            "kubernetes-private-replay-30745076781",
             self.workflow,
         )
         self.assertIn(
