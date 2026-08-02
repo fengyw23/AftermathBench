@@ -1,0 +1,114 @@
+name: forgejo-public-dev-evidence-import
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/forgejo-public-dev-slot-002-evidence-import.json"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: forgejo-public-dev-evidence-import-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-reviewed-public-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      GATE_PATH: data/control_gates/forgejo-public-dev-slot-002-evidence-import.json
+      IMPORT_METADATA: data/generated/formal-imports/forgejo-public-dev-slot-002
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate reviewed source run and artifact provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/validate_forgejo_evidence_import.py gate \
+            --gate "$GATE_PATH" \
+            --github-env "$GITHUB_ENV"
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > "$RUNNER_TEMP/source-run.json"
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/source-artifacts.json"
+          python scripts/validate_forgejo_evidence_import.py provenance \
+            --gate "$GATE_PATH" \
+            --run-metadata "$RUNNER_TEMP/source-run.json" \
+            --artifacts-metadata "$RUNNER_TEMP/source-artifacts.json" \
+            --import-commit "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/import-provenance.json"
+
+      - name: Download the immutable public evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/forgejo-public-evidence
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify and import only repository-ready evidence
+        run: |
+          stage="$RUNNER_TEMP/forgejo-public-evidence"
+          python scripts/validate_forgejo_evidence_import.py artifact \
+            --gate "$GATE_PATH" \
+            --stage "$stage"
+          python scripts/verify_public_evidence_safe.py --root "$stage"
+          scenario_root="data/scenarios/$SCENARIO_ID"
+          formal_root="$FORMAL_RELATIVE_ROOT"
+          test ! -e "$scenario_root"
+          test ! -e "$formal_root"
+          test ! -e "$IMPORT_METADATA"
+          mkdir -p \
+            "$(dirname "$scenario_root")" \
+            "$(dirname "$formal_root")" \
+            "$IMPORT_METADATA"
+          cp -a "$stage/repo-ready/$scenario_root" "$scenario_root"
+          cp -a "$stage/repo-ready/$formal_root" "$formal_root"
+          cp "$RUNNER_TEMP/import-provenance.json" "$IMPORT_METADATA/import-provenance.json"
+          python scripts/generate_formal_release_binding.py \
+            --scenario "$scenario_root/scenario.json" \
+            --formal-declarations "$formal_root/completion/declarations.json" \
+            --root . \
+            --output "$IMPORT_METADATA/release-binding-candidate.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$scenario_root" \
+            --root "$formal_root" \
+            --root "$IMPORT_METADATA"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$scenario_root/scenario.json"
+
+      - name: Commit reviewed Forgejo evidence for independent release binding
+        run: |
+          scenario_root="data/scenarios/$SCENARIO_ID"
+          formal_root="$FORMAL_RELATIVE_ROOT"
+          git add -- "$scenario_root" "$formal_root" "$IMPORT_METADATA"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev "^(A |M |R |\?\?) (data/scenarios/$SCENARIO_ID/|$FORMAL_RELATIVE_ROOT/|$IMPORT_METADATA/)" \
+              | grep -q .
+          then
+            echo "unexpected file outside Forgejo import allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "import reviewed Forgejo formal evidence"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
