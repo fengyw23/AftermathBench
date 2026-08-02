@@ -1,0 +1,165 @@
+name: kubernetes-k4-diagnostic-import
+
+# A failed K4 run can still contain scientifically useful, repository-safe
+# diagnostics.  This workflow is deliberately separate from the K5 release
+# importer: it can inspect a failed run, but it cannot create release evidence
+# or update the release manifest.
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/kubernetes-public-dev-slot-003-k4-diagnostic.json"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: kubernetes-k4-diagnostic-import-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-failed-k4-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: src
+      GATE_PATH: data/control_gates/kubernetes-public-dev-slot-003-k4-diagnostic.json
+      DIAGNOSTIC_ROOT: data/diagnostics/kubernetes/k4-30741680378
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the exact failed run and immutable artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - "$GATE_PATH" "$GITHUB_ENV" <<'PY'
+          import json
+          import os
+          import re
+          import sys
+
+          gate = json.load(open(sys.argv[1], encoding="utf-8"))
+          expected_fields = {
+              "schema_version",
+              "stage",
+              "k4_run_id",
+              "k4_commit",
+              "k4_artifact",
+          }
+          if set(gate) != expected_fields:
+              raise SystemExit("diagnostic gate fields are not exact")
+          if gate["schema_version"] != "1.0":
+              raise SystemExit("diagnostic gate schema is invalid")
+          if gate["stage"] != "K4-diagnostic-import":
+              raise SystemExit("diagnostic gate stage is invalid")
+          run_id = gate["k4_run_id"]
+          commit = gate["k4_commit"]
+          artifact = gate["k4_artifact"]
+          if type(run_id) is not int or run_id <= 0:
+              raise SystemExit("diagnostic run id is invalid")
+          if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+              raise SystemExit("diagnostic commit is invalid")
+          if artifact != f"kubernetes-execution-control-{run_id}":
+              raise SystemExit("diagnostic artifact is not bound to the run")
+          with open(sys.argv[2], "a", encoding="utf-8") as handle:
+              handle.write(f"K4_RUN_ID={run_id}\n")
+              handle.write(f"K4_COMMIT={commit}\n")
+              handle.write(f"K4_ARTIFACT={artifact}\n")
+          PY
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$K4_RUN_ID" \
+            > "$RUNNER_TEMP/k4-run.json"
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$K4_RUN_ID/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/k4-artifacts.json"
+          python - "$RUNNER_TEMP/k4-run.json" "$RUNNER_TEMP/k4-artifacts.json" <<'PY'
+          import json
+          import os
+          import re
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          artifacts = json.load(open(sys.argv[2], encoding="utf-8"))["artifacts"]
+          checks = {
+              "run id": run.get("id") == int(os.environ["K4_RUN_ID"]),
+              "commit": run.get("head_sha") == os.environ["K4_COMMIT"],
+              "completed": run.get("status") == "completed",
+              "failed": run.get("conclusion") == "failure",
+              "workflow": run.get("path") == ".github/workflows/kubernetes-interaction-execution-control.yml",
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("failed-run provenance mismatch: " + ", ".join(failed))
+          matches = [item for item in artifacts if item.get("name") == os.environ["K4_ARTIFACT"]]
+          if len(matches) != 1:
+              raise SystemExit("diagnostic artifact is not unique")
+          artifact = matches[0]
+          if artifact.get("expired") is not False or artifact.get("size_in_bytes", 0) <= 0:
+              raise SystemExit("diagnostic artifact is unavailable")
+          if re.fullmatch(r"sha256:[0-9a-f]{64}", str(artifact.get("digest", ""))) is None:
+              raise SystemExit("diagnostic artifact digest is invalid")
+          PY
+
+      - name: Download and safety-scan the failed K4 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          stage="$RUNNER_TEMP/k4-artifact"
+          mkdir -p "$stage"
+          gh run download "$K4_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$K4_ARTIFACT" \
+            --dir "$stage"
+          test -d "$stage/generated/public-dev-slot-003"
+          test -d "$stage/scenarios/public-dev-slot-003"
+          test -d "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$stage/generated/public-dev-slot-003" \
+            --root "$stage/scenarios/public-dev-slot-003" \
+            --root "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006" \
+            --allow-native-restore-archives
+
+      - name: Import only diagnostic evidence
+        run: |
+          stage="$RUNNER_TEMP/k4-artifact"
+          source_root="$stage/generated/public-dev-slot-003"
+          test ! -e "$DIAGNOSTIC_ROOT"
+          mkdir -p \
+            "$DIAGNOSTIC_ROOT/model-runs" \
+            "$DIAGNOSTIC_ROOT/logs"
+          cp "$source_root/k4-public-summary.json" "$DIAGNOSTIC_ROOT/"
+          cp "$source_root/control/model-runs/summary.json" "$DIAGNOSTIC_ROOT/model-runs/"
+          cp "$source_root/control/model-runs/repetition-01/"*.json "$DIAGNOSTIC_ROOT/model-runs/"
+          find "$source_root/logs" -maxdepth 1 -type f \
+            \( -name 'control-*.log' -o -name 'formal-complete-*.log' \) \
+            -exec cp '{}' "$DIAGNOSTIC_ROOT/logs/" \;
+          cp "$RUNNER_TEMP/k4-run.json" "$DIAGNOSTIC_ROOT/run-metadata.json"
+          cp "$RUNNER_TEMP/k4-artifacts.json" "$DIAGNOSTIC_ROOT/artifacts-metadata.json"
+          python scripts/verify_public_evidence_safe.py --root "$DIAGNOSTIC_ROOT"
+
+      - name: Commit only the failed-run diagnostic package
+        run: |
+          git add -- "$DIAGNOSTIC_ROOT"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev '^(A |M |R |\?\?) data/diagnostics/kubernetes/k4-30741680378/' \
+              | grep -q .
+          then
+            echo "unexpected file outside the diagnostic allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "import failed Kubernetes K4 diagnostics"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
