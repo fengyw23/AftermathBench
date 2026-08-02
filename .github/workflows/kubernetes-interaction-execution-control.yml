@@ -134,17 +134,21 @@ jobs:
           done
           python - <<'PY'
           from aftermath_bench.formal_evidence_builder import verify_formal_input_lock
+          from aftermath_bench.native_scenario import load_native_scenario
 
+          scenario = load_native_scenario(
+              "data/scenarios/public-dev-slot-003/scenario.json"
+          )
           variants = [f"state_{index:02d}" for index in range(1, 14)]
           for variant in variants:
               verify_formal_input_lock(
                   "data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/"
                   "k8s-constraint-interaction-recovery/dev-006/formal-input-lock.json",
                   root=".",
-                  scenario_id="k8s-constraint-interactions-public-dev-006",
-                  domain_id="kubernetes",
-                  family_id="k8s-constraint-interaction-recovery",
-                  instance_id="dev-006",
+                  scenario_id=scenario.scenario_id,
+                  domain_id=scenario.domain_id,
+                  family_id=scenario.family_id,
+                  instance_id=scenario.instance_id,
                   variant_id=variant,
                   failure_report_path=(
                       "data/generated/public-dev-slot-003/native/runtime/"

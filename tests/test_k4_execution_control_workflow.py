@@ -88,6 +88,15 @@ class KubernetesK4ExecutionControlWorkflowTests(unittest.TestCase):
         self.assertIn("verify_formal_input_lock", self.workflow[verify:provider])
         self.assertIn("verify_public_evidence_safe.py", self.workflow[verify:provider])
 
+    def test_formal_lock_identity_is_loaded_from_the_frozen_scenario(self) -> None:
+        self.assertIn("load_native_scenario", self.workflow)
+        self.assertIn("scenario_id=scenario.scenario_id", self.workflow)
+        self.assertIn("domain_id=scenario.domain_id", self.workflow)
+        self.assertIn("family_id=scenario.family_id", self.workflow)
+        self.assertIn("instance_id=scenario.instance_id", self.workflow)
+        public_scenario_id = "k8s-constraint-interactions-" + "public-dev-006"
+        self.assertNotIn(f'scenario_id="{public_scenario_id}"', self.workflow)
+
     def test_every_control_restores_and_byte_checks_the_frozen_boundary(self) -> None:
         control = self.workflow.index(
             "Run execution controls from exact frozen boundaries"
