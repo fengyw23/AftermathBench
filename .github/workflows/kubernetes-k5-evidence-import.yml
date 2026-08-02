@@ -1,0 +1,263 @@
+name: kubernetes-k5-evidence-import
+
+# Import is deliberately inert until a reviewed declaration names one
+# completed K4 run. It never receives a provider credential and it does
+# not edit the release manifest: the imported evidence and generated binding
+# candidate remain subject to an independent release review.
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/kubernetes-public-dev-slot-003-k5-import.json"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: kubernetes-k5-evidence-import-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-reviewed-k4-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      GATE_PATH: data/control_gates/kubernetes-public-dev-slot-003-k5-import.json
+      GENERATED_ROOT: data/generated/public-dev-slot-003
+      SCENARIO_ROOT: data/scenarios/public-dev-slot-003
+      FORMAL_ROOT: >-
+        data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate reviewed K5 declaration and completed K4 provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - "$GATE_PATH" "$GITHUB_ENV" <<'PY'
+          import json
+          import re
+          import sys
+
+          gate = json.load(open(sys.argv[1], encoding="utf-8"))
+          required = {
+              "schema_version",
+              "stage",
+              "k4_run_id",
+              "k4_commit",
+              "k4_artifact",
+              "source_run_id",
+              "source_commit",
+              "minimum_pass_rate",
+          }
+          if set(gate) != required:
+              raise SystemExit("K5 gate fields are not exact")
+          if gate["schema_version"] != "1.0" or gate["stage"] != "K5-evidence-import":
+              raise SystemExit("K5 gate identity is invalid")
+          if type(gate["k4_run_id"]) is not int or gate["k4_run_id"] <= 0:
+              raise SystemExit("K4 run id is invalid")
+          if type(gate["source_run_id"]) is not int or gate["source_run_id"] <= 0:
+              raise SystemExit("source run id is invalid")
+          for key in ("k4_commit", "source_commit"):
+              if re.fullmatch(r"[0-9a-f]{40}", str(gate[key])) is None:
+                  raise SystemExit(f"{key} is invalid")
+          expected_artifact = f"kubernetes-execution-control-{gate['k4_run_id']}"
+          if gate["k4_artifact"] != expected_artifact:
+              raise SystemExit("K4 artifact name is not bound to the run id")
+          if float(gate["minimum_pass_rate"]) != 0.8:
+              raise SystemExit("K4 threshold differs from release policy")
+          with open(sys.argv[2], "a", encoding="utf-8") as handle:
+              for env_key, gate_key in (
+                  ("K4_RUN_ID", "k4_run_id"),
+                  ("K4_COMMIT", "k4_commit"),
+                  ("K4_ARTIFACT", "k4_artifact"),
+                  ("SOURCE_RUN_ID", "source_run_id"),
+                  ("SOURCE_COMMIT", "source_commit"),
+                  ("CONTROL_MIN_PASS_RATE", "minimum_pass_rate"),
+              ):
+                  handle.write(f"{env_key}={gate[gate_key]}\n")
+          PY
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$(jq -r .k4_run_id "$GATE_PATH")" \
+            > "$RUNNER_TEMP/k4-run.json"
+          jq -e \
+            --arg commit "$(jq -r .k4_commit "$GATE_PATH")" \
+            '.head_sha == $commit
+             and .status == "completed"
+             and .conclusion == "success"
+             and .path == ".github/workflows/kubernetes-interaction-execution-control.yml"' \
+            "$RUNNER_TEMP/k4-run.json" > /dev/null
+          gh api \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$(jq -r .k4_run_id "$GATE_PATH")/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/k4-artifacts.json"
+          artifact_name="$(jq -r .k4_artifact "$GATE_PATH")"
+          jq -e \
+            --arg name "$artifact_name" \
+            '[.artifacts[] | select(.name == $name and .expired == false)]
+             | length == 1' \
+            "$RUNNER_TEMP/k4-artifacts.json" > /dev/null
+
+      - name: Download the immutable K4 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/k4-artifact"
+          gh run download "$K4_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$K4_ARTIFACT" \
+            --dir "$RUNNER_TEMP/k4-artifact"
+
+      - name: Verify artifact allowlist and aggregate scientific gate
+        run: |
+          stage="$RUNNER_TEMP/k4-artifact"
+          python - "$stage" "$GATE_PATH" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          stage = Path(sys.argv[1]).resolve(strict=True)
+          gate = json.load(open(sys.argv[2], encoding="utf-8"))
+          allowed = {"generated", "scenarios", "evidence"}
+          observed = {path.name for path in stage.iterdir()}
+          if observed != allowed:
+              raise SystemExit(f"unexpected K4 artifact roots: {sorted(observed)}")
+          for path in stage.rglob("*"):
+              if path.is_symlink():
+                  raise SystemExit(f"K4 artifact contains a symlink: {path}")
+          required = (
+              stage / "generated" / "public-dev-slot-003",
+              stage / "scenarios" / "public-dev-slot-003" / "scenario.json",
+              stage
+              / "evidence"
+              / "formal"
+              / "aftermathbench-2026.08-r1"
+              / "kubernetes"
+              / "k8s-constraint-interaction-recovery"
+              / "dev-006"
+              / "completion"
+              / "declarations.json",
+          )
+          if any(not path.exists() for path in required):
+              raise SystemExit("K4 artifact is incomplete")
+          summary_path = (
+              stage
+              / "generated"
+              / "public-dev-slot-003"
+              / "k4-public-summary.json"
+          )
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          checks = {
+              "stage": summary.get("stage") == "K4-execution-control",
+              "source_run": summary.get("source_run_id") == gate["source_run_id"],
+              "source_commit": summary.get("source_commit") == gate["source_commit"],
+              "model": summary.get("model") == "glm-5.2",
+              "expected_cases": summary.get("expected_cases") == 13,
+              "completed_runs": summary.get("completed_runs") == 13,
+              "pass_rate": float(summary.get("task_pass_rate", 0.0))
+              >= float(gate["minimum_pass_rate"]),
+              "threshold": float(summary.get("minimum_pass_rate", -1.0))
+              == float(gate["minimum_pass_rate"]),
+              "run_errors": summary.get("run_error_count") == 0,
+              "control_count": summary.get("execution_control_counts", {}).get(
+                  "true"
+              )
+              == 13,
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit("K4 aggregate gate failed: " + ", ".join(failed))
+          PY
+          python scripts/verify_public_evidence_safe.py \
+            --root "$stage/generated/public-dev-slot-003" \
+            --root "$stage/scenarios/public-dev-slot-003" \
+            --root "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006"
+
+      - name: Import repository-safe evidence and derive release binding candidate
+        run: |
+          stage="$RUNNER_TEMP/k4-artifact"
+          test ! -e "$GENERATED_ROOT"
+          test ! -e "$SCENARIO_ROOT"
+          test ! -e "$FORMAL_ROOT"
+          mkdir -p \
+            "$(dirname "$GENERATED_ROOT")" \
+            "$(dirname "$SCENARIO_ROOT")" \
+            "$(dirname "$FORMAL_ROOT")"
+          cp -a "$stage/generated/public-dev-slot-003" "$GENERATED_ROOT"
+          cp -a "$stage/scenarios/public-dev-slot-003" "$SCENARIO_ROOT"
+          cp -a \
+            "$stage/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006" \
+            "$FORMAL_ROOT"
+          python scripts/generate_formal_release_binding.py \
+            --scenario "$SCENARIO_ROOT/scenario.json" \
+            --formal-declarations "$FORMAL_ROOT/completion/declarations.json" \
+            --root . \
+            --output "$GENERATED_ROOT/k5-release-binding-candidate.json" \
+            > "$RUNNER_TEMP/k5-release-binding.log"
+          python - \
+            "$RUNNER_TEMP/k4-artifacts.json" \
+            "$GATE_PATH" \
+            "$GENERATED_ROOT/k5-import-provenance.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          artifacts = json.load(open(sys.argv[1], encoding="utf-8"))["artifacts"]
+          gate = json.load(open(sys.argv[2], encoding="utf-8"))
+          matches = [item for item in artifacts if item["name"] == gate["k4_artifact"]]
+          if len(matches) != 1:
+              raise SystemExit("K4 artifact provenance is not unique")
+          artifact = matches[0]
+          provenance = {
+              "schema_version": "1.0",
+              "stage": "K5-evidence-import",
+              "import_gate_commit": os.environ["GITHUB_SHA"],
+              "k4_run_id": gate["k4_run_id"],
+              "k4_commit": gate["k4_commit"],
+              "source_run_id": gate["source_run_id"],
+              "source_commit": gate["source_commit"],
+              "artifact": {
+                  "id": artifact["id"],
+                  "name": artifact["name"],
+                  "digest": artifact.get("digest"),
+                  "size_in_bytes": artifact["size_in_bytes"],
+              },
+          }
+          with open(sys.argv[3], "w", encoding="utf-8", newline="\n") as handle:
+              json.dump(provenance, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+          python scripts/verify_public_evidence_safe.py \
+            --root "$GENERATED_ROOT" \
+            --root "$SCENARIO_ROOT" \
+            --root "$FORMAL_ROOT"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$SCENARIO_ROOT/scenario.json"
+
+      - name: Commit only reviewed K5 evidence
+        run: |
+          git add -- "$GENERATED_ROOT" "$SCENARIO_ROOT" "$FORMAL_ROOT"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev '^(A |M |R |\?\?) (data/generated/public-dev-slot-003/|data/scenarios/public-dev-slot-003/|data/evidence/formal/aftermathbench-2026.08-r1/kubernetes/k8s-constraint-interaction-recovery/dev-006/)' \
+              | grep -q .
+          then
+            echo "unexpected file outside K5 import allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "import reviewed Kubernetes K4 formal evidence"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
