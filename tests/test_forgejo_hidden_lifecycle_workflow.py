@@ -13,11 +13,11 @@ class ForgejoHiddenLifecycleWorkflowTests(unittest.TestCase):
 
     def test_exact_frozen_artifact_is_preregistered(self) -> None:
         for value in (
-            'FREEZE_RUN_ID: "30760265324"',
-            'FREEZE_ARTIFACT_ID: "8837641697"',
-            "sha256:eec0beb4dfb2853e6c373d2665fb34f298c7758736c2ebd6b59f066f8607c6c2",
-            "af0b76c6a5d34cbe5a0882dfd00ff37f75fbf9c3",
-            "44aac0bb90805e7c0889f44d388a752a7513c7b9b7d24433b525a75bd932bb6c",
+            'FREEZE_RUN_ID: "30766090324"',
+            'FREEZE_ARTIFACT_ID: "8839420550"',
+            "sha256:f9c8a90e4b86b88a76ad412e0a1e4150abc95e8cfa132a168032a50f057e946f",
+            "9771df7e410d84310be95f616ec16630dd4212e7",
+            "45b0430c57384ec0406b78fd7b0f7b0cf06ad2c37e58eada9ba6568a9eaf0474",
         ):
             self.assertIn(value, self.text)
 
