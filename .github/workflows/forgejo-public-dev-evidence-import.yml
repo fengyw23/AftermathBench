@@ -39,13 +39,14 @@ jobs:
           python scripts/validate_forgejo_evidence_import.py gate \
             --gate "$GATE_PATH" \
             --github-env "$GITHUB_ENV"
+          source_run_id="$(jq -r .source_run_id "$GATE_PATH")"
           gh api \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id" \
             > "$RUNNER_TEMP/source-run.json"
           gh api \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100" \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id/artifacts?per_page=100" \
             > "$RUNNER_TEMP/source-artifacts.json"
           python scripts/validate_forgejo_evidence_import.py provenance \
             --gate "$GATE_PATH" \
