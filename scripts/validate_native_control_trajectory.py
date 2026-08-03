@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import string
 from pathlib import Path
 from typing import Any
+
+from aftermath_bench.native_boundary_equivalence import (
+    native_boundaries_equivalent,
+)
 
 
 def _is_sha256(value: Any) -> bool:
@@ -19,6 +24,8 @@ def validate_control_trajectory(
     payload: Any,
     *,
     variant: str,
+    locked_boundary: dict[str, Any] | None = None,
+    pre_model_boundary: dict[str, Any] | None = None,
 ) -> tuple[str, ...]:
     failures: list[str] = []
     if not isinstance(payload, dict):
@@ -75,8 +82,40 @@ def validate_control_trajectory(
             isinstance(lock, dict)
             and boundary.get("sha256") != lock.get("boundary_state_sha256")
         ):
-            failures.append("pre_model_boundary_lock_mismatch")
+            family = payload.get("family")
+            semantically_equivalent = (
+                isinstance(family, str)
+                and isinstance(locked_boundary, dict)
+                and isinstance(pre_model_boundary, dict)
+                and native_boundaries_equivalent(
+                    family,
+                    locked_boundary,
+                    pre_model_boundary,
+                )
+            )
+            if not semantically_equivalent:
+                failures.append("pre_model_boundary_lock_mismatch")
     return tuple(failures)
+
+
+def _load_bound_capture(
+    path: Path,
+    *,
+    expected_sha256: Any,
+    label: str,
+) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
+    try:
+        raw = path.read_bytes()
+        payload = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None, (f"{label}_file_unreadable",)
+    failures: list[str] = []
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        failures.append(f"{label}_file_sha256_mismatch")
+    if not isinstance(payload, dict):
+        failures.append(f"{label}_file_not_object")
+        return None, tuple(failures)
+    return payload, tuple(failures)
 
 
 def main() -> int:
@@ -88,7 +127,13 @@ def main() -> int:
     )
     parser.add_argument("--trajectory", type=Path, required=True)
     parser.add_argument("--variant", required=True)
+    parser.add_argument("--locked-boundary", type=Path)
+    parser.add_argument("--pre-model-boundary", type=Path)
     args = parser.parse_args()
+    if (args.locked_boundary is None) != (args.pre_model_boundary is None):
+        parser.error(
+            "--locked-boundary and --pre-model-boundary must be supplied together"
+        )
     try:
         payload = json.loads(args.trajectory.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -103,7 +148,41 @@ def main() -> int:
             )
         )
         return 2
-    failures = validate_control_trajectory(payload, variant=args.variant)
+    capture_failures: list[str] = []
+    locked_boundary = None
+    pre_model_boundary = None
+    if args.locked_boundary is not None:
+        lock = payload.get("formal_input_lock")
+        boundary_record = payload.get("pre_model_boundary_evidence")
+        locked_boundary, locked_failures = _load_bound_capture(
+            args.locked_boundary,
+            expected_sha256=(
+                lock.get("boundary_state_sha256")
+                if isinstance(lock, dict)
+                else None
+            ),
+            label="locked_boundary",
+        )
+        pre_model_boundary, pre_model_failures = _load_bound_capture(
+            args.pre_model_boundary,
+            expected_sha256=(
+                boundary_record.get("sha256")
+                if isinstance(boundary_record, dict)
+                else None
+            ),
+            label="pre_model_boundary",
+        )
+        capture_failures.extend(locked_failures)
+        capture_failures.extend(pre_model_failures)
+    failures = (
+        *validate_control_trajectory(
+            payload,
+            variant=args.variant,
+            locked_boundary=locked_boundary,
+            pre_model_boundary=pre_model_boundary,
+        ),
+        *capture_failures,
+    )
     print(
         json.dumps(
             {
