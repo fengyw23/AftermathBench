@@ -18,11 +18,11 @@ from .benchmark_matrix import (
     validate_benchmark_matrix,
 )
 from .hidden_test_eligibility import verify_hidden_test_eligibility
-from .integrations.erpnext_sales_return_evaluator import (
-    evaluate_sales_return_recovery,
-)
 from .integrations.erpnext_manufacturing_evaluator import (
     evaluate_manufacturing_rework_recovery,
+)
+from .integrations.erpnext_sales_return_evaluator import (
+    evaluate_sales_return_recovery,
 )
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
@@ -1104,6 +1104,7 @@ def validate_formal_evidence_roles(
     declarations_manifest_path: str | None = None,
     declarations_manifest_sha256: str | None = None,
     require_trusted_evaluator: bool = False,
+    failure_diagnostics: list[str] | None = None,
 ) -> bool:
     if (declarations_manifest_path is None) is not (
         declarations_manifest_sha256 is None
@@ -1368,61 +1369,81 @@ def validate_formal_evidence_roles(
             sha_field="terminal_state_sha256",
             file_hashes=role_file_hashes["reference_bundle"],
         )
-        if (
-            reset.get("reset_verified") is not True
-            or reset_snapshot is None
-            or reset_snapshot.get("scenario_id") != scenario_id
-            or reset_snapshot.get("variant_id") != variant_id
-            or reset_snapshot.get("phase") != "reset"
-            or reset_snapshot.get("reset_verified") is not True
-            or boundary.get("boundary_validation_passed") is not True
-            or boundary_state is None
-            or boundary_state.get("scenario_id") != scenario_id
-            or boundary_state.get("variant_id") != variant_id
-            or boundary_state.get("phase") != "boundary"
-            or bound_reset_snapshot_sha256(boundary_state)
-            != reset.get("reset_snapshot_sha256")
-            or failure_surface is None
-            or failure_surface.get("scenario_id") != scenario_id
-            or failure_surface.get("variant_id") != variant_id
-            or failure_surface.get("phase") != "failure_surface"
-            or not isinstance(failure_surface.get("operation"), str)
-            or not failure_surface.get("operation")
-            or not isinstance(
-                failure_surface.get("surface_result"),
-                str,
-            )
-            or not failure_surface.get("surface_result")
-            or boundary.get("reset_snapshot_sha256")
-            != reset.get("reset_snapshot_sha256")
-            or reference.get("evaluator_passed") is not True
-            or reference.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference.get("reference_start_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference_start is None
-            or reference_start != boundary_state
-            or reference_trace is None
-            or reference_trace.get("scenario_id") != scenario_id
-            or reference_trace.get("variant_id") != variant_id
-            or reference_trace.get("phase") != "reference_trace"
-            or reference_trace.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or reference_trace.get("input_envelope_sha256")
-            != envelopes["reference_bundle"].get("depends_on")
-            or not isinstance(reference_trace.get("steps"), list)
-            or not reference_trace.get("steps")
-            or terminal_state is None
-            or terminal_state.get("scenario_id") != scenario_id
-            or terminal_state.get("variant_id") != variant_id
-            or terminal_state.get("phase") != "terminal"
-            or terminal_state.get("boundary_state_sha256")
-            != boundary.get("boundary_state_sha256")
-            or terminal_state.get("evaluator_envelope_sha256")
-            != envelope_hashes["evaluator"]
-            or not isinstance(terminal_state.get("evaluation"), dict)
-            or terminal_state["evaluation"].get("passed") is not True
-        ):
+        variant_contract = {
+            "reset_contract": (
+                reset.get("reset_verified") is True
+                and isinstance(reset_snapshot, dict)
+                and reset_snapshot.get("scenario_id") == scenario_id
+                and reset_snapshot.get("variant_id") == variant_id
+                and reset_snapshot.get("phase") == "reset"
+                and reset_snapshot.get("reset_verified") is True
+            ),
+            "boundary_contract": (
+                boundary.get("boundary_validation_passed") is True
+                and isinstance(boundary_state, dict)
+                and boundary_state.get("scenario_id") == scenario_id
+                and boundary_state.get("variant_id") == variant_id
+                and boundary_state.get("phase") == "boundary"
+                and bound_reset_snapshot_sha256(boundary_state)
+                == reset.get("reset_snapshot_sha256")
+                and boundary.get("reset_snapshot_sha256")
+                == reset.get("reset_snapshot_sha256")
+            ),
+            "failure_surface_contract": (
+                isinstance(failure_surface, dict)
+                and failure_surface.get("scenario_id") == scenario_id
+                and failure_surface.get("variant_id") == variant_id
+                and failure_surface.get("phase") == "failure_surface"
+                and isinstance(failure_surface.get("operation"), str)
+                and bool(failure_surface.get("operation"))
+                and isinstance(failure_surface.get("surface_result"), str)
+                and bool(failure_surface.get("surface_result"))
+            ),
+            "reference_boundary_binding": (
+                reference.get("evaluator_passed") is True
+                and reference.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+                and reference.get("reference_start_state_sha256")
+                == boundary.get("boundary_state_sha256")
+            ),
+            "reference_start_equal": (
+                isinstance(reference_start, dict)
+                and reference_start == boundary_state
+            ),
+            "reference_trace_contract": (
+                isinstance(reference_trace, dict)
+                and reference_trace.get("scenario_id") == scenario_id
+                and reference_trace.get("variant_id") == variant_id
+                and reference_trace.get("phase") == "reference_trace"
+                and reference_trace.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+                and reference_trace.get("input_envelope_sha256")
+                == envelopes["reference_bundle"].get("depends_on")
+                and isinstance(reference_trace.get("steps"), list)
+                and bool(reference_trace.get("steps"))
+            ),
+            "terminal_contract": (
+                isinstance(terminal_state, dict)
+                and terminal_state.get("scenario_id") == scenario_id
+                and terminal_state.get("variant_id") == variant_id
+                and terminal_state.get("phase") == "terminal"
+                and terminal_state.get("boundary_state_sha256")
+                == boundary.get("boundary_state_sha256")
+                and terminal_state.get("evaluator_envelope_sha256")
+                == envelope_hashes["evaluator"]
+                and isinstance(terminal_state.get("evaluation"), dict)
+                and terminal_state["evaluation"].get("passed") is True
+            ),
+        }
+        failed_variant_contract = [
+            name for name, passed in variant_contract.items() if not passed
+        ]
+        if failed_variant_contract:
+            if failure_diagnostics is not None:
+                failure_diagnostics.extend(
+                    f"variant:{variant_id}:{name}"
+                    for name in failed_variant_contract
+                )
             return False
 
     raw_payload = role_payloads["raw_run_archive"]

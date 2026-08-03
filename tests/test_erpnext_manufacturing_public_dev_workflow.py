@@ -217,6 +217,12 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
             "--expected-restore-bundle-count 5",
             diagnostic,
         )
+        self.assertIn('if [ -d "$FORMAL_OUTPUT" ]', diagnostic)
+        self.assertIn(
+            'cp -R "$FORMAL_OUTPUT" "$RUN_ROOT/repo-ready/$FORMAL_OUTPUT"',
+            diagnostic,
+        )
+        self.assertIn('if [ -d "$SCENARIO_DIRECTORY" ]', diagnostic)
         self.assertIn("verify_public_evidence_safe.py", diagnostic)
 
     def test_input_lock_precedes_provider_secret_and_model(self) -> None:
