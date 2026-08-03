@@ -116,7 +116,7 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         release_committed=False,
         coordinator_mode="normal",
         provenance_mode="normal",
-        disabled_hook_roles=("coordinator",),
+        disabled_hook_roles=("coordinator", "provenance"),
     ),
     "r2_package_corrupt_binary_index_missing": PackageProvenanceBoundaryVariant(
         preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
@@ -129,10 +129,10 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         provenance_mode="normal",
         corrupt_preloaded_file_roles=("binary",),
         advance_base_branch_file_roles=("binary",),
-        # Keep the disabled subscription identical to the valid-inventory
+        # Keep the disabled subscriptions identical to the valid-inventory
         # counterfactual so package content remains the pair's only changed
         # boundary fact.
-        disabled_hook_roles=("coordinator",),
+        disabled_hook_roles=("coordinator", "provenance"),
     ),
 }
 

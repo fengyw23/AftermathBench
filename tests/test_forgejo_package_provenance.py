@@ -188,7 +188,10 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertEqual(valid.api_mode, corrupt.api_mode)
         self.assertEqual(valid.coordinator_mode, "normal")
         self.assertEqual(valid.coordinator_mode, corrupt.coordinator_mode)
-        self.assertEqual(valid.disabled_hook_roles, ("coordinator",))
+        self.assertEqual(
+            valid.disabled_hook_roles,
+            ("coordinator", "provenance"),
+        )
         self.assertEqual(valid.disabled_hook_roles, corrupt.disabled_hook_roles)
         self.assertEqual(valid.corrupt_preloaded_file_roles, ())
         self.assertEqual(corrupt.corrupt_preloaded_file_roles, ("binary",))
