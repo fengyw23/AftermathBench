@@ -116,7 +116,24 @@ every future instance.
 - Frozen scenario and admission artifacts:
   `data/scenarios/forgejo-package-provenance-public-dev-001/`
 
-At this checkpoint the family has a replay-admitted public-development
-scenario.  It is not yet a formal release slot: cross-model results and the
-seven-role formal evidence package must be completed before adding it to
-`data/release_manifest.json`.
+## First strong-model result and admission lesson
+
+GitHub Actions run `30843759108` evaluated all four boundaries once with both
+GLM-5.2 and DeepSeek-V4-Pro. Both models passed `4/4`, including the complete
+matched group, with no provider or runtime errors. The models did not succeed
+by blindly retrying: every passing trajectory queried the package, Release,
+webhook, and receiver evidence and then selected the corresponding mutation
+signature.
+
+This is a useful negative result. The replay graph is large, but the decision
+problem still reduces to a monotonic rule: inspect the inventories, add every
+missing approved object, and close the tracking records. Existing admission
+rejects several fixed policies but does not yet reject this stronger adaptive
+completion policy.
+
+The scenario remains a frozen public-development diagnostic. It is not being
+promoted as evidence of strong-model difficulty or added to the formal release
+manifest. The successor must add action-polarity diversity, provenance joins,
+same-inventory/different-scope counterfactuals, and a protected shared effect.
+The exact aggregate result and artifact digest are recorded in
+`data/diagnostics/forgejo/package-provenance-dual-model-30843759108.json`.

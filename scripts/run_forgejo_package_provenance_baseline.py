@@ -12,7 +12,6 @@ from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
 )
 from aftermath_bench.integrations.forgejo_web import ForgejoWebSession
 
-
 BASELINES = (
     "no_op",
     "blind_full_publish",
@@ -20,6 +19,7 @@ BASELINES = (
     "metadata_only",
     "replay_all_failed",
     "close_only",
+    "inventory_diff_completion",
 )
 
 
@@ -82,6 +82,77 @@ def _blind_upload(
     return True
 
 
+def _inventory_diff_completion(
+    environment: ForgejoPackageProvenanceEnvironment,
+    prefix: dict[str, Any],
+) -> None:
+    files = environment.invoke(
+        "list_package_files",
+        name=prefix["package_name"],
+        version=prefix["package_version"],
+    )
+    existing = {
+        str(item.get("name"))
+        for item in files.get("result", [])
+        if isinstance(item, dict)
+    }
+    for item in prefix["expected_package_files"]:
+        if item["name"] not in existing:
+            _call(
+                environment,
+                "upload_package_file_from_repository",
+                source_path=item["source_path"],
+                filename=item["name"],
+                ref=prefix["base_branch"],
+            )
+
+    histories: dict[int, list[dict[str, Any]]] = {}
+    for field in ("coordinator_hook_id", "provenance_hook_id"):
+        hook_id = int(prefix[field])
+        result = environment.invoke("get_webhook_history", hook_id=hook_id)
+        histories[hook_id] = [
+            item for item in result.get("result", []) if isinstance(item, dict)
+        ]
+    releases = environment.invoke("list_releases")
+    release_exists = any(
+        isinstance(item, dict)
+        and item.get("tag_name") == prefix["package_index_release_tag"]
+        for item in releases.get("result", [])
+    )
+    if not release_exists:
+        _create_release(environment, prefix)
+        for hook_id, history in histories.items():
+            _call(
+                environment,
+                "wait_for_webhook_history_change",
+                hook_id=hook_id,
+                release_tag=prefix["package_index_release_tag"],
+                known_delivery_uuids=[str(item.get("uuid")) for item in history],
+                timeout_seconds=15,
+            )
+    else:
+        for hook_id, history in histories.items():
+            known = [str(item.get("uuid")) for item in history]
+            for delivery in history:
+                if delivery.get("status") != "failed":
+                    continue
+                if _call(
+                    environment,
+                    "replay_webhook",
+                    hook_id=hook_id,
+                    delivery_uuid=delivery["uuid"],
+                ):
+                    _call(
+                        environment,
+                        "wait_for_webhook_history_change",
+                        hook_id=hook_id,
+                        release_tag=prefix["package_index_release_tag"],
+                        known_delivery_uuids=known,
+                        timeout_seconds=15,
+                    )
+    _close(environment, prefix)
+
+
 def execute(
     baseline: str,
     environment: ForgejoPackageProvenanceEnvironment,
@@ -109,9 +180,7 @@ def execute(
         return
     if baseline == "replay_all_failed":
         for field in ("coordinator_hook_id", "provenance_hook_id"):
-            history = environment.invoke(
-                "get_webhook_history", hook_id=prefix[field]
-            )
+            history = environment.invoke("get_webhook_history", hook_id=prefix[field])
             if not history.get("ok"):
                 continue
             for item in history["result"]:
@@ -126,6 +195,9 @@ def execute(
         return
     if baseline == "close_only":
         _close(environment, prefix)
+        return
+    if baseline == "inventory_diff_completion":
+        _inventory_diff_completion(environment, prefix)
         return
     raise ValueError(f"unknown baseline: {baseline}")
 
@@ -142,9 +214,7 @@ def main() -> int:
     prefix = _read(args.prefix)
     boundary = _read(args.boundary)
     environment = ForgejoPackageProvenanceEnvironment(
-        api=ForgejoAPI(
-            base_url=credentials["base_url"], token=credentials["token"]
-        ),
+        api=ForgejoAPI(base_url=credentials["base_url"], token=credentials["token"]),
         web=ForgejoWebSession(
             base_url=credentials["web_base_url"],
             username=credentials["username"],

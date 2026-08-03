@@ -4,10 +4,10 @@ import hashlib
 import json
 import re
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .forgejo_publication_state_evidence import (
     canonical_state_fingerprint,
@@ -34,10 +34,20 @@ from .native_formal_spec import (
     ToolContractSources,
     VariantCompletionEvidence,
     VariantInputEvidence,
+)
+from .native_formal_spec import (
     build_completion_roles as build_native_completion_roles,
+)
+from .native_formal_spec import (
     build_evaluator_role as build_native_evaluator_role,
+)
+from .native_formal_spec import (
     build_input_evidence_roles as build_native_input_evidence_roles,
+)
+from .native_formal_spec import (
     build_tool_contract_role as build_native_tool_contract_role,
+)
+from .native_formal_spec import (
     empty_completion_roles as native_empty_completion_roles,
 )
 from .native_scenario import (
@@ -1514,10 +1524,7 @@ def _build_tool_contract_role(
     ]
     tools = profile.tool_definitions
     names = tuple(tool.name for tool in tools)
-    if (
-        names != profile.environment_tool_names
-        or len(names) != len(set(names))
-    ):
+    if names != profile.environment_tool_names or len(names) != len(set(names)):
         raise ForgejoFormalBuildSpecError(
             "Forgejo public tool registry does not match the formal profile"
         )
@@ -1557,8 +1564,7 @@ def _build_tool_contract_role(
                     FormalSource(
                         source_path=source,
                         role_path=(
-                            f"native-runtime/{index:02d}-"
-                            f"{Path(source).name}"
+                            f"native-runtime/{index:02d}-" f"{Path(source).name}"
                         ),
                     )
                     for index, source in enumerate(
@@ -1643,15 +1649,12 @@ def _build_input_evidence_roles(
                 prefix_source_path=prefix_relative,
                 runtime_manifest_source_path=runtime_manifest_relative,
                 runtime_revision=runtime_revision,
-                boundary_verification_source_path=(
-                    source_verification_relative
-                ),
+                boundary_verification_source_path=(source_verification_relative),
                 boundary_contract_sources=tuple(
                     FormalSource(
                         source_path=source,
                         role_path=(
-                            f"native-boundary/{index:02d}-"
-                            f"{Path(source).name}"
+                            f"native-boundary/{index:02d}-" f"{Path(source).name}"
                         ),
                     )
                     for index, source in enumerate(
@@ -1659,28 +1662,18 @@ def _build_input_evidence_roles(
                         start=1,
                     )
                 ),
-                reset_capture_manifest_sources=(
-                    capture_manifest_usage["reset"]
-                ),
-                boundary_capture_manifest_sources=(
-                    capture_manifest_usage["boundary"]
-                ),
+                reset_capture_manifest_sources=(capture_manifest_usage["reset"]),
+                boundary_capture_manifest_sources=(capture_manifest_usage["boundary"]),
                 variants=tuple(
                     VariantInputEvidence(
                         variant_id=item.variant_id,
                         reset_source_path=item.reset_relative,
-                        boundary_state_source_path=(
-                            item.boundary_capture_relative
-                        ),
-                        raw_failure_report_source_path=(
-                            item.raw_boundary_relative
-                        ),
+                        boundary_state_source_path=(item.boundary_capture_relative),
+                        raw_failure_report_source_path=(item.raw_boundary_relative),
                         reference_start_state_source_path=(
                             item.reference_start_relative
                         ),
-                        raw_reference_report_source_path=(
-                            item.raw_reference_relative
-                        ),
+                        raw_reference_report_source_path=(item.raw_reference_relative),
                     )
                     for item in evidence
                 ),
@@ -1715,9 +1708,7 @@ def _build_completion_roles(
     try:
         return build_native_completion_roles(
             output=output,
-            input_variant_ids=tuple(
-                item.variant_id for item in evidence
-            ),
+            input_variant_ids=tuple(item.variant_id for item in evidence),
             sources=CompletionEvidenceSources(
                 control_manifest_source_path=control_manifest_relative,
                 model_input_lock_source_path=model_input_lock_relative,
@@ -1725,16 +1716,12 @@ def _build_completion_roles(
                     VariantCompletionEvidence(
                         variant_id=item.variant_id,
                         run_id=str((item.trajectory or {})["run_id"]),
-                        trajectory_source_path=str(
-                            item.trajectory_relative
-                        ),
+                        trajectory_source_path=str(item.trajectory_relative),
                         pre_model_boundary_source_path=str(
                             item.pre_model_boundary_relative
                         ),
                         passed=(
-                            (item.trajectory or {})
-                            .get("evaluation", {})
-                            .get("passed")
+                            (item.trajectory or {}).get("evaluation", {}).get("passed")
                             is True
                         ),
                     )
