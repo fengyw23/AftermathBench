@@ -6,6 +6,7 @@ from pathlib import Path
 from aftermath_bench.erpnext_manufacturing_formal_build_spec import (
     MANUFACTURING_FORMAL_PROFILE,
 )
+from aftermath_bench.erpnext_formal_build_spec import _value_at_path
 from aftermath_bench.integrations.erpnext_manufacturing_agent import (
     ERPNextManufacturingEnvironment,
 )
@@ -16,6 +17,25 @@ from aftermath_bench.release_manifest import TRUSTED_FORMAL_EVALUATORS
 
 
 class ERPNextManufacturingFormalBuildSpecTests(unittest.TestCase):
+    def test_profile_binds_the_model_surface_failure_to_native_attempt(self) -> None:
+        raw_boundary = {
+            "surface_error": "connection_lost_before_confirmation",
+            "latest_attempt": {
+                "result": {
+                    "ok": False,
+                    "error": "connection_lost_before_confirmation",
+                    "exception_type": "RemoteDisconnected",
+                }
+            },
+        }
+        self.assertEqual(
+            _value_at_path(
+                raw_boundary,
+                MANUFACTURING_FORMAL_PROFILE.raw_surface_failure_path,
+            ),
+            raw_boundary["latest_attempt"]["result"],
+        )
+
     def test_profile_matches_the_exact_public_tool_surface(self) -> None:
         self.assertEqual(
             tuple(tool.name for tool in ERP_NEXT_MANUFACTURING_TOOLS),

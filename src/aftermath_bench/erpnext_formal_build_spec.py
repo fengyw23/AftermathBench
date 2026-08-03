@@ -138,6 +138,7 @@ class ERPNextFormalBuildProfile:
     failure_boundary_artifact_type: str
     reference_artifact_type: str
     raw_boundary_state_field: str
+    raw_surface_failure_path: tuple[str, ...]
     accepted_failure_schema_versions: frozenset[str]
     accepted_reference_schema_versions: frozenset[str]
     tool_definition_source: str
@@ -171,6 +172,7 @@ _SALES_RETURN_PROFILE = ERPNextFormalBuildProfile(
     failure_boundary_artifact_type="erpnext_sales_return_failure_boundary",
     reference_artifact_type="erpnext_sales_return_reference_recovery",
     raw_boundary_state_field="failure_boundary_evidence",
+    raw_surface_failure_path=("visible_failure",),
     accepted_failure_schema_versions=frozenset({"1.0"}),
     accepted_reference_schema_versions=frozenset({"1.0"}),
     tool_definition_source=_TOOL_DEFINITION_SOURCE,
@@ -194,6 +196,18 @@ _SALES_RETURN_PROFILE = ERPNextFormalBuildProfile(
 
 class ERPNextFormalBuildSpecError(ValueError):
     """Raised when ERPNext evidence cannot support a formal package."""
+
+
+_MISSING = object()
+
+
+def _value_at_path(payload: dict[str, Any], path: tuple[str, ...]) -> Any:
+    current: Any = payload
+    for field in path:
+        if not isinstance(current, dict) or field not in current:
+            return _MISSING
+        current = current[field]
+    return current
 
 
 @dataclass(frozen=True)
@@ -820,7 +834,10 @@ def _validate_control_trajectory(
         or payload.get("evaluation")
         != _evaluation_payload(final, prefix=prefix, profile=profile)
         or payload.get("surface_failure")
-        != raw_boundary.get("visible_failure")
+        != _value_at_path(
+            raw_boundary,
+            profile.raw_surface_failure_path,
+        )
     ):
         raise ERPNextFormalBuildSpecError(
             f"{label} is not a complete recomputed execution control"

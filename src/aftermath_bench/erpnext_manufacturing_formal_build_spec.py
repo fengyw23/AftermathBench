@@ -31,6 +31,7 @@ MANUFACTURING_FORMAL_PROFILE = ERPNextFormalBuildProfile(
     failure_boundary_artifact_type="erpnext_manufacturing_failure_boundary",
     reference_artifact_type="erpnext_manufacturing_reference_recovery",
     raw_boundary_state_field="boundary_evidence",
+    raw_surface_failure_path=("latest_attempt", "result"),
     accepted_failure_schema_versions=frozenset({"0.1", "1.0"}),
     accepted_reference_schema_versions=frozenset({"0.1", "1.0"}),
     tool_definition_source=(
