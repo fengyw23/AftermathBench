@@ -249,40 +249,70 @@ def diagnose_multiwarehouse_trajectory(
     failure_report: dict[str, Any],
     prefix: dict[str, Any],
 ) -> dict[str, Any]:
-    del failure_report, prefix
-    tools = [
-        str(call.get("name", ""))
+    calls = [
+        call
         for turn in turns
         for call in turn.get("tool_calls", [])
         if call.get("name")
     ]
+    tools = [str(call.get("name", "")) for call in calls]
     queried = set(tools)
-    attribution: list[str] = []
-    if not evaluation.passed:
-        if not {
+    evidence_groups = {
+        "documents": "list_documents" in queried,
+        "stock": bool(
+            {"get_stock_ledger", "get_stock_balance"} & queried
+        ),
+        "external": "get_external_delivery" in queried,
+    }
+    unsafe_retry = (
+        str(failure_report.get("variant")) != "request_not_reached"
+        and any(
+            call.get("name") == "submit_document"
+            and call.get("arguments", {}).get("name")
+            == prefix.get("second_leg_stock_entry")
+            for call in calls
+        )
+    )
+    if evaluation.passed:
+        primary_error: str | None = None
+    elif unsafe_retry:
+        primary_error = "state_inference_failure"
+    elif not {
             "list_documents",
             "get_stock_ledger",
             "get_stock_balance",
             "get_external_delivery",
         }.issubset(queried):
-            attribution.append("investigation_failure")
-        if any(
+        primary_error = "investigation_failure"
+    elif (
+        any(
             name in queried
             for name in ("cancel_document", "create_second_transfer_leg")
-        ):
-            attribution.append("scope_failure")
-        if evaluation.components.get(
-            "goal_completion"
-        ) and not evaluation.components.get("repair_completeness"):
-            attribution.append("execution_failure")
-        if not evaluation.components.get("preservation"):
-            attribution.append("scope_failure")
-        if not attribution:
-            attribution.append("verification_failure")
+        )
+        or not evaluation.components.get("preservation", True)
+        or not evaluation.components.get("protocol_safety", True)
+    ):
+        primary_error = "scope_failure"
+    elif (
+        not evaluation.components.get("goal_completion", True)
+        or not evaluation.components.get("repair_completeness", True)
+    ):
+        primary_error = "execution_failure"
+    else:
+        primary_error = "verification_failure"
+    tool_errors = [
+        result
+        for turn in turns
+        for result in turn.get("tool_results", [])
+        if not bool(result.get("result", {}).get("ok"))
+    ]
     return {
-        "primary": attribution[0] if attribution else "success",
-        "all": sorted(set(attribution)),
+        "primary_error": primary_error,
+        "evidence_groups": evidence_groups,
         "tool_names": tools,
+        "unsafe_second_leg_resubmit": unsafe_retry,
+        "tool_error_count": len(tool_errors),
+        "tool_errors": tool_errors,
     }
 
 

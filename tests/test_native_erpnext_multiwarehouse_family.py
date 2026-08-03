@@ -97,7 +97,7 @@ class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
             prefix={},
         )
         self.assertEqual(report["tool_names"][0], "list_documents")
-        self.assertNotIn("investigation_failure", report["all"])
+        self.assertEqual(report["primary_error"], "execution_failure")
 
     def test_success_is_not_relabelled_as_an_investigation_failure(self) -> None:
         report = diagnose_multiwarehouse_trajectory(
@@ -106,7 +106,7 @@ class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
             failure_report={},
             prefix={},
         )
-        self.assertEqual(report["primary"], "success")
+        self.assertIsNone(report["primary_error"])
 
 
 if __name__ == "__main__":

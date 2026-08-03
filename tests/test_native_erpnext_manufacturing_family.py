@@ -85,7 +85,7 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
             prefix={},
         )
         self.assertEqual(report["tool_names"][0], "get_document")
-        self.assertNotIn("investigation_failure", report["all"])
+        self.assertEqual(report["primary_error"], "execution_failure")
 
     def test_success_is_not_relabelled_as_an_investigation_failure(self) -> None:
         report = diagnose_manufacturing_trajectory(
@@ -94,7 +94,54 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
             failure_report={},
             prefix={},
         )
-        self.assertEqual(report["primary"], "success")
+        self.assertIsNone(report["primary_error"])
+
+    def test_protocol_safety_failure_is_a_scope_failure(self) -> None:
+        report = diagnose_manufacturing_trajectory(
+            turns=[
+                {
+                    "tool_calls": [
+                        {"name": "get_document", "arguments": {}},
+                        {"name": "find_background_jobs", "arguments": {}},
+                        {"name": "get_external_delivery", "arguments": {}},
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=SimpleNamespace(
+                passed=False,
+                components={
+                    "goal_completion": True,
+                    "repair_completeness": True,
+                    "preservation": True,
+                    "protocol_safety": False,
+                },
+            ),
+            failure_report={"variant": "database_committed_response_lost"},
+            prefix={"corrective_job_card": "JC-1"},
+        )
+        self.assertEqual(report["primary_error"], "scope_failure")
+
+    def test_resubmitting_committed_corrective_card_is_state_inference_failure(
+        self,
+    ) -> None:
+        report = diagnose_manufacturing_trajectory(
+            turns=[
+                {
+                    "tool_calls": [
+                        {
+                            "name": "submit_document",
+                            "arguments": {"doctype": "Job Card", "name": "JC-1"},
+                        }
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=SimpleNamespace(passed=False, components={}),
+            failure_report={"variant": "database_committed_response_lost"},
+            prefix={"corrective_job_card": "JC-1"},
+        )
+        self.assertEqual(report["primary_error"], "state_inference_failure")
 
 
 if __name__ == "__main__":
