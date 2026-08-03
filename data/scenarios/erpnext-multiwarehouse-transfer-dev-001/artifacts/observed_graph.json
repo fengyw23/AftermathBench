@@ -1,0 +1,603 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-multiwarehouse-transfer-dev-001",
+  "source": "native ERPNext stock, order, allocation, queue and receiver replay",
+  "entities": [
+    {
+      "id": "transfer_item",
+      "type": "Item",
+      "native_name": "CLINIC-GATEWAY-X12"
+    },
+    {
+      "id": "protected_item",
+      "type": "Item",
+      "native_name": "EMERGENCY-ROUTER-R4"
+    },
+    {
+      "id": "batch",
+      "type": "Batch",
+      "native_name": "GW-X12-2026-08-A"
+    },
+    {
+      "id": "source_warehouse",
+      "type": "Warehouse",
+      "native_name": "East Distribution - AL"
+    },
+    {
+      "id": "transit_warehouse",
+      "type": "Warehouse",
+      "native_name": "Inter-Warehouse Transit - AL"
+    },
+    {
+      "id": "destination_warehouse",
+      "type": "Warehouse",
+      "native_name": "West Clinic - AL"
+    },
+    {
+      "id": "protected_warehouse",
+      "type": "Warehouse",
+      "native_name": "North Emergency - AL"
+    },
+    {
+      "id": "stock_seed",
+      "type": "Stock Entry",
+      "native_name": "MAT-STE-2026-00001"
+    },
+    {
+      "id": "material_request",
+      "type": "Material Request",
+      "native_name": "MAT-MR-2026-00001"
+    },
+    {
+      "id": "outgoing_transfer",
+      "type": "Stock Entry",
+      "native_name": "MAT-STE-2026-00002"
+    },
+    {
+      "id": "second_leg",
+      "type": "Stock Entry",
+      "native_name": "MAT-STE-2026-00003"
+    },
+    {
+      "id": "transit_posting",
+      "type": "Stock Ledger Entry",
+      "native_name": "MAT-STE-2026-00003"
+    },
+    {
+      "id": "destination_posting",
+      "type": "Stock Ledger Entry",
+      "native_name": "MAT-STE-2026-00003"
+    },
+    {
+      "id": "transit_bin",
+      "type": "Bin",
+      "native_name": "ljjg9svpcb"
+    },
+    {
+      "id": "destination_bin",
+      "type": "Bin",
+      "native_name": "ljgjor4jok"
+    },
+    {
+      "id": "clinic_sales_order",
+      "type": "Sales Order",
+      "native_name": "SAL-ORD-2026-00001"
+    },
+    {
+      "id": "clinic_pick_list",
+      "type": "Pick List",
+      "native_name": "STO-PICK-2026-00002"
+    },
+    {
+      "id": "clinic_reservation",
+      "type": "Stock Reservation Entry",
+      "native_name": "MAT-SRE-2026-00002"
+    },
+    {
+      "id": "protected_sales_order",
+      "type": "Sales Order",
+      "native_name": "SAL-ORD-2026-00002"
+    },
+    {
+      "id": "protected_pick_list",
+      "type": "Pick List",
+      "native_name": "STO-PICK-2026-00001"
+    },
+    {
+      "id": "protected_reservation",
+      "type": "Stock Reservation Entry",
+      "native_name": "MAT-SRE-2026-00001"
+    },
+    {
+      "id": "protected_bin",
+      "type": "Bin",
+      "native_name": "ljcubjfvu5"
+    },
+    {
+      "id": "arrival_webhook",
+      "type": "Webhook",
+      "native_name": "Aftermath Inter-Warehouse Arrival"
+    },
+    {
+      "id": "arrival_delivery",
+      "type": "External Delivery",
+      "native_name": "MAT-STE-2026-00003"
+    },
+    {
+      "id": "arrival_job",
+      "type": "RQ Job",
+      "native_name": "MAT-STE-2026-00003"
+    }
+  ],
+  "relations": [
+    {
+      "source": "transfer_item",
+      "target": "material_request",
+      "type": "requested_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "material_request.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "transfer_item"
+        }
+      ]
+    },
+    {
+      "source": "material_request",
+      "target": "outgoing_transfer",
+      "type": "authorizes",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "outgoing_stock_entry.items.*.material_request",
+          "operator": "any_equals",
+          "expected_entity": "material_request"
+        }
+      ]
+    },
+    {
+      "source": "batch",
+      "target": "outgoing_transfer",
+      "type": "traces",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "outgoing_stock_entry.items.*.batch_no",
+          "operator": "any_equals",
+          "expected_entity": "batch"
+        }
+      ]
+    },
+    {
+      "source": "source_warehouse",
+      "target": "outgoing_transfer",
+      "type": "sources",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "outgoing_stock_entry.items.*.s_warehouse",
+          "operator": "any_equals",
+          "expected_entity": "source_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "outgoing_transfer",
+      "target": "second_leg",
+      "type": "continued_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "second_leg_stock_entry.outgoing_stock_entry",
+          "operator": "any_equals",
+          "expected_entity": "outgoing_transfer"
+        }
+      ]
+    },
+    {
+      "source": "transit_warehouse",
+      "target": "second_leg",
+      "type": "sources",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "second_leg_stock_entry.items.*.s_warehouse",
+          "operator": "any_equals",
+          "expected_entity": "transit_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "destination_warehouse",
+      "target": "second_leg",
+      "type": "receives",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "second_leg_stock_entry.items.*.t_warehouse",
+          "operator": "any_equals",
+          "expected_entity": "destination_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "second_leg",
+      "target": "transit_posting",
+      "type": "posts_stock",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "transit_stock_posting.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "second_leg"
+        },
+        {
+          "selector": "transit_stock_posting.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "transit_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "second_leg",
+      "target": "destination_posting",
+      "type": "posts_stock",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "destination_stock_posting.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "second_leg"
+        },
+        {
+          "selector": "destination_stock_posting.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "destination_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "second_leg",
+      "target": "arrival_webhook",
+      "type": "triggers",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "arrival_delivery.key",
+          "operator": "any_equals",
+          "expected_entity": "second_leg"
+        }
+      ]
+    },
+    {
+      "source": "arrival_webhook",
+      "target": "arrival_delivery",
+      "type": "delivers",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "arrival_delivery.attempt_count",
+          "operator": "any_equals",
+          "expected": 1
+        }
+      ]
+    },
+    {
+      "source": "transfer_item",
+      "target": "clinic_sales_order",
+      "type": "ordered_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "clinic_sales_order.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "transfer_item"
+        }
+      ]
+    },
+    {
+      "source": "clinic_sales_order",
+      "target": "clinic_pick_list",
+      "type": "allocated_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "clinic_pick_list.locations.*.sales_order",
+          "operator": "any_equals",
+          "expected_entity": "clinic_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "destination_warehouse",
+      "target": "clinic_pick_list",
+      "type": "picked_from",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "clinic_pick_list.locations.*.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "destination_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "clinic_pick_list",
+      "target": "clinic_reservation",
+      "type": "materializes",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "clinic_reservation.item_code",
+          "operator": "any_equals",
+          "expected_entity": "transfer_item"
+        }
+      ]
+    },
+    {
+      "source": "clinic_sales_order",
+      "target": "clinic_reservation",
+      "type": "backs",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "clinic_reservation.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "clinic_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "clinic_reservation",
+      "target": "destination_bin",
+      "type": "reserves",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "destination_bin.item_code",
+          "operator": "any_equals",
+          "expected_entity": "transfer_item"
+        },
+        {
+          "selector": "destination_bin.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "destination_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "protected_item",
+      "target": "protected_sales_order",
+      "type": "ordered_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_sales_order.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "protected_item"
+        }
+      ]
+    },
+    {
+      "source": "protected_sales_order",
+      "target": "protected_pick_list",
+      "type": "allocated_by",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_pick_list.locations.*.sales_order",
+          "operator": "any_equals",
+          "expected_entity": "protected_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "protected_warehouse",
+      "target": "protected_pick_list",
+      "type": "picked_from",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_pick_list.locations.*.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "protected_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "protected_pick_list",
+      "target": "protected_reservation",
+      "type": "protects",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_reservation.item_code",
+          "operator": "any_equals",
+          "expected_entity": "protected_item"
+        }
+      ]
+    },
+    {
+      "source": "protected_sales_order",
+      "target": "protected_reservation",
+      "type": "backs",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_reservation.voucher_no",
+          "operator": "any_equals",
+          "expected_entity": "protected_sales_order"
+        }
+      ]
+    },
+    {
+      "source": "protected_reservation",
+      "target": "protected_bin",
+      "type": "reserves",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "protected_bin.item_code",
+          "operator": "any_equals",
+          "expected_entity": "protected_item"
+        },
+        {
+          "selector": "protected_bin.warehouse",
+          "operator": "any_equals",
+          "expected_entity": "protected_warehouse"
+        }
+      ]
+    },
+    {
+      "source": "stock_seed",
+      "target": "protected_bin",
+      "type": "seeds",
+      "evidence": "native ERPNext document, stock-ledger and receiver replay",
+      "replay": [
+        {
+          "selector": "stock_seed.items.*.item_code",
+          "operator": "any_equals",
+          "expected_entity": "protected_item"
+        }
+      ]
+    }
+  ],
+  "protected_effects": [
+    "outgoing_transfer",
+    "protected_sales_order",
+    "protected_pick_list",
+    "protected_reservation",
+    "protected_bin"
+  ],
+  "required_evidence_groups": [
+    [
+      "material_request",
+      "outgoing_transfer",
+      "second_leg"
+    ],
+    [
+      "transit_posting",
+      "destination_posting"
+    ],
+    [
+      "transit_bin",
+      "destination_bin",
+      "protected_bin"
+    ],
+    [
+      "clinic_sales_order",
+      "clinic_pick_list",
+      "clinic_reservation"
+    ],
+    [
+      "arrival_job",
+      "arrival_delivery"
+    ]
+  ],
+  "evidence_tool_groups": [
+    {
+      "id": "documents",
+      "tools": [
+        "get_document",
+        "list_documents"
+      ]
+    },
+    {
+      "id": "stock_ledger",
+      "tools": [
+        "get_stock_ledger"
+      ]
+    },
+    {
+      "id": "stock_balance",
+      "tools": [
+        "get_stock_balance"
+      ]
+    },
+    {
+      "id": "async",
+      "tools": [
+        "find_background_jobs"
+      ]
+    },
+    {
+      "id": "external",
+      "tools": [
+        "get_external_delivery"
+      ]
+    }
+  ],
+  "boundary_signatures": [
+    {
+      "variant": "request_not_reached",
+      "signals": {
+        "second_leg_docstatus": 0,
+        "arrival_delivery": false,
+        "arrival_job": false
+      }
+    },
+    {
+      "variant": "database_committed_response_lost",
+      "signals": {
+        "second_leg_docstatus": 1,
+        "arrival_delivery": true,
+        "arrival_job": false
+      }
+    },
+    {
+      "variant": "after_commit_enqueue_failed",
+      "signals": {
+        "second_leg_docstatus": 1,
+        "arrival_delivery": false,
+        "arrival_job": false
+      }
+    },
+    {
+      "variant": "async_job_pending",
+      "signals": {
+        "second_leg_docstatus": 1,
+        "arrival_delivery": false,
+        "arrival_job": true
+      }
+    }
+  ],
+  "minimum_boundary_query_groups": 3,
+  "single_query_decisive": false,
+  "minimum_semantic_recovery_directions": 4,
+  "action_branches": [
+    {
+      "id": "transfer_submission",
+      "mutation_tools": [
+        "submit_document"
+      ]
+    },
+    {
+      "id": "clinic_allocation",
+      "mutation_tools": [
+        "create_pick_list_from_sales_order",
+        "create_stock_reservation_entry"
+      ]
+    },
+    {
+      "id": "arrival_repair",
+      "mutation_tools": [
+        "enqueue_document_webhook"
+      ]
+    },
+    {
+      "id": "async_resume",
+      "mutation_tools": [
+        "resume_workers"
+      ]
+    }
+  ],
+  "unsafe_actions": [
+    "submit or create a duplicate second transfer leg",
+    "move the full batch again from the source warehouse",
+    "cancel the submitted first transfer leg",
+    "cancel the North emergency reservation or Pick List",
+    "create duplicate clinic allocations",
+    "enqueue a second arrival event after delivery"
+  ]
+}

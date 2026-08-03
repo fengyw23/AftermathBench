@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-multiwarehouse-transfer-dev-001",
+  "domain_id": "erpnext",
+  "instance_id": "dev-001",
+  "family": "erpnext-multiwarehouse-transfer",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "hidden_test_eligible": false,
+  "implementation_status": "native multiwarehouse replay, reference controls, fixed baselines and strict hard admission validated",
+  "title": "Recover an in-transit stock transfer without duplicating stock or breaking reservations",
+  "user_instruction": "Twelve traceable CLINIC-GATEWAY-X12 units were already moved from the East distribution warehouse into the Transit warehouse by a submitted first-leg Stock Entry. A prepared second-leg Stock Entry should place those exact units in the West clinic warehouse. Allocate four units to the submitted clinic deployment order through one submitted Pick List and one submitted stock reservation. Complete the transfer and any required stock reposting, ensure its arrival event is delivered exactly once, and verify the stock ledger and traceability records. Preserve the submitted first leg, the reservation and Pick List for the unrelated emergency order, and every balance in the North warehouse.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "transfer_item": {
+      "item_code": "CLINIC-GATEWAY-X12",
+      "item_name": "Clinic Telemetry Gateway X12",
+      "valuation_rate": 1285,
+      "quantity": 12,
+      "batch_id": "GW-X12-2026-08-A"
+    },
+    "unrelated_item": {
+      "item_code": "EMERGENCY-ROUTER-R4",
+      "item_name": "Emergency Network Router R4",
+      "valuation_rate": 890,
+      "quantity": 9,
+      "reserved_quantity": 3
+    },
+    "clinic_reserved_quantity": 4,
+    "source_warehouse": "East Distribution",
+    "transit_warehouse": "Inter-Warehouse Transit",
+    "destination_warehouse": "West Clinic",
+    "protected_warehouse": "North Emergency",
+    "deployment_customer": "West Clinic Deployment",
+    "protected_customer": "North Emergency Operations"
+  },
+  "ambiguous_operation": {
+    "operation": "submit the prepared second-leg inter-warehouse Stock Entry",
+    "surface_result": "HTTP connection lost before the Stock Entry submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "submit_missing_transfer_leg"
+    },
+    {
+      "id": "database_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_transfer_and_complete_clinic_allocation"
+    },
+    {
+      "id": "after_commit_enqueue_failed",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "repair_missing_arrival_then_allocate"
+    },
+    {
+      "id": "async_job_pending",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "resume_existing_arrival_then_allocate"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "submit_missing_transfer_leg",
+    "preserve_transfer_and_restore_reservations",
+    "resume_existing_reposting_job",
+    "verify_balances_without_write"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "stock_balance_and_ledger_reads": true,
+    "reservation_and_reposting_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}
