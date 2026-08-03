@@ -138,8 +138,8 @@ class ForgejoMigrationEvaluator:
             and len(prior_artifacts) == 1,
             "change_closed": change is not None and change.get("state") == "closed",
             "verification_comment_exactly_once": sum(
-                f"Deployment verification: {spec.version} {spec.artifact_digest}"
-                in str(comment.get("body", ""))
+                spec.version in str(comment.get("body", ""))
+                and spec.artifact_digest in str(comment.get("body", ""))
                 for comment in comments
             )
             == 1,

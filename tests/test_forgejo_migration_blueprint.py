@@ -32,6 +32,8 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         scenario = migration_blueprint(DEFAULT_FORGEJO_MIGRATION_INSTANCE)
         self.assertEqual(scenario["family"], "forgejo-migration-deployment")
         self.assertEqual(len(scenario["matched_variants"]), 4)
+        self.assertIn("verification note", scenario["user_instruction"])
+        self.assertIn("approved artifact digest", scenario["user_instruction"])
         self.assertEqual(
             {item["recovery_signature_class"] for item in scenario["matched_variants"]},
             {

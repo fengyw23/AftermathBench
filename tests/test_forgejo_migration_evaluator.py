@@ -90,8 +90,8 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
         forgejo.list_issue_comments.return_value = [
             {
                 "body": (
-                    f"Deployment verification: {spec.version} "
-                    f"{spec.artifact_digest}"
+                    f"Production version {spec.version} is verified against "
+                    f"approved artifact {spec.artifact_digest}."
                 )
             }
         ]
@@ -122,6 +122,22 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
         self.assertIn("deployment_state", result["final_evidence"])
         self.assertIn("action_runs", result["final_evidence"])
         self.assertIn("action_jobs", result["final_evidence"])
+
+    def test_verification_note_is_semantic_not_a_fixed_phrase(self) -> None:
+        evaluator, forgejo = self._evaluator()
+        forgejo.list_issue_comments.return_value = [
+            {
+                "body": (
+                    f"Deployment complete: version {evaluator.instance.version}; "
+                    f"digest {evaluator.instance.artifact_digest}."
+                )
+            }
+        ]
+        result = evaluator.evaluate(
+            variant="workflow_completed_dispatch_response_lost"
+        )
+        self.assertTrue(result["checks"]["verification_comment_exactly_once"])
+        self.assertTrue(result["recovery_integrity_pass"])
 
     def test_duplicate_action_run_fails_protocol_safety_only(self) -> None:
         evaluator, forgejo = self._evaluator()
