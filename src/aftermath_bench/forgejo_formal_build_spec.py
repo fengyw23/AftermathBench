@@ -7,7 +7,7 @@ import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .forgejo_publication_state_evidence import (
     canonical_state_fingerprint,
@@ -57,7 +57,6 @@ _RUNTIME_ID = "forgejo-main"
 _SPLIT = "public_dev"
 _TIER = "hard"
 _ADMISSION_STATUS = "validated_hard"
-_EXPECTED_VARIANT_COUNT = 8
 _EXACT_MANIFEST_FIELDS = frozenset(
     {
         "schema_version",
@@ -120,6 +119,52 @@ _SCORED_STATE_FIELDS = (
     "protected_release_assets",
     "branch_protections",
     "hooks",
+)
+
+
+@dataclass(frozen=True)
+class ForgejoFormalBuildProfile:
+    family_id: str
+    variants: tuple[str, ...]
+    state_evidence_artifact_type: str
+    tool_definition_source: str
+    tool_implementation_source: str
+    tool_implementation_dependencies: tuple[str, ...]
+    native_runtime_contract_sources: tuple[str, ...]
+    boundary_contract_sources: tuple[str, ...]
+    evaluator_source: str
+    scored_state_fields: tuple[str, ...]
+    tool_definitions: tuple[Any, ...]
+    environment_tool_names: tuple[str, ...]
+    tool_definition_role_path: str
+    tool_implementation_role_path: str
+    tool_implementation_symbol: str
+    evaluator_role_path: str
+    evaluator_symbol: str
+    state_projection: Callable[[Any], Any]
+    state_fingerprint: Callable[[Any], str]
+
+
+FORGEJO_PUBLICATION_FORMAL_PROFILE = ForgejoFormalBuildProfile(
+    family_id=_FAMILY_ID,
+    variants=tuple(FORGEJO_PUBLICATION_VARIANTS),
+    state_evidence_artifact_type="forgejo_publication_native_state_projection",
+    tool_definition_source=_TOOL_DEFINITION_SOURCE,
+    tool_implementation_source=_TOOL_IMPLEMENTATION_SOURCE,
+    tool_implementation_dependencies=_TOOL_IMPLEMENTATION_DEPENDENCIES,
+    native_runtime_contract_sources=_NATIVE_RUNTIME_CONTRACT_SOURCES,
+    boundary_contract_sources=_BOUNDARY_CONTRACT_SOURCES,
+    evaluator_source=_EVALUATOR_SOURCE,
+    scored_state_fields=_SCORED_STATE_FIELDS,
+    tool_definitions=tuple(FORGEJO_PUBLICATION_TOOL_DEFINITIONS),
+    environment_tool_names=tuple(ForgejoPublicationEnvironment.TOOL_NAMES),
+    tool_definition_role_path="sources/native_forgejo_publication_family.py",
+    tool_implementation_role_path="sources/forgejo_publication_recovery.py",
+    tool_implementation_symbol="ForgejoPublicationEnvironment.invoke",
+    evaluator_role_path="sources/forgejo_publication_recovery.py",
+    evaluator_symbol="evaluate_forgejo_publication_recovery",
+    state_projection=deterministic_state_projection,
+    state_fingerprint=canonical_state_fingerprint,
 )
 
 
@@ -517,6 +562,8 @@ def _validate_native_runtime_contract(
 
 def discover_active_forgejo_public_dev_scenario(
     root: str | Path,
+    *,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> Path:
     resolved_root = Path(root).resolve()
     candidates: list[Path] = []
@@ -529,7 +576,7 @@ def discover_active_forgejo_public_dev_scenario(
             continue
         if (
             payload.get("domain_id") == _DOMAIN_ID
-            and payload.get("family") == _FAMILY_ID
+            and payload.get("family") == profile.family_id
             and payload.get("benchmark_split") == _SPLIT
             and payload.get("benchmark_tier") == _TIER
             and payload.get("admission_status") == _ADMISSION_STATUS
@@ -546,9 +593,11 @@ def discover_active_forgejo_public_dev_scenario(
 def _validate_active_scenario(
     root: Path,
     scenario_value: str | Path | None,
+    *,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> tuple[NativeScenario, str, str]:
     scenario_source = (
-        discover_active_forgejo_public_dev_scenario(root)
+        discover_active_forgejo_public_dev_scenario(root, profile=profile)
         if scenario_value is None
         else scenario_value
     )
@@ -573,7 +622,7 @@ def _validate_active_scenario(
         )
     if (
         scenario.domain_id != _DOMAIN_ID
-        or scenario.family_id != _FAMILY_ID
+        or scenario.family_id != profile.family_id
         or scenario.raw.get("runtime_id") != _RUNTIME_ID
         or scenario.split != _SPLIT
         or scenario.tier != _TIER
@@ -587,12 +636,12 @@ def _validate_active_scenario(
             "active scenario directory must equal scenario_id"
         )
     if (
-        len(scenario.variants) != _EXPECTED_VARIANT_COUNT
-        or scenario.variants != tuple(FORGEJO_PUBLICATION_VARIANTS)
-        or len(set(scenario.variants)) != _EXPECTED_VARIANT_COUNT
+        len(scenario.variants) != len(profile.variants)
+        or scenario.variants != profile.variants
+        or len(set(scenario.variants)) != len(profile.variants)
     ):
         raise ForgejoFormalBuildSpecError(
-            "Forgejo public_dev must contain the canonical eight variants"
+            "Forgejo public_dev must contain the profile's canonical variants"
         )
     admission = validate_native_scenario(scenario)
     if (
@@ -784,6 +833,7 @@ def _validate_reset_capture(
     variant_id: str,
     prefix_sha256: str,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> str:
     label = f"reset capture {variant_id}"
     _validate_identity(
@@ -795,7 +845,7 @@ def _validate_reset_capture(
     )
     if (
         capture.get("schema_version") != "1.0"
-        or capture.get("artifact_type") != "forgejo_publication_native_state_projection"
+        or capture.get("artifact_type") != profile.state_evidence_artifact_type
         or capture.get("phase") != "reset"
         or capture.get("reset_verified") is not True
         or capture.get("prefix_file_sha256") != prefix_sha256
@@ -809,7 +859,7 @@ def _validate_reset_capture(
         or expected.get("exact_match") is not True
         or not isinstance(projection, dict)
         or capture.get("state_fingerprint")
-        != canonical_state_fingerprint(deterministic_state_projection(projection))
+        != profile.state_fingerprint(profile.state_projection(projection))
     ):
         raise ForgejoFormalBuildSpecError(
             f"{label} lacks an exact deterministic state projection"
@@ -866,6 +916,7 @@ def _validate_boundary_capture(
     variant_id: str,
     prefix_sha256: str,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> str:
     label = f"boundary capture {variant_id}"
     _validate_identity(
@@ -884,18 +935,18 @@ def _validate_boundary_capture(
     projection = capture.get("state_projection")
     if (
         capture.get("schema_version") != "1.0"
-        or capture.get("artifact_type") != "forgejo_publication_native_state_projection"
+        or capture.get("artifact_type") != profile.state_evidence_artifact_type
         or capture.get("phase") != "boundary"
         or capture.get("boundary_validation_passed") is not True
         or capture.get("prefix_file_sha256") != prefix_sha256
         or capture.get("reset_snapshot_sha256") != _sha256_file(reset_path)
         or capture.get("failure_report_file_sha256") != _sha256_file(raw_boundary_path)
         or capture.get("surface_result") != surface
-        or deterministic_state_projection(capture.get("visible_failure"))
-        != deterministic_state_projection(visible)
+        or profile.state_projection(capture.get("visible_failure"))
+        != profile.state_projection(visible)
         or not isinstance(projection, dict)
         or capture.get("state_fingerprint")
-        != canonical_state_fingerprint(deterministic_state_projection(projection))
+        != profile.state_fingerprint(profile.state_projection(projection))
     ):
         raise ForgejoFormalBuildSpecError(
             f"{label} is not cross-bound to reset, failure, and native state"
@@ -914,6 +965,7 @@ def _validate_reference(
     scenario: NativeScenario,
     instance_spec_sha256: str,
     variant_id: str,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> tuple[str, ...]:
     label = f"reference report {variant_id}"
     _validate_identity(
@@ -945,7 +997,7 @@ def _validate_reference(
         label=f"{label} evaluator components",
     )
     del components
-    known_tools = set(ForgejoPublicationEnvironment.TOOL_NAMES)
+    known_tools = set(profile.environment_tool_names)
     for index, event in enumerate(trace):
         if (
             not isinstance(event, dict)
@@ -970,6 +1022,7 @@ def _validate_control_trajectory(
     trusted_producer_commit: str,
     raw_boundary_path: Path,
     raw_boundary: dict[str, Any],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> str:
     label = f"execution-control trajectory {variant_id}"
     _validate_identity(
@@ -989,8 +1042,8 @@ def _validate_control_trajectory(
         or not payload["run_id"]
         or not isinstance(evaluation, dict)
         or not isinstance(evaluation.get("passed"), bool)
-        or deterministic_state_projection(payload.get("surface_failure"))
-        != deterministic_state_projection(raw_boundary.get("visible_failure"))
+        or profile.state_projection(payload.get("surface_failure"))
+        != profile.state_projection(raw_boundary.get("visible_failure"))
     ):
         raise ForgejoFormalBuildSpecError(
             f"{label} is not a complete explicit execution control"
@@ -1041,23 +1094,25 @@ def _validate_control_summary(
     *,
     scenario: NativeScenario,
     trajectories: dict[str, dict[str, Any]],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> None:
+    expected_count = len(profile.variants)
     reports = payload.get("reports")
     counts = payload.get("execution_control_counts")
     if (
         not isinstance(reports, list)
-        or len(reports) != _EXPECTED_VARIANT_COUNT
-        or payload.get("completed_runs") != _EXPECTED_VARIANT_COUNT
+        or len(reports) != expected_count
+        or payload.get("completed_runs") != expected_count
         or payload.get("run_errors") != []
         or not isinstance(counts, dict)
-        or counts.get("true") != _EXPECTED_VARIANT_COUNT
+        or counts.get("true") != expected_count
     ):
         raise ForgejoFormalBuildSpecError("execution-control summary is incomplete")
     passed_count = sum(
         trajectory.get("evaluation", {}).get("passed") is True
         for trajectory in trajectories.values()
     )
-    expected_rate = passed_count / _EXPECTED_VARIANT_COUNT
+    expected_rate = passed_count / expected_count
     try:
         observed_rate = float(payload.get("task_pass_rate", -1))
     except (TypeError, ValueError) as error:
@@ -1103,7 +1158,7 @@ def _validate_control_summary(
         observed[variant_id] = report
     if set(observed) != set(scenario.variants):
         raise ForgejoFormalBuildSpecError(
-            "execution-control summary does not cover all eight variants"
+            "execution-control summary does not cover all profile variants"
         )
 
 
@@ -1118,6 +1173,7 @@ def _collect_variant_evidence(
     trusted_producer_commit: str,
     capture_directory: Path,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> tuple[
     tuple[_VariantEvidence, ...],
     tuple[str, ...],
@@ -1289,6 +1345,7 @@ def _collect_variant_evidence(
             variant_id=variant_id,
             prefix_sha256=prefix_sha256,
             bundle_manifests=bundle_manifests,
+            profile=profile,
         )
         boundary_manifest = _validate_boundary_capture(
             boundary_capture,
@@ -1301,6 +1358,7 @@ def _collect_variant_evidence(
             variant_id=variant_id,
             prefix_sha256=prefix_sha256,
             bundle_manifests=bundle_manifests,
+            profile=profile,
         )
         used_capture_manifests["reset"].add(reset_manifest)
         used_capture_manifests["boundary"].add(boundary_manifest)
@@ -1310,6 +1368,7 @@ def _collect_variant_evidence(
             scenario=scenario,
             instance_spec_sha256=instance_spec_sha256,
             variant_id=variant_id,
+            profile=profile,
         )
         if evaluator_check_ids is None:
             evaluator_check_ids = current_check_ids
@@ -1332,6 +1391,7 @@ def _collect_variant_evidence(
                 trusted_producer_commit=trusted_producer_commit,
                 raw_boundary_path=raw_boundary_path,
                 raw_boundary=raw_boundary,
+                profile=profile,
             )
             if run_id in run_ids:
                 raise ForgejoFormalBuildSpecError(
@@ -1381,6 +1441,7 @@ def _collect_variant_evidence(
             ),
             scenario=scenario,
             trajectories=trajectories,
+            profile=profile,
         )
     if evaluator_check_ids is None:
         raise ForgejoFormalBuildSpecError(
@@ -1431,15 +1492,16 @@ def _build_tool_contract_role(
     output: str,
     runtime_revision: str,
     source_verification_relative: str,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> dict[str, Any]:
     _, definition_relative = _repo_file(
         root,
-        _TOOL_DEFINITION_SOURCE,
+        profile.tool_definition_source,
         label="Forgejo tool-definition source",
     )
     _, implementation_relative = _repo_file(
         root,
-        _TOOL_IMPLEMENTATION_SOURCE,
+        profile.tool_implementation_source,
         label="Forgejo tool-implementation source",
     )
     dependency_sources = [
@@ -1448,17 +1510,16 @@ def _build_tool_contract_role(
             relative,
             label=f"Forgejo tool dependency {relative}",
         )[1]
-        for relative in _TOOL_IMPLEMENTATION_DEPENDENCIES
+        for relative in profile.tool_implementation_dependencies
     ]
-    tools = tuple(FORGEJO_PUBLICATION_TOOL_DEFINITIONS)
+    tools = profile.tool_definitions
     names = tuple(tool.name for tool in tools)
     if (
-        len(tools) != 17
-        or names != tuple(ForgejoPublicationEnvironment.TOOL_NAMES)
+        names != profile.environment_tool_names
         or len(names) != len(set(names))
     ):
         raise ForgejoFormalBuildSpecError(
-            "Forgejo public tool registry is not the expected 17-tool surface"
+            "Forgejo public tool registry does not match the formal profile"
         )
     runtime_sources = [
         _repo_file(
@@ -1466,7 +1527,7 @@ def _build_tool_contract_role(
             relative,
             label=f"Forgejo native runtime source {relative}",
         )[1]
-        for relative in _NATIVE_RUNTIME_CONTRACT_SOURCES
+        for relative in profile.native_runtime_contract_sources
     ]
     try:
         return build_native_tool_contract_role(
@@ -1474,13 +1535,11 @@ def _build_tool_contract_role(
             sources=ToolContractSources(
                 definition=FormalSource(
                     source_path=definition_relative,
-                    role_path=(
-                        "sources/native_forgejo_publication_family.py"
-                    ),
+                    role_path=profile.tool_definition_role_path,
                 ),
                 implementation=FormalSource(
                     source_path=implementation_relative,
-                    role_path="sources/forgejo_publication_recovery.py",
+                    role_path=profile.tool_implementation_role_path,
                 ),
                 implementation_dependencies=tuple(
                     FormalSource(
@@ -1512,9 +1571,7 @@ def _build_tool_contract_role(
                         name=tool.name,
                         description=tool.description,
                         input_schema=tool.input_schema,
-                        implementation_symbol=(
-                            "ForgejoPublicationEnvironment.invoke"
-                        ),
+                        implementation_symbol=profile.tool_implementation_symbol,
                     )
                     for tool in tools
                 ),
@@ -1529,10 +1586,11 @@ def _build_evaluator_role(
     root: Path,
     output: str,
     check_ids: tuple[str, ...],
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> dict[str, Any]:
     _, source_relative = _repo_file(
         root,
-        _EVALUATOR_SOURCE,
+        profile.evaluator_source,
         label="Forgejo deterministic evaluator source",
     )
     try:
@@ -1541,13 +1599,11 @@ def _build_evaluator_role(
             sources=EvaluatorContractSources(
                 implementation=FormalSource(
                     source_path=source_relative,
-                    role_path="sources/forgejo_publication_recovery.py",
+                    role_path=profile.evaluator_role_path,
                 ),
-                implementation_symbol=(
-                    "evaluate_forgejo_publication_recovery"
-                ),
+                implementation_symbol=profile.evaluator_symbol,
                 check_ids=check_ids,
-                scored_state_fields=_SCORED_STATE_FIELDS,
+                scored_state_fields=profile.scored_state_fields,
             ),
         )
     except NativeFormalSpecError as error:
@@ -1564,6 +1620,7 @@ def _build_input_evidence_roles(
     runtime_manifest_relative: str,
     runtime_revision: str,
     source_verification_relative: str,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> dict[str, dict[str, Any]]:
     _, prefix_relative = _repo_file(
         root,
@@ -1576,7 +1633,7 @@ def _build_input_evidence_roles(
             relative,
             label=f"Forgejo boundary contract source {relative}",
         )[1]
-        for relative in _BOUNDARY_CONTRACT_SOURCES
+        for relative in profile.boundary_contract_sources
     ]
     try:
         return build_native_input_evidence_roles(
@@ -1701,6 +1758,7 @@ def generate_forgejo_formal_build_spec(
     scenario_path: str | Path | None = None,
     control_manifest_path: str | Path | None = None,
     model_input_lock_path: str | Path | None = None,
+    profile: ForgejoFormalBuildProfile = FORGEJO_PUBLICATION_FORMAL_PROFILE,
 ) -> ForgejoFormalBuildSpecResult:
     """Generate a strict seven-role spec from native Forgejo evidence.
 
@@ -1726,7 +1784,9 @@ def generate_forgejo_formal_build_spec(
         output_directory,
     )
     scenario, scenario_relative, instance_spec_sha256 = _validate_active_scenario(
-        resolved_root, scenario_path
+        resolved_root,
+        scenario_path,
+        profile=profile,
     )
     if phase == "inputs":
         if control_manifest_path is not None or model_input_lock_path is not None:
@@ -1790,6 +1850,7 @@ def generate_forgejo_formal_build_spec(
         trusted_producer_commit=producer_commit,
         capture_directory=capture_dir,
         bundle_manifests=capture_manifests,
+        profile=profile,
     )
 
     roles: dict[str, dict[str, Any]] = {
@@ -1798,11 +1859,13 @@ def generate_forgejo_formal_build_spec(
             output=output,
             runtime_revision=runtime_revision,
             source_verification_relative=(source_verification_relative),
+            profile=profile,
         ),
         "evaluator": _build_evaluator_role(
             root=resolved_root,
             output=output,
             check_ids=check_ids,
+            profile=profile,
         ),
         **_build_input_evidence_roles(
             root=resolved_root,
@@ -1813,6 +1876,7 @@ def generate_forgejo_formal_build_spec(
             runtime_manifest_relative=runtime_manifest.relative_path,
             runtime_revision=runtime_revision,
             source_verification_relative=(source_verification_relative),
+            profile=profile,
         ),
     }
     if phase == "inputs":
@@ -1892,6 +1956,8 @@ def write_forgejo_formal_build_spec(
 
 
 __all__ = [
+    "FORGEJO_PUBLICATION_FORMAL_PROFILE",
+    "ForgejoFormalBuildProfile",
     "ForgejoFormalBuildSpecError",
     "ForgejoFormalBuildSpecResult",
     "discover_active_forgejo_public_dev_scenario",
