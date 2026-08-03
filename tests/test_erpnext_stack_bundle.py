@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
+import tarfile
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -31,6 +33,13 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 )
             if "mariadb-dump" in command:
                 kwargs["stdout"].write(b"database-state")
+            elif "cat /home/frappe/frappe-bench/sites/" in command[-1]:
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    '{"db_password":"fresh","encryption_key":"source-key"}',
+                    "",
+                )
             elif "tar -C /data -cf - ." in command:
                 raise subprocess.CalledProcessError(1, command)
             return subprocess.CompletedProcess(command, 0, "", "")
@@ -58,9 +67,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
             if "up" in command and "--no-deps" in command
         ]
         self.assertEqual(len(resume), 5)
-        self.assertTrue(
-            all("--no-recreate" in command for command in resume)
-        )
+        self.assertTrue(all("--no-recreate" in command for command in resume))
         self.assertEqual(resume[0][-1], "redis-queue")
         self.assertEqual(resume[1][-1], "queue-fault")
         self.assertIn("backend", resume[2])
@@ -86,6 +93,13 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 )
             if "mariadb-dump" in command:
                 kwargs["stdout"].write(b"database-state")
+            elif "cat /home/frappe/frappe-bench/sites/" in command[-1]:
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    '{"db_password":"fresh","encryption_key":"source-key"}',
+                    "",
+                )
             elif "tar -C /data -cf - ." in command:
                 kwargs["stdout"].write(b"archive")
             return subprocess.CompletedProcess(command, 0, "", "")
@@ -123,21 +137,14 @@ class ERPNextStackBundleTest(unittest.TestCase):
             commands.append(command)
             stdout = ""
             if "ps" in command and "--services" in command:
-                stdout = "\n".join(
-                    (
-                        "redis-queue",
-                        "queue-fault",
-                        "backend",
-                        "queue-short",
-                        "queue-long",
-                        "websocket",
-                        "frontend",
-                        "fault-gateway",
-                        "remittance",
-                    )
+                stdout = (
+                    "redis-queue\nqueue-fault\nbackend\nqueue-short\n"
+                    "queue-long\nwebsocket\nfrontend\nfault-gateway\nremittance"
                 )
             if "mariadb-dump" in command:
                 kwargs["stdout"].write(b"database-state")
+            elif "cat /home/frappe/frappe-bench/sites/" in command[-1]:
+                stdout = '{"db_password":"fresh","encryption_key":"source-key"}'
             elif "tar -C /data -cf - ." in command:
                 service = command[command.index("--entrypoint") + 2]
                 kwargs["stdout"].write(f"archive:{service}".encode())
@@ -163,7 +170,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 set(manifest["files"]),
                 {
                     "database",
-                    "site_config",
+                    "site_crypto",
                     "redis_queue",
                     "gateway_audit",
                     "remittance_audit",
@@ -231,13 +238,25 @@ class ERPNextStackBundleTest(unittest.TestCase):
     def test_restore_verifies_hashes_before_replacing_native_state(self) -> None:
         commands: list[tuple[str, ...]] = []
         restored_inputs: list[bytes] = []
+        restored_site_configs: list[dict[str, str]] = []
 
         def runner(command, **kwargs):
             command = tuple(command)
             commands.append(command)
             if "stdin" in kwargs:
                 restored_inputs.append(kwargs["stdin"].read())
-            return subprocess.CompletedProcess(command, 0, "", "")
+            if "input" in kwargs:
+                restored_site_configs.append(json.loads(kwargs["input"]))
+            stdout = ""
+            if "cat /home/frappe/frappe-bench/sites/" in command[-1]:
+                stdout = json.dumps(
+                    {
+                        "db_name": "fresh-db",
+                        "db_password": "fresh-password",
+                        "encryption_key": "fresh-key",
+                    }
+                )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
 
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -245,7 +264,10 @@ class ERPNextStackBundleTest(unittest.TestCase):
             bundle.mkdir()
             payloads = {
                 "database": ("database.sql", b"database-state"),
-                "site_config": ("site-config.tar", b"site-config-state"),
+                "site_crypto": (
+                    "site-crypto.json",
+                    b'{"encryption_key":"source-key"}\n',
+                ),
                 "redis_queue": ("redis-queue.tar", b"redis-state"),
                 "gateway_audit": ("gateway-audit.tar", b"gateway-state"),
                 "remittance_audit": (
@@ -262,7 +284,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     "sha256": hashlib.sha256(content).hexdigest(),
                 }
             manifest = {
-                "schema_version": "1.1",
+                "schema_version": "1.2",
                 "capture_mode": "simultaneous_service_quiescence",
                 "running_services": [
                     "redis-queue",
@@ -293,11 +315,20 @@ class ERPNextStackBundleTest(unittest.TestCase):
             self.assertEqual(
                 restored_inputs,
                 [
-                    b"site-config-state",
                     b"database-state",
                     b"redis-state",
                     b"gateway-state",
                     b"delivery-state",
+                ],
+            )
+            self.assertEqual(
+                restored_site_configs,
+                [
+                    {
+                        "db_name": "fresh-db",
+                        "db_password": "fresh-password",
+                        "encryption_key": "source-key",
+                    }
                 ],
             )
             self.assertTrue(
@@ -329,6 +360,76 @@ class ERPNextStackBundleTest(unittest.TestCase):
             ):
                 stack.restore_bundle(bundle)
             self.assertEqual(commands, [])
+
+    def test_legacy_site_config_restore_keeps_fresh_database_credentials(self) -> None:
+        commands: list[tuple[str, ...]] = []
+        restored_site_configs: list[dict[str, str]] = []
+
+        def runner(command, **kwargs):
+            command = tuple(command)
+            commands.append(command)
+            if "stdin" in kwargs:
+                kwargs["stdin"].read()
+            if "input" in kwargs:
+                restored_site_configs.append(json.loads(kwargs["input"]))
+            stdout = ""
+            if "cat /home/frappe/frappe-bench/sites/" in command[-1]:
+                stdout = json.dumps(
+                    {
+                        "db_name": "fresh-db",
+                        "db_password": "fresh-password",
+                        "encryption_key": "fresh-key",
+                    }
+                )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundle = root / "legacy"
+            bundle.mkdir()
+            site_config = io.BytesIO()
+            source = b'{"db_password":"old","encryption_key":"source-key"}'
+            with tarfile.open(fileobj=site_config, mode="w") as archive:
+                member = tarfile.TarInfo("site_config.json")
+                member.size = len(source)
+                archive.addfile(member, io.BytesIO(source))
+            payloads = {
+                "database": ("database.sql", b"database-state"),
+                "site_config": ("site-config.tar", site_config.getvalue()),
+                "redis_queue": ("redis-queue.tar", b"redis-state"),
+                "gateway_audit": ("gateway-audit.tar", b"gateway-state"),
+                "remittance_audit": ("remittance-audit.tar", b"delivery-state"),
+            }
+            files = {}
+            for key, (name, content) in payloads.items():
+                (bundle / name).write_bytes(content)
+                files[key] = {
+                    "path": name,
+                    "bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+            manifest = {
+                "schema_version": "1.1",
+                "capture_mode": "simultaneous_service_quiescence",
+                "running_services": [
+                    "redis-queue",
+                    "queue-fault",
+                    "backend",
+                    "websocket",
+                    "frontend",
+                    "fault-gateway",
+                    "remittance",
+                ],
+                "files": files,
+            }
+            (bundle / "bundle.json").write_text(json.dumps(manifest))
+            stack = ERPNextStack(compose_file=root / "compose.yaml", runner=runner)
+            stack._wait_http_service = lambda *args, **kwargs: None  # type: ignore[method-assign]
+
+            self.assertEqual(stack.restore_bundle(bundle), manifest)
+            self.assertEqual(restored_site_configs[0]["db_name"], "fresh-db")
+            self.assertEqual(restored_site_configs[0]["db_password"], "fresh-password")
+            self.assertEqual(restored_site_configs[0]["encryption_key"], "source-key")
 
 
 if __name__ == "__main__":

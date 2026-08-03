@@ -18,6 +18,7 @@ _BUNDLE_FILES_V1_0 = (
     "remittance-audit.tar",
 )
 _BUNDLE_FILES_V1_1 = (*_BUNDLE_FILES_V1_0, "site-config.tar")
+_BUNDLE_FILES_V1_2 = (*_BUNDLE_FILES_V1_0, "site-crypto.json")
 _UNSAFE_NAMES = frozenset({"credentials.json", ".env"})
 _UNSAFE_SUFFIXES = frozenset({".key", ".pem"})
 
@@ -34,7 +35,7 @@ def _load_bundle(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if (
         not isinstance(payload, dict)
-        or payload.get("schema_version") not in {"1.0", "1.1"}
+        or payload.get("schema_version") not in {"1.0", "1.1", "1.2"}
         or payload.get("capture_mode") != "simultaneous_service_quiescence"
         or not isinstance(payload.get("files"), dict)
     ):
@@ -82,11 +83,11 @@ def build_public_archive(
             for item in declarations.values()
             if isinstance(item, dict)
         }
-        expected_names = (
-            set(_BUNDLE_FILES_V1_1)
-            if manifest["schema_version"] == "1.1"
-            else set(_BUNDLE_FILES_V1_0)
-        )
+        expected_names = {
+            "1.0": set(_BUNDLE_FILES_V1_0),
+            "1.1": set(_BUNDLE_FILES_V1_1),
+            "1.2": set(_BUNDLE_FILES_V1_2),
+        }[manifest["schema_version"]]
         if declared_names != expected_names:
             raise ValueError(f"ERPNext bundle files are not exact: {manifest_path}")
         for declaration in declarations.values():
@@ -112,7 +113,7 @@ def build_public_archive(
     discovered_archives = {
         path.resolve()
         for path in source_entries
-        if path.is_file() and path.name in _BUNDLE_FILES_V1_1
+        if path.is_file() and path.name in {*_BUNDLE_FILES_V1_1, *_BUNDLE_FILES_V1_2}
     }
     if discovered_archives != archive_paths:
         raise ValueError("every native restore file must belong to a declared bundle")

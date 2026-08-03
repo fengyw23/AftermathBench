@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
 import urllib.request
@@ -14,18 +15,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_BUNDLE_SCHEMA_VERSION = "1.1"
+_BUNDLE_SCHEMA_VERSION = "1.2"
+_SITE_CONFIG_BUNDLE_SCHEMA_VERSION = "1.1"
 _LEGACY_BUNDLE_SCHEMA_VERSION = "1.0"
 _BUNDLE_CAPTURE_MODE = "simultaneous_service_quiescence"
 _BUNDLE_FILES = {
     "database": "database.sql",
-    "site_config": "site-config.tar",
+    "site_crypto": "site-crypto.json",
     "redis_queue": "redis-queue.tar",
     "gateway_audit": "gateway-audit.tar",
     "remittance_audit": "remittance-audit.tar",
 }
+_SITE_CONFIG_BUNDLE_FILES = {
+    **{key: value for key, value in _BUNDLE_FILES.items() if key != "site_crypto"},
+    "site_config": "site-config.tar",
+}
 _LEGACY_BUNDLE_FILES = {
-    key: value for key, value in _BUNDLE_FILES.items() if key != "site_config"
+    key: value for key, value in _BUNDLE_FILES.items() if key != "site_crypto"
 }
 _MUTATING_SERVICES = (
     "backend",
@@ -345,10 +351,8 @@ class ERPNextStack:
         with destination.open("wb") as handle:
             self.runner(command, check=True, stdout=handle)
 
-    def _archive_site_config(self, destination: Path) -> None:
-        """Capture the site key material needed to decrypt Frappe secrets."""
-
-        command = self.compose_command(
+    def _read_site_config(self) -> dict[str, Any]:
+        result = self.run(
             "run",
             "--rm",
             "--no-deps",
@@ -356,13 +360,25 @@ class ERPNextStack:
             "sh",
             "backend",
             "-c",
-            (
-                "tar -C /home/frappe/frappe-bench/sites/"
-                "aftermath.localhost -cf - site_config.json"
-            ),
+            "cat /home/frappe/frappe-bench/sites/aftermath.localhost/site_config.json",
+            capture_output=True,
         )
-        with destination.open("wb") as handle:
-            self.runner(command, check=True, stdout=handle)
+        payload = json.loads(result.stdout)
+        if not isinstance(payload, dict):
+            raise TypeError("ERPNext site config must be a JSON object")
+        return payload
+
+    def _capture_site_crypto(self, destination: Path) -> None:
+        """Capture only the key needed to decrypt Frappe database secrets."""
+
+        encryption_key = self._read_site_config().get("encryption_key")
+        if not isinstance(encryption_key, str) or not encryption_key:
+            raise ValueError("ERPNext site encryption key is missing")
+        destination.write_text(
+            json.dumps({"encryption_key": encryption_key}, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(destination, 0o600)
 
     def _restore_service_volume(
         self,
@@ -386,7 +402,44 @@ class ERPNextStack:
         with source.open("rb") as handle:
             self.runner(command, check=True, stdin=handle)
 
-    def _restore_site_config(self, source: Path) -> None:
+    @staticmethod
+    def _read_legacy_site_crypto(source: Path) -> dict[str, str]:
+        with tarfile.open(source, mode="r:") as archive:
+            members = archive.getmembers()
+            if (
+                len(members) != 1
+                or members[0].name not in {"site_config.json", "./site_config.json"}
+                or not members[0].isfile()
+            ):
+                raise ValueError("invalid legacy ERPNext site config archive")
+            stream = archive.extractfile(members[0])
+            if stream is None:
+                raise ValueError("legacy ERPNext site config is unreadable")
+            payload = json.loads(stream.read().decode("utf-8"))
+        encryption_key = (
+            payload.get("encryption_key") if isinstance(payload, dict) else None
+        )
+        if not isinstance(encryption_key, str) or not encryption_key:
+            raise ValueError("legacy ERPNext site encryption key is missing")
+        return {"encryption_key": encryption_key}
+
+    def _restore_site_crypto(
+        self, source: Path, *, legacy_archive: bool = False
+    ) -> None:
+        source_payload = (
+            self._read_legacy_site_crypto(source)
+            if legacy_archive
+            else json.loads(source.read_text(encoding="utf-8"))
+        )
+        encryption_key = (
+            source_payload.get("encryption_key")
+            if isinstance(source_payload, dict)
+            else None
+        )
+        if not isinstance(encryption_key, str) or not encryption_key:
+            raise ValueError("ERPNext site encryption key is missing")
+        target_payload = self._read_site_config()
+        target_payload["encryption_key"] = encryption_key
         command = self.compose_command(
             "run",
             "--rm",
@@ -395,10 +448,17 @@ class ERPNextStack:
             "sh",
             "backend",
             "-c",
-            ("tar -C /home/frappe/frappe-bench/sites/aftermath.localhost -xf -"),
+            (
+                "umask 077; cat > /home/frappe/frappe-bench/sites/"
+                "aftermath.localhost/site_config.json"
+            ),
         )
-        with source.open("rb") as handle:
-            self.runner(command, check=True, stdin=handle)
+        self.runner(
+            command,
+            check=True,
+            input=json.dumps(target_payload, sort_keys=True) + "\n",
+            text=True,
+        )
 
     def _resume_bundle_services(
         self,
@@ -497,7 +557,7 @@ class ERPNextStack:
             try:
                 database = temporary / _BUNDLE_FILES["database"]
                 self.snapshot_database(database)
-                self._archive_site_config(temporary / _BUNDLE_FILES["site_config"])
+                self._capture_site_crypto(temporary / _BUNDLE_FILES["site_crypto"])
                 for key, service in (
                     ("redis_queue", "redis-queue"),
                     ("gateway_audit", "fault-gateway"),
@@ -555,15 +615,20 @@ class ERPNextStack:
         schema_version = (
             manifest.get("schema_version") if isinstance(manifest, dict) else None
         )
-        bundle_files = (
-            _BUNDLE_FILES
-            if schema_version == _BUNDLE_SCHEMA_VERSION
-            else _LEGACY_BUNDLE_FILES
-        )
+        if schema_version == _BUNDLE_SCHEMA_VERSION:
+            bundle_files = _BUNDLE_FILES
+        elif schema_version == _SITE_CONFIG_BUNDLE_SCHEMA_VERSION:
+            bundle_files = _SITE_CONFIG_BUNDLE_FILES
+        else:
+            bundle_files = _LEGACY_BUNDLE_FILES
         if (
             not isinstance(manifest, dict)
             or schema_version
-            not in {_BUNDLE_SCHEMA_VERSION, _LEGACY_BUNDLE_SCHEMA_VERSION}
+            not in {
+                _BUNDLE_SCHEMA_VERSION,
+                _SITE_CONFIG_BUNDLE_SCHEMA_VERSION,
+                _LEGACY_BUNDLE_SCHEMA_VERSION,
+            }
             or manifest.get("capture_mode") != _BUNDLE_CAPTURE_MODE
             or set(manifest.get("files", {})) != set(bundle_files)
             or not isinstance(manifest.get("running_services"), list)
@@ -597,8 +662,12 @@ class ERPNextStack:
 
         self.run("stop", *_BUNDLE_STOP_SERVICES)
         try:
-            if "site_config" in resolved_files:
-                self._restore_site_config(resolved_files["site_config"])
+            if "site_crypto" in resolved_files:
+                self._restore_site_crypto(resolved_files["site_crypto"])
+            elif "site_config" in resolved_files:
+                self._restore_site_crypto(
+                    resolved_files["site_config"], legacy_archive=True
+                )
             self._import_database(resolved_files["database"])
             self._restore_service_volume(
                 service="redis-queue",

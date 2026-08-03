@@ -16,7 +16,7 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
         files = {}
         mapping = {
             "database": "database.sql",
-            "site_config": "site-config.tar",
+            "site_crypto": "site-crypto.json",
             "redis_queue": "redis-queue.tar",
             "gateway_audit": "gateway-audit.tar",
             "remittance_audit": "remittance-audit.tar",
@@ -32,7 +32,7 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
         (bundle / "bundle.json").write_text(
             json.dumps(
                 {
-                    "schema_version": "1.1",
+                    "schema_version": "1.2",
                     "capture_mode": "simultaneous_service_quiescence",
                     "running_services": ["backend"],
                     "files": files,
