@@ -981,6 +981,10 @@ class FormalEvidenceBuilderTest(unittest.TestCase):
                 file_sha256(root / boundary["raw_failure_report_path"]),
             )
             self.assertEqual(
+                verification.boundary_state_path,
+                boundary["boundary_state_path"],
+            )
+            self.assertEqual(
                 verification.prefix_sha256,
                 file_sha256(root / prefix_path),
             )

@@ -248,6 +248,11 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         self.assertIn("--expected-cases 4", self.text)
         self.assertIn("--minimum-pass-rate 0.8", self.text)
         self.assertIn("--expected-execution-control true", self.text)
+        control = self.text[
+            self.text.index("Run execution controls"):
+            self.text.index("Complete and validate")
+        ]
+        self.assertIn('exit "$run_status"', control)
 
     def test_completion_and_public_archive_are_fail_closed(self) -> None:
         control = self.text.index("Run execution controls")

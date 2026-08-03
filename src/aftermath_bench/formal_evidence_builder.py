@@ -140,6 +140,7 @@ class FormalInputLockVerification:
     input_envelope_sha256: dict[str, str]
     variant_id: str
     boundary_state_sha256: str
+    boundary_state_path: str
     failure_report_sha256: str
     prefix_sha256: str
 
@@ -589,6 +590,7 @@ def verify_formal_input_lock(
         input_envelope_sha256=envelope_hashes,
         variant_id=variant_id,
         boundary_state_sha256=boundary_hash,
+        boundary_state_path=boundary_path,
         failure_report_sha256=actual_failure_hash,
         prefix_sha256=actual_prefix_hash,
     )

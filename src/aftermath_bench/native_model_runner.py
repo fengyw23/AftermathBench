@@ -35,6 +35,7 @@ from .model_runner import (
     _assistant_message,
     _without_private_reasoning,
 )
+from .native_boundary_equivalence import native_boundaries_equivalent
 from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
 from .native_erpnext_multiwarehouse_family import ERP_NEXT_MULTIWAREHOUSE_FAMILY
 from .native_family import (
@@ -60,7 +61,9 @@ from .native_kubernetes_settlement_v2_family import (
 )
 from .native_sales_family import SALES_RETURN_FAMILY
 from .native_scenario import NativeScenario, load_native_scenario
+from .path_safety import safe_relative_path
 from .schema import repository_root
+from .strict_json import load_json_strict
 
 NATIVE_SYSTEM_PROMPT = """\
 You are an enterprise operations agent working in a live ERPNext environment.
@@ -808,6 +811,40 @@ def run_native_return_agent(
     )
 
 
+def _pre_model_boundary_matches_lock(
+    *,
+    root: Path,
+    family_id: str,
+    locked_boundary_sha256: str,
+    locked_boundary_path: str | None,
+    evidence_path: Path,
+    evidence_sha256: str,
+) -> bool:
+    if evidence_sha256 == locked_boundary_sha256:
+        return True
+    try:
+        locked_path = safe_relative_path(
+            root,
+            str(locked_boundary_path or ""),
+            required_prefix="data",
+            must_exist=True,
+            require_file=True,
+        )
+        locked_boundary = load_json_strict(locked_path)
+        live_boundary = load_json_strict(evidence_path)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        return False
+    return (
+        isinstance(locked_boundary, dict)
+        and isinstance(live_boundary, dict)
+        and native_boundaries_equivalent(
+            family_id,
+            locked_boundary,
+            live_boundary,
+        )
+    )
+
+
 def run_live_native_agent(
     client: ChatClient,
     *,
@@ -853,7 +890,7 @@ def run_live_native_agent(
     formal_input_lock_verification: dict[str, Any] | None = None
     pre_model_boundary_evidence: dict[str, str] | None = None
     if formal_input_lock_path is not None:
-        formal_input_lock_verification = verify_formal_input_lock(
+        verified_input_lock = verify_formal_input_lock(
             formal_input_lock_path,
             root=root,
             scenario_id=scenario.scenario_id,
@@ -863,7 +900,8 @@ def run_live_native_agent(
             variant_id=str(failure_report["variant"]),
             failure_report_path=failure_report_path,
             prefix_path=prefix_path,
-        ).as_dict()
+        )
+        formal_input_lock_verification = verified_input_lock.as_dict()
         if pre_model_boundary_evidence_path is None:
             raise ValueError(
                 "formal input lock requires "
@@ -875,9 +913,20 @@ def run_live_native_agent(
                 "pre-model boundary evidence must be a regular file"
             )
         digest = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
-        if digest != formal_input_lock_verification[
-            "boundary_state_sha256"
-        ]:
+        if not _pre_model_boundary_matches_lock(
+            root=root,
+            family_id=family.family_id,
+            locked_boundary_sha256=formal_input_lock_verification[
+                "boundary_state_sha256"
+            ],
+            locked_boundary_path=getattr(
+                verified_input_lock,
+                "boundary_state_path",
+                None,
+            ),
+            evidence_path=evidence_path,
+            evidence_sha256=digest,
+        ):
             raise ValueError(
                 "pre-model live boundary evidence does not match "
                 "the formal input lock"

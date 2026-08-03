@@ -14,6 +14,7 @@ from aftermath_bench.native_model_runner import (
     NATIVE_FAMILY_REGISTRY,
     NATIVE_RETURN_TOOL_DEFINITIONS,
     _diagnose,
+    _pre_model_boundary_matches_lock,
     native_initial_message,
     run_live_native_agent,
     run_native_family_agent,
@@ -52,6 +53,51 @@ class NativeModelRunnerTest(unittest.TestCase):
         self.assertIn("PR-RET-1", message)
         for variant in self.scenario.variants:
             self.assertNotIn(variant, message)
+
+    def test_pre_model_lock_accepts_only_trusted_semantic_equivalence(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            locked_path = root / "data" / "formal" / "boundary.json"
+            live_path = root / "data" / "generated" / "boundary.json"
+            locked_path.parent.mkdir(parents=True)
+            live_path.parent.mkdir(parents=True)
+            locked_path.write_text('{"state":"locked"}\n', encoding="utf-8")
+            live_path.write_text('{"state":"live"}\n', encoding="utf-8")
+            locked_hash = hashlib.sha256(locked_path.read_bytes()).hexdigest()
+            live_hash = hashlib.sha256(live_path.read_bytes()).hexdigest()
+
+            with patch(
+                "aftermath_bench.native_model_runner."
+                "native_boundaries_equivalent",
+                return_value=True,
+            ) as equivalent:
+                self.assertTrue(
+                    _pre_model_boundary_matches_lock(
+                        root=root,
+                        family_id="erpnext-manufacturing-rework",
+                        locked_boundary_sha256=locked_hash,
+                        locked_boundary_path="data/formal/boundary.json",
+                        evidence_path=live_path,
+                        evidence_sha256=live_hash,
+                    )
+                )
+            equivalent.assert_called_once_with(
+                "erpnext-manufacturing-rework",
+                {"state": "locked"},
+                {"state": "live"},
+            )
+            self.assertFalse(
+                _pre_model_boundary_matches_lock(
+                    root=root,
+                    family_id="unregistered-family",
+                    locked_boundary_sha256=locked_hash,
+                    locked_boundary_path=None,
+                    evidence_path=live_path,
+                    evidence_sha256=live_hash,
+                )
+            )
 
     def test_tools_are_generic_and_schemas_are_closed(self) -> None:
         names = {tool.name for tool in NATIVE_RETURN_TOOL_DEFINITIONS}
