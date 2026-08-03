@@ -990,8 +990,12 @@ def validate_native_run_bindings(
         )
         if value is not None
     }
+    instance_bound_families = {
+        "forgejo-release-package-publication",
+        "forgejo-migration-deployment",
+    }
     if (
-        family_id == "forgejo-release-package-publication"
+        family_id in instance_bound_families
         and any(
             value is None
             for value in (
@@ -1002,7 +1006,7 @@ def validate_native_run_bindings(
         )
     ):
         raise ValueError(
-            "Forgejo publication inputs must all bind the instance spec"
+            "Forgejo instance-bound inputs must all bind the instance spec"
         )
     if len(instance_hashes) > 1:
         raise ValueError(

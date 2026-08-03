@@ -9,7 +9,10 @@ from aftermath_bench.native_forgejo_migration_family import (
     evaluate_forgejo_migration_model_state,
     forgejo_migration_initial_message,
 )
-from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
+from aftermath_bench.native_model_runner import (
+    NATIVE_FAMILY_REGISTRY,
+    validate_native_run_bindings,
+)
 from aftermath_bench.native_scenario import load_native_scenario
 from aftermath_bench.schema import repository_root
 
@@ -94,12 +97,25 @@ class NativeForgejoMigrationFamilyTest(unittest.TestCase):
         self.assertEqual(evaluation.diagnostics["action_run_count"], 1)
 
     def test_boundary_report_binds_scenario_instance_and_visible_failure(self) -> None:
-        text = (
-            self.root / "scripts" / "run_forgejo_migration_boundary.py"
-        ).read_text(encoding="utf-8")
+        text = (self.root / "scripts" / "run_forgejo_migration_boundary.py").read_text(
+            encoding="utf-8"
+        )
         self.assertIn('"scenario_id": instance.scenario_id', text)
         self.assertIn('"instance_spec_sha256": instance.sha256', text)
         self.assertIn('"visible_failure": {', text)
+
+    def test_runner_rejects_an_unbound_migration_failure_report(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must all bind"):
+            validate_native_run_bindings(
+                scenario=self.scenario,
+                prefix=self.prefix,
+                failure_report={
+                    "scenario_id": self.scenario.scenario_id,
+                    "variant": self.scenario.variants[0],
+                    "visible_failure": {"ok": False},
+                },
+                family_id="forgejo-migration-deployment",
+            )
 
 
 if __name__ == "__main__":
