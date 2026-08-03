@@ -177,3 +177,21 @@ and successful deterministic references for both. The stronger
 `inventory_diff_completion` baseline remains in the gate; a high score from
 that policy rejects the candidate instead of allowing a graph-size metric to
 label it hard.
+
+The first native r2 attempt, GitHub Actions run
+[`30849871072`](https://github.com/fengyw23/AftermathBench/actions/runs/30849871072),
+demonstrates that the divergence checks are fail-closed. All four references
+passed and all seven fixed policies scored `0/4`, but admission still rejected
+the task: the minimum variant-specific prefix and minimum pairwise mutation
+distance were both 2 while r2 had declared 3. Its diagnostic artifact is bound
+to digest
+`sha256:b89453df9826a7a9418e05cdd855c521eb671ffd898d398527642f06b4e143ce`.
+The rejected run is not an admitted scenario or model result.
+
+The next construction keeps the valid/corrupt pair's boundary difference
+limited to the post-approval binary change, but increases *real* recovery
+divergence elsewhere: the partial-package state has three durable approved
+files that must be preserved, while both complete-package states encounter one
+native failed downstream attempt after the index Release is created and must
+reconcile it through webhook history and the receiver ledger. The admission
+threshold remains unchanged.
