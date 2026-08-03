@@ -100,6 +100,21 @@ class ForgejoPackageProvenanceInstanceTest(unittest.TestCase):
         )
         self.assertEqual(persisted, blueprint)
 
+    def test_runtime_creates_the_owner_declared_by_selected_instance(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "forgejo-package-provenance-runtime.yml"
+        ).read_text(encoding="utf-8")
+        prefix = workflow[
+            workflow.index("Build and freeze the package prefix") :
+            workflow.index("Replay matched boundaries")
+        ]
+        self.assertIn('json.load(open(sys.argv[1]', prefix)
+        self.assertIn('["owner"]', prefix)
+        self.assertIn('--username "$owner"', prefix)
+
 
 if __name__ == "__main__":
     unittest.main()

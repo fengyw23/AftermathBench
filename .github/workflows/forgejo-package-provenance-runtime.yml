@@ -62,7 +62,10 @@ jobs:
           run_root="$RUNNER_TEMP/forgejo-package-provenance"
           mkdir -p "$runtime_root" "$run_root/runtime"
           python scripts/manage_forgejo_stack.py up
-          python scripts/manage_forgejo_stack.py setup
+          owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["owner"])' "$INSTANCE_SPEC")"
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
           python scripts/build_forgejo_package_provenance_prefix.py \
             --credentials "$runtime_root/credentials.json" \
             --instance-spec "$INSTANCE_SPEC" \
