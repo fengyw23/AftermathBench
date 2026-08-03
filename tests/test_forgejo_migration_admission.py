@@ -9,7 +9,7 @@ from scripts.build_forgejo_migration_admission import _observed_graph
 class ForgejoMigrationAdmissionTest(unittest.TestCase):
     def test_graph_relations_replay_against_native_terminal_projection(self) -> None:
         prefix = {
-            "scenario_id": "forgejo-migration-deployment-dev-001",
+            "scenario_id": "forgejo-migration-deployment-dev-001-r1",
             "instance_spec_sha256": "spec-sha",
             "repository": "customer-api-deployment",
             "source_commit": "commit-4",
@@ -19,6 +19,7 @@ class ForgejoMigrationAdmissionTest(unittest.TestCase):
         }
         fixture = {
             "version": "2.0.0",
+            "prior_version": "1.9.4",
             "migration_id": "migration-1",
             "artifact_digest": "sha256:artifact",
             "workflow_path": ".forgejo/workflows/deploy.yml",
@@ -27,7 +28,6 @@ class ForgejoMigrationAdmissionTest(unittest.TestCase):
             "production_environment": "production",
             "protected_environment": "staging-next",
             "release_tag": "v2.0.0",
-            "protected_release_tag": "v1.9.4",
         }
         evidence = {
             "repository": prefix["repository"],
@@ -77,8 +77,10 @@ class ForgejoMigrationAdmissionTest(unittest.TestCase):
                 }
             ],
             "target_release": {"tag_name": fixture["release_tag"]},
-            "protected_release": {
-                "tag_name": fixture["protected_release_tag"]
+            "prior_artifact": {
+                "version": fixture["prior_version"],
+                "digest": "sha256:prior",
+                "attempt_count": 1,
             },
             "change_issue": {"number": 1, "state": "closed"},
             "protected_issue": {"number": 2, "state": "open"},

@@ -22,7 +22,7 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             root
             / "data"
             / "scenario_blueprints"
-            / "forgejo-migration-deployment-dev-001"
+            / "forgejo-migration-deployment-dev-001-r1"
             / "instance.json"
         )
         self.assertEqual(
@@ -64,10 +64,6 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             "id": 1,
             "owner": {"login": "aftermath"},
         }
-        forgejo.get_branch.return_value = {
-            "name": "main",
-            "commit": {"id": "initial-commit"},
-        }
         forgejo.create_milestone.return_value = {"id": 10}
         forgejo.create_issue.side_effect = [
             {"number": 1},
@@ -76,11 +72,7 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         forgejo.create_file.side_effect = [
             {"commit": {"sha": f"commit-{index}"}} for index in range(1, 5)
         ]
-        forgejo.create_branch.side_effect = [
-            {"name": "release/1.9.4"},
-            {"name": "protected/staging-next"},
-        ]
-        forgejo.create_release.return_value = {"id": 20}
+        forgejo.create_branch.return_value = {"name": "protected/staging-next"}
         forgejo.create_branch_protection.return_value = {"rule_name": "protected/*"}
 
         deployment = MagicMock()
@@ -95,16 +87,8 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         self.assertEqual(prefix.source_commit, "commit-4")
         self.assertEqual(prefix.change_issue_index, 1)
         self.assertEqual(prefix.protected_issue_index, 2)
-        self.assertEqual(len(prefix.trace), 21)
-        forgejo.create_release.assert_called_once()
-        self.assertEqual(
-            forgejo.create_release.call_args.kwargs["target"],
-            "release/1.9.4",
-        )
-        self.assertEqual(
-            forgejo.create_branch.call_args_list[0].kwargs["from_ref"],
-            "initial-commit",
-        )
+        self.assertEqual(len(prefix.trace), 18)
+        forgejo.create_release.assert_not_called()
         self.assertEqual(
             {event["system"] for event in prefix.trace},
             {"forgejo", "deployment-target"},

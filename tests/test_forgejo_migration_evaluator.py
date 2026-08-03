@@ -29,7 +29,13 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
                     "version": spec.version,
                     "digest": spec.artifact_digest,
                     "attempt_count": 1,
-                }
+                },
+                {
+                    "version": spec.prior_version,
+                    "digest": f"sha256:artifact-production-{spec.prior_version}",
+                    "source_commit": f"seed-{spec.prior_version}",
+                    "attempt_count": 1,
+                },
             ],
             "deployments": [
                 {
@@ -75,7 +81,6 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
         forgejo = MagicMock()
         forgejo.list_releases.return_value = [
             {"tag_name": spec.release_tag},
-            {"tag_name": spec.protected_release_tag},
         ]
         forgejo.list_issues.return_value = [
             {"number": 1, "state": "closed"},
@@ -95,6 +100,7 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
             {"id": 201, "run_id": 101, "status": "success"}
         ]
         protected = {
+            "artifacts": [target.state.return_value["artifacts"][1]],
             "deployments": [target.state.return_value["deployments"][1]],
             "replicas": target.state.return_value["replicas"][2:],
         }

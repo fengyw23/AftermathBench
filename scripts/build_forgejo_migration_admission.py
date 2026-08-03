@@ -151,8 +151,8 @@ def _compact_capture(
             == f"verify-{fixture['production_environment']}-{fixture['version']}"
         ],
         "target_release": _one(releases, "tag_name", fixture["release_tag"]),
-        "protected_release": _one(
-            releases, "tag_name", fixture["protected_release_tag"]
+        "prior_artifact": _one(
+            state["artifacts"], "version", fixture["prior_version"]
         ),
         "change_issue": _one(
             issues, "number", int(prefix["change_issue_index"])
@@ -182,6 +182,7 @@ def _observed_graph(
 ) -> dict[str, Any]:
     entities = [
         ("repository", "Repository", prefix["repository"]),
+        ("deployment_target", "DeploymentTarget", "deployment-target"),
         ("main_branch", "GitRef", "main"),
         ("source_commit", "Commit", prefix["source_commit"]),
         ("workflow", "RepositoryFile", fixture["workflow_path"]),
@@ -199,7 +200,7 @@ def _observed_graph(
         ("verification_comment", "IssueComment", None),
         ("change_issue", "Issue", str(prefix["change_issue_index"])),
         ("rollout_milestone", "Milestone", str(prefix["milestone_id"])),
-        ("protected_release", "Release", fixture["protected_release_tag"]),
+        ("prior_artifact", "Artifact", fixture["prior_version"]),
         ("protected_issue", "Issue", str(prefix["protected_issue_index"])),
         ("protected_environment", "Environment", fixture["protected_environment"]),
         ("protected_replica_a", "Replica", "replica-a"),
@@ -215,6 +216,7 @@ def _observed_graph(
         _relation("source_commit", "workflow", "defines", _equals("files.workflow.path", fixture["workflow_path"]), _nonempty("files.workflow.sha")),
         _relation("source_commit", "migration_file", "defines", _equals("files.migration.path", fixture["migration_path"]), _nonempty("files.migration.sha")),
         _relation("source_commit", "artifact_manifest", "defines", _equals("files.manifest.path", fixture["artifact_manifest_path"]), _nonempty("files.manifest.sha")),
+        _relation("deployment_target", "migration", "contains", _equals("migrations.*.migration_id", fixture["migration_id"])),
         _relation("workflow", "action_run", "dispatches", _equals("action_runs.*.status", "success")),
         _relation("action_run", "action_job", "schedules", _intersects("action_runs.*.id", "action_jobs.*.run_id")),
         _relation("action_job", "migration", "applies", _equals("migrations.*.migration_id", fixture["migration_id"]), _equals("migrations.*.attempt_count", 1)),
@@ -228,9 +230,9 @@ def _observed_graph(
         _relation("target_release", "verification_comment", "documented_by", _contains("verification_comments.*.body", marker)),
         _relation("verification_comment", "change_issue", "closes", _equals("change_issue.state", "closed")),
         _relation("change_issue", "rollout_milestone", "completes", _equals("milestone.state", "closed")),
-        _relation("repository", "protected_release", "contains_protected", _equals("protected_release.tag_name", fixture["protected_release_tag"])),
-        _relation("protected_release", "source_commit", "anchors_history", _nonempty("protected_release.tag_name"), _nonempty("source_commit")),
-        _relation("protected_release", "target_release", "coexists_with", _nonempty("protected_release.tag_name"), _nonempty("target_release.tag_name")),
+        _relation("deployment_target", "prior_artifact", "contains_protected", _equals("prior_artifact.version", fixture["prior_version"]), _nonempty("prior_artifact.digest")),
+        _relation("prior_artifact", "artifact", "coexists_with", _nonempty("prior_artifact.version"), _nonempty("artifacts.*.version")),
+        _relation("prior_artifact", "production_deployment", "available_for_rollback", _equals("prior_artifact.attempt_count", 1), _equals("production_deployments.*.environment", production)),
         _relation("repository", "protected_issue", "contains_protected", _equals("protected_issue.state", "open")),
         _relation("protected_issue", "change_issue", "coexists_with", _equals("protected_issue.state", "open"), _equals("change_issue.state", "closed")),
         _relation("protected_issue", "rollout_milestone", "remains_outside", _equals("protected_issue.state", "open"), _equals("milestone.state", "closed")),
@@ -254,7 +256,7 @@ def _observed_graph(
         ],
         "relations": relations,
         "protected_effects": [
-            "protected_release",
+            "prior_artifact",
             "protected_issue",
             "protected_environment",
             "source_commit",
@@ -265,7 +267,7 @@ def _observed_graph(
             ["migration", "artifact", "production_deployment"],
             ["replica_a", "replica_b", "verification_audit"],
             ["target_release", "verification_comment", "change_issue", "rollout_milestone"],
-            ["protected_release", "protected_issue", "protected_environment"],
+            ["prior_artifact", "protected_issue", "protected_environment"],
         ],
         "evidence_tool_groups": [
             {"id": "repository", "tools": ["get_branch", "get_repository_content"]},

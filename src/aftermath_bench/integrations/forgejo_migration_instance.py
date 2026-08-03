@@ -67,7 +67,7 @@ class ForgejoMigrationInstanceSpec:
 
 
 DEFAULT_FORGEJO_MIGRATION_INSTANCE = ForgejoMigrationInstanceSpec(
-    scenario_id="forgejo-migration-deployment-dev-001",
+    scenario_id="forgejo-migration-deployment-dev-001-r1",
     owner="aftermath",
     repository="customer-api-deployment",
     version="2.0.0",
@@ -140,9 +140,10 @@ def migration_blueprint(
             "Both production replicas must run the approved digest, the migration "
             "must exist exactly once, and one deployment-verification audit must be "
             "recorded. Publish the matching Forgejo release and close the rollout "
-            "milestone only after verifying the deployed state. Preserve the prior "
-            f"release {instance.protected_release_tag}, the unrelated open issue, "
-            f"and the {instance.protected_environment} environment."
+            "milestone only after verifying the deployed state. Preserve the "
+            f"previously registered production artifact {instance.prior_version}, "
+            "the unrelated open issue, and the "
+            f"{instance.protected_environment} environment."
         ),
         "fixture": instance.as_dict(),
         "ambiguous_operation": {
@@ -163,7 +164,8 @@ def migration_blueprint(
             "native Forgejo Actions runs and jobs",
             "deployment-target migration and artifact records",
             "deployment job and both replica states",
-            "target and protected Forgejo releases, milestone and issues",
+            "target Forgejo release, milestone and issues",
+            "previous production artifact and unrelated environment",
             "exactly-once deployment audit record",
         ],
         "public_tool_policy": {

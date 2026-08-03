@@ -82,6 +82,14 @@ class ForgejoMigrationEvaluator:
             for row in self.prefix["protected_state"]["replicas"]
             if row["environment"] == spec.protected_environment
         ]
+        prior_artifacts = [
+            row for row in state["artifacts"] if row["version"] == spec.prior_version
+        ]
+        initial_prior_artifacts = [
+            row
+            for row in self.prefix["protected_state"]["artifacts"]
+            if row["version"] == spec.prior_version
+        ]
         change = next(
             (
                 item
@@ -125,11 +133,9 @@ class ForgejoMigrationEvaluator:
                 release.get("tag_name") == spec.release_tag for release in releases
             )
             == 1,
-            "prior_release_preserved": sum(
-                release.get("tag_name") == spec.protected_release_tag
-                for release in releases
-            )
-            == 1,
+            "prior_artifact_preserved": prior_artifacts
+            == initial_prior_artifacts
+            and len(prior_artifacts) == 1,
             "change_closed": change is not None and change.get("state") == "closed",
             "verification_comment_exactly_once": sum(
                 f"Deployment verification: {spec.version} {spec.artifact_digest}"
@@ -167,7 +173,7 @@ class ForgejoMigrationEvaluator:
             "preservation": all(
                 checks[key]
                 for key in (
-                    "prior_release_preserved",
+                    "prior_artifact_preserved",
                     "protected_issue_open",
                     "protected_environment_preserved",
                 )
