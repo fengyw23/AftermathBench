@@ -20,7 +20,10 @@ class ERPNextNativeInstanceTests(unittest.TestCase):
             family="erpnext-manufacturing-rework",
             title="Recover a private manufacturing instance",
             user_instruction="Preserve accepted output and complete correction.",
-            fixture={f"field_{index}": index for index in range(6)},
+            fixture={
+                "rework_quantity": 2,
+                **{f"field_{index}": index for index in range(5)},
+            },
         )
 
     def test_hidden_render_binds_instance_without_mutating_template(self) -> None:
@@ -31,6 +34,10 @@ class ERPNextNativeInstanceTests(unittest.TestCase):
             "benchmark_split": "public_dev",
             "hidden_test_eligible": False,
             "fixture": {"public": True},
+            "ambiguous_operation": {
+                "operation": "submit a prepared corrective Job Card",
+                "surface_result": "connection lost",
+            },
             "matched_variants": [{"id": "boundary"}],
         }
         original = copy.deepcopy(template)
@@ -55,6 +62,35 @@ class ERPNextNativeInstanceTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "fields"):
                 ERPNextNativeInstanceSpec.from_path(path)
+
+    def test_manufacturing_operation_tracks_instance_quantity(self) -> None:
+        instance = ERPNextNativeInstanceSpec(
+            schema_version="1.0",
+            scenario_id="erpnext-manufacturing-rework-public-dev-002",
+            family="erpnext-manufacturing-rework",
+            title="Recover a public manufacturing instance",
+            user_instruction="Preserve nine units and rework three units.",
+            fixture={
+                "rework_quantity": 3,
+                **{f"field_{index}": index for index in range(5)},
+            },
+        )
+        rendered = render_erpnext_native_blueprint(
+            instance,
+            template={
+                "family": instance.family,
+                "ambiguous_operation": {
+                    "operation": "template-specific stale quantity",
+                    "surface_result": "connection lost",
+                },
+            },
+            instance_id="dev-002",
+            benchmark_split="public_dev",
+        )
+        self.assertEqual(
+            rendered["ambiguous_operation"]["operation"],
+            "submit the prepared 3-unit corrective Job Card",
+        )
 
 
 if __name__ == "__main__":

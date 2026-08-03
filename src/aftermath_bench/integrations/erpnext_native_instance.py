@@ -120,4 +120,23 @@ def render_erpnext_native_blueprint(
             "instance_spec_sha256": instance.sha256,
         }
     )
+    if instance.family == "erpnext-manufacturing-rework":
+        rework_quantity = instance.fixture.get("rework_quantity")
+        if not isinstance(rework_quantity, (int, float)) or rework_quantity <= 0:
+            raise ValueError(
+                "manufacturing instance rework_quantity must be positive"
+            )
+        rendered_quantity = (
+            str(int(rework_quantity))
+            if float(rework_quantity).is_integer()
+            else str(rework_quantity)
+        )
+        ambiguous = payload.get("ambiguous_operation")
+        if not isinstance(ambiguous, dict):
+            raise ValueError(
+                "manufacturing template lacks ambiguous_operation"
+            )
+        ambiguous["operation"] = (
+            f"submit the prepared {rendered_quantity}-unit corrective Job Card"
+        )
     return payload

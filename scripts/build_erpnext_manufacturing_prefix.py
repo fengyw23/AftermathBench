@@ -38,6 +38,9 @@ def main() -> int:
         .build()
         .as_dict()
     )
+    instance_spec_sha256 = scenario.raw.get("instance_spec_sha256")
+    if isinstance(instance_spec_sha256, str) and instance_spec_sha256:
+        payload["instance_spec_sha256"] = instance_spec_sha256
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
