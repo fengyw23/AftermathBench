@@ -15,6 +15,7 @@ class ERPNextManufacturingModelWorkflowTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_public_workflow_uses_the_admitted_manufacturing_instance(self) -> None:
+        self.assertIn("erpnext-manufacturing-model", self.text)
         self.assertIn(
             "data/scenarios/erpnext-manufacturing-rework-dev-001/scenario.json",
             self.text,
