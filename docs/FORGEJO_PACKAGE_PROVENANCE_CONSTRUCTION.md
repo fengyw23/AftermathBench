@@ -271,3 +271,14 @@ Both collections have zero run errors and matched-group success `1/1`. These
 results validate the task's execution surface; they do not measure recovery
 inference because the control prompt supplies the intended recovery scope.
 The ordinary condition is evaluated separately only after this gate passes.
+
+Ordinary trajectories are analyzed with
+`scripts/analyze_forgejo_package_provenance_runs.py`. In addition to terminal
+pass/fail, it records whether the Agent inspected package inventory, the
+approved Pull Request and source, Release state, both native delivery
+histories, and the external receiver ledger before its first write. It also
+checks the key nonmonotonic pair directly: the complete valid package must be
+preserved, while the complete package whose binary came from the later
+base-branch change must be deleted and rebuilt. This separates incomplete
+investigation from an incorrect recovery-scope inference even when both lead
+to the same failed terminal check.
