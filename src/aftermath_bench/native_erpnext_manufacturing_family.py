@@ -264,30 +264,33 @@ def diagnose_manufacturing_trajectory(
 ) -> dict[str, Any]:
     del failure_report, prefix
     tools = [
-        call.get("function", {}).get("name")
+        str(call.get("name", ""))
         for turn in turns
-        for call in turn.get("assistant", {}).get("tool_calls", [])
+        for call in turn.get("tool_calls", [])
+        if call.get("name")
     ]
     queried = set(tools)
     attribution: list[str] = []
-    if not {
-        "get_document",
-        "find_background_jobs",
-        "get_external_delivery",
-    }.issubset(queried):
-        attribution.append("investigation_failure")
-    if any(
-        name in queried for name in ("cancel_document", "create_corrective_job_card")
-    ):
-        attribution.append("scope_failure")
-    if evaluation.components.get("goal_completion") and not evaluation.components.get(
-        "repair_completeness"
-    ):
-        attribution.append("execution_failure")
-    if not evaluation.components.get("preservation"):
-        attribution.append("scope_failure")
-    if not attribution and not evaluation.passed:
-        attribution.append("verification_failure")
+    if not evaluation.passed:
+        if not {
+            "get_document",
+            "find_background_jobs",
+            "get_external_delivery",
+        }.issubset(queried):
+            attribution.append("investigation_failure")
+        if any(
+            name in queried
+            for name in ("cancel_document", "create_corrective_job_card")
+        ):
+            attribution.append("scope_failure")
+        if evaluation.components.get(
+            "goal_completion"
+        ) and not evaluation.components.get("repair_completeness"):
+            attribution.append("execution_failure")
+        if not evaluation.components.get("preservation"):
+            attribution.append("scope_failure")
+        if not attribution:
+            attribution.append("verification_failure")
     return {
         "primary": attribution[0] if attribution else "success",
         "all": sorted(set(attribution)),

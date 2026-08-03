@@ -251,29 +251,34 @@ def diagnose_multiwarehouse_trajectory(
 ) -> dict[str, Any]:
     del failure_report, prefix
     tools = [
-        call.get("function", {}).get("name")
+        str(call.get("name", ""))
         for turn in turns
-        for call in turn.get("assistant", {}).get("tool_calls", [])
+        for call in turn.get("tool_calls", [])
+        if call.get("name")
     ]
     queried = set(tools)
     attribution: list[str] = []
-    if not {
-        "list_documents",
-        "get_stock_ledger",
-        "get_stock_balance",
-        "get_external_delivery",
-    }.issubset(queried):
-        attribution.append("investigation_failure")
-    if any(name in queried for name in ("cancel_document", "create_second_transfer_leg")):
-        attribution.append("scope_failure")
-    if evaluation.components.get("goal_completion") and not evaluation.components.get(
-        "repair_completeness"
-    ):
-        attribution.append("execution_failure")
-    if not evaluation.components.get("preservation"):
-        attribution.append("scope_failure")
-    if not attribution and not evaluation.passed:
-        attribution.append("verification_failure")
+    if not evaluation.passed:
+        if not {
+            "list_documents",
+            "get_stock_ledger",
+            "get_stock_balance",
+            "get_external_delivery",
+        }.issubset(queried):
+            attribution.append("investigation_failure")
+        if any(
+            name in queried
+            for name in ("cancel_document", "create_second_transfer_leg")
+        ):
+            attribution.append("scope_failure")
+        if evaluation.components.get(
+            "goal_completion"
+        ) and not evaluation.components.get("repair_completeness"):
+            attribution.append("execution_failure")
+        if not evaluation.components.get("preservation"):
+            attribution.append("scope_failure")
+        if not attribution:
+            attribution.append("verification_failure")
     return {
         "primary": attribution[0] if attribution else "success",
         "all": sorted(set(attribution)),
@@ -281,7 +286,9 @@ def diagnose_multiwarehouse_trajectory(
     }
 
 
-def _build_environment(context: NativeRuntimeContext) -> ERPNextMultiwarehouseEnvironment:
+def _build_environment(
+    context: NativeRuntimeContext,
+) -> ERPNextMultiwarehouseEnvironment:
     adapter = FrappeHTTPAdapter(
         FrappeConfig(
             base_url=context.base_url,

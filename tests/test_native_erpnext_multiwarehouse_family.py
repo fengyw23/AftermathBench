@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from aftermath_bench.native_erpnext_multiwarehouse_family import (
     ERP_NEXT_MULTIWAREHOUSE_FAMILY,
     ERP_NEXT_MULTIWAREHOUSE_TOOLS,
+    diagnose_multiwarehouse_trajectory,
     multiwarehouse_initial_message,
 )
 from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
@@ -60,7 +62,9 @@ class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
             }
         )
         message = multiwarehouse_initial_message(
-            scenario=NativeScenario(Path("scenario.json"), {"user_instruction": "do it"}),
+            scenario=NativeScenario(
+                Path("scenario.json"), {"user_instruction": "do it"}
+            ),
             prefix=prefix,
             failure_report={"latest_attempt": {}},
             execution_control=True,
@@ -68,6 +72,41 @@ class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
         self.assertIn("Emergency Reserve - AL", message)
         self.assertIn("one 6-unit reservation", message)
         self.assertNotIn("North emergency", message)
+
+    def test_diagnostics_read_the_current_trajectory_schema(self) -> None:
+        report = diagnose_multiwarehouse_trajectory(
+            turns=[
+                {
+                    "tool_calls": [
+                        {"name": "list_documents"},
+                        {"name": "get_stock_ledger"},
+                        {"name": "get_stock_balance"},
+                        {"name": "get_external_delivery"},
+                    ]
+                }
+            ],
+            evaluation=SimpleNamespace(
+                passed=False,
+                components={
+                    "goal_completion": False,
+                    "repair_completeness": False,
+                    "preservation": True,
+                },
+            ),
+            failure_report={},
+            prefix={},
+        )
+        self.assertEqual(report["tool_names"][0], "list_documents")
+        self.assertNotIn("investigation_failure", report["all"])
+
+    def test_success_is_not_relabelled_as_an_investigation_failure(self) -> None:
+        report = diagnose_multiwarehouse_trajectory(
+            turns=[],
+            evaluation=SimpleNamespace(passed=True, components={}),
+            failure_report={},
+            prefix={},
+        )
+        self.assertEqual(report["primary"], "success")
 
 
 if __name__ == "__main__":
