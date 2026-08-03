@@ -1,0 +1,178 @@
+name: erpnext-manufacturing-model
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Independent runs per matched failure boundary
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the correct recovery scope to isolate execution
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate-public-development-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      RUN_ROOT: runtimes/erpnext/.runtime/manufacturing-model
+      BLUEPRINT: data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json
+      SCENARIO: data/scenarios/erpnext-manufacturing-rework-dev-001/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate public scenario and requested experiment
+        env:
+          MODEL_INPUT: ${{ inputs.model }}
+          REPETITIONS_INPUT: ${{ inputs.repetitions }}
+          EXECUTION_CONTROL_INPUT: ${{ inputs.execution_control }}
+        run: |
+          set -euo pipefail
+          test -n "$AFTERMATH_API_KEY"
+          case "$REPETITIONS_INPUT" in
+            ''|*[!0-9]*|0) echo "repetitions must be a positive integer" >&2; exit 2 ;;
+          esac
+          echo "MODEL_ID=$MODEL_INPUT" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$REPETITIONS_INPUT" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$EXECUTION_CONTROL_INPUT" >> "$GITHUB_ENV"
+          python -m aftermath_bench validate-native-scenario --scenario "$SCENARIO"
+          python -m unittest discover -s tests \
+            -p 'test_native_erpnext_manufacturing_family.py' -v
+          python -m unittest discover -s tests \
+            -p 'test_native_model_runner.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and all four replayable boundaries
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          mkdir -p "$RUN_ROOT/runtime" "$RUN_ROOT/bundles" "$RUN_ROOT/model"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute --report "$RUN_ROOT/runtime/source-verification.json"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_manufacturing_prefix.py \
+            --scenario "$BLUEPRINT" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$RUN_ROOT/runtime/prefix.json"
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/bundles/prefix"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/run_erpnext_manufacturing_failure.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
+              --output "$RUN_ROOT/runtime/$variant.json"
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+          done
+
+      - name: Run matched-group model evaluation from identical boundaries
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          run_status=0
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$RUN_ROOT/model/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              output="$run_dir/$variant.json"
+              control_flag=()
+              if [ "$EXECUTION_CONTROL" = "true" ]; then
+                control_flag=(--execution-control)
+              fi
+              for attempt in 1 2
+              do
+                rm -f "$output"
+                python scripts/manage_erpnext_stack.py restore-bundle \
+                  --snapshot "$RUN_ROOT/bundles/boundary-$variant" \
+                  > "$run_dir/$variant-attempt-$attempt-restore.log" 2>&1
+                python -m aftermath_bench run-native-model \
+                  --provider openai-compatible \
+                  --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                  --model "$MODEL_ID" \
+                  --scenario "$SCENARIO" \
+                  --credentials "$runtime_root/credentials.json" \
+                  --prefix "$RUN_ROOT/runtime/prefix.json" \
+                  --failure-report "$RUN_ROOT/runtime/$variant.json" \
+                  --max-turns 25 \
+                  --model-timeout-seconds 600 \
+                  "${control_flag[@]}" \
+                  --output "$output" \
+                  > "$run_dir/$variant-attempt-$attempt.log" 2>&1 \
+                  || true
+                [ -s "$output" ] && break
+              done
+              if [ ! -s "$output" ]; then run_status=1; fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$RUN_ROOT/model" \
+            --scenario "$SCENARIO" \
+            --expected-execution-control "$EXECUTION_CONTROL" \
+            --output "$RUN_ROOT/model/summary.json" \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Remove credentials and capture diagnostics
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all > "$RUN_ROOT/runtime/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color > "$RUN_ROOT/runtime/compose.log" 2>&1 || true
+
+      - name: Upload complete public experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-manufacturing-model-${{ github.run_id }}
+          path: |
+            ${{ env.RUN_ROOT }}/runtime/
+            ${{ env.RUN_ROOT }}/model/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Tear down services and remove database snapshots
+        if: always()
+        run: |
+          python scripts/manage_erpnext_stack.py purge || true
+          rm -rf "$RUN_ROOT/bundles"
