@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import unittest
+from unittest.mock import Mock
 
 from scripts.run_erpnext_manufacturing_failure import (
+    collect_manufacturing_boundary_evidence,
     validate_manufacturing_boundary,
 )
 
@@ -65,6 +67,43 @@ class ERPNextManufacturingBoundaryTest(unittest.TestCase):
             "async_job_pending", evidence, self.prefix, self.gateway
         )
         self.assertTrue(result["passed"], result["failures"])
+
+    def test_pending_capture_waits_until_native_job_is_visible(self) -> None:
+        absent = copy.deepcopy(self.evidence)
+        absent["quality_release_delivery"] = None
+        queued = copy.deepcopy(absent)
+        queued["rq_jobs"] = [
+            {"status": "queued", "arguments": '{"doc":"JC-C"}'}
+        ]
+        collector = Mock()
+        collector.collect.side_effect = [absent, queued]
+        evidence = collect_manufacturing_boundary_evidence(
+            "async_job_pending",
+            collector,
+            self.prefix,
+            monotonic=lambda: 0,
+            sleep=lambda _seconds: None,
+        )
+        self.assertEqual(evidence, queued)
+        self.assertEqual(collector.collect.call_count, 2)
+
+    def test_response_lost_capture_waits_for_delivery_settlement(self) -> None:
+        pending = copy.deepcopy(self.evidence)
+        pending["quality_release_delivery"] = None
+        pending["rq_jobs"] = [
+            {"status": "started", "arguments": '{"doc":"JC-C"}'}
+        ]
+        collector = Mock()
+        collector.collect.side_effect = [pending, self.evidence]
+        evidence = collect_manufacturing_boundary_evidence(
+            "database_committed_response_lost",
+            collector,
+            self.prefix,
+            monotonic=lambda: 0,
+            sleep=lambda _seconds: None,
+        )
+        self.assertEqual(evidence, self.evidence)
+        self.assertEqual(collector.collect.call_count, 2)
 
     def test_boundary_uses_instance_quantity_instead_of_public_fixture(self) -> None:
         prefix = {**self.prefix, "accepted_quantity": 11}

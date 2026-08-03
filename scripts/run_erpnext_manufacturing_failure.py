@@ -41,6 +41,46 @@ def _unfinished_jobs(evidence: dict[str, Any], reference: str) -> list[dict[str,
     ]
 
 
+def collect_manufacturing_boundary_evidence(
+    variant: str,
+    collector: ERPNextManufacturingEvidenceCollector,
+    prefix: dict[str, Any],
+    *,
+    timeout_seconds: float = 30,
+    poll_interval_seconds: float = 0.5,
+    monotonic: Any = time.monotonic,
+    sleep: Any = time.sleep,
+) -> dict[str, Any]:
+    """Wait only for native records that define an asynchronous boundary.
+
+    ERPNext commits the Job Card before its after-commit enqueue work becomes
+    visible through the RQ Job DocType.  Capturing immediately can therefore
+    turn the same native outcome into either ``pending`` or ``missing`` based
+    only on scheduler timing.  Workers remain stopped for the pending variant,
+    so observing the queued record does not advance the business process.
+    """
+
+    reference = str(prefix["corrective_job_card"])
+    evidence = collector.collect(prefix)
+    if variant not in {
+        "database_committed_response_lost",
+        "async_job_pending",
+    }:
+        return evidence
+    deadline = monotonic() + timeout_seconds
+    while monotonic() < deadline:
+        jobs = _unfinished_jobs(evidence, reference)
+        if variant == "database_committed_response_lost":
+            ready = evidence.get("quality_release_delivery") is not None and not jobs
+        else:
+            ready = evidence.get("quality_release_delivery") is None and bool(jobs)
+        if ready:
+            break
+        sleep(poll_interval_seconds)
+        evidence = collector.collect(prefix)
+    return evidence
+
+
 def validate_manufacturing_boundary(
     variant: str,
     evidence: dict[str, Any],
@@ -204,18 +244,11 @@ def main() -> int:
         "events", []
     )
     collector = ERPNextManufacturingEvidenceCollector(adapter)
-    evidence = collector.collect(prefix)
-    if args.variant == "database_committed_response_lost":
-        deadline = time.monotonic() + 30
-        while (
-            (
-                evidence.get("quality_release_delivery") is None
-                or _unfinished_jobs(evidence, str(prefix["corrective_job_card"]))
-            )
-            and time.monotonic() < deadline
-        ):
-            time.sleep(0.5)
-            evidence = collector.collect(prefix)
+    evidence = collect_manufacturing_boundary_evidence(
+        args.variant,
+        collector,
+        prefix,
+    )
     validation = validate_manufacturing_boundary(
         args.variant,
         evidence,
