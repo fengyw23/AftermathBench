@@ -154,7 +154,12 @@ ERP_NEXT_MANUFACTURING_TOOLS = (
     ),
     ToolDefinition(
         "create_quality_inspection",
-        "Create a deterministic in-process inspection for a Job Card or Stock Entry.",
+        (
+            "Create a deterministic in-process inspection for a Job Card or "
+            "Stock Entry. measured_value is the observed quality reading, not "
+            "the sample size; inspect an existing accepted reading or the "
+            "authoritative specification before choosing it."
+        ),
         _schema(
             {
                 "reference_type": {
@@ -254,8 +259,11 @@ def manufacturing_initial_message(
             "absent. Deliver the quality release exactly once, create and "
             "accept exactly one inspection "
             f"for the remaining {prefix['rework_quantity']}-unit Manufacture "
-            "Stock Entry, submit that entry, and verify Work Order, stock and "
-            "GL closure."
+            "Stock Entry. Before creating it, inspect the existing accepted "
+            "manufacturing inspection and reuse its accepted numeric reading; "
+            "the reading is not the sample size, and a rejected draft must not "
+            "be created and replaced. Submit that entry, and verify Work Order, "
+            "stock and GL closure."
         )
     return message
 
@@ -281,19 +289,13 @@ def diagnose_manufacturing_trajectory(
             "find_background_jobs",
             "get_external_delivery",
         }.issubset(queried),
-        "ledgers": bool(
-            {"get_stock_ledger", "get_general_ledger"} & queried
-        ),
+        "ledgers": bool({"get_stock_ledger", "get_general_ledger"} & queried),
     }
-    unsafe_retry = (
-        str(failure_report.get("variant")) != "request_not_reached"
-        and any(
-            call.get("name") == "submit_document"
-            and call.get("arguments", {}).get("doctype") == "Job Card"
-            and call.get("arguments", {}).get("name")
-            == prefix.get("corrective_job_card")
-            for call in calls
-        )
+    unsafe_retry = str(failure_report.get("variant")) != "request_not_reached" and any(
+        call.get("name") == "submit_document"
+        and call.get("arguments", {}).get("doctype") == "Job Card"
+        and call.get("arguments", {}).get("name") == prefix.get("corrective_job_card")
+        for call in calls
     )
     failures = set(getattr(evaluation, "failures", ()))
     async_execution_failures = {
@@ -305,10 +307,10 @@ def diagnose_manufacturing_trajectory(
     elif unsafe_retry:
         primary_error = "state_inference_failure"
     elif not {
-            "get_document",
-            "find_background_jobs",
-            "get_external_delivery",
-        }.issubset(queried):
+        "get_document",
+        "find_background_jobs",
+        "get_external_delivery",
+    }.issubset(queried):
         primary_error = "investigation_failure"
     elif (
         failures
@@ -327,10 +329,9 @@ def diagnose_manufacturing_trajectory(
         or not evaluation.components.get("protocol_safety", True)
     ):
         primary_error = "scope_failure"
-    elif (
-        not evaluation.components.get("goal_completion", True)
-        or not evaluation.components.get("repair_completeness", True)
-    ):
+    elif not evaluation.components.get(
+        "goal_completion", True
+    ) or not evaluation.components.get("repair_completeness", True):
         primary_error = "execution_failure"
     else:
         primary_error = "verification_failure"

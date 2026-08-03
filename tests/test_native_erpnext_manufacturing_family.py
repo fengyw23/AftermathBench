@@ -34,6 +34,17 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
         names = {tool.name for tool in ERP_NEXT_MANUFACTURING_TOOLS}
         self.assertTrue(ERP_NEXT_MANUFACTURING_FAMILY.mutation_tools <= names)
 
+    def test_quality_inspection_contract_separates_reading_from_sample_size(
+        self,
+    ) -> None:
+        definition = next(
+            item
+            for item in ERP_NEXT_MANUFACTURING_FAMILY.tool_definitions
+            if item.name == "create_quality_inspection"
+        )
+        self.assertIn("not the sample size", definition.description)
+        self.assertIn("accepted reading", definition.description)
+
     def test_execution_control_uses_instance_quantities(self) -> None:
         prefix = {
             key: key
