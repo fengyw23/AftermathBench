@@ -147,6 +147,61 @@ class ForgejoAPITest(unittest.TestCase):
         )
         self.assertEqual(result[0]["name"], "recovery-agent")
 
+    def test_workflow_dispatch_requests_native_run_information(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"id": 71, "run_number": 5, "jobs": ["deploy"]}),
+        ) as opener:
+            result = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).dispatch_workflow(
+                "aftermath",
+                "migration-service",
+                workflow="deploy production.yml",
+                ref="refs/heads/release/2026.09",
+                inputs={"schema_epoch": "12"},
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/migration-service/"
+            "actions/workflows/deploy%20production.yml/dispatches",
+        )
+        self.assertEqual(
+            json.loads(request.data),
+            {
+                "ref": "refs/heads/release/2026.09",
+                "inputs": {"schema_epoch": "12"},
+                "return_run_info": True,
+            },
+        )
+        self.assertEqual(result["id"], 71)
+
+    def test_action_run_and_artifact_reads_use_native_endpoints(self) -> None:
+        responses = [
+            _Response({"workflow_runs": [{"id": 71}], "total_count": 1}),
+            _Response([{"id": 9, "name": "deployment-record"}]),
+        ]
+        with patch("urllib.request.urlopen", side_effect=responses) as opener:
+            client = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            )
+            runs = client.list_action_runs(
+                "aftermath",
+                "migration-service",
+                workflow="deploy.yml",
+                ref="refs/heads/main",
+            )
+            artifacts = client.list_action_run_artifacts(
+                "aftermath", "migration-service", 71
+            )
+        self.assertEqual(runs[0]["id"], 71)
+        self.assertEqual(artifacts[0]["name"], "deployment-record")
+        self.assertIn("workflow_id=deploy.yml", opener.call_args_list[0].args[0].full_url)
+        self.assertIn("ref=refs%2Fheads%2Fmain", opener.call_args_list[0].args[0].full_url)
+
 
 if __name__ == "__main__":
     unittest.main()

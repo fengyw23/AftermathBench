@@ -22,8 +22,7 @@ class ForgejoAPI:
 
         parsed = urllib.parse.urlsplit(self.base_url.rstrip("/"))
         path = parsed.path.rstrip("/")
-        if path.endswith("/api/v1"):
-            path = path[: -len("/api/v1")]
+        path = path.removesuffix("/api/v1")
         return urllib.parse.urlunsplit(
             (parsed.scheme, parsed.netloc, path, "", "")
         ).rstrip("/")
@@ -679,3 +678,89 @@ class ForgejoAPI:
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no milestone document")
         return result
+
+    def dispatch_workflow(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        workflow: str,
+        ref: str,
+        inputs: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Dispatch a native Forgejo Actions workflow and return its run ID."""
+
+        encoded_workflow = urllib.parse.quote(workflow, safe="")
+        result = self.post(
+            f"/repos/{owner}/{repository}/actions/workflows/"
+            f"{encoded_workflow}/dispatches",
+            {
+                "ref": ref,
+                "inputs": inputs or {},
+                "return_run_info": True,
+            },
+        )
+        if not isinstance(result, dict) or not result.get("id"):
+            raise TypeError("Forgejo returned no dispatched workflow run")
+        return result
+
+    def list_action_runs(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        workflow: str | None = None,
+        ref: str | None = None,
+    ) -> list[dict[str, Any]]:
+        query = {"limit": "50"}
+        if workflow is not None:
+            query["workflow_id"] = workflow
+        if ref is not None:
+            query["ref"] = ref
+        result = self.get(
+            f"/repos/{owner}/{repository}/actions/runs",
+            query=query,
+        )
+        runs = result.get("workflow_runs") if isinstance(result, dict) else None
+        if not isinstance(runs, list):
+            raise TypeError("Forgejo returned no workflow-run list")
+        return [run for run in runs if isinstance(run, dict)]
+
+    def get_action_run(
+        self, owner: str, repository: str, run_id: int
+    ) -> dict[str, Any]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}"
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no workflow run")
+        return result
+
+    def list_action_run_jobs(
+        self, owner: str, repository: str, run_id: int
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}/jobs"
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no workflow-job list")
+        return [job for job in result if isinstance(job, dict)]
+
+    def list_action_run_artifacts(
+        self, owner: str, repository: str, run_id: int
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}/artifacts",
+            query={"limit": "50"},
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no workflow-artifact list")
+        return [artifact for artifact in result if isinstance(artifact, dict)]
+
+    def cancel_action_run(
+        self, owner: str, repository: str, run_id: int
+    ) -> Any:
+        return self.post(
+            f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}/cancel",
+            {},
+        )
