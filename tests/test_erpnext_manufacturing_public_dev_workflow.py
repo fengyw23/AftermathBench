@@ -114,7 +114,10 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         )
         snapshot = section.index("snapshot-bundle", failure)
         boundary = section.index("--phase boundary", snapshot)
-        restore = section.index("restore-bundle", boundary)
+        restore = section.index(
+            'python scripts/manage_erpnext_stack.py "${boundary_restore_args[@]}"',
+            boundary,
+        )
         recapture = section.index(
             "capture_erpnext_manufacturing_state_evidence.py",
             restore,
@@ -134,6 +137,14 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         self.assertLess(restore, recapture)
         self.assertLess(recapture, compare)
         self.assertLess(compare, reference)
+        self.assertIn(
+            'if [ "$variant" = "database_committed_response_lost" ]',
+            section,
+        )
+        self.assertIn(
+            "boundary_restore_args+=(--keep-workers-stopped)",
+            section,
+        )
         self.assertNotIn("--formal-contract", section)
         self.assertIn('--boundary "$boundary"', section)
         self.assertIn('--replay "$reference_start"', section)

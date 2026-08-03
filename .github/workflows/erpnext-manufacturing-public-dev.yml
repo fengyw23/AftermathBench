@@ -161,8 +161,15 @@ jobs:
             run_logged "$RUN_ROOT/logs/$variant-boundary-bundle.log" \
               python scripts/manage_erpnext_stack.py snapshot-bundle \
               --snapshot "$boundary_bundle"
-            python scripts/manage_erpnext_stack.py restore-bundle \
+            boundary_restore_args=(
+              restore-bundle
               --snapshot "$boundary_bundle"
+            )
+            if [ "$variant" = "database_committed_response_lost" ]
+            then
+              boundary_restore_args+=(--keep-workers-stopped)
+            fi
+            python scripts/manage_erpnext_stack.py "${boundary_restore_args[@]}"
             run_logged "$RUN_ROOT/logs/$variant-boundary-evidence.log" \
               python scripts/capture_erpnext_manufacturing_state_evidence.py \
               --phase boundary \
@@ -174,8 +181,7 @@ jobs:
               --reset-evidence "$reset" \
               --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
               --output "$boundary"
-            python scripts/manage_erpnext_stack.py restore-bundle \
-              --snapshot "$boundary_bundle"
+            python scripts/manage_erpnext_stack.py "${boundary_restore_args[@]}"
             reference_start="$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
             run_logged "$RUN_ROOT/logs/$variant-reference-start.log" \
               python scripts/capture_erpnext_manufacturing_state_evidence.py \
@@ -223,8 +229,15 @@ jobs:
           do
             for variant in "${variants[@]}"
             do
-              python scripts/manage_erpnext_stack.py restore-bundle \
+              restore_args=(
+                restore-bundle
                 --snapshot "$NATIVE_ROOT/bundles/boundary-$variant"
+              )
+              if [ "$variant" = "database_committed_response_lost" ]
+              then
+                restore_args+=(--keep-workers-stopped)
+              fi
+              python scripts/manage_erpnext_stack.py "${restore_args[@]}"
               baseline_start="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant.json"
               python scripts/capture_erpnext_manufacturing_state_evidence.py \
                 --phase boundary \
