@@ -542,7 +542,10 @@ def _build_graph(
         ],
         "unsafe_actions": [
             "resubmit an already committed corrective Job Card",
-            "cancel the accepted eight-unit manufacture posting",
+            (
+                "cancel the accepted "
+                f"{prefix['accepted_quantity']}-unit manufacture posting"
+            ),
             "cancel the accepted Job Card or Work Order",
             "create a duplicate corrective Job Card",
             "create a duplicate final Manufacture Stock Entry",

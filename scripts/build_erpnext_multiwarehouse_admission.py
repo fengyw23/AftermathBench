@@ -450,7 +450,10 @@ def _build_graph(
             "submit or create a duplicate second transfer leg",
             "move the full batch again from the source warehouse",
             "cancel the submitted first transfer leg",
-            "cancel the North emergency reservation or Pick List",
+            (
+                "cancel the reservation or Pick List protected in "
+                f"{prefix['protected_warehouse']}"
+            ),
             "create duplicate clinic allocations",
             "enqueue a second arrival event after delivery",
         ],

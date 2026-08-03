@@ -38,6 +38,7 @@ class ERPNextManufacturingAdmissionBuilderTest(unittest.TestCase):
             "unrelated_stock_entry": "SE-U",
             "corrective_operation": "OP-C",
             "quality_release_webhook": "HOOK-C",
+            "accepted_quantity": 8,
         }
         self.evidence = {
             "bom": {
