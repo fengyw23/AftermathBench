@@ -265,6 +265,22 @@ class ForgejoMigrationPrefixBuilder:
             source_commit = str(commit.get("sha") or source_commit)
         self._record(
             "forgejo",
+            "create_release",
+            {"tag": spec.protected_release_tag, "target": "main"},
+            self.forgejo.create_release(
+                spec.owner,
+                spec.repository,
+                tag=spec.protected_release_tag,
+                target="main",
+                title=f"Customer API {spec.prior_version}",
+                body=(
+                    "Previously deployed production release; preserve while "
+                    f"recovering {spec.release_tag}."
+                ),
+            ),
+        )
+        self._record(
+            "forgejo",
             "create_branch",
             {"name": "protected/staging-next", "from_ref": "main"},
             self.forgejo.create_branch(

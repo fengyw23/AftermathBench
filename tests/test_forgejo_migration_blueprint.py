@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 from aftermath_bench.integrations.forgejo_migration_instance import (
     DEFAULT_FORGEJO_MIGRATION_INSTANCE,
@@ -72,6 +72,9 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         forgejo.create_file.side_effect = [
             {"commit": {"sha": f"commit-{index}"}} for index in range(1, 5)
         ]
+        forgejo.create_release.return_value = {
+            "tag_name": DEFAULT_FORGEJO_MIGRATION_INSTANCE.protected_release_tag
+        }
         forgejo.create_branch.return_value = {"name": "protected/staging-next"}
         forgejo.create_branch_protection.return_value = {"rule_name": "protected/*"}
 
@@ -87,8 +90,18 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         self.assertEqual(prefix.source_commit, "commit-4")
         self.assertEqual(prefix.change_issue_index, 1)
         self.assertEqual(prefix.protected_issue_index, 2)
-        self.assertEqual(len(prefix.trace), 18)
-        forgejo.create_release.assert_not_called()
+        self.assertEqual(len(prefix.trace), 19)
+        forgejo.create_release.assert_called_once_with(
+            DEFAULT_FORGEJO_MIGRATION_INSTANCE.owner,
+            DEFAULT_FORGEJO_MIGRATION_INSTANCE.repository,
+            tag=DEFAULT_FORGEJO_MIGRATION_INSTANCE.protected_release_tag,
+            target="main",
+            title=(
+                "Customer API "
+                f"{DEFAULT_FORGEJO_MIGRATION_INSTANCE.prior_version}"
+            ),
+            body=ANY,
+        )
         self.assertEqual(
             {event["system"] for event in prefix.trace},
             {"forgejo", "deployment-target"},
