@@ -10,6 +10,15 @@ def _read(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _evaluation_passed(report: dict[str, Any]) -> bool:
+    evaluation = report.get("evaluation", {})
+    if not isinstance(evaluation, dict):
+        return False
+    if "recovery_integrity_pass" in evaluation:
+        return evaluation["recovery_integrity_pass"] is True
+    return evaluation.get("passed") is True
+
+
 def summarize_baselines(
     *,
     run_directory: Path,
@@ -51,7 +60,7 @@ def summarize_baselines(
         for path, report in sorted(
             items, key=lambda item: str(item[1].get("variant"))
         ):
-            passed = bool(report.get("evaluation", {}).get("passed"))
+            passed = _evaluation_passed(report)
             rows.append(
                 {
                     "variant": str(report.get("variant")),
