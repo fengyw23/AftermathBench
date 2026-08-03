@@ -42,6 +42,30 @@ def execution_control_status(
     )
 
 
+def fixed_policy_status(baselines: dict[str, Any]) -> tuple[float, int]:
+    if "maximum_heuristic_pass_rate" in baselines:
+        return (
+            float(baselines["maximum_heuristic_pass_rate"]),
+            len(baselines.get("matched_group_solvers", ())),
+        )
+    heuristics = baselines.get("heuristics")
+    if not isinstance(heuristics, list) or not heuristics:
+        raise ValueError("baseline evidence contains no fixed policies")
+    pass_rates = [
+        float(item["pass_rate"])
+        for item in heuristics
+        if isinstance(item, dict) and "pass_rate" in item
+    ]
+    if len(pass_rates) != len(heuristics):
+        raise ValueError("baseline heuristic evidence is incomplete")
+    matched_solvers = sum(
+        bool(item.get("matched_group_success"))
+        for item in heuristics
+        if isinstance(item, dict)
+    )
+    return max(pass_rates), matched_solvers
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Create a non-sensitive summary of a frozen candidate."
@@ -85,6 +109,9 @@ def main() -> int:
         usage_events=event_names,
         expected_cases=expected_cases,
     )
+    maximum_policy_pass_rate, matched_group_solver_count = fixed_policy_status(
+        baselines
+    )
     payload = {
         **commitment,
         "admission": {
@@ -99,12 +126,8 @@ def main() -> int:
             ),
         },
         "fixed_policies": {
-            "maximum_pass_rate": baselines[
-                "maximum_heuristic_pass_rate"
-            ],
-            "matched_group_solver_count": len(
-                baselines["matched_group_solvers"]
-            ),
+            "maximum_pass_rate": maximum_policy_pass_rate,
+            "matched_group_solver_count": matched_group_solver_count,
         },
         "execution_control": (
             {
