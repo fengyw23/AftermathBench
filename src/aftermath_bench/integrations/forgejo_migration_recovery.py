@@ -64,6 +64,44 @@ class ForgejoMigrationReferenceAgent:
 
     def recover(self) -> tuple[dict[str, Any], ...]:
         spec = self.instance
+        self._record(
+            "get_branch",
+            {"branch": "main"},
+            self.forgejo.get_branch(spec.owner, spec.repository, "main"),
+            kind="read",
+        )
+        for path in (
+            spec.workflow_path,
+            spec.migration_path,
+            spec.artifact_manifest_path,
+        ):
+            self._record(
+                "get_repository_content",
+                {"path": path, "ref": "main"},
+                self.forgejo.get_repository_content(
+                    spec.owner,
+                    spec.repository,
+                    path=path,
+                    ref="main",
+                ),
+                kind="read",
+            )
+        self._record(
+            "list_issues",
+            {},
+            self.forgejo.list_issues(spec.owner, spec.repository),
+            kind="read",
+        )
+        self._record(
+            "get_milestone",
+            {"milestone_id": int(self.prefix["milestone_id"])},
+            self.forgejo.get_milestone(
+                spec.owner,
+                spec.repository,
+                int(self.prefix["milestone_id"]),
+            ),
+            kind="read",
+        )
         runs = self._record(
             "list_action_runs",
             {},

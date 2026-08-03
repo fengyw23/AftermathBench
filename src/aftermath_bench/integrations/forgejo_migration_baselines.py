@@ -180,6 +180,7 @@ class ForgejoMigrationBaselineAgent:
             )
             if runs:
                 self._wait(int(runs[0]["id"]))
+            return tuple(self.trace)
         elif policy == "close_tracking_only":
             self._record(
                 "edit_issue",

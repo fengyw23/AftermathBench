@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from aftermath_bench.integrations.forgejo_migration_baselines import (
     FORGEJO_MIGRATION_BASELINES,
@@ -24,6 +26,26 @@ class ForgejoMigrationBaselinesTest(unittest.TestCase):
             prefix={},
         )
         self.assertEqual(agent.run("no_op"), ())
+
+    def test_restart_policy_does_not_assume_tracking_can_be_closed(self) -> None:
+        forgejo = MagicMock()
+        forgejo.list_action_runs.return_value = []
+        deployment = MagicMock()
+        stack = MagicMock()
+        instance = SimpleNamespace(owner="owner", repository="repo")
+        agent = ForgejoMigrationBaselineAgent(
+            forgejo=forgejo,
+            deployment=deployment,
+            stack=stack,
+            instance=instance,
+            prefix={},
+        )
+
+        trace = agent.run("always_restart_runner")
+
+        stack.start_action_runner.assert_called_once_with()
+        deployment.state.assert_not_called()
+        self.assertEqual([item["tool"] for item in trace], ["start_action_runner"])
 
 
 if __name__ == "__main__":

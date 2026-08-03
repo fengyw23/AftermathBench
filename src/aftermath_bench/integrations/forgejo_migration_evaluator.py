@@ -29,6 +29,15 @@ class ForgejoMigrationEvaluator:
             int(self.prefix["change_issue_index"]),
         )
         runs = self.forgejo.list_action_runs(spec.owner, spec.repository)
+        action_jobs = [
+            job
+            for run in runs
+            for job in self.forgejo.list_action_run_jobs(
+                spec.owner,
+                spec.repository,
+                int(run["id"]),
+            )
+        ]
         migrations = [
             row
             for row in state["migrations"]
@@ -180,5 +189,6 @@ class ForgejoMigrationEvaluator:
                 "milestone": milestone,
                 "comments": comments,
                 "action_runs": runs,
+                "action_jobs": action_jobs,
             },
         }

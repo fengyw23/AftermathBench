@@ -90,7 +90,10 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
                 )
             }
         ]
-        forgejo.list_action_runs.return_value = [{"status": "success"}]
+        forgejo.list_action_runs.return_value = [{"id": 101, "status": "success"}]
+        forgejo.list_action_run_jobs.return_value = [
+            {"id": 201, "run_id": 101, "status": "success"}
+        ]
         protected = {
             "deployments": [target.state.return_value["deployments"][1]],
             "replicas": target.state.return_value["replicas"][2:],
@@ -112,12 +115,13 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertIn("deployment_state", result["final_evidence"])
         self.assertIn("action_runs", result["final_evidence"])
+        self.assertIn("action_jobs", result["final_evidence"])
 
     def test_duplicate_action_run_fails_protocol_safety_only(self) -> None:
         evaluator, forgejo = self._evaluator()
         forgejo.list_action_runs.return_value = [
-            {"status": "success"},
-            {"status": "success"},
+            {"id": 101, "status": "success"},
+            {"id": 102, "status": "success"},
         ]
         result = evaluator.evaluate(
             variant="workflow_completed_dispatch_response_lost"
