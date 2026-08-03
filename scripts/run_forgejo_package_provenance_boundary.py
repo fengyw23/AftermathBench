@@ -10,8 +10,9 @@ from typing import Any
 
 from aftermath_bench.integrations.forgejo_api import ForgejoAPI
 from aftermath_bench.integrations.forgejo_package_provenance_faults import (
+    ALL_PACKAGE_PROVENANCE_VARIANTS,
+    FORGEJO_PACKAGE_PROVENANCE_R2_VARIANTS,
     FORGEJO_PACKAGE_PROVENANCE_VARIANTS,
-    PACKAGE_PROVENANCE_VARIANTS,
     ForgejoPackageProvenanceFaultController,
 )
 from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
@@ -50,16 +51,21 @@ def _upload_role(
     api: ForgejoAPI,
     prefix: dict[str, Any],
     role: str,
+    *,
+    corrupt: bool = False,
 ) -> None:
     item = next(
         value for value in prefix["expected_package_files"] if value["role"] == role
     )
+    content = _source_bytes(api, prefix, item["source_path"])
+    if corrupt:
+        content = content + b"\nAFTERMATH-STale-build-artifact\n"
     api.upload_generic_package_file(
         prefix["owner"],
         name=prefix["package_name"],
         version=prefix["package_version"],
         filename=item["name"],
-        content=_source_bytes(api, prefix, item["source_path"]),
+        content=content,
     )
 
 
@@ -127,7 +133,10 @@ def main() -> int:
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument(
         "--variant",
-        choices=FORGEJO_PACKAGE_PROVENANCE_VARIANTS,
+        choices=(
+            *FORGEJO_PACKAGE_PROVENANCE_VARIANTS,
+            *FORGEJO_PACKAGE_PROVENANCE_R2_VARIANTS,
+        ),
         required=True,
     )
     parser.add_argument("--output", type=Path, required=True)
@@ -144,9 +153,14 @@ def main() -> int:
         password=credentials["password"],
     )
     faults = ForgejoPackageProvenanceFaultController()
-    specification = PACKAGE_PROVENANCE_VARIANTS[args.variant]
+    specification = ALL_PACKAGE_PROVENANCE_VARIANTS[args.variant]
     for role in specification.preloaded_file_roles:
-        _upload_role(api, prefix, role)
+        _upload_role(
+            api,
+            prefix,
+            role,
+            corrupt=role in specification.corrupt_preloaded_file_roles,
+        )
     _close_tracking_positions(
         api,
         prefix,
@@ -217,6 +231,16 @@ def main() -> int:
         target_roles.get(str(item.get("name")), "unknown")
         for item in state["target_package_files"]
     )
+    observed_hashes_by_role = {
+        target_roles.get(str(item.get("name")), "unknown"): str(
+            item.get("content_sha256")
+        )
+        for item in state["target_package_files"]
+    }
+    expected_hashes_by_role = {
+        str(item["role"]): str(item["sha256"])
+        for item in prefix["expected_package_files"]
+    }
     expected_roles = sorted(
         (*specification.preloaded_file_roles, "binary")
         if specification.attempted_operation == "upload_binary"
@@ -257,6 +281,15 @@ def main() -> int:
             and ambiguous_events[0].get("outcome") == expected_outcome
         ),
         "package_files_match_variant": observed_roles == expected_roles,
+        "package_content_validity_matches_variant": all(
+            (
+                observed_hashes_by_role.get(role) != expected_hash
+                if role in specification.corrupt_preloaded_file_roles
+                else observed_hashes_by_role.get(role) == expected_hash
+            )
+            for role, expected_hash in expected_hashes_by_role.items()
+            if role in expected_roles
+        ),
         "release_commit_matches_variant": (
             len(target_releases) == (1 if specification.release_committed else 0)
         ),

@@ -22,6 +22,7 @@ def main() -> int:
         required=True,
     )
     parser.add_argument("--hidden-test-eligible", action="store_true")
+    parser.add_argument("--generation", choices=("r1", "r2"), default="r1")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     instance = ForgejoPublicationInstanceSpec.from_path(args.instance_spec)
@@ -30,6 +31,7 @@ def main() -> int:
         instance_id=args.instance_id,
         benchmark_split=args.benchmark_split,
         hidden_test_eligible=args.hidden_test_eligible,
+        generation=args.generation,
     )
     rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     if args.output is None:

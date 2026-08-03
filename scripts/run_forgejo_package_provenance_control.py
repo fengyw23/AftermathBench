@@ -50,9 +50,7 @@ def main() -> int:
         prefix=prefix,
     )
     mutation_tools = [
-        event["tool"]
-        for event in trace
-        if event["tool"] in environment.MUTATION_TOOLS
+        event["tool"] for event in trace if event["tool"] in environment.MUTATION_TOOLS
     ]
     query_tools = [
         event["tool"]
@@ -61,18 +59,20 @@ def main() -> int:
     ]
     before = boundary["failure_boundary_evidence"]
     target_tag = str(prefix["package_index_release_tag"])
-    before_files = {
-        str(item.get("name")) for item in before["target_package_files"]
-    }
+    before_files = {str(item.get("name")) for item in before["target_package_files"]}
     after_files = {
         str(item.get("name")) for item in final_state["target_package_files"]
     }
-    before_releases = {
-        str(item.get("tag_name")) for item in before["releases"]
+    before_file_hashes = {
+        str(item.get("name")): str(item.get("content_sha256"))
+        for item in before["target_package_files"]
     }
-    after_releases = {
-        str(item.get("tag_name")) for item in final_state["releases"]
+    after_file_hashes = {
+        str(item.get("name")): str(item.get("content_sha256"))
+        for item in final_state["target_package_files"]
     }
+    before_releases = {str(item.get("tag_name")) for item in before["releases"]}
+    after_releases = {str(item.get("tag_name")) for item in final_state["releases"]}
     before_external = {
         str(item.get("key"))
         for item in relevant_release_deliveries(
@@ -87,6 +87,7 @@ def main() -> int:
     }
     repaired_groups = {
         "package_files": before_files != after_files,
+        "package_file_contents": before_file_hashes != after_file_hashes,
         "index_release": (
             (target_tag in before_releases) != (target_tag in after_releases)
         ),
@@ -120,6 +121,16 @@ def main() -> int:
             "package_complete_index_missing": "resume_indexing",
             "package_complete_index_accepted_response_lost": (
                 "verify_complete_package"
+            ),
+            "r2_package_request_not_reached": "create_missing_package_chain",
+            "r2_package_binary_committed_response_lost": (
+                "preserve_valid_partial_package"
+            ),
+            "r2_package_complete_index_missing": (
+                "preserve_complete_package_and_create_index"
+            ),
+            "r2_package_corrupt_binary_index_missing": (
+                "replace_invalid_package_and_create_index"
             ),
         }[boundary["variant"]],
         "final_evidence": final_state,

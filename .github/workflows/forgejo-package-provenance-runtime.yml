@@ -5,6 +5,15 @@ on:
     branches:
       - forgejo-package-provenance-runtime
   workflow_dispatch:
+    inputs:
+      generation:
+        description: Package recovery generation to replay
+        required: true
+        default: r1
+        type: choice
+        options:
+          - r1
+          - r2
 
 permissions:
   contents: read
@@ -15,12 +24,23 @@ jobs:
     timeout-minutes: 150
     env:
       PYTHONPATH: src
-      INSTANCE_SPEC: data/instance_specs/forgejo-package-provenance-dev-001.json
+      GENERATION: ${{ inputs.generation || 'r1' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Select frozen development instance
+        run: |
+          if [[ "$GENERATION" == "r2" ]]
+          then
+            echo "INSTANCE_SPEC=data/instance_specs/forgejo-package-provenance-nonmonotonic-dev-001.json" >> "$GITHUB_ENV"
+            echo "BLUEPRINT=data/scenario_blueprints/forgejo-package-provenance-nonmonotonic-dev-001/scenario.json" >> "$GITHUB_ENV"
+          else
+            echo "INSTANCE_SPEC=data/instance_specs/forgejo-package-provenance-dev-001.json" >> "$GITHUB_ENV"
+            echo "BLUEPRINT=data/scenario_blueprints/forgejo-package-provenance-dev-001/scenario.json" >> "$GITHUB_ENV"
+          fi
 
       - name: Run focused deterministic tests
         run: |
@@ -50,16 +70,26 @@ jobs:
           python scripts/manage_forgejo_stack.py snapshot \
             --snapshot "$runtime_root/package-prefix.tar.gz"
 
-      - name: Replay four boundaries and reference recoveries
+      - name: Replay matched boundaries and reference recoveries
         run: |
           runtime_root="runtimes/forgejo/.runtime"
           run_root="$RUNNER_TEMP/forgejo-package-provenance"
-          variants=(
-            package_request_not_reached
-            package_binary_committed_response_lost
-            package_complete_index_missing
-            package_complete_index_accepted_response_lost
-          )
+          if [[ "$GENERATION" == "r2" ]]
+          then
+            variants=(
+              r2_package_request_not_reached
+              r2_package_binary_committed_response_lost
+              r2_package_complete_index_missing
+              r2_package_corrupt_binary_index_missing
+            )
+          else
+            variants=(
+              package_request_not_reached
+              package_binary_committed_response_lost
+              package_complete_index_missing
+              package_complete_index_accepted_response_lost
+            )
+          fi
           for variant in "${variants[@]}"
           do
             python scripts/manage_forgejo_stack.py restore \
@@ -82,12 +112,22 @@ jobs:
         run: |
           runtime_root="runtimes/forgejo/.runtime"
           run_root="$RUNNER_TEMP/forgejo-package-provenance"
-          variants=(
-            package_request_not_reached
-            package_binary_committed_response_lost
-            package_complete_index_missing
-            package_complete_index_accepted_response_lost
-          )
+          if [[ "$GENERATION" == "r2" ]]
+          then
+            variants=(
+              r2_package_request_not_reached
+              r2_package_binary_committed_response_lost
+              r2_package_complete_index_missing
+              r2_package_corrupt_binary_index_missing
+            )
+          else
+            variants=(
+              package_request_not_reached
+              package_binary_committed_response_lost
+              package_complete_index_missing
+              package_complete_index_accepted_response_lost
+            )
+          fi
           baselines=(
             no_op
             blind_full_publish
@@ -119,7 +159,7 @@ jobs:
           done
           python scripts/summarize_native_baselines.py \
             --run-directory "$run_root/baselines" \
-            --scenario data/scenario_blueprints/forgejo-package-provenance-dev-001/scenario.json \
+            --scenario "$BLUEPRINT" \
             --output "$run_root/baselines/summary.json"
           python - "$run_root/baselines/summary.json" <<'PY'
           import json
@@ -141,7 +181,7 @@ jobs:
           python scripts/build_forgejo_package_provenance_admission.py \
             --runtime-directory "$run_root/runtime" \
             --baseline-directory "$run_root/baselines" \
-            --blueprint data/scenario_blueprints/forgejo-package-provenance-dev-001/scenario.json \
+            --blueprint "$BLUEPRINT" \
             --output-directory "$run_root/admitted"
           python scripts/build_evidence_file_manifest.py \
             --root "$run_root" \

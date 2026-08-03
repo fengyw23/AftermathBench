@@ -11,6 +11,7 @@ def package_provenance_blueprint(
     instance_id: str,
     benchmark_split: str,
     hidden_test_eligible: bool,
+    generation: str = "r1",
 ) -> dict[str, Any]:
     """Render one package-provenance scenario from a fresh native instance."""
 
@@ -21,9 +22,11 @@ def package_provenance_blueprint(
         raise ValueError(f"unsupported benchmark split: {benchmark_split}")
     if hidden_test_eligible is not (benchmark_split == "hidden_test"):
         raise ValueError("hidden_test_eligible must agree with benchmark_split")
+    if generation not in {"r1", "r2"}:
+        raise ValueError(f"unsupported package-provenance generation: {generation}")
 
     protected_version = instance.protected_release_tag.removeprefix("v")
-    variants = (
+    r1_variants = (
         (
             "package_request_not_reached",
             "no_primary_effect",
@@ -45,8 +48,31 @@ def package_provenance_blueprint(
             "verify_complete_package",
         ),
     )
+    r2_variants = (
+        (
+            "r2_package_request_not_reached",
+            "no_primary_effect",
+            "create_missing_package_chain",
+        ),
+        (
+            "r2_package_binary_committed_response_lost",
+            "primary_effect_uncertain",
+            "preserve_valid_partial_package",
+        ),
+        (
+            "r2_package_complete_index_missing",
+            "same_inventory_valid_content",
+            "preserve_complete_package_and_create_index",
+        ),
+        (
+            "r2_package_corrupt_binary_index_missing",
+            "same_inventory_invalid_content",
+            "replace_invalid_package_and_create_index",
+        ),
+    )
+    variants = r1_variants if generation == "r1" else r2_variants
     return {
-        "schema_version": "0.7-draft",
+        "schema_version": "0.8-draft" if generation == "r2" else "0.7-draft",
         "scenario_id": instance.scenario_id,
         "domain_id": "forgejo",
         "instance_id": instance_id,
@@ -64,7 +90,9 @@ def package_provenance_blueprint(
             ),
         },
         "implementation_status": (
-            "adaptive native package replay and strict admission pending"
+            "native non-monotonic package replay and strict admission pending"
+            if generation == "r2"
+            else "adaptive native package replay and strict admission pending"
         ),
         "title": (
             "Recover an interrupted package version, provenance and "
@@ -137,9 +165,17 @@ def package_provenance_blueprint(
         },
         "admission_profile": {
             "adaptive_recovery": {
-                "minimum_adaptive_query_depth": 3,
-                "minimum_variant_specific_mutations": 2,
-                "minimum_pairwise_mutation_distance": 2,
+                "minimum_adaptive_query_depth": 4 if generation == "r2" else 3,
+                "minimum_variant_specific_mutations": 3 if generation == "r2" else 2,
+                "minimum_pairwise_mutation_distance": 3 if generation == "r2" else 2,
+                **(
+                    {
+                        "requires_same_inventory_opposite_scope_pair": True,
+                        "requires_non_monotonic_repair": True,
+                    }
+                    if generation == "r2"
+                    else {}
+                ),
             }
         },
         "admission_status": "unvalidated",

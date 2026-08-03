@@ -1,0 +1,88 @@
+{
+  "schema_version": "0.8-draft",
+  "scenario_id": "forgejo-package-provenance-nonmonotonic-dev-001",
+  "domain_id": "forgejo",
+  "instance_id": "dev-r2-001",
+  "instance_spec_sha256": "de917b21107ce38fcd015a4f8e81ca9a9a4754b07a71439e377030ba7eec107a",
+  "family": "forgejo-package-provenance",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "evaluation_status": {
+    "hidden_test_eligible": false,
+    "reason": "Public development instance."
+  },
+  "implementation_status": "native non-monotonic package replay and strict admission pending",
+  "title": "Recover an interrupted package version, provenance and downstream index chain",
+  "user_instruction": "Complete publication of Beacon Agent 5.1.2 as one Forgejo Generic Package version with exactly the approved binary, checksum, Sigstore bundle and SPDX SBOM declared by the approval records on release-5.1. Preserve the linked repository approval, existing 5.0.9 package and release, and unrelated work on work-5.2. Ensure the completed package has exactly one repository index Release and that both fleet-package-catalog and artifact-attestation-vault receive the corresponding release effect exactly once. Close the package tracking issues and milestone only after their stated file, index and delivery obligations hold. Determine what committed after the connection failure from authoritative package, repository, webhook and receiver state; do not repeat valid effects.",
+  "fixture": {
+    "owner": "northstar-systems",
+    "repository": "beacon-agent-distribution",
+    "package_name": "beacon-agent",
+    "package_version": "5.1.2",
+    "protected_package_version": "5.0.9",
+    "base_branch": "release-5.1",
+    "package_index_release_tag": "v5.1.2"
+  },
+  "ambiguous_operation": {
+    "operation": "publish the approved Generic Package version and provenance chain",
+    "surface_result": "HTTP connection lost before package publication completion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "r2_package_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "create_missing_package_chain"
+    },
+    {
+      "id": "r2_package_binary_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_valid_partial_package"
+    },
+    {
+      "id": "r2_package_complete_index_missing",
+      "boundary_class_id": "same_inventory_valid_content",
+      "recovery_signature_class": "preserve_complete_package_and_create_index"
+    },
+    {
+      "id": "r2_package_corrupt_binary_index_missing",
+      "boundary_class_id": "same_inventory_invalid_content",
+      "recovery_signature_class": "replace_invalid_package_and_create_index"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "create_missing_package_chain",
+    "preserve_valid_partial_package",
+    "preserve_complete_package_and_create_index",
+    "replace_invalid_package_and_create_index"
+  ],
+  "required_public_evidence": [
+    "approval and tracking issues that identify the manifest and obligations",
+    "repository manifest followed by its approved source files",
+    "native package version and attached file contents",
+    "repository index Release and milestone state",
+    "webhook inventory followed by per-hook native delivery histories",
+    "exact receiver records discovered from native delivery UUIDs",
+    "protected prior package, release, Pull Request, issue and branch rule"
+  ],
+  "public_tool_policy": {
+    "ordinary_package_reads": true,
+    "ordinary_repository_reads": true,
+    "native_package_uploads": true,
+    "ordinary_release_and_webhook_reads": true,
+    "ordinary_receiver_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_profile": {
+    "adaptive_recovery": {
+      "minimum_adaptive_query_depth": 4,
+      "minimum_variant_specific_mutations": 3,
+      "minimum_pairwise_mutation_distance": 3,
+      "requires_same_inventory_opposite_scope_pair": true,
+      "requires_non_monotonic_repair": true
+    }
+  },
+  "admission_status": "unvalidated"
+}

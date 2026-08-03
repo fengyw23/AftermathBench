@@ -68,6 +68,38 @@ class ForgejoPackageProvenanceInstanceTest(unittest.TestCase):
                 hidden_test_eligible=True,
             )
 
+    def test_r2_blueprint_requires_non_monotonic_same_inventory_pair(self) -> None:
+        r2_instance = ForgejoPublicationInstanceSpec.from_path(
+            repository_root()
+            / "data"
+            / "instance_specs"
+            / "forgejo-package-provenance-nonmonotonic-dev-001.json"
+        )
+        blueprint = package_provenance_blueprint(
+            r2_instance,
+            instance_id="dev-r2-001",
+            benchmark_split="development",
+            hidden_test_eligible=False,
+            generation="r2",
+        )
+        variants = {item["id"]: item for item in blueprint["matched_variants"]}
+        self.assertIn("r2_package_complete_index_missing", variants)
+        self.assertIn("r2_package_corrupt_binary_index_missing", variants)
+        profile = blueprint["admission_profile"]["adaptive_recovery"]
+        self.assertTrue(profile["requires_same_inventory_opposite_scope_pair"])
+        self.assertTrue(profile["requires_non_monotonic_repair"])
+        self.assertEqual(profile["minimum_adaptive_query_depth"], 4)
+        persisted = json.loads(
+            (
+                repository_root()
+                / "data"
+                / "scenario_blueprints"
+                / r2_instance.scenario_id
+                / "scenario.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(persisted, blueprint)
+
 
 if __name__ == "__main__":
     unittest.main()

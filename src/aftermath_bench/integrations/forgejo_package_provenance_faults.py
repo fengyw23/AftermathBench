@@ -15,6 +15,7 @@ class PackageProvenanceBoundaryVariant:
     release_committed: bool
     coordinator_mode: str
     provenance_mode: str
+    corrupt_preloaded_file_roles: tuple[str, ...] = ()
 
 
 PACKAGE_PROVENANCE_VARIANTS = {
@@ -76,13 +77,66 @@ PACKAGE_PROVENANCE_VARIANTS = {
     ),
 }
 
+# The first family deliberately isolates transport uncertainty.  This second
+# development family adds content validity so that an identical package-file
+# inventory can require either preservation or replacement.  Keeping the two
+# registries separate preserves the already published r1 evidence.
+PACKAGE_PROVENANCE_R2_VARIANTS = {
+    "r2_package_request_not_reached": PackageProvenanceBoundaryVariant(
+        preloaded_file_roles=(),
+        preclosed_tracking_positions=(),
+        postcommit_tracking_positions=(),
+        attempted_operation="upload_binary",
+        api_mode="suppress_request",
+        release_committed=False,
+        coordinator_mode="normal",
+        provenance_mode="normal",
+    ),
+    "r2_package_binary_committed_response_lost": PackageProvenanceBoundaryVariant(
+        preloaded_file_roles=("checksum",),
+        preclosed_tracking_positions=(),
+        postcommit_tracking_positions=(),
+        attempted_operation="upload_binary",
+        api_mode="drop_response",
+        release_committed=False,
+        coordinator_mode="normal",
+        provenance_mode="normal",
+    ),
+    "r2_package_complete_index_missing": PackageProvenanceBoundaryVariant(
+        preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
+        preclosed_tracking_positions=(0,),
+        postcommit_tracking_positions=(),
+        attempted_operation="create_index_release",
+        api_mode="suppress_request",
+        release_committed=False,
+        coordinator_mode="normal",
+        provenance_mode="normal",
+    ),
+    "r2_package_corrupt_binary_index_missing": PackageProvenanceBoundaryVariant(
+        preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
+        preclosed_tracking_positions=(0,),
+        postcommit_tracking_positions=(),
+        attempted_operation="create_index_release",
+        api_mode="suppress_request",
+        release_committed=False,
+        coordinator_mode="normal",
+        provenance_mode="normal",
+        corrupt_preloaded_file_roles=("binary",),
+    ),
+}
+
 FORGEJO_PACKAGE_PROVENANCE_VARIANTS = tuple(PACKAGE_PROVENANCE_VARIANTS)
+FORGEJO_PACKAGE_PROVENANCE_R2_VARIANTS = tuple(PACKAGE_PROVENANCE_R2_VARIANTS)
+ALL_PACKAGE_PROVENANCE_VARIANTS = {
+    **PACKAGE_PROVENANCE_VARIANTS,
+    **PACKAGE_PROVENANCE_R2_VARIANTS,
+}
 
 
 class ForgejoPackageProvenanceFaultController(ForgejoPublicationFaultController):
     def arm(self, variant: str) -> PackageProvenanceBoundaryVariant:
         try:
-            specification = PACKAGE_PROVENANCE_VARIANTS[variant]
+            specification = ALL_PACKAGE_PROVENANCE_VARIANTS[variant]
         except KeyError as error:
             raise ValueError(
                 f"unknown Forgejo package-provenance variant: {variant}"
@@ -104,7 +158,10 @@ class ForgejoPackageProvenanceFaultController(ForgejoPublicationFaultController)
 
 
 __all__ = [
+    "ALL_PACKAGE_PROVENANCE_VARIANTS",
+    "FORGEJO_PACKAGE_PROVENANCE_R2_VARIANTS",
     "FORGEJO_PACKAGE_PROVENANCE_VARIANTS",
+    "PACKAGE_PROVENANCE_R2_VARIANTS",
     "PACKAGE_PROVENANCE_VARIANTS",
     "ForgejoPackageProvenanceFaultController",
     "PackageProvenanceBoundaryVariant",

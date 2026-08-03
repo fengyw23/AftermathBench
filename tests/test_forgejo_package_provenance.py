@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 from aftermath_bench.integrations.forgejo_package_provenance_faults import (
+    PACKAGE_PROVENANCE_R2_VARIANTS,
     PACKAGE_PROVENANCE_VARIANTS,
 )
 from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
@@ -174,6 +175,17 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertEqual(complete.postcommit_tracking_positions, (1,))
         self.assertEqual(complete.coordinator_mode, "suppress_request")
         self.assertEqual(complete.provenance_mode, "suppress_request")
+
+    def test_r2_contains_same_inventory_with_opposite_repair_polarity(self) -> None:
+        valid = PACKAGE_PROVENANCE_R2_VARIANTS["r2_package_complete_index_missing"]
+        corrupt = PACKAGE_PROVENANCE_R2_VARIANTS[
+            "r2_package_corrupt_binary_index_missing"
+        ]
+        self.assertEqual(valid.preloaded_file_roles, corrupt.preloaded_file_roles)
+        self.assertEqual(valid.attempted_operation, corrupt.attempted_operation)
+        self.assertEqual(valid.api_mode, corrupt.api_mode)
+        self.assertEqual(valid.corrupt_preloaded_file_roles, ())
+        self.assertEqual(corrupt.corrupt_preloaded_file_roles, ("binary",))
 
     def test_complete_native_state_passes(self) -> None:
         report = evaluate_forgejo_package_provenance_recovery(
