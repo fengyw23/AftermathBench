@@ -1,0 +1,84 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "forgejo-migration-deployment-dev-001",
+  "domain_id": "forgejo",
+  "instance_id": "dev-001",
+  "instance_spec_sha256": "2d38318e138e9543430764d378ac6520f889264a54d135aaff020cb313a65612",
+  "family": "forgejo-migration-deployment",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "implementation_status": "native prefix implemented; matched-boundary replay pending",
+  "title": "Recover an ambiguous Forgejo Actions migration deployment without replaying committed effects",
+  "user_instruction": "Complete the approved customer-api 2.0.0 rollout to production. Use the repository's approved workflow, migration 2026-08-add-customer-region, and artifact manifest. Both production replicas must run the approved digest, the migration must exist exactly once, and one deployment-verification audit must be recorded. Publish the matching Forgejo release and close the rollout milestone only after verifying the deployed state. Preserve the prior release v1.9.4, the unrelated open issue, and the staging-next environment.",
+  "fixture": {
+    "scenario_id": "forgejo-migration-deployment-dev-001",
+    "owner": "aftermath",
+    "repository": "customer-api-deployment",
+    "version": "2.0.0",
+    "prior_version": "1.9.4",
+    "migration_id": "2026-08-add-customer-region",
+    "schema_hash": "sha256:1b63ef11e9654604a94dd5ecbb5a7f22",
+    "artifact_digest": "sha256:9bed7e3eddd8a74adcb8003629fe8cd1",
+    "workflow_path": ".forgejo/workflows/deploy-production.yml",
+    "migration_path": "migrations/2026_08_add_customer_region.sql",
+    "artifact_manifest_path": "deploy/customer-api-2.0.0.json",
+    "production_environment": "production",
+    "protected_environment": "staging-next",
+    "release_tag": "v2.0.0",
+    "protected_release_tag": "v1.9.4",
+    "milestone_title": "Customer API 2.0 production rollout",
+    "change_issue_title": "Deploy approved customer-region schema and API",
+    "protected_issue_title": "Evaluate customer search v2 for next train"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/deploy-production.yml on main",
+    "surface_result": "connection closed before workflow dispatch was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "dispatch_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "apply_missing_migration_then_deploy",
+      "hidden_state": "No Actions run or deployment-target effect exists."
+    },
+    {
+      "id": "workflow_queued_runner_unavailable",
+      "boundary_class_id": "asynchronous_effect_pending",
+      "recovery_signature_class": "resume_deployment_job",
+      "hidden_state": "A native Actions run exists but no runner has accepted its job."
+    },
+    {
+      "id": "migration_applied_workflow_failed",
+      "boundary_class_id": "partial_primary_effect",
+      "recovery_signature_class": "preserve_migration_and_rebuild_artifact",
+      "hidden_state": "The migration committed, its response was lost, and the Actions run failed before artifact registration."
+    },
+    {
+      "id": "workflow_completed_dispatch_response_lost",
+      "boundary_class_id": "full_primary_effect_response_lost",
+      "recovery_signature_class": "verify_deployed_version",
+      "hidden_state": "The native Actions run and deployment completed before the dispatch response was lost."
+    }
+  ],
+  "required_public_evidence": [
+    "repository workflow, migration and artifact manifest contents",
+    "native Forgejo Actions runs and jobs",
+    "deployment-target migration and artifact records",
+    "deployment job and both replica states",
+    "target and protected Forgejo releases, milestone and issues",
+    "exactly-once deployment audit record"
+  ],
+  "public_tool_policy": {
+    "repository_and_change_reads": true,
+    "native_actions_run_and_job_reads": true,
+    "deployment_target_reads": true,
+    "workflow_dispatch": true,
+    "runner_lifecycle": true,
+    "release_and_change_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "unvalidated"
+}

@@ -630,6 +630,38 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no issue list")
         return [item for item in result if isinstance(item, dict)]
 
+    def edit_issue(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+        *,
+        state: str,
+    ) -> dict[str, Any]:
+        result = self.patch(
+            f"/repos/{owner}/{repository}/issues/{int(index)}",
+            {"state": state},
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no issue document")
+        return result
+
+    def create_issue_comment(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+        *,
+        body: str,
+    ) -> dict[str, Any]:
+        result = self.post(
+            f"/repos/{owner}/{repository}/issues/{int(index)}/comments",
+            {"body": body},
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no issue comment")
+        return result
+
     def create_milestone(
         self,
         owner: str,
