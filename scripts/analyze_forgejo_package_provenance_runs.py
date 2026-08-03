@@ -110,7 +110,11 @@ def analyze(root: Path) -> dict[str, Any]:
                 "passed": bool(evaluation.get("passed")),
                 "execution_control": bool(report.get("execution_control")),
                 "turn_count": len(report.get("turns", ())),
-                "query_call_count": first_write,
+                "query_call_count": sum(
+                    name not in FORGEJO_PACKAGE_PROVENANCE_MUTATIONS
+                    for name in names
+                ),
+                "prewrite_query_call_count": first_write,
                 "mutation_call_count": len(mutations),
                 "mutation_signature": signature,
                 "scope_polarity_correct": _scope_polarity(variant, mutations),
