@@ -29,11 +29,18 @@ def main() -> int:
             "restore",
             "snapshot-bundle",
             "restore-bundle",
+            "snapshot-migration-bundle",
+            "restore-migration-bundle",
             "down",
             "purge",
         ),
     )
     parser.add_argument("--snapshot", type=Path)
+    parser.add_argument(
+        "--runner-disabled",
+        action="store_true",
+        help="record/restore a migration boundary with the Actions runner paused",
+    )
     parser.add_argument(
         "--container-cli",
         choices=("docker", "podman"),
@@ -92,6 +99,21 @@ def main() -> int:
         if not args.snapshot:
             parser.error("--snapshot is required")
         stack.restore_bundle(args.snapshot)
+    elif args.action == "snapshot-migration-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        print(
+            json.dumps(
+                stack.snapshot_migration_bundle(
+                    args.snapshot,
+                    runner_enabled=not args.runner_disabled,
+                )
+            )
+        )
+    elif args.action == "restore-migration-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        stack.restore_migration_bundle(args.snapshot)
     elif args.action == "down":
         stack.down()
     else:

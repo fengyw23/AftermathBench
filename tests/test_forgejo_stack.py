@@ -181,6 +181,47 @@ class ForgejoStackTest(unittest.TestCase):
         }
         self.assertNotIn("http://127.0.0.1:9092/admin/reset", reset_urls)
 
+    def test_migration_bundle_preserves_runner_pause_and_both_databases(self) -> None:
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append(tuple(command))
+            output = kwargs.get("stdout")
+            if output is not None:
+                output.write(b"archive")
+            return subprocess.CompletedProcess(command, 0)
+
+        stack = ForgejoStack(compose_file=Path("compose.yaml"), runner=runner)
+        stack.wait_ready = Mock()  # type: ignore[method-assign]
+        stack.reset_service = Mock()  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "migration"
+            manifest = stack.snapshot_migration_bundle(
+                bundle, runner_enabled=False
+            )
+            stack.restore_migration_bundle(bundle)
+
+        self.assertFalse(manifest["runner_enabled"])
+        self.assertIn("deployment_target_sha256", manifest)
+        start_calls = [call for call in calls if "start" in call]
+        self.assertEqual(len(start_calls), 2)
+        self.assertTrue(
+            all("runner-daemon" not in call for call in start_calls)
+        )
+        self.assertTrue(
+            any("deployment-target" in call for call in calls)
+        )
+        reset_urls = {
+            call.args[0] for call in stack.reset_service.call_args_list
+        }
+        self.assertEqual(
+            reset_urls,
+            {
+                "http://127.0.0.1:9091/admin/reset",
+                "http://127.0.0.1:9096/admin/reset",
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
