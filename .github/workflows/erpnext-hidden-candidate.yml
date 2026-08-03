@@ -173,16 +173,30 @@ jobs:
 
       - name: Admit and freeze before any provider request
         run: |
-          python "$ADMISSION_SCRIPT" \
+          run_private() {
+            label="$1"
+            log="$2"
+            shift 2
+            if ! "$@" > "$log" 2>&1
+            then
+              echo "::error title=ERPNext hidden freeze failed::$label"
+              return 1
+            fi
+          }
+          run_private "admission-build" \
+            "$RUN_ROOT/private/logs/admission.log" \
+            python "$ADMISSION_SCRIPT" \
             --runtime-directory "$RUN_ROOT/private/runtime" \
             --blueprint "$RUN_ROOT/private/blueprint.json" \
-            --output-directory "$RUN_ROOT/private/scenario" \
-            > "$RUN_ROOT/private/logs/admission.log" 2>&1
-          python -m aftermath_bench validate-native-scenario \
-            --scenario "$RUN_ROOT/private/scenario/scenario.json" \
-            > "$RUN_ROOT/private/logs/scenario-validation.log" 2>&1
+            --output-directory "$RUN_ROOT/private/scenario"
+          run_private "scenario-validation" \
+            "$RUN_ROOT/private/logs/scenario-validation.log" \
+            python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/private/scenario/scenario.json"
           runtime_revision="$(python -c 'import json; print(json.load(open("runtimes/erpnext/runtime.lock.json"))["erpnext"]["revision"])')"
-          python scripts/freeze_native_bundle.py \
+          run_private "bundle-freeze" \
+            "$RUN_ROOT/private/logs/freeze.log" \
+            python scripts/freeze_native_bundle.py \
             --bundle-root "$RUN_ROOT/private" \
             --scenario "$RUN_ROOT/private/scenario/scenario.json" \
             --instance-spec "$RUN_ROOT/private/instance.json" \
@@ -191,14 +205,17 @@ jobs:
             --private-attestation "$RUN_ROOT/private/freeze.json" \
             --public-commitment "$RUN_ROOT/private/public-commitment.json" \
             --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
-          python scripts/verify_hidden_test_eligibility.py \
+          run_private "hidden-eligibility" \
+            "$RUN_ROOT/private/logs/hidden-eligibility.log" \
+            python scripts/verify_hidden_test_eligibility.py \
             --scenario "$RUN_ROOT/private/scenario/scenario.json" \
             --freeze "$RUN_ROOT/private/freeze.json" \
-            --usage-ledger "$RUN_ROOT/private/usage-ledger.json" \
-            > "$RUN_ROOT/private/logs/hidden-eligibility.log" 2>&1
+            --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
           cp "$RUN_ROOT/private/public-commitment.json" \
             "$RUN_ROOT/public/pre-model-commitment.json"
-          python scripts/summarize_frozen_candidate.py \
+          run_private "public-summary" \
+            "$RUN_ROOT/private/logs/summary.log" \
+            python scripts/summarize_frozen_candidate.py \
             --commitment "$RUN_ROOT/private/public-commitment.json" \
             --admission "$RUN_ROOT/private/scenario/artifacts/admission.json" \
             --reference "$RUN_ROOT/private/scenario/artifacts/reference.json" \
