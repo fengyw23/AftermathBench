@@ -311,6 +311,20 @@ class NativeAdmissionTest(unittest.TestCase):
         self.assertFalse(report.checks["no_single_query_is_decisive"])
         self.assertFalse(report.checks["heuristic_pass_rate<0.5"])
 
+    def test_partial_return_pilot_is_truthfully_classified_easy(self) -> None:
+        path = next(
+            path
+            for path in native_scenario_paths()
+            if path.parent.name == "erpnext-partial-return-dev-001"
+        )
+        report = validate_native_scenario(load_native_scenario(path))
+        self.assertTrue(report.passed, report.failures)
+        self.assertEqual(report.requested_tier, "easy")
+        self.assertEqual(report.admitted_tier, "easy")
+        self.assertFalse(report.checks["relevant_entities>=20"])
+        self.assertFalse(report.checks["minimum_mutations>=4"])
+        self.assertFalse(report.checks["action_branches>=3"])
+
     def test_kubernetes_partial_downstream_replay_is_hard_admitted(self) -> None:
         path = next(
             path

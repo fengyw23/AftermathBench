@@ -1,7 +1,7 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "0.2",
   "scenario_id": "erpnext-partial-return-dev-001",
-  "source": "native replay projection with executable relation assertions",
+  "source": "native prefix and reference replay projection",
   "entities": [
     {
       "id": "original_purchase_order",
@@ -86,27 +86,12 @@
     {
       "id": "pickup_job",
       "type": "RQ Job",
-      "native_name": "aftermath.localhost::432a989f-43c5-4cd3-999a-5edaa3025e57"
+      "native_name": "aftermath.localhost::8e8c448e-837c-43a2-9815-cb5b6458e514"
     },
     {
       "id": "pickup_delivery",
       "type": "External Delivery",
       "native_name": "MAT-PRE-2026-00002"
-    },
-    {
-      "id": "affected_item",
-      "type": "Item",
-      "native_name": "RAD-DOCK-40G"
-    },
-    {
-      "id": "unaffected_item",
-      "type": "Item",
-      "native_name": "RAD-DISPLAY-5K"
-    },
-    {
-      "id": "replacement_item",
-      "type": "Item",
-      "native_name": "RAD-DOCK-40G-R2"
     }
   ],
   "relations": [
@@ -114,306 +99,134 @@
       "source": "original_purchase_order",
       "target": "original_purchase_receipt",
       "type": "fulfilled_by",
-      "evidence": "original_purchase_receipt.items[].purchase_order",
-      "replay": [
-        {
-          "selector": "original_purchase_receipt.items.*.purchase_order",
-          "operator": "any_equals",
-          "expected_entity": "original_purchase_order"
-        }
-      ]
+      "observed": true,
+      "evidence": "original_purchase_receipt.items[].purchase_order"
     },
     {
       "source": "original_purchase_receipt",
       "target": "affected_invoice",
       "type": "billed_by",
-      "evidence": "affected_invoice.items[].purchase_receipt",
-      "replay": [
-        {
-          "selector": "affected_invoice.items.*.purchase_receipt",
-          "operator": "any_equals",
-          "expected_entity": "original_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "affected_invoice.items[].purchase_receipt"
     },
     {
       "source": "original_purchase_receipt",
       "target": "unaffected_invoice",
       "type": "billed_by",
-      "evidence": "unaffected_invoice.items[].purchase_receipt",
-      "replay": [
-        {
-          "selector": "unaffected_invoice.items.*.purchase_receipt",
-          "operator": "any_equals",
-          "expected_entity": "original_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "unaffected_invoice.items[].purchase_receipt"
     },
     {
       "source": "affected_invoice",
       "target": "shared_payment_entry",
       "type": "paid_by",
-      "evidence": "shared_payment_entry.references[].reference_name",
-      "replay": [
-        {
-          "selector": "shared_payment_entry.references.*.reference_name",
-          "operator": "any_equals",
-          "expected_entity": "affected_invoice"
-        }
-      ]
+      "observed": true,
+      "evidence": "shared_payment_entry.references[].reference_name"
     },
     {
       "source": "unaffected_invoice",
       "target": "shared_payment_entry",
       "type": "paid_by",
-      "evidence": "shared_payment_entry.references[].reference_name",
-      "replay": [
-        {
-          "selector": "shared_payment_entry.references.*.reference_name",
-          "operator": "any_equals",
-          "expected_entity": "unaffected_invoice"
-        }
-      ]
+      "observed": true,
+      "evidence": "shared_payment_entry.references[].reference_name"
     },
     {
       "source": "original_purchase_receipt",
       "target": "quality_inspection",
       "type": "inspected_by",
-      "evidence": "quality_inspection.reference_name",
-      "replay": [
-        {
-          "selector": "quality_inspection.reference_name",
-          "operator": "any_equals",
-          "expected_entity": "original_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "quality_inspection.reference_name"
     },
     {
       "source": "quality_inspection",
       "target": "purchase_return",
       "type": "motivates",
-      "evidence": "quality_inspection.item_code + purchase_returns[0].items",
-      "replay": [
-        {
-          "selector": "quality_inspection.item_code",
-          "operator": "intersects",
-          "other_selector": "purchase_return.items.*.item_code"
-        }
-      ]
+      "observed": true,
+      "evidence": "quality_inspection.item_code + purchase_returns[0].items"
     },
     {
       "source": "original_purchase_receipt",
       "target": "purchase_return",
       "type": "returned_by",
-      "evidence": "purchase_returns[0].return_against",
-      "replay": [
-        {
-          "selector": "purchase_return.return_against",
-          "operator": "any_equals",
-          "expected_entity": "original_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "purchase_returns[0].return_against"
     },
     {
       "source": "purchase_return",
       "target": "return_stock_ledger",
       "type": "posts",
-      "evidence": "stock_ledger_entries[].voucher_no",
-      "replay": [
-        {
-          "selector": "stock_ledger_entries.*.voucher_no",
-          "operator": "any_equals",
-          "expected_entity": "purchase_return"
-        }
-      ]
+      "observed": true,
+      "evidence": "stock_ledger_entries[].voucher_no"
     },
     {
       "source": "purchase_return",
       "target": "return_general_ledger",
       "type": "posts",
-      "evidence": "gl_entries[].voucher_no",
-      "replay": [
-        {
-          "selector": "gl_entries.*.voucher_no",
-          "operator": "any_equals",
-          "expected_entity": "purchase_return"
-        }
-      ]
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
     },
     {
       "source": "affected_invoice",
       "target": "debit_note",
       "type": "credited_by",
-      "evidence": "debit_notes[0].return_against",
-      "replay": [
-        {
-          "selector": "debit_note.return_against",
-          "operator": "any_equals",
-          "expected_entity": "affected_invoice"
-        }
-      ]
+      "observed": true,
+      "evidence": "debit_notes[0].return_against"
     },
     {
       "source": "debit_note",
       "target": "debit_general_ledger",
       "type": "posts",
-      "evidence": "gl_entries[].voucher_no",
-      "replay": [
-        {
-          "selector": "gl_entries.*.voucher_no",
-          "operator": "any_equals",
-          "expected_entity": "debit_note"
-        }
-      ]
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
     },
     {
       "source": "replacement_purchase_order",
       "target": "replacement_purchase_receipt",
       "type": "fulfilled_by",
-      "evidence": "replacement_receipts[0].items[].purchase_order",
-      "replay": [
-        {
-          "selector": "replacement_purchase_receipt.items.*.purchase_order",
-          "operator": "any_equals",
-          "expected_entity": "replacement_purchase_order"
-        }
-      ]
+      "observed": true,
+      "evidence": "replacement_receipts[0].items[].purchase_order"
     },
     {
       "source": "replacement_purchase_receipt",
       "target": "replacement_invoice",
       "type": "billed_by",
-      "evidence": "replacement_invoices[0].items[].purchase_receipt",
-      "replay": [
-        {
-          "selector": "replacement_invoices.*.items.*.purchase_receipt",
-          "operator": "any_equals",
-          "expected_entity": "replacement_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "replacement_invoices[0].items[].purchase_receipt"
     },
     {
       "source": "replacement_purchase_receipt",
       "target": "replacement_stock_ledger",
       "type": "posts",
-      "evidence": "stock_ledger_entries[].voucher_no",
-      "replay": [
-        {
-          "selector": "stock_ledger_entries.*.voucher_no",
-          "operator": "any_equals",
-          "expected_entity": "replacement_purchase_receipt"
-        }
-      ]
+      "observed": true,
+      "evidence": "stock_ledger_entries[].voucher_no"
     },
     {
       "source": "debit_note",
       "target": "replacement_invoice",
       "type": "reconciles_with",
-      "evidence": "debit_notes[0].outstanding_amount + replacement_invoices[0].outstanding_amount",
-      "replay": [
-        {
-          "selector": "debit_note.outstanding_amount",
-          "operator": "all_numeric_zero"
-        },
-        {
-          "selector": "replacement_invoices.*.outstanding_amount",
-          "operator": "any_numeric_zero"
-        }
-      ]
+      "observed": true,
+      "evidence": "debit_notes[0].outstanding_amount + replacement_invoices[0].outstanding_amount"
     },
     {
       "source": "shared_payment_entry",
       "target": "payment_general_ledger",
       "type": "posts",
-      "evidence": "gl_entries[].voucher_no",
-      "replay": [
-        {
-          "selector": "gl_entries.*.voucher_no",
-          "operator": "any_equals",
-          "expected_entity": "shared_payment_entry"
-        }
-      ]
+      "observed": true,
+      "evidence": "gl_entries[].voucher_no"
     },
     {
       "source": "purchase_return",
       "target": "pickup_job",
       "type": "enqueues",
-      "evidence": "rq_jobs[].arguments",
-      "replay": [
-        {
-          "selector": "rq_jobs.*",
-          "operator": "any_serialized_contains",
-          "expected_entity": "purchase_return"
-        }
-      ]
+      "observed": true,
+      "evidence": "rq_jobs[].arguments"
     },
     {
       "source": "pickup_job",
       "target": "pickup_delivery",
       "type": "delivers",
-      "evidence": "rq_jobs[].arguments + pickup_delivery.key",
-      "replay": [
-        {
-          "selector": "rq_jobs.*",
-          "operator": "nonempty"
-        },
-        {
-          "selector": "pickup_delivery",
-          "operator": "nonempty"
-        }
-      ]
-    },
-    {
-      "source": "affected_item",
-      "target": "original_purchase_order",
-      "type": "ordered_in",
-      "evidence": "replayed from native item_code fields",
-      "replay": [
-        {
-          "selector": "original_purchase_order.items.*.item_code",
-          "operator": "any_equals",
-          "expected_entity": "affected_item"
-        }
-      ]
-    },
-    {
-      "source": "unaffected_item",
-      "target": "original_purchase_order",
-      "type": "ordered_in",
-      "evidence": "replayed from native item_code fields",
-      "replay": [
-        {
-          "selector": "original_purchase_order.items.*.item_code",
-          "operator": "any_equals",
-          "expected_entity": "unaffected_item"
-        }
-      ]
-    },
-    {
-      "source": "replacement_item",
-      "target": "replacement_purchase_order",
-      "type": "ordered_in",
-      "evidence": "replayed from native item_code fields",
-      "replay": [
-        {
-          "selector": "replacement_purchase_order.items.*.item_code",
-          "operator": "any_equals",
-          "expected_entity": "replacement_item"
-        }
-      ]
-    },
-    {
-      "source": "affected_item",
-      "target": "quality_inspection",
-      "type": "inspected_as",
-      "evidence": "replayed from native item_code fields",
-      "replay": [
-        {
-          "selector": "quality_inspection.item_code",
-          "operator": "any_equals",
-          "expected_entity": "affected_item"
-        }
-      ]
+      "observed": true,
+      "evidence": "rq_jobs[].arguments + pickup_delivery.key"
     }
   ],
   "protected_effects": [
@@ -434,9 +247,7 @@
       "debit_general_ledger"
     ],
     [
-      "pickup_job"
-    ],
-    [
+      "pickup_job",
       "pickup_delivery"
     ]
   ],
@@ -476,32 +287,6 @@
   ],
   "minimum_boundary_query_groups": 3,
   "single_query_decisive": false,
-  "action_branches": [
-    {
-      "id": "document_state",
-      "mutation_tools": [
-        "submit_document",
-        "cancel_document",
-        "create_purchase_return",
-        "create_debit_note",
-        "create_purchase_receipt_from_order",
-        "create_purchase_invoice_from_receipt"
-      ]
-    },
-    {
-      "id": "financial_reconciliation",
-      "mutation_tools": [
-        "reconcile_supplier_documents"
-      ]
-    },
-    {
-      "id": "asynchronous_effect",
-      "mutation_tools": [
-        "enqueue_document_webhook",
-        "resume_workers"
-      ]
-    }
-  ],
   "unsafe_actions": [
     "resubmit a committed Purchase Return",
     "return the unaffected item quantity",
