@@ -6,6 +6,14 @@ on:
       - forgejo-package-provenance-model-suite
   workflow_dispatch:
     inputs:
+      generation:
+        description: Frozen package-recovery generation
+        required: true
+        default: r1
+        type: choice
+        options:
+          - r1
+          - r2
       suite:
         description: Models to run against the same native prefix
         required: true
@@ -40,8 +48,7 @@ jobs:
       AFTERMATH_PARATERA_API_KEY: ${{ secrets.PARATERA_API_KEY }}
       BAILIAN_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
       PARATERA_BASE_URL: https://llmapi.paratera.com/v1
-      INSTANCE: data/instance_specs/forgejo-package-provenance-public-dev-001.json
-      SCENARIO: data/scenarios/forgejo-package-provenance-public-dev-001/scenario.json
+      GENERATION: ${{ inputs.generation || 'r1' }}
       RUN_ROOT: runtimes/forgejo/.runtime/package-provenance-model-suite
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +63,21 @@ jobs:
           requested_suite="${{ inputs.suite }}"
           requested_repetitions="${{ inputs.repetitions }}"
           requested_control="${{ inputs.execution_control }}"
+          case "$GENERATION" in
+            r1)
+              instance=data/instance_specs/forgejo-package-provenance-public-dev-001.json
+              scenario=data/scenarios/forgejo-package-provenance-public-dev-001/scenario.json
+              ;;
+            r2)
+              instance=data/instance_specs/forgejo-package-provenance-nonmonotonic-dev-001.json
+              scenario=data/scenarios/forgejo-package-provenance-nonmonotonic-dev-001/scenario.json
+              ;;
+            *) echo "Unknown generation: $GENERATION" >&2; exit 2 ;;
+          esac
+          test -s "$instance"
+          test -s "$scenario"
+          echo "INSTANCE=$instance" >> "$GITHUB_ENV"
+          echo "SCENARIO=$scenario" >> "$GITHUB_ENV"
           test -n "$requested_suite" || requested_suite=both
           test -n "$requested_repetitions" || requested_repetitions=1
           test "$requested_repetitions" -ge 1
@@ -107,12 +129,22 @@ jobs:
           then
             conditions+=(DeepSeek-V4-Pro)
           fi
-          variants=(
-            package_request_not_reached
-            package_binary_committed_response_lost
-            package_complete_index_missing
-            package_complete_index_accepted_response_lost
-          )
+          if [ "$GENERATION" = r2 ]
+          then
+            variants=(
+              r2_package_request_not_reached
+              r2_package_binary_committed_response_lost
+              r2_package_complete_index_missing
+              r2_package_corrupt_binary_index_missing
+            )
+          else
+            variants=(
+              package_request_not_reached
+              package_binary_committed_response_lost
+              package_complete_index_missing
+              package_complete_index_accepted_response_lost
+            )
+          fi
           control_flag=()
           if [ "$EXECUTION_CONTROL" = true ]
           then
@@ -143,6 +175,7 @@ jobs:
               echo "provider=$provider"
               echo "base_url=$base_url"
               echo "model=$model"
+              echo "generation=$GENERATION"
               echo "execution_control=$EXECUTION_CONTROL"
               echo "repetitions=$REPETITIONS"
               echo "commit=$GITHUB_SHA"

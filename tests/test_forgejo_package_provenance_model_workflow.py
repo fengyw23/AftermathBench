@@ -37,6 +37,28 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
             self.text,
         )
 
+    def test_r2_selects_the_nonmonotonic_instance_and_matched_group(self) -> None:
+        self.assertIn("generation:", self.text)
+        self.assertIn("GENERATION: ${{ inputs.generation || 'r1' }}", self.text)
+        self.assertIn(
+            "data/instance_specs/"
+            "forgejo-package-provenance-nonmonotonic-dev-001.json",
+            self.text,
+        )
+        self.assertIn(
+            "data/scenarios/"
+            "forgejo-package-provenance-nonmonotonic-dev-001/scenario.json",
+            self.text,
+        )
+        for variant in (
+            "r2_package_request_not_reached",
+            "r2_package_binary_committed_response_lost",
+            "r2_package_complete_index_missing",
+            "r2_package_corrupt_binary_index_missing",
+        ):
+            self.assertIn(variant, self.text)
+        self.assertIn('echo "generation=$GENERATION"', self.text)
+
     def test_secrets_are_selected_without_being_artifacts(self) -> None:
         self.assertIn("secrets.BAILIAN_API_KEY", self.text)
         self.assertIn("secrets.PARATERA_API_KEY", self.text)
