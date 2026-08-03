@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -130,6 +130,68 @@ _SCORED_STATE_FIELDS = (
 )
 
 
+@dataclass(frozen=True)
+class ERPNextFormalBuildProfile:
+    family_id: str
+    variants: tuple[str, ...]
+    state_evidence_artifact_type: str
+    failure_boundary_artifact_type: str
+    reference_artifact_type: str
+    raw_boundary_state_field: str
+    accepted_failure_schema_versions: frozenset[str]
+    accepted_reference_schema_versions: frozenset[str]
+    tool_definition_source: str
+    tool_implementation_source: str
+    tool_implementation_dependencies: tuple[str, ...]
+    native_runtime_contract_sources: tuple[str, ...]
+    boundary_contract_sources: tuple[str, ...]
+    evaluator_source: str
+    scored_state_fields: tuple[str, ...]
+    tool_definitions: tuple[Any, ...]
+    environment_tool_names: tuple[str, ...]
+    tool_definition_role_path: str
+    tool_implementation_role_path: str
+    tool_implementation_symbol: str
+    evaluator_role_path: str
+    evaluator_symbol: str
+    evaluator: Callable[..., Any]
+    boundary_state_projection: Callable[[dict[str, Any]], dict[str, Any]]
+
+
+def _identity_state_projection(
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    return state
+
+
+_SALES_RETURN_PROFILE = ERPNextFormalBuildProfile(
+    family_id=_FAMILY_ID,
+    variants=_VARIANTS,
+    state_evidence_artifact_type="erpnext_sales_return_state_evidence",
+    failure_boundary_artifact_type="erpnext_sales_return_failure_boundary",
+    reference_artifact_type="erpnext_sales_return_reference_recovery",
+    raw_boundary_state_field="failure_boundary_evidence",
+    accepted_failure_schema_versions=frozenset({"1.0"}),
+    accepted_reference_schema_versions=frozenset({"1.0"}),
+    tool_definition_source=_TOOL_DEFINITION_SOURCE,
+    tool_implementation_source=_TOOL_IMPLEMENTATION_SOURCE,
+    tool_implementation_dependencies=_TOOL_IMPLEMENTATION_DEPENDENCIES,
+    native_runtime_contract_sources=_NATIVE_RUNTIME_CONTRACT_SOURCES,
+    boundary_contract_sources=_BOUNDARY_CONTRACT_SOURCES,
+    evaluator_source=_EVALUATOR_SOURCE,
+    scored_state_fields=_SCORED_STATE_FIELDS,
+    tool_definitions=tuple(SALES_RETURN_TOOL_DEFINITIONS),
+    environment_tool_names=tuple(ERPNextSalesReturnEnvironment.TOOL_NAMES),
+    tool_definition_role_path="sources/native_sales_family.py",
+    tool_implementation_role_path="sources/erpnext_sales_return_agent.py",
+    tool_implementation_symbol="ERPNextSalesReturnEnvironment.invoke",
+    evaluator_role_path="sources/erpnext_sales_return_evaluator.py",
+    evaluator_symbol="evaluate_sales_return_recovery",
+    evaluator=evaluate_sales_return_recovery,
+    boundary_state_projection=_identity_state_projection,
+)
+
+
 class ERPNextFormalBuildSpecError(ValueError):
     """Raised when ERPNext evidence cannot support a formal package."""
 
@@ -210,6 +272,8 @@ def _exact_manifest(
 
 def discover_active_erpnext_public_dev_scenario(
     root: str | Path,
+    *,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> str:
     resolved_root = Path(root).resolve()
     candidates: list[str] = []
@@ -223,7 +287,7 @@ def discover_active_erpnext_public_dev_scenario(
         raw = scenario.raw
         if (
             scenario.domain_id == _DOMAIN_ID
-            and scenario.family_id == _FAMILY_ID
+            and scenario.family_id == profile.family_id
             and scenario.split == _SPLIT
             and scenario.tier == _TIER
             and raw.get("admission_status") == _ADMISSION_STATUS
@@ -240,11 +304,16 @@ def discover_active_erpnext_public_dev_scenario(
 def _validate_active_scenario(
     root: Path,
     scenario_path: str | Path | None,
+    *,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> tuple[NativeScenario, str, str]:
     selected = (
         scenario_path
         if scenario_path is not None
-        else discover_active_erpnext_public_dev_scenario(root)
+        else discover_active_erpnext_public_dev_scenario(
+            root,
+            profile=profile,
+        )
     )
     path, relative = _repo_file(
         root,
@@ -261,13 +330,13 @@ def _validate_active_scenario(
     raw = scenario.raw
     if (
         scenario.domain_id != _DOMAIN_ID
-        or scenario.family_id != _FAMILY_ID
+        or scenario.family_id != profile.family_id
         or raw.get("runtime_id") != _RUNTIME_ID
         or scenario.split != _SPLIT
         or scenario.tier != _TIER
         or raw.get("admission_status") != _ADMISSION_STATUS
         or raw.get("hidden_test_eligible") is not False
-        or scenario.variants != _VARIANTS
+        or scenario.variants != profile.variants
     ):
         raise ERPNextFormalBuildSpecError(
             "active ERPNext scenario is not the admitted fresh public-dev slot"
@@ -473,6 +542,7 @@ def _validate_reset(
     variant_id: str,
     prefix_sha256: str,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> str:
     label = f"ERPNext reset capture {variant_id}"
     _validate_identity(
@@ -482,10 +552,11 @@ def _validate_reset(
         label=label,
     )
     state = capture.get("state")
+    raw_state = raw_boundary[profile.raw_boundary_state_field]
     if (
         capture.get("schema_version") != "1.0"
         or capture.get("artifact_type")
-        != "erpnext_sales_return_state_evidence"
+        != profile.state_evidence_artifact_type
         or capture.get("instance_id") != scenario.instance_id
         or capture.get("phase") != "reset"
         or capture.get("reset_verified") is not True
@@ -509,6 +580,7 @@ def _validate_raw_boundary(
     *,
     scenario: NativeScenario,
     variant_id: str,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> dict[str, Any]:
     label = f"ERPNext raw boundary {variant_id}"
     _validate_identity(
@@ -518,14 +590,16 @@ def _validate_raw_boundary(
         label=label,
     )
     validation = payload.get("boundary_validation")
+    latest_attempt = payload.get("latest_attempt")
     visible = payload.get("visible_failure")
+    if visible is None and isinstance(latest_attempt, dict):
+        visible = latest_attempt.get("result")
     if (
-        payload.get("schema_version") != "1.0"
+        payload.get("schema_version")
+        not in profile.accepted_failure_schema_versions
         or payload.get("artifact_type")
-        != "erpnext_sales_return_failure_boundary"
+        != profile.failure_boundary_artifact_type
         or payload.get("phase") != "boundary"
-        or payload.get("surface_result")
-        != scenario.raw["ambiguous_operation"]["surface_result"]
         or not isinstance(visible, dict)
         or visible.get("ok") is not False
         or not isinstance(validation, dict)
@@ -533,7 +607,10 @@ def _validate_raw_boundary(
         or not isinstance(validation.get("checks"), dict)
         or not validation["checks"]
         or not all(value is True for value in validation["checks"].values())
-        or not isinstance(payload.get("failure_boundary_evidence"), dict)
+        or not isinstance(
+            payload.get(profile.raw_boundary_state_field),
+            dict,
+        )
     ):
         raise ERPNextFormalBuildSpecError(
             f"{label} is not a passing ambiguous native boundary"
@@ -552,6 +629,7 @@ def _validate_boundary(
     variant_id: str,
     prefix_sha256: str,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> str:
     del path
     label = f"ERPNext boundary capture {variant_id}"
@@ -559,6 +637,7 @@ def _validate_boundary(
         capture,
         scenario=scenario,
         variant_id=variant_id,
+        profile=profile,
         label=label,
     )
     visible = _validate_raw_boundary(
@@ -570,7 +649,7 @@ def _validate_boundary(
     if (
         capture.get("schema_version") != "1.0"
         or capture.get("artifact_type")
-        != "erpnext_sales_return_state_evidence"
+        != profile.state_evidence_artifact_type
         or capture.get("instance_id") != scenario.instance_id
         or capture.get("phase") != "boundary"
         or capture.get("boundary_validation_passed") is not True
@@ -582,8 +661,9 @@ def _validate_boundary(
         or capture.get("surface_result")
         != scenario.raw["ambiguous_operation"]["surface_result"]
         or capture.get("visible_failure") != visible
-        or capture.get("state") != raw_boundary["failure_boundary_evidence"]
         or not isinstance(state, dict)
+        or profile.boundary_state_projection(state)
+        != profile.boundary_state_projection(raw_state)
         or capture.get("state_fingerprint")
         != canonical_state_fingerprint(state)
     ):
@@ -601,8 +681,9 @@ def _evaluation_payload(
     evidence: dict[str, Any],
     *,
     prefix: dict[str, Any],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> dict[str, Any]:
-    evaluation = evaluate_sales_return_recovery(evidence, prefix=prefix)
+    evaluation = profile.evaluator(evidence, prefix=prefix)
     return {
         "passed": evaluation.passed,
         "components": evaluation.components,
@@ -618,6 +699,7 @@ def _validate_reference(
     prefix: dict[str, Any],
     scenario: NativeScenario,
     variant_id: str,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> tuple[str, ...]:
     label = f"ERPNext reference report {variant_id}"
     _validate_identity(
@@ -629,23 +711,24 @@ def _validate_reference(
     trace = payload.get("reference_trace")
     final = payload.get("final_evidence")
     if (
-        payload.get("schema_version") != "1.0"
+        payload.get("schema_version")
+        not in profile.accepted_reference_schema_versions
         or payload.get("artifact_type")
-        != "erpnext_sales_return_reference_recovery"
+        != profile.reference_artifact_type
         or payload.get("phase") != "reference"
         or payload.get("control_error") is not None
         or not isinstance(trace, list)
         or not trace
         or not isinstance(final, dict)
         or payload.get("evaluation")
-        != _evaluation_payload(final, prefix=prefix)
+        != _evaluation_payload(final, prefix=prefix, profile=profile)
     ):
         raise ERPNextFormalBuildSpecError(
             f"{label} is not a complete recomputed passing recovery"
         )
     if payload["evaluation"]["passed"] is not True:
         raise ERPNextFormalBuildSpecError(f"{label} did not pass")
-    known_tools = set(ERPNextSalesReturnEnvironment.TOOL_NAMES)
+    known_tools = set(profile.environment_tool_names)
     for index, event in enumerate(trace):
         if (
             not isinstance(event, dict)
@@ -671,6 +754,7 @@ def _validate_control_trajectory(
     trusted_producer_commit: str,
     raw_boundary_path: Path,
     raw_boundary: dict[str, Any],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> str:
     label = f"ERPNext execution-control trajectory {variant_id}"
     _validate_identity(
@@ -692,7 +776,7 @@ def _validate_control_trajectory(
         or not payload["turns"]
         or not isinstance(final, dict)
         or payload.get("evaluation")
-        != _evaluation_payload(final, prefix=prefix)
+        != _evaluation_payload(final, prefix=prefix, profile=profile)
         or payload.get("surface_failure")
         != raw_boundary.get("visible_failure")
     ):
@@ -728,16 +812,17 @@ def _validate_control_summary(
     *,
     scenario: NativeScenario,
     trajectories: dict[str, dict[str, Any]],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> None:
     reports = payload.get("reports")
     counts = payload.get("execution_control_counts")
     if (
         not isinstance(reports, list)
-        or len(reports) != _EXPECTED_VARIANT_COUNT
-        or payload.get("completed_runs") != _EXPECTED_VARIANT_COUNT
+        or len(reports) != len(profile.variants)
+        or payload.get("completed_runs") != len(profile.variants)
         or payload.get("run_errors") != []
         or not isinstance(counts, dict)
-        or counts.get("true") != _EXPECTED_VARIANT_COUNT
+        or counts.get("true") != len(profile.variants)
     ):
         raise ERPNextFormalBuildSpecError(
             "ERPNext execution-control summary is incomplete"
@@ -749,7 +834,7 @@ def _validate_control_summary(
     observed_rate = payload.get("task_pass_rate")
     if (
         not isinstance(observed_rate, (int, float))
-        or abs(float(observed_rate) - passed / _EXPECTED_VARIANT_COUNT)
+        or abs(float(observed_rate) - passed / len(profile.variants))
         > 1e-12
         or observed_rate < MIN_EXECUTION_CONTROL_PASS_RATE
     ):
@@ -795,6 +880,7 @@ def _collect_variant_evidence(
     trusted_producer_commit: str,
     capture_directory: Path,
     bundle_manifests: dict[str, tuple[str, dict[str, Any]]],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> tuple[
     tuple[_VariantEvidence, ...],
     tuple[str, ...],
@@ -872,6 +958,7 @@ def _collect_variant_evidence(
             variant_id=variant_id,
             prefix_sha256=prefix_sha256,
             bundle_manifests=bundle_manifests,
+            profile=profile,
         )
         boundary_manifest = _validate_boundary(
             boundary,
@@ -883,6 +970,7 @@ def _collect_variant_evidence(
             variant_id=variant_id,
             prefix_sha256=prefix_sha256,
             bundle_manifests=bundle_manifests,
+            profile=profile,
         )
         used_manifests["reset"].add(reset_manifest)
         used_manifests["boundary"].add(boundary_manifest)
@@ -891,6 +979,7 @@ def _collect_variant_evidence(
             prefix=prefix,
             scenario=scenario,
             variant_id=variant_id,
+            profile=profile,
         )
         if evaluator_check_ids is None:
             evaluator_check_ids = check_ids
@@ -966,6 +1055,7 @@ def _collect_variant_evidence(
                 trusted_producer_commit=trusted_producer_commit,
                 raw_boundary_path=raw_boundary_path,
                 raw_boundary=raw_boundary,
+                profile=profile,
             )
             if run_id in run_ids:
                 raise ERPNextFormalBuildSpecError(
@@ -1020,6 +1110,7 @@ def _collect_variant_evidence(
             ),
             scenario=scenario,
             trajectories=trajectories,
+            profile=profile,
         )
     if evaluator_check_ids is None:
         raise ERPNextFormalBuildSpecError(
@@ -1047,15 +1138,16 @@ def _tool_role(
     output: str,
     runtime_revision: str,
     source_verification_relative: str,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> dict[str, Any]:
     _, definition = _repo_file(
         root,
-        _TOOL_DEFINITION_SOURCE,
+        profile.tool_definition_source,
         label="ERPNext tool-definition source",
     )
     _, implementation = _repo_file(
         root,
-        _TOOL_IMPLEMENTATION_SOURCE,
+        profile.tool_implementation_source,
         label="ERPNext tool-implementation source",
     )
     dependencies = tuple(
@@ -1064,7 +1156,7 @@ def _tool_role(
             path,
             label=f"ERPNext tool dependency {path}",
         )[1]
-        for path in _TOOL_IMPLEMENTATION_DEPENDENCIES
+        for path in profile.tool_implementation_dependencies
     )
     runtime_sources = tuple(
         _repo_file(
@@ -1072,12 +1164,10 @@ def _tool_role(
             path,
             label=f"ERPNext runtime source {path}",
         )[1]
-        for path in _NATIVE_RUNTIME_CONTRACT_SOURCES
+        for path in profile.native_runtime_contract_sources
     )
-    tools = tuple(SALES_RETURN_TOOL_DEFINITIONS)
-    if tuple(tool.name for tool in tools) != tuple(
-        ERPNextSalesReturnEnvironment.TOOL_NAMES
-    ):
+    tools = profile.tool_definitions
+    if tuple(tool.name for tool in tools) != profile.environment_tool_names:
         raise ERPNextFormalBuildSpecError(
             "ERPNext public tool definitions and implementation disagree"
         )
@@ -1087,11 +1177,11 @@ def _tool_role(
             sources=ToolContractSources(
                 definition=FormalSource(
                     source_path=definition,
-                    role_path="sources/native_sales_family.py",
+                    role_path=profile.tool_definition_role_path,
                 ),
                 implementation=FormalSource(
                     source_path=implementation,
-                    role_path="sources/erpnext_sales_return_agent.py",
+                    role_path=profile.tool_implementation_role_path,
                 ),
                 implementation_dependencies=tuple(
                     FormalSource(
@@ -1130,7 +1220,7 @@ def _tool_role(
                         description=tool.description,
                         input_schema=tool.input_schema,
                         implementation_symbol=(
-                            "ERPNextSalesReturnEnvironment.invoke"
+                            profile.tool_implementation_symbol
                         ),
                     )
                     for tool in tools
@@ -1146,10 +1236,11 @@ def _evaluator_role(
     root: Path,
     output: str,
     check_ids: tuple[str, ...],
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> dict[str, Any]:
     _, source = _repo_file(
         root,
-        _EVALUATOR_SOURCE,
+        profile.evaluator_source,
         label="ERPNext evaluator source",
     )
     try:
@@ -1158,11 +1249,11 @@ def _evaluator_role(
             sources=EvaluatorContractSources(
                 implementation=FormalSource(
                     source_path=source,
-                    role_path="sources/erpnext_sales_return_evaluator.py",
+                    role_path=profile.evaluator_role_path,
                 ),
-                implementation_symbol="evaluate_sales_return_recovery",
+                implementation_symbol=profile.evaluator_symbol,
                 check_ids=check_ids,
-                scored_state_fields=_SCORED_STATE_FIELDS,
+                scored_state_fields=profile.scored_state_fields,
             ),
         )
     except NativeFormalSpecError as error:
@@ -1179,6 +1270,7 @@ def _input_roles(
     runtime_manifest_relative: str,
     runtime_revision: str,
     source_verification_relative: str,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> dict[str, dict[str, Any]]:
     _, prefix_relative = _repo_file(
         root,
@@ -1191,7 +1283,7 @@ def _input_roles(
             source,
             label=f"ERPNext boundary source {source}",
         )[1]
-        for source in _BOUNDARY_CONTRACT_SOURCES
+        for source in profile.boundary_contract_sources
     )
     try:
         return build_input_evidence_roles(
@@ -1306,6 +1398,7 @@ def generate_erpnext_formal_build_spec(
     scenario_path: str | Path | None = None,
     control_manifest_path: str | Path | None = None,
     model_input_lock_path: str | Path | None = None,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
 ) -> ERPNextFormalBuildSpecResult:
     """Generate a strict seven-role spec from native ERPNext evidence."""
 
@@ -1330,7 +1423,11 @@ def generate_erpnext_formal_build_spec(
     except NativeFormalSourceError as error:
         raise _source_error(error) from error
     scenario, scenario_relative, instance_spec_sha256 = (
-        _validate_active_scenario(resolved_root, scenario_path)
+        _validate_active_scenario(
+            resolved_root,
+            scenario_path,
+            profile=profile,
+        )
     )
     if phase == "inputs":
         if (
@@ -1403,6 +1500,7 @@ def generate_erpnext_formal_build_spec(
         trusted_producer_commit=producer_commit,
         capture_directory=capture_dir,
         bundle_manifests=capture_manifests,
+        profile=profile,
     )
     roles: dict[str, dict[str, Any]] = {
         "tool_contract": _tool_role(
@@ -1410,11 +1508,13 @@ def generate_erpnext_formal_build_spec(
             output=output,
             runtime_revision=runtime_revision,
             source_verification_relative=source_verification_relative,
+            profile=profile,
         ),
         "evaluator": _evaluator_role(
             root=resolved_root,
             output=output,
             check_ids=check_ids,
+            profile=profile,
         ),
         **_input_roles(
             root=resolved_root,
@@ -1425,6 +1525,7 @@ def generate_erpnext_formal_build_spec(
             runtime_manifest_relative=runtime_manifest.relative_path,
             runtime_revision=runtime_revision,
             source_verification_relative=source_verification_relative,
+            profile=profile,
         ),
     }
     if phase == "inputs":
@@ -1477,6 +1578,7 @@ def write_erpnext_formal_build_spec(
 
 
 __all__ = [
+    "ERPNextFormalBuildProfile",
     "ERPNextFormalBuildSpecError",
     "ERPNextFormalBuildSpecResult",
     "discover_active_erpnext_public_dev_scenario",

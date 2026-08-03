@@ -21,6 +21,9 @@ from .hidden_test_eligibility import verify_hidden_test_eligibility
 from .integrations.erpnext_sales_return_evaluator import (
     evaluate_sales_return_recovery,
 )
+from .integrations.erpnext_manufacturing_evaluator import (
+    evaluate_manufacturing_rework_recovery,
+)
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
@@ -86,6 +89,9 @@ TRUSTED_FORMAL_EVALUATORS: dict[
     ),
     "erpnext-sales-return-exchange-reconciliation": (
         evaluate_sales_return_recovery
+    ),
+    "erpnext-manufacturing-rework": (
+        evaluate_manufacturing_rework_recovery
     ),
     "k8s-constraint-interaction-recovery": (
         evaluate_kubernetes_interaction_recovery

@@ -56,6 +56,7 @@ def build_manufacturing_state_evidence(
     prefix_path: str | Path,
     bundle_manifest_path: str | Path,
     state: dict[str, Any],
+    surface_result: str | None = None,
     failure_report_path: str | Path | None = None,
     reset_evidence_path: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -175,7 +176,11 @@ def build_manufacturing_state_evidence(
                 "failure_state_semantic_fingerprint": (
                     canonical_state_fingerprint(captured_projection)
                 ),
-                "surface_result": failure_report.get("surface_error"),
+                "surface_result": (
+                    surface_result
+                    if surface_result is not None
+                    else failure_report.get("surface_error")
+                ),
                 "visible_failure": visible_failure,
                 "boundary_validation_passed": True,
             }

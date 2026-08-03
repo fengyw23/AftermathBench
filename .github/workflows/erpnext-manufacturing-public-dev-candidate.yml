@@ -101,6 +101,8 @@ jobs:
               --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
               --output "$RUN_ROOT/runtime/$variant.json" \
               > "$RUN_ROOT/logs/$variant-boundary.log" 2>&1
+            cp "$RUN_ROOT/runtime/$variant.json" \
+              "$RUN_ROOT/runtime/$variant-boundary.json"
             python scripts/manage_erpnext_stack.py snapshot-bundle \
               --snapshot "$RUN_ROOT/bundles/boundary-$variant" \
               > "$RUN_ROOT/logs/$variant-bundle.log" 2>&1
@@ -116,6 +118,17 @@ jobs:
               --reset-evidence "$reset" --output "$boundary"
             python scripts/manage_erpnext_stack.py restore-bundle \
               --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            python scripts/capture_erpnext_manufacturing_state_evidence.py \
+              --scenario "$RUN_ROOT/blueprint.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" --phase boundary \
+              --bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --reset-evidence "$reset" \
+              --output "$RUN_ROOT/runtime/state-evidence/$variant-reference-start.json"
+            cmp "$boundary" \
+              "$RUN_ROOT/runtime/state-evidence/$variant-reference-start.json"
             python scripts/run_erpnext_manufacturing_control.py \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \

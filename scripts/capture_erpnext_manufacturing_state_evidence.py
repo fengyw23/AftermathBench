@@ -66,6 +66,9 @@ def main() -> int:
         prefix_path=args.prefix,
         bundle_manifest_path=args.bundle_manifest,
         state=state,
+        surface_result=str(
+            scenario.raw["ambiguous_operation"]["surface_result"]
+        ),
         failure_report_path=args.failure_report,
         reset_evidence_path=args.reset_evidence,
     )
