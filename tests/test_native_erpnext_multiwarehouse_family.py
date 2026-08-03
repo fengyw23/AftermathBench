@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from aftermath_bench.native_erpnext_multiwarehouse_family import (
     ERP_NEXT_MULTIWAREHOUSE_FAMILY,
     ERP_NEXT_MULTIWAREHOUSE_TOOLS,
+    multiwarehouse_initial_message,
 )
 from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
+from aftermath_bench.native_scenario import NativeScenario
 
 
 class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
@@ -28,6 +31,43 @@ class NativeERPNextMultiwarehouseFamilyTests(unittest.TestCase):
     def test_mutation_set_matches_public_tools(self) -> None:
         names = {tool.name for tool in ERP_NEXT_MULTIWAREHOUSE_TOOLS}
         self.assertTrue(ERP_NEXT_MULTIWAREHOUSE_FAMILY.mutation_tools <= names)
+
+    def test_execution_control_uses_instance_reservation_and_warehouse(self) -> None:
+        prefix = {
+            key: key
+            for key in (
+                "company",
+                "transfer_item",
+                "transfer_quantity",
+                "batch_id",
+                "source_warehouse",
+                "transit_warehouse",
+                "destination_warehouse",
+                "material_request",
+                "outgoing_stock_entry",
+                "second_leg_stock_entry",
+                "clinic_sales_order",
+                "protected_sales_order",
+                "protected_reservation",
+                "arrival_webhook",
+            )
+        }
+        prefix.update(
+            {
+                "protected_warehouse": "Emergency Reserve - AL",
+                "clinic_reserved_quantity": 6,
+                "trace": [],
+            }
+        )
+        message = multiwarehouse_initial_message(
+            scenario=NativeScenario(Path("scenario.json"), {"user_instruction": "do it"}),
+            prefix=prefix,
+            failure_report={"latest_attempt": {}},
+            execution_control=True,
+        )
+        self.assertIn("Emergency Reserve - AL", message)
+        self.assertIn("one 6-unit reservation", message)
+        self.assertNotIn("North emergency", message)
 
 
 if __name__ == "__main__":

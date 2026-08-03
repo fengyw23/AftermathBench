@@ -230,12 +230,14 @@ def multiwarehouse_initial_message(
     if execution_control:
         message += (
             "\n\nExecution-control condition: preserve the submitted first-leg "
-            "Stock Entry and North emergency reservation. Reuse the one "
+            f"Stock Entry and the reservation in {prefix['protected_warehouse']}. "
+            "Reuse the one "
             "prepared second leg; submit it only if draft. Ensure its arrival "
             "event is delivered exactly once, create and submit exactly one "
-            "Pick List and one four-unit reservation against the clinic Sales Order, process "
-            "any queued native reposting, and verify destination, transit and "
-            "protected warehouse state."
+            f"Pick List and one {prefix['clinic_reserved_quantity']}-unit "
+            "reservation against the clinic Sales Order, process any queued "
+            "native reposting, and verify destination, transit and protected "
+            "warehouse state."
         )
     return message
 

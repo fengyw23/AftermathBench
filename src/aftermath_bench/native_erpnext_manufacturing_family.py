@@ -242,13 +242,15 @@ def manufacturing_initial_message(
     )
     if execution_control:
         message += (
-            "\n\nExecution-control condition: preserve the submitted eight-unit "
-            "manufacture entry, accepted Job Card, BOM and unrelated stock. "
+            "\n\nExecution-control condition: preserve the submitted "
+            f"{prefix['accepted_quantity']}-unit manufacture entry, accepted "
+            "Job Card, BOM and unrelated stock. "
             "Submit the one existing corrective Job Card only if it remains "
             "draft; otherwise preserve it. Deliver its configured quality "
             "release exactly once, create and accept exactly one inspection "
-            "for the remaining two-unit Manufacture Stock Entry, submit that "
-            "entry, and verify Work Order, stock and GL closure."
+            f"for the remaining {prefix['rework_quantity']}-unit Manufacture "
+            "Stock Entry, submit that entry, and verify Work Order, stock and "
+            "GL closure."
         )
     return message
 
