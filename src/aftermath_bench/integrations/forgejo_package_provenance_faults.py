@@ -30,7 +30,11 @@ PACKAGE_PROVENANCE_VARIANTS = {
     ),
     "package_binary_committed_response_lost": (
         PackageProvenanceBoundaryVariant(
-            preloaded_file_roles=(),
+            # A multi-file package upload can make independent progress
+            # before the binary request loses its response.  The checksum
+            # was already accepted; retrying the whole publication would
+            # therefore duplicate two durable effects, not just the binary.
+            preloaded_file_roles=("checksum",),
             preclosed_tracking_positions=(),
             postcommit_tracking_positions=(),
             attempted_operation="upload_binary",
@@ -63,7 +67,10 @@ PACKAGE_PROVENANCE_VARIANTS = {
             attempted_operation="create_index_release",
             api_mode="drop_response",
             release_committed=True,
-            coordinator_mode="drop_response",
+            # The index transaction committed before either asynchronous
+            # consumer notification was scheduled.  Recovery must discover
+            # and replay each missing downstream effect independently.
+            coordinator_mode="suppress_request",
             provenance_mode="suppress_request",
         )
     ),

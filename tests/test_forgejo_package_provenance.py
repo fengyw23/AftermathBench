@@ -151,9 +151,13 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         complete = PACKAGE_PROVENANCE_VARIANTS[
             "package_complete_index_accepted_response_lost"
         ]
+        partial = PACKAGE_PROVENANCE_VARIANTS[
+            "package_binary_committed_response_lost"
+        ]
+        self.assertEqual(partial.preloaded_file_roles, ("checksum",))
         self.assertEqual(complete.preclosed_tracking_positions, (0,))
         self.assertEqual(complete.postcommit_tracking_positions, (1,))
-        self.assertEqual(complete.coordinator_mode, "drop_response")
+        self.assertEqual(complete.coordinator_mode, "suppress_request")
         self.assertEqual(complete.provenance_mode, "suppress_request")
 
     def test_complete_native_state_passes(self) -> None:
