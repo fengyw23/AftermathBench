@@ -197,12 +197,27 @@ boundary and the measured distances remained 2. Its rejected diagnostic
 artifact has digest
 `sha256:5e383dd357f4205d1242cc033cd199ac2ce5c31466d1b5f15f5d788493b31594`.
 
+Run
+[`30852256358`](https://github.com/fengyw23/AftermathBench/actions/runs/30852256358)
+then exposed a reference-agent polling defect: a successful first-attempt
+delivery had already appeared in native history, while the reference waited
+for a second history record and timed out. The attempted shortcut in run
+[`30853102295`](https://github.com/fengyw23/AftermathBench/actions/runs/30853102295)
+removed that wait and exposed the deeper API issue instead. Forgejo's webhook
+`PATCH` is not sparse; sending only `active` silently resets an omitted event
+list to `push`, removing the required `release` subscription. Both runs are
+invalid construction diagnostics, not model results. The adapter now reads
+and preserves the complete subscription while changing activation, and the
+reference again waits for the resulting native and external evidence.
+
 The current construction keeps the valid/corrupt pair's content difference
 limited to the post-approval binary change and makes the additional branch a
 real, queryable boundary fact. The partial-package state has three durable
 approved files that must be preserved. Both complete-package states contain
-one inactive native downstream webhook; recovery must discover and reactivate
-that exact subscription before creating the index Release. This state is
+two inactive native downstream webhooks; recovery must discover and reactivate
+those exact subscriptions before creating the index Release. This state is
 visible through the ordinary hook inventory and scored by the native
-evaluator. It does not depend on a future hidden fault. The admission threshold
-remains unchanged.
+evaluator. It does not depend on a future hidden fault. The unchanged strict
+admission algorithm projects a minimum branch prefix of 4 and a minimum
+pairwise mutation distance of 3 for the intended recovery traces; native
+replay must still verify those values before admission.
