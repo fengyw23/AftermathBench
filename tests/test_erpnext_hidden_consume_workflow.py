@@ -23,14 +23,21 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         self.assertIn("BAILIAN_API_KEY", self.text)
         self.assertIn("ZHIPU_CODING_API_KEY", self.text)
 
-    def test_template_cannot_run_until_bound_to_one_freeze(self) -> None:
+    def test_workflow_is_bound_to_one_immutable_freeze(self) -> None:
         for token in (
             "__FREEZE_RUN_ID__",
             "__FREEZE_ARTIFACT_ID__",
             "__FREEZE_SOURCE_COMMIT__",
-            "Refuse an unbound workflow template",
         ):
-            self.assertIn(token, self.text)
+            self.assertNotIn(token, self.text)
+        for binding in (
+            'FREEZE_RUN_ID: "30782788146"',
+            'FREEZE_ARTIFACT_ID: "8844775402"',
+            'FREEZE_SOURCE_COMMIT: "4d2678c928ec8fdeddf5c1d35f128660af155745"',
+            'FREEZE_PUBLIC_COMMITMENT: "0f64a2e373644bfaad2816a9033e68960aeb7c8cb3beffc0e5e74a25525afe29"',
+        ):
+            self.assertIn(binding, self.text)
+        self.assertIn("Refuse an unbound workflow template", self.text)
 
     def test_model_run_is_locked_and_private_results_are_reencrypted(self) -> None:
         for token in (
