@@ -1,0 +1,238 @@
+name: forgejo-migration-public-dev-candidate
+
+on:
+  push:
+    branches:
+      - forgejo-migration-public-dev-candidate
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-and-admit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE_SPEC: data/instance_specs/forgejo-migration-public-dev-001.json
+      RUN_ROOT: data/generated/forgejo-migration-public-dev-slot-001
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify and materialize the fresh public-development instance
+        run: |
+          scenario_id="$(
+            python -c 'import json,sys; print(json.load(open(sys.argv[1]))["scenario_id"])' \
+              "$INSTANCE_SPEC"
+          )"
+          test -n "$scenario_id"
+          echo "BLUEPRINT=data/scenario_blueprints/$scenario_id/scenario.json" \
+            >> "$GITHUB_ENV"
+          echo "SCENARIO_DIRECTORY=data/scenarios/$scenario_id" \
+            >> "$GITHUB_ENV"
+          test ! -e "$RUN_ROOT"
+          test ! -e "data/scenarios/$scenario_id"
+          mkdir -p "$RUN_ROOT/state-evidence" "$RUN_ROOT/baselines"
+          python scripts/verify_forgejo_migration_instance_novelty.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --bound-blueprint \
+              "data/scenario_blueprints/$scenario_id/scenario.json"
+          python scripts/render_forgejo_migration_blueprint.py \
+            --instance "$INSTANCE_SPEC" \
+            --output "$RUN_ROOT/rendered-blueprint.json" \
+            --instance-id dev-001 \
+            --benchmark-split public_dev
+          cmp \
+            "data/scenario_blueprints/$scenario_id/scenario.json" \
+            "$RUN_ROOT/rendered-blueprint.json"
+          python -m unittest discover -s tests \
+            -p 'test_forgejo_migration*.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned Forgejo from audited source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Start source-built services and create the native prefix
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          owner="$(
+            python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' \
+              "$INSTANCE_SPEC"
+          )"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
+          python scripts/manage_forgejo_stack.py setup-runner
+          python scripts/build_forgejo_migration_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$RUN_ROOT/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+            --snapshot "$RUN_ROOT/prefix-bundle"
+
+      - name: Replay four exact boundaries and reference recoveries
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            migration_applied_workflow_failed
+            workflow_completed_dispatch_response_lost
+          )
+          test "${#variants[@]}" -eq 4
+          for variant in "${variants[@]}"
+          do
+            reset_evidence="$RUN_ROOT/state-evidence/$variant-reset.json"
+            boundary_evidence="$RUN_ROOT/state-evidence/$variant-boundary.json"
+            reference_start="$RUN_ROOT/state-evidence/$variant-reference-start.json"
+            python scripts/manage_forgejo_stack.py restore-migration-bundle \
+              --snapshot "$RUN_ROOT/prefix-bundle"
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase reset \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE_SPEC" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/prefix-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/prefix-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/prefix-bundle/deployment-target-data.tar.gz" \
+              --output "$reset_evidence"
+            python scripts/run_forgejo_migration_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --instance-spec "$INSTANCE_SPEC" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-boundary.json"
+            snapshot_args=(
+              --snapshot "$RUN_ROOT/$variant-bundle"
+            )
+            if [ "$variant" = workflow_queued_runner_unavailable ]
+            then
+              snapshot_args+=(--runner-disabled)
+            fi
+            python scripts/manage_forgejo_stack.py \
+              snapshot-migration-bundle "${snapshot_args[@]}"
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE_SPEC" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/$variant-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/$variant-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/$variant-bundle/deployment-target-data.tar.gz" \
+              --failure-report "$RUN_ROOT/$variant-boundary.json" \
+              --reset-evidence "$reset_evidence" \
+              --output "$boundary_evidence"
+            python scripts/manage_forgejo_stack.py restore-migration-bundle \
+              --snapshot "$RUN_ROOT/$variant-bundle"
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE_SPEC" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/$variant-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/$variant-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/$variant-bundle/deployment-target-data.tar.gz" \
+              --failure-report "$RUN_ROOT/$variant-boundary.json" \
+              --reset-evidence "$reset_evidence" \
+              --output "$reference_start"
+            python scripts/verify_forgejo_migration_boundary_replay.py \
+              --boundary "$boundary_evidence" \
+              --replay "$reference_start"
+            python scripts/run_forgejo_migration_reference.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --instance-spec "$INSTANCE_SPEC" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-reference.json"
+          done
+
+      - name: Execute fixed policies from every exact boundary
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            migration_applied_workflow_failed
+            workflow_completed_dispatch_response_lost
+          )
+          baselines=(
+            no_op
+            assume_effect_complete
+            blind_redispatch
+            always_skip_migration
+            always_restart_runner
+            close_tracking_only
+          )
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-migration-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+              python scripts/run_forgejo_migration_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/prefix.json" \
+                --instance-spec "$INSTANCE_SPEC" \
+                --variant "$variant" \
+                --baseline "$baseline" \
+                --output "$RUN_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+
+      - name: Derive hard admission and seal the candidate
+        run: |
+          python scripts/build_forgejo_migration_admission.py \
+            --runtime-directory "$RUN_ROOT" \
+            --baseline-directory "$RUN_ROOT/baselines" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$SCENARIO_DIRECTORY"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" \
+            --output "$RUN_ROOT/files.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$SCENARIO_DIRECTORY" \
+            --credentials-json runtimes/forgejo/.runtime/credentials.json \
+            --allow-native-restore-archives
+          mkdir -p "$RUN_ROOT/candidate-scenario"
+          cp -R "$SCENARIO_DIRECTORY/." "$RUN_ROOT/candidate-scenario/"
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f runtimes/forgejo/.runtime/credentials.json
+
+      - name: Upload replay-derived candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-migration-public-dev-candidate-${{ github.run_id }}
+          path: data/generated/forgejo-migration-public-dev-slot-001
+          if-no-files-found: warn
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true
