@@ -56,6 +56,9 @@ class ForgejoMigrationPublicDevCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("verify_public_evidence_safe.py", self.text)
         self.assertIn("--allow-native-restore-archives", self.text)
         self.assertIn("$RUN_ROOT/candidate-scenario", self.text)
+        copy = self.text.index('cp -R "$SCENARIO_DIRECTORY/."')
+        manifest = self.text.index("build_evidence_file_manifest.py")
+        self.assertLess(copy, manifest)
 
 
 if __name__ == "__main__":
