@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - erpnext-hidden-candidate
+      - erpnext-hidden-multiwarehouse-candidate
   workflow_dispatch:
     inputs:
       family:
@@ -33,7 +34,9 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
-      HIDDEN_INSTANCE_B64: ${{ (inputs.family || 'manufacturing') == 'manufacturing' && secrets.ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64 || secrets.ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64 }}
+      SELECTED_FAMILY: ${{ inputs.family || (github.ref_name == 'erpnext-hidden-multiwarehouse-candidate' && 'multiwarehouse' || 'manufacturing') }}
+      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || 'test-001' }}
+      HIDDEN_INSTANCE_B64: ${{ (inputs.family || (github.ref_name == 'erpnext-hidden-multiwarehouse-candidate' && 'multiwarehouse' || 'manufacturing')) == 'manufacturing' && secrets.ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64 || secrets.ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +47,7 @@ jobs:
 
       - name: Select a native family without materializing hidden data
         run: |
-          case "${{ inputs.family || 'manufacturing' }}" in
+          case "$SELECTED_FAMILY" in
             manufacturing)
               echo "TEMPLATE=data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json" >> "$GITHUB_ENV"
               echo "PREFIX_SCRIPT=scripts/build_erpnext_manufacturing_prefix.py" >> "$GITHUB_ENV"
@@ -83,7 +86,7 @@ jobs:
             --instance-spec "$RUN_ROOT/private/instance.json" \
             --template "$TEMPLATE" \
             --output "$RUN_ROOT/private/blueprint.json" \
-            --instance-id "${{ inputs.instance_id || 'test-001' }}" \
+            --instance-id "$SELECTED_INSTANCE_ID" \
             --benchmark-split hidden_test
           python -m unittest discover -s tests \
             -p 'test_erpnext_native_instances.py' -v
@@ -198,7 +201,7 @@ jobs:
       - name: Upload commitment and encrypted bundle only
         uses: actions/upload-artifact@v4
         with:
-          name: erpnext-${{ inputs.family || 'manufacturing' }}-${{ inputs.instance_id || 'test-001' }}-${{ github.run_id }}
+          name: erpnext-${{ env.SELECTED_FAMILY }}-${{ env.SELECTED_INSTANCE_ID }}-${{ github.run_id }}
           path: ${{ runner.temp }}/erpnext-hidden/public/
           if-no-files-found: error
           retention-days: 90

@@ -42,6 +42,11 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(token, self.text)
 
+    def test_each_family_can_be_frozen_from_a_dedicated_branch(self) -> None:
+        self.assertIn("erpnext-hidden-candidate", self.text)
+        self.assertIn("erpnext-hidden-multiwarehouse-candidate", self.text)
+        self.assertIn("SELECTED_FAMILY", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
