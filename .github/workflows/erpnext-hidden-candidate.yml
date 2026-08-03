@@ -125,6 +125,28 @@ jobs:
             if ! "$@" > "$log" 2>&1
             then
               echo "::error title=ERPNext hidden replay failed::$label"
+              case "$label" in
+                reference:*)
+                  variant="${label#reference:}"
+                  report="$RUN_ROOT/private/runtime/$variant-reference.json"
+                  if [ -s "$report" ]
+                  then
+                    python - "$report" <<'PY'
+          import json
+          import sys
+
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          control_error = report.get("control_error") or {}
+          exception_type = control_error.get("exception_type", "none")
+          failed_checks = ",".join(report.get("evaluation", {}).get("failures", []))
+          print(
+              "::notice title=ERPNext hidden reference diagnostics::"
+              f"exception_type={exception_type};failed_checks={failed_checks or 'none'}"
+          )
+          PY
+                  fi
+                  ;;
+              esac
               return 1
             fi
           }
