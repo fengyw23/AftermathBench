@@ -66,6 +66,11 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
         upload = self.text.split("Upload complete public trajectories", 1)[1]
         self.assertNotIn("credentials.json", upload.split("Purge native services", 1)[0])
 
+    def test_execution_control_has_a_strict_acceptance_gate(self) -> None:
+        self.assertIn("validate_native_control_summary.py", self.text)
+        self.assertIn("--expected-cases 4", self.text)
+        self.assertIn("--minimum-pass-rate 0.8", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
