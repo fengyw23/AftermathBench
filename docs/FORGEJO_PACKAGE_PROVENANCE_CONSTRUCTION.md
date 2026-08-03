@@ -261,3 +261,13 @@ before a trajectory is written, one retry is allowed only after restoring the
 shared prefix snapshot and reinjecting the same exact failure boundary. A
 partial first attempt can therefore neither help nor harm the retry, and an
 infrastructure timeout is not counted as Agent behavior.
+
+Fresh controls then passed the preregistered gate. GLM-5.2 passed all four
+matched boundaries in GitHub Actions run
+[`30857320582`](https://github.com/fengyw23/AftermathBench/actions/runs/30857320582),
+and DeepSeek-V4-Pro passed all four in run
+[`30857995305`](https://github.com/fengyw23/AftermathBench/actions/runs/30857995305).
+Both collections have zero run errors and matched-group success `1/1`. These
+results validate the task's execution surface; they do not measure recovery
+inference because the control prompt supplies the intended recovery scope.
+The ordinary condition is evaluated separately only after this gate passes.
