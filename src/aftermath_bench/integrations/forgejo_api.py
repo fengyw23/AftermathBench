@@ -662,6 +662,20 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no issue comment")
         return result
 
+    def list_issue_comments(
+        self,
+        owner: str,
+        repository: str,
+        index: int,
+    ) -> list[dict[str, Any]]:
+        result = self.get(
+            f"/repos/{owner}/{repository}/issues/{int(index)}/comments",
+            query={"limit": "50"},
+        )
+        if not isinstance(result, list):
+            raise TypeError("Forgejo returned no issue-comment list")
+        return [item for item in result if isinstance(item, dict)]
+
     def create_milestone(
         self,
         owner: str,

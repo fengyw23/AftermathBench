@@ -90,6 +90,14 @@ jobs:
               python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
                 --snapshot "$RUN_ROOT/$variant-bundle"
             fi
+            python scripts/manage_forgejo_stack.py restore-migration-bundle \
+              --snapshot "$RUN_ROOT/$variant-bundle"
+            python scripts/run_forgejo_migration_reference.py \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --instance-spec "$INSTANCE" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-reference.json"
           done
 
       - name: Surface native logs on failure

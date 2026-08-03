@@ -176,6 +176,9 @@ class ForgejoStack:
         )
         self.run("restart", "runner-daemon")
 
+    def start_action_runner(self) -> None:
+        self.run("start", "runner-daemon")
+
     def snapshot(self, destination: str | Path) -> str:
         path = Path(destination).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

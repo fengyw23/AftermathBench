@@ -28,6 +28,7 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertIn("restore-migration-bundle", text)
         self.assertIn("run_forgejo_migration_boundary.py", text)
         self.assertIn("--runner-disabled", text)
+        self.assertIn("run_forgejo_migration_reference.py", text)
 
 
 if __name__ == "__main__":

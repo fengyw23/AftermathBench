@@ -45,6 +45,8 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
     def test_workflow_uses_native_runner_and_five_real_state_transitions(self) -> None:
         workflow = deployment_workflow(DEFAULT_FORGEJO_MIGRATION_INSTANCE)
         self.assertIn("runs-on: aftermath-native", workflow)
+        self.assertIn("resume_after_migration", workflow)
+        self.assertIn("inputs.resume_after_migration != 'true'", workflow)
         for path in (
             "/migrations",
             "/artifacts",
