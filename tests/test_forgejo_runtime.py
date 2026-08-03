@@ -10,9 +10,19 @@ from aftermath_bench.integrations.forgejo_runtime import (
     create_build_plan,
     materialize_pinned_containerfile,
 )
+from aftermath_bench.schema import repository_root
 
 
 class ForgejoRuntimeTest(unittest.TestCase):
+    def test_native_repositories_enable_pull_requests(self) -> None:
+        compose = (
+            repository_root() / "runtimes" / "forgejo" / "compose.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'DEFAULT_REPO_UNITS: "repo.code,repo.issues,repo.pulls,repo.actions"',
+            compose,
+        )
+
     def test_plan_pins_revision_and_audited_hashes(self) -> None:
         with TemporaryDirectory() as directory:
             plan = create_build_plan(Path(directory) / "forgejo")
