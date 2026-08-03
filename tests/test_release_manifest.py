@@ -814,6 +814,27 @@ class ReleaseManifestTest(unittest.TestCase):
                     validate_formal_evidence_roles(**arguments)
                 )
 
+    def test_formal_validator_names_the_failed_reference_contract(self) -> None:
+        with TemporaryDirectory() as directory:
+            arguments = self._build_formal_evidence_fixture(
+                Path(directory),
+                mutation="reference_boundary_mismatch",
+            )
+            diagnostics: list[str] = []
+            self.assertFalse(
+                validate_formal_evidence_roles(
+                    **arguments,
+                    failure_diagnostics=diagnostics,
+                )
+            )
+            self.assertTrue(
+                any(
+                    value.endswith(":reference_boundary_binding")
+                    for value in diagnostics
+                ),
+                diagnostics,
+            )
+
     def test_hidden_bundle_is_bound_to_active_scenario_bytes(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
