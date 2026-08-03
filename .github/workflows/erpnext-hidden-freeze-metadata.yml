@@ -1,0 +1,135 @@
+name: erpnext-hidden-freeze-metadata
+
+on:
+  push:
+    branches:
+      - erpnext-hidden-freeze-metadata
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify-public-freeze-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_RUN_ID: "30794490591"
+      SOURCE_ARTIFACT_ID: "8849278840"
+      SOURCE_ARTIFACT_NAME: "erpnext-manufacturing-test-002-30794490591"
+      SOURCE_ARTIFACT_DIGEST: "sha256:b6c33dda09e6bfd78b11ee051b8ac49f26dc0e49ef85a12a55899af068f81eba"
+      SOURCE_COMMIT: "f288db129424ffba9db39b576da91e3092de8b53"
+    outputs:
+      public_commitment: ${{ steps.metadata.outputs.public_commitment }}
+      ciphertext_sha256: ${{ steps.metadata.outputs.ciphertext_sha256 }}
+      admission_passed: ${{ steps.metadata.outputs.admission_passed }}
+      admitted_tier: ${{ steps.metadata.outputs.admitted_tier }}
+      reference_passes: ${{ steps.metadata.outputs.reference_passes }}
+      maximum_policy_pass_rate: ${{ steps.metadata.outputs.maximum_policy_pass_rate }}
+      matched_group_solver_count: ${{ steps.metadata.outputs.matched_group_solver_count }}
+      bundle_schema: ${{ steps.metadata.outputs.bundle_schema }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the exact public freeze artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/freeze-public"
+          mkdir -p "$root"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > "$RUNNER_TEMP/source-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/source-artifact.json"
+          python - "$RUNNER_TEMP/source-run.json" \
+            "$RUNNER_TEMP/source-artifact.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          artifact = json.load(open(sys.argv[2], encoding="utf-8"))
+          checks = {
+              "run": int(run["id"]) == int(os.environ["SOURCE_RUN_ID"]),
+              "success": run["conclusion"] == "success",
+              "commit": run["head_sha"] == os.environ["SOURCE_COMMIT"],
+              "artifact": int(artifact["id"]) == int(os.environ["SOURCE_ARTIFACT_ID"]),
+              "name": artifact["name"] == os.environ["SOURCE_ARTIFACT_NAME"],
+              "digest": artifact.get("digest") == os.environ["SOURCE_ARTIFACT_DIGEST"],
+              "active": not artifact["expired"],
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"freeze provenance failed: {failures}")
+          PY
+          gh run download "$SOURCE_RUN_ID" --name "$SOURCE_ARTIFACT_NAME" \
+            --dir "$root"
+
+      - name: Validate and publish only safe aggregate metadata
+        id: metadata
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/freeze-public" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          result = json.loads((root / "result.json").read_text(encoding="utf-8"))
+          sealed = json.loads((root / "sealed-bundle.json").read_text(encoding="utf-8"))
+          commitment = json.loads((root / "pre-model-commitment.json").read_text(encoding="utf-8"))
+          ciphertext = hashlib.sha256((root / "hidden-bundle.tar.gz.enc").read_bytes()).hexdigest()
+          public_commitment = str(commitment["public_commitment_sha256"])
+          checks = {
+              "scenario": result["scenario_id"] == "erpnext-manufacturing-rework-hidden-test-002",
+              "admission": result["admission"]["passed"] is True,
+              "tier": result["admission"]["admitted_tier"] == "hard",
+              "reference": result["reference"] == {"case_count": 4, "pass_count": 4},
+              "fixed_policy": float(result["fixed_policies"]["maximum_pass_rate"]) < 0.5,
+              "matched_group": int(result["fixed_policies"]["matched_group_solver_count"]) == 0,
+              "lifecycle": sealed["lifecycle_status"] == "frozen_unseen",
+              "commitment": sealed["public_commitment_sha256"] == public_commitment,
+              "result_commitment": result["public_commitment_sha256"] == public_commitment,
+              "ciphertext": sealed["ciphertext_sha256"] == ciphertext,
+              "source": sealed["source_commit"] == os.environ["SOURCE_COMMIT"],
+              "unconsumed": result["usage_state"] == "frozen",
+              "private_not_published": result["raw_hidden_bundle_published"] is False,
+          }
+          failures = [name for name, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"public freeze metadata failed: {failures}")
+          bundle_schema = "1.2"
+          outputs = {
+              "public_commitment": public_commitment,
+              "ciphertext_sha256": ciphertext,
+              "admission_passed": "true",
+              "admitted_tier": "hard",
+              "reference_passes": "4-of-4",
+              "maximum_policy_pass_rate": str(result["fixed_policies"]["maximum_pass_rate"]),
+              "matched_group_solver_count": "0",
+              "bundle_schema": bundle_schema,
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+              for name, value in outputs.items():
+                  stream.write(f"{name}={value}\n")
+          print(json.dumps({"checks": checks, **outputs}, sort_keys=True))
+          PY
+
+  publish-safe-freeze-verdict:
+    needs: verify-public-freeze-metadata
+    name: >-
+      admission-${{ needs.verify-public-freeze-metadata.outputs.admission_passed }}
+      tier-${{ needs.verify-public-freeze-metadata.outputs.admitted_tier }}
+      refs-${{ needs.verify-public-freeze-metadata.outputs.reference_passes }}
+      max-policy-${{ needs.verify-public-freeze-metadata.outputs.maximum_policy_pass_rate }}
+      matched-solvers-${{ needs.verify-public-freeze-metadata.outputs.matched_group_solver_count }}
+      schema-${{ needs.verify-public-freeze-metadata.outputs.bundle_schema }}
+      commitment-${{ needs.verify-public-freeze-metadata.outputs.public_commitment }}
+      ciphertext-${{ needs.verify-public-freeze-metadata.outputs.ciphertext_sha256 }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "The job name contains only validated public freeze metadata."
+
