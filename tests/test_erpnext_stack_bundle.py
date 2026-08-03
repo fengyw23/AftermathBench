@@ -353,6 +353,24 @@ class ERPNextStackBundleTest(unittest.TestCase):
             self.assertIn("--no-recreate", starts[4])
 
             commands.clear()
+            self.assertEqual(
+                stack.restore_bundle(bundle, resume_queue_workers=False),
+                manifest,
+            )
+            starts = [
+                command
+                for command in commands
+                if "up" in command and "--no-deps" in command
+            ]
+            self.assertEqual(len(starts), 5)
+            self.assertTrue(
+                all("queue-short" not in command for command in starts)
+            )
+            self.assertTrue(
+                all("queue-long" not in command for command in starts)
+            )
+
+            commands.clear()
             (bundle / "redis-queue.tar").write_bytes(b"drift")
             with self.assertRaisesRegex(
                 ValueError,

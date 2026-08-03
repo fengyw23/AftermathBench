@@ -254,6 +254,17 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         ]
         self.assertIn('exit "$run_status"', control)
 
+    def test_pending_job_control_restore_keeps_workers_stopped(self) -> None:
+        section = self.text[
+            self.text.index("restore_and_capture_boundary()") :
+            self.text.index("run_control_once()")
+        ]
+        self.assertIn(
+            'if [ "$variant" = "database_committed_response_lost" ]',
+            section,
+        )
+        self.assertIn("restore_args+=(--keep-workers-stopped)", section)
+
     def test_completion_and_public_archive_are_fail_closed(self) -> None:
         control = self.text.index("Run execution controls")
         complete = self.text.index("Complete and validate", control)

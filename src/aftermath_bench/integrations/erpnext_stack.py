@@ -604,8 +604,18 @@ class ERPNextStack:
             if temporary is not None and temporary.exists():
                 shutil.rmtree(temporary)
 
-    def restore_bundle(self, source: str | Path) -> dict[str, Any]:
-        """Restore a quiesced native boundary bundle without replaying writes."""
+    def restore_bundle(
+        self,
+        source: str | Path,
+        *,
+        resume_queue_workers: bool = True,
+    ) -> dict[str, Any]:
+        """Restore a quiesced native boundary bundle without replaying writes.
+
+        Queue workers may remain stopped when the restored Redis queue is part
+        of the benchmark boundary. This prevents an asynchronous job from
+        changing the locked state before the model receives its first turn.
+        """
 
         bundle = Path(source).resolve()
         manifest_path = bundle / "bundle.json"
@@ -683,6 +693,12 @@ class ERPNextStack:
             )
         finally:
             running_services = tuple(map(str, manifest["running_services"]))
+            if not resume_queue_workers:
+                running_services = tuple(
+                    service
+                    for service in running_services
+                    if service not in {"queue-short", "queue-long"}
+                )
             if running_services:
                 self._resume_bundle_services(running_services)
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")

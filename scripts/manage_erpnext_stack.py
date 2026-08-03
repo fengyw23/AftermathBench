@@ -28,6 +28,14 @@ def main() -> int:
     )
     parser.add_argument("--snapshot", type=Path)
     parser.add_argument(
+        "--keep-workers-stopped",
+        action="store_true",
+        help=(
+            "Do not resume queue-short or queue-long after restore-bundle; "
+            "use when pending jobs are part of the locked failure boundary."
+        ),
+    )
+    parser.add_argument(
         "--container-cli",
         choices=("docker", "podman"),
         default="docker",
@@ -77,7 +85,10 @@ def main() -> int:
             parser.error("--snapshot is required")
         print(
             json.dumps(
-                stack.restore_bundle(args.snapshot),
+                stack.restore_bundle(
+                    args.snapshot,
+                    resume_queue_workers=not args.keep_workers_stopped,
+                ),
                 indent=2,
                 sort_keys=True,
             )
