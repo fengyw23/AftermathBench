@@ -161,6 +161,19 @@ class NativeFormalSpecTest(unittest.TestCase):
             len(roles["boundary_bundle"]["primary_payload"]["variants"]),
             2,
         )
+        failure_surfaces = [
+            support
+            for support in roles["boundary_bundle"]["support_files"]
+            if "/failure-surfaces/" in support["path"]
+        ]
+        self.assertEqual(len(failure_surfaces), 2)
+        for support in failure_surfaces:
+            for field in ("surface_result", "visible_failure"):
+                selector = support["json_content"][field][
+                    "$bound_json_field"
+                ]
+                self.assertIn("/variants/", selector["path"])
+                self.assertNotIn("/raw/", selector["path"])
         control = roles["execution_control"]["primary_payload"]
         self.assertEqual(control["passed_runs"], 1)
         self.assertEqual(control["task_pass_rate"], 0.5)

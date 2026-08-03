@@ -626,11 +626,11 @@ def build_input_evidence_roles(
                         "phase": "failure_surface",
                         "operation": sources.operation,
                         "surface_result": bound_json_field(
-                            raw_boundary_outputs[item.variant_id],
+                            boundary_outputs[item.variant_id],
                             "surface_result",
                         ),
                         "visible_failure": bound_json_field(
-                            raw_boundary_outputs[item.variant_id],
+                            boundary_outputs[item.variant_id],
                             "visible_failure",
                         ),
                         "raw_failure_report_sha256": file_sha256(
