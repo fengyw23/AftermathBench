@@ -17,6 +17,9 @@ from aftermath_bench.native_freeze import (
     append_usage_event,
     build_frozen_bundle,
 )
+from aftermath_bench.erpnext_sales_return_state_evidence import (
+    canonical_state_fingerprint,
+)
 from aftermath_bench.native_scenario import NativeScenario, load_native_scenario
 from aftermath_bench.release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
@@ -120,11 +123,11 @@ class ReleaseManifestTest(unittest.TestCase):
         root: Path,
         *,
         mutation: str | None = None,
+        family_id: str = "family-1",
     ) -> dict[str, object]:
         release_id = "release-1"
         scenario_id = "scenario-1"
         domain_id = "forgejo"
-        family_id = "family-1"
         instance_id = "dev-001"
         variants = ("a", "b")
         producer_commit = "a" * 40
@@ -279,16 +282,50 @@ class ReleaseManifestTest(unittest.TestCase):
             list(reset_files.values()),
         )
 
-        boundary_states = {
-            variant: write_json(
-                f"boundary-state-{variant}.json",
-                {
+        def boundary_payload(variant: str, *, replay: bool = False) -> dict[str, object]:
+            if family_id != "erpnext-manufacturing-rework":
+                return {
                     "scenario_id": scenario_id,
                     "variant_id": variant,
                     "phase": "boundary",
                     "reset_snapshot_sha256": reset_files[variant][1],
                     "state": "failed",
-                },
+                }
+            state: dict[str, object] = {
+                "corrective_job_card": {"name": "JC-1", "docstatus": 1},
+                "rq_jobs": [],
+            }
+            if replay and mutation == "reference_terminal_rq_audit_drift":
+                state["rq_jobs"] = [
+                    {
+                        "name": "rq-finished-1",
+                        "status": "finished",
+                        "arguments": '{"doc":"JC-1"}',
+                    }
+                ]
+            semantic_state = {
+                **state,
+                "rq_jobs": [],
+            }
+            return {
+                "schema_version": "1.0",
+                "artifact_type": "erpnext_manufacturing_state_evidence",
+                "scenario_id": scenario_id,
+                "instance_id": instance_id,
+                "variant_id": variant,
+                "phase": "boundary",
+                "reset_snapshot_sha256": reset_files[variant][1],
+                "state": state,
+                "state_fingerprint": canonical_state_fingerprint(state),
+                "failure_state_semantic_fingerprint": (
+                    canonical_state_fingerprint(semantic_state)
+                ),
+            }
+
+        boundary_states = {
+            variant: write_json(
+                f"boundary-state-{variant}.json",
+                boundary_payload(variant),
             )
             for variant in variants
         }
@@ -356,13 +393,7 @@ class ReleaseManifestTest(unittest.TestCase):
         reference_start_states = {
             variant: write_json(
                 f"reference-start-{variant}.json",
-                {
-                    "scenario_id": scenario_id,
-                    "variant_id": variant,
-                    "phase": "boundary",
-                    "reset_snapshot_sha256": reset_files[variant][1],
-                    "state": "failed",
-                },
+                boundary_payload(variant, replay=True),
             )
             for variant in variants
         }
@@ -530,7 +561,7 @@ class ReleaseManifestTest(unittest.TestCase):
             "control_evidence_sha256": control_summary[1],
         }
 
-    def test_current_checkpoint_binds_three_formal_public_dev_slots(
+    def test_current_checkpoint_binds_four_formal_public_dev_slots(
         self,
     ) -> None:
         report = validate_release_manifest(
@@ -544,18 +575,19 @@ class ReleaseManifestTest(unittest.TestCase):
         self.assertEqual(
             report.observed["hard_development_candidate_case_count"], 0
         )
-        self.assertEqual(report.observed["formal_verified_slot_count"], 3)
-        self.assertEqual(report.observed["missing_formal_slot_count"], 33)
+        self.assertEqual(report.observed["formal_verified_slot_count"], 4)
+        self.assertEqual(report.observed["missing_formal_slot_count"], 32)
         formal = [
             binding
             for binding in report.bindings
             if binding["quality_role"] == "release_slot"
         ]
-        self.assertEqual(len(formal), 3)
+        self.assertEqual(len(formal), 4)
         self.assertEqual(
             {binding["scenario_id"] for binding in formal},
             {
                 "erpnext-sales-return-public-dev-001-r1",
+                "erpnext-manufacturing-rework-public-dev-002",
                 "forgejo-release-publication-public-dev-002-r1",
                 "k8s-constraint-interactions-public-dev-006",
             },
@@ -834,6 +866,17 @@ class ReleaseManifestTest(unittest.TestCase):
                 ),
                 diagnostics,
             )
+
+    def test_manufacturing_formal_evidence_accepts_terminal_rq_audit_drift(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            arguments = self._build_formal_evidence_fixture(
+                Path(directory),
+                family_id="erpnext-manufacturing-rework",
+                mutation="reference_terminal_rq_audit_drift",
+            )
+            self.assertTrue(validate_formal_evidence_roles(**arguments))
 
     def test_hidden_bundle_is_bound_to_active_scenario_bytes(self) -> None:
         with TemporaryDirectory() as directory:

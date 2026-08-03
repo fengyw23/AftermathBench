@@ -36,6 +36,7 @@ from .native_admission import (
     native_admission_report_payload,
     validate_native_scenario,
 )
+from .native_boundary_equivalence import native_boundaries_equivalent
 from .native_freeze import verify_frozen_bundle
 from .native_scenario import (
     NativeScenario,
@@ -1403,12 +1404,15 @@ def validate_formal_evidence_roles(
                 reference.get("evaluator_passed") is True
                 and reference.get("boundary_state_sha256")
                 == boundary.get("boundary_state_sha256")
-                and reference.get("reference_start_state_sha256")
-                == boundary.get("boundary_state_sha256")
             ),
             "reference_start_equal": (
                 isinstance(reference_start, dict)
-                and reference_start == boundary_state
+                and isinstance(boundary_state, dict)
+                and native_boundaries_equivalent(
+                    family_id,
+                    boundary_state,
+                    reference_start,
+                )
             ),
             "reference_trace_contract": (
                 isinstance(reference_trace, dict)

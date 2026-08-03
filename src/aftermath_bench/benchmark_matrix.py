@@ -84,7 +84,7 @@ TOP_CONFERENCE_FULL_PROFILE = ReleaseProfile(
             "dev-001",
             4,
         ),
-        ("erpnext", "erpnext-manufacturing-rework", "dev-001", 4),
+        ("erpnext", "erpnext-manufacturing-rework", "dev-002", 4),
         ("erpnext", "erpnext-multiwarehouse-transfer", "dev-001", 4),
         (
             "forgejo",

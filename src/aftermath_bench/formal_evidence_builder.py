@@ -1749,8 +1749,19 @@ def _verify_input_tree(
     expected = _tree_signature(expected_output, ignore_completion=True)
     actual = _tree_signature(actual_output, ignore_completion=True)
     if actual != expected:
+        differences = []
+        for relative in sorted(set(expected) | set(actual)):
+            if expected.get(relative) != actual.get(relative):
+                differences.append(
+                    f"{relative}: expected={expected.get(relative)!r}, "
+                    f"actual={actual.get(relative)!r}"
+                )
+            if len(differences) == 10:
+                break
+        detail = "; ".join(differences)
         raise FormalEvidenceBuildError(
-            "published formal inputs differ from the recomputed input lock"
+            "published formal inputs differ from the recomputed input lock; "
+            f"first differences: {detail}"
         )
 
 

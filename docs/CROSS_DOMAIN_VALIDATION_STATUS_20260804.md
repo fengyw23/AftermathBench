@@ -11,7 +11,7 @@ claims.
 |---|---:|---|---|---|---|---|---|
 | Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | not yet run on current interface | not yet run on current interface | native evidence archived; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
-| ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | not yet validly run | rerun 30858814166 pending |
+| ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | not yet run without supplied scope | complete; formally bound as `dev-002` |
 
 ## What is already established
 
@@ -58,25 +58,27 @@ rather than presented as evidence that current strong models struggle.
 
 ### ERPNext
 
-Run [30854627801](https://github.com/fengyw23/AftermathBench/actions/runs/30854627801)
-passed source construction, exact boundary/reference replay, all fixed-policy
-replays, hard admission, formal-input locking, and a 4/4 GLM-5.2 execution
-control. Its scientific task evidence is valid. It failed only while assembling
-the seven-role authoritative release package, so it is not declared formal
-release evidence. Rerun 30858814166 contains named contract diagnostics and the
-input roles needed for offline repair if packaging fails again.
+Run [30858814166](https://github.com/fengyw23/AftermathBench/actions/runs/30858814166)
+passed source construction, boundary/reference replay, all fixed-policy replays,
+hard admission, formal-input locking, and a 4/4 GLM-5.2 execution control. Its
+only workflow failure was the generic release validator requiring byte-identical
+reference starts even though this family already had a trusted semantic
+projection for terminal RQ audit rows. The archived inputs were completed
+offline after fixing that inconsistency. The seven-role package now validates
+and is formally bound as `erpnext/erpnext-manufacturing-rework/dev-002`; no
+native runtime or provider rerun was needed.
 
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
 
 > AftermathBench has replay-valid difficult recovery families in three native
-> systems, and two of those families have controls showing that their public
+> systems, and all three systems have controls showing that their public
 > tool surfaces are executable when the correct scope is supplied.
 
 It does **not** yet support a top-conference benchmark claim. Missing evidence is:
 
-1. a sealed ERPNext formal package and subsequent ordinary-model evaluation;
+1. an ordinary-model ERPNext manufacturing evaluation without supplied scope;
 2. current-interface Kubernetes execution controls and model experiments;
 3. unsaturated ordinary recovery families with interacting native obligations;
 4. more independent families and hidden instances per domain;
@@ -91,6 +93,5 @@ It does **not** yet support a top-conference benchmark claim. Missing evidence i
 3. If they pass all four boundaries, treat this development family as saturated;
    preserve it as an easy/control family and add interacting provenance, approval,
    and external-delivery dependencies rather than interface friction.
-4. If ERPNext packaging succeeds, import and seal it immediately. If it fails,
-   repair the named formal contract offline from the archived input roles before
-   any new native rerun.
+4. ERPNext packaging is now sealed. Use the next provider budget on ordinary
+   scope inference, not on repeating the already valid native control.

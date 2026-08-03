@@ -1,10 +1,10 @@
 # AftermathBench
 
-> Current status: the canonical manifest verifies the first formal
-> public-development slot: four ERPNext matched cases with native runtime
-> admission, strict hard admission, 4/4 execution control and seven-role
-> evidence closure. Two additional hard development candidates contain 21
-> matched cases. The target matrix still has 35 open slots and no hidden-test
+> Current status: the canonical manifest verifies four formal
+> public-development slots across ERPNext, Forgejo and Kubernetes: 29 matched
+> cases with native runtime admission, strict hard admission, execution
+> controls and seven-role evidence closure. The target matrix still has 32 open
+> slots and no hidden-test
 > release, so the repository derives `partial_release`, not a complete
 > benchmark. See
 > [Top-conference benchmark execution](docs/TOP_CONFERENCE_EXECUTION.md) and
@@ -132,7 +132,7 @@ AftermathBench does not yet claim a complete multi-domain benchmark release.
 binds each selected scenario, every admission artifact, and its supplied-scope
 execution-control summary by SHA-256. `validate-release` verifies these inputs
 again instead of trusting a status label. The current manifest is valid and
-reports `partial_release`: one formal matrix slot is verified and 35 remain
+reports `partial_release`: four formal matrix slots are verified and 32 remain
 open.
 See [Release governance](docs/RELEASE_GOVERNANCE.md).
 
