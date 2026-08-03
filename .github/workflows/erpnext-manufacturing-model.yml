@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - erpnext-manufacturing-model
+      - erpnext-manufacturing-control
   workflow_dispatch:
     inputs:
       model:
@@ -55,9 +56,13 @@ jobs:
           case "$REPETITIONS_INPUT" in
             ''|*[!0-9]*|0) echo "repetitions must be a positive integer" >&2; exit 2 ;;
           esac
+          requested_control="$EXECUTION_CONTROL_INPUT"
+          if [ "$GITHUB_REF_NAME" = "erpnext-manufacturing-control" ]; then
+            requested_control=true
+          fi
           echo "MODEL_ID=$MODEL_INPUT" >> "$GITHUB_ENV"
           echo "REPETITIONS=$REPETITIONS_INPUT" >> "$GITHUB_ENV"
-          echo "EXECUTION_CONTROL=$EXECUTION_CONTROL_INPUT" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
           python -m aftermath_bench validate-native-scenario --scenario "$SCENARIO"
           python -m unittest discover -s tests \
             -p 'test_native_erpnext_manufacturing_family.py' -v
