@@ -750,7 +750,12 @@ class ForgejoAPI:
     ) -> dict[str, Any]:
         """Dispatch a native Forgejo Actions workflow and return its run ID."""
 
-        encoded_workflow = urllib.parse.quote(workflow, safe="")
+        # Forgejo dispatch accepts a numeric workflow id or the workflow file
+        # name, not the repository-relative `.forgejo/workflows/...` path.
+        workflow_identifier = workflow.rsplit("/", 1)[-1]
+        if not workflow_identifier:
+            raise ValueError("workflow identifier must be non-empty")
+        encoded_workflow = urllib.parse.quote(workflow_identifier, safe="")
         result = self.post(
             f"/repos/{owner}/{repository}/actions/workflows/"
             f"{encoded_workflow}/dispatches",

@@ -178,6 +178,27 @@ class ForgejoAPITest(unittest.TestCase):
         )
         self.assertEqual(result["id"], 71)
 
+    def test_workflow_dispatch_normalizes_repository_relative_path(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"id": 72, "run_number": 6}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).dispatch_workflow(
+                "aftermath",
+                "migration-service",
+                workflow=".forgejo/workflows/deploy-production.yml",
+                ref="main",
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/migration-service/"
+            "actions/workflows/deploy-production.yml/dispatches",
+        )
+
     def test_action_run_and_artifact_reads_use_native_endpoints(self) -> None:
         responses = [
             _Response({"workflow_runs": [{"id": 71}], "total_count": 1}),
