@@ -84,6 +84,13 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
         model = 'run-native-model'
         self.assertLess(model_block.index(restore), model_block.index(boundary))
         self.assertLess(model_block.index(boundary), model_block.index(model))
+        self.assertIn(
+            'elif [ "$provider_attempt" -eq 2 ]\n'
+            "                  then\n"
+            "                    run_status=1\n"
+            "                    break",
+            model_block,
+        )
         self.assertIn("$variant-provider-attempts.txt", model_block)
 
 
