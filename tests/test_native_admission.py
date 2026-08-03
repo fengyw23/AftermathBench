@@ -150,6 +150,71 @@ class NativeAdmissionTest(unittest.TestCase):
             self.assertEqual(report.observed["minimum_variant_specific_mutations"], 0)
             self.assertEqual(report.observed["minimum_pairwise_mutation_distance"], 0)
 
+    def test_scope_decision_profile_rejects_single_query_solver(self) -> None:
+        source = (
+            repository_root()
+            / "data"
+            / "scenarios"
+            / "forgejo-package-provenance-nonmonotonic-dev-001"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            scenario_root = Path(directory) / source.name
+            shutil.copytree(source, scenario_root)
+            scenario_path = scenario_root / "scenario.json"
+            payload = json.loads(scenario_path.read_text(encoding="utf-8"))
+            payload["admission_profile"]["scope_decision"] = {
+                "minimum_adaptive_worst_case_depth": 2,
+                "minimum_static_certificate_size": 2,
+            }
+            payload["admission_artifacts"]["scope_decision_matrix"] = (
+                "artifacts/scope-decision-matrix.json"
+            )
+            scenario_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            rows = [
+                {
+                    "variant": variant,
+                    "recovery_signature": f"scope-{index}",
+                    "observations": {
+                        "package_inventory": f"state-{index}",
+                        "constant_policy": "same",
+                    },
+                }
+                for index, variant in enumerate(payload["matched_variants"])
+            ]
+            matrix_path = scenario_root / "artifacts" / "scope-decision-matrix.json"
+            matrix_path.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": payload["scenario_id"],
+                        "rows": rows,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            report = validate_native_scenario(load_native_scenario(scenario_path))
+
+            self.assertFalse(report.passed)
+            self.assertTrue(report.checks["scope_decision_matrix_valid"])
+            self.assertFalse(
+                report.checks["scope_decision_static_certificate_meets_profile"]
+            )
+            self.assertFalse(
+                report.checks["scope_decision_adaptive_depth_meets_profile"]
+            )
+            self.assertFalse(
+                report.checks["scope_decision_has_no_single_surface_solver"]
+            )
+            self.assertEqual(
+                report.observed["scope_decision_optimal_adaptive_depth"], 1
+            )
+
     def test_derived_admission_report_is_not_a_recursive_input(self) -> None:
         source = (
             repository_root()

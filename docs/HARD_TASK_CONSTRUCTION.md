@@ -174,6 +174,35 @@ Future hard families should therefore include replay-witnessed
 This dimension tests adaptive recovery rather than a one-shot plan computed
 from the initial failure snapshot.
 
+## Scope-decision depth, not reference-trace length
+
+Forgejo package-provenance r2 passed replay-derived hard admission but both
+GLM-5.2 and DeepSeek-V4-Pro solved all four ordinary boundaries. The result
+exposed a limitation in the earlier admission metric. Adaptive query depth
+measured how many reference queries used identifiers discovered by previous
+queries; it did not measure how many independent observations were actually
+needed to select the gold recovery scope. A long provenance walk can coexist
+with a single inventory response that reveals the correct scope.
+
+New families may therefore provide a complete `scope_decision_matrix`. Each
+row binds a matched variant to its gold recovery signature and the canonical
+result of every declared public observation surface. The audit computes:
+
+- whether different gold scopes are observable at all;
+- whether one query surface alone solves the complete matched group;
+- the smallest static set of surfaces that separates every pair of different
+  scopes; and
+- the optimal adaptive decision tree's worst-case query depth.
+
+The implementation is
+`aftermath_bench.scope_decision_audit.analyze_scope_decision_matrix`. When a
+scenario declares an admission profile under `scope_decision`, the matrix is
+hash-bound as an admission input. The default hard gate requires both a static
+certificate size and an adaptive worst-case depth of at least two, and rejects
+any single-surface solver. This does not require the Agent to follow a fixed
+query order. It rejects only tasks whose recovery-scope decision is
+information-theoretically simpler than their surrounding graph suggests.
+
 ## Snapshot discipline
 
 The database, Redis cache, Redis queue, fault-gateway audit state, and external
@@ -195,6 +224,9 @@ A new family is admissible only if:
 - multiple records and at least two downstream dependencies must be repaired;
 - at least three existing effects must be preserved;
 - a fixed action sequence cannot solve the matched group;
+- no single public observation surface can select the correct scope for the
+  complete matched group, and the scope-decision matrix is itself replayed and
+  hash-bound;
 - the reference and explicit-scope controls succeed;
 - the evaluator depends only on native terminal state and auditable external
   delivery records; and

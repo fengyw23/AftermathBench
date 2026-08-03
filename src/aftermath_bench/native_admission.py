@@ -11,6 +11,7 @@ from typing import Any
 
 from .evidence_replay import replay_graph
 from .native_scenario import NativeScenario
+from .scope_decision_audit import analyze_scope_decision_matrix
 
 
 @dataclass(frozen=True)
@@ -558,6 +559,9 @@ def validate_native_scenario(
     constraint_profile = scenario.raw.get("admission_profile", {}).get(
         "constraint_derived_scope", {}
     )
+    scope_decision_profile = scenario.raw.get("admission_profile", {}).get(
+        "scope_decision", {}
+    )
     if constraint_profile:
         paths["prompt_audit"] = scenario.resolve_artifact("prompt_audit")
         if bool(constraint_profile.get("require_projection_witnesses", False)):
@@ -566,6 +570,10 @@ def validate_native_scenario(
             )
     if replay_path is not None:
         paths["replay_evidence"] = replay_path
+    if scope_decision_profile:
+        paths["scope_decision_matrix"] = scenario.resolve_artifact(
+            "scope_decision_matrix"
+        )
     missing = [name for name, path in paths.items() if not path.is_file()]
     if missing:
         checks = {f"artifact_exists:{name}": False for name in missing}
@@ -815,6 +823,66 @@ def validate_native_scenario(
         )
         checks.update(projection_checks)
         observed.update(projection_observed)
+    if scope_decision_profile:
+        decision_payload = artifact_payloads["scope_decision_matrix"]
+        try:
+            decision_audit = analyze_scope_decision_matrix(decision_payload)
+        except (TypeError, ValueError):
+            checks["scope_decision_matrix_valid"] = False
+        else:
+            matrix_variants = {
+                str(row.get("variant", ""))
+                for row in decision_payload.get("rows", ())
+                if isinstance(row, dict)
+            }
+            minimum_adaptive_depth = int(
+                scope_decision_profile.get("minimum_adaptive_worst_case_depth", 2)
+            )
+            minimum_certificate = int(
+                scope_decision_profile.get("minimum_static_certificate_size", 2)
+            )
+            observed.update(
+                {
+                    "scope_decision_variant_count": decision_audit.variant_count,
+                    "scope_decision_signature_count": (
+                        decision_audit.recovery_signature_count
+                    ),
+                    "scope_decision_surface_count": (
+                        decision_audit.observable_surface_count
+                    ),
+                    "scope_decision_minimum_static_certificate_size": (
+                        decision_audit.minimum_static_certificate_size or 0
+                    ),
+                    "scope_decision_optimal_adaptive_depth": (
+                        decision_audit.optimal_adaptive_worst_case_depth or 0
+                    ),
+                    "scope_decision_single_surface_solver_count": len(
+                        decision_audit.single_surface_solvers
+                    ),
+                }
+            )
+            checks.update(
+                {
+                    "scope_decision_matrix_valid": True,
+                    "scope_decision_matrix_variants_exact": (
+                        matrix_variants == expected_variants
+                    ),
+                    "scope_decision_scopes_identifiable": decision_audit.identifiable,
+                    "scope_decision_static_certificate_meets_profile": (
+                        decision_audit.minimum_static_certificate_size is not None
+                        and decision_audit.minimum_static_certificate_size
+                        >= minimum_certificate
+                    ),
+                    "scope_decision_adaptive_depth_meets_profile": (
+                        decision_audit.optimal_adaptive_worst_case_depth is not None
+                        and decision_audit.optimal_adaptive_worst_case_depth
+                        >= minimum_adaptive_depth
+                    ),
+                    "scope_decision_has_no_single_surface_solver": (
+                        not decision_audit.single_surface_solvers
+                    ),
+                }
+            )
     hard_passed = all(checks.values())
     requested_tier = scenario.tier
     candidate_passed = (
