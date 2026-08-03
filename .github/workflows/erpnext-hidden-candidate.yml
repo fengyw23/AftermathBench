@@ -81,13 +81,15 @@ jobs:
           printf '%s' "$HIDDEN_INSTANCE_B64" \
             | base64 --decode > "$RUN_ROOT/private/instance.json"
           python scripts/verify_erpnext_instance_novelty.py \
-            --instance-spec "$RUN_ROOT/private/instance.json"
+            --instance-spec "$RUN_ROOT/private/instance.json" \
+            > "$RUN_ROOT/private/logs/novelty.log" 2>&1
           python scripts/render_erpnext_native_blueprint.py \
             --instance-spec "$RUN_ROOT/private/instance.json" \
             --template "$TEMPLATE" \
             --output "$RUN_ROOT/private/blueprint.json" \
             --instance-id "$SELECTED_INSTANCE_ID" \
-            --benchmark-split hidden_test
+            --benchmark-split hidden_test \
+            > "$RUN_ROOT/private/logs/render.log" 2>&1
           python -m unittest discover -s tests \
             -p 'test_erpnext_native_instances.py' -v
 
