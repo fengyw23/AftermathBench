@@ -38,6 +38,7 @@ class ERPNextHiddenTest003ReceiptTests(unittest.TestCase):
         self.assertEqual(aggregate["task_pass_rate"], 0.75)
         self.assertEqual(aggregate["matched_group_success_rate"], 0.0)
         self.assertEqual(aggregate["component_pass_rates"]["protocol_safety"], 0.75)
+        self.assertFalse(self.receipt["diagnostic_limitation"]["score_affected"])
 
     def test_public_receipt_does_not_claim_to_publish_hidden_state(self) -> None:
         privacy = self.receipt["privacy"]
