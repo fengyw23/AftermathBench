@@ -1,0 +1,184 @@
+name: forgejo-migration-deployment-model
+
+on:
+  push:
+    branches:
+      - forgejo-migration-model-eval
+      - forgejo-migration-model-control
+  workflow_dispatch:
+    inputs:
+      model:
+        description: BigModel OpenAI-compatible model identifier
+        required: true
+        default: glm-5.2
+        type: string
+      repetitions:
+        description: Repetitions for each matched failure boundary
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the correct recovery decision rule
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run-migration-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      INSTANCE: data/scenario_blueprints/forgejo-migration-deployment-dev-002/instance.json
+      SCENARIO: data/scenarios/forgejo-migration-deployment-dev-002/scenario.json
+      RUN_ROOT: runtimes/forgejo/.runtime/migration-model
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Select and validate the experiment condition
+        run: |
+          requested_model="${{ inputs.model }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          test -n "$requested_model" || requested_model=glm-5.2
+          test -n "$requested_repetitions" || requested_repetitions=1
+          if [ "$GITHUB_REF_NAME" = forgejo-migration-model-control ]
+          then
+            requested_control=true
+          elif [ "$GITHUB_REF_NAME" = forgejo-migration-model-eval ]
+          then
+            requested_control=false
+          else
+            test -n "$requested_control" || requested_control=false
+          fi
+          echo "MODEL_ID=$requested_model" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests \
+            -p 'test_native_forgejo_migration_family.py' -v
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$SCENARIO"
+
+      - name: Build pinned Forgejo from audited source
+        run: |
+          mkdir -p "$RUN_ROOT/model-runs"
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Build the persistent prefix
+        run: |
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username aftermath \
+            --email aftermath@aftermath.invalid
+          python scripts/manage_forgejo_stack.py setup-runner
+          python scripts/build_forgejo_migration_prefix.py \
+            --credentials runtimes/forgejo/.runtime/credentials.json \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+            --snapshot "$RUN_ROOT/prefix-bundle"
+
+      - name: Run GLM on all matched migration boundaries
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          run_status=0
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            migration_applied_workflow_failed
+            workflow_completed_dispatch_response_lost
+          )
+          for repetition in $(seq 1 "$REPETITIONS")
+          do
+            run_dir="$RUN_ROOT/model-runs/repetition-$(printf '%02d' "$repetition")"
+            mkdir -p "$run_dir"
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-migration-bundle \
+                --snapshot "$RUN_ROOT/prefix-bundle"
+              failure="$run_dir/$variant-failure.json"
+              trajectory="$run_dir/$variant.json"
+              python scripts/run_forgejo_migration_boundary.py \
+                --credentials runtimes/forgejo/.runtime/credentials.json \
+                --instance-spec "$INSTANCE" \
+                --variant "$variant" \
+                --output "$failure"
+              if [ "$variant" = workflow_queued_runner_unavailable ]
+              then
+                python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+                  --snapshot "$run_dir/$variant-bundle" --runner-disabled
+              else
+                python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+                  --snapshot "$run_dir/$variant-bundle"
+              fi
+              python scripts/manage_forgejo_stack.py restore-migration-bundle \
+                --snapshot "$run_dir/$variant-bundle"
+              control_flag=()
+              if [ "$EXECUTION_CONTROL" = true ]
+              then
+                control_flag=(--execution-control)
+              fi
+              if python -m aftermath_bench run-native-model \
+                  --provider openai-compatible \
+                  --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                  --model "$MODEL_ID" \
+                  --scenario "$SCENARIO" \
+                  --credentials runtimes/forgejo/.runtime/credentials.json \
+                  --prefix "$RUN_ROOT/prefix.json" \
+                  --failure-report "$failure" \
+                  --max-turns 25 \
+                  "${control_flag[@]}" \
+                  --output "$trajectory"
+              then
+                true
+              elif [ ! -s "$trajectory" ]
+              then
+                run_status=1
+              fi
+            done
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$RUN_ROOT/model-runs" \
+            --scenario "$SCENARIO" \
+            --expected-execution-control "$EXECUTION_CONTROL" \
+            --output "$RUN_ROOT/model-runs/summary.json" \
+            || run_status=1
+          exit "$run_status"
+
+      - name: Capture diagnostics and remove credentials
+        if: always()
+        run: |
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$RUN_ROOT/compose-ps.txt" 2>&1 || true
+          rm -f runtimes/forgejo/.runtime/credentials.json
+
+      - name: Upload complete public trajectories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-migration-model-${{ github.run_id }}
+          path: |
+            runtimes/forgejo/.runtime/migration-model/model-runs/
+            runtimes/forgejo/.runtime/migration-model/prefix.json
+            runtimes/forgejo/.runtime/migration-model/compose-ps.txt
+            runtimes/forgejo/.runtime/migration-model/source-verification.json
+          if-no-files-found: error
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true

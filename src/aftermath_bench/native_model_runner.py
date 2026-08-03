@@ -43,6 +43,7 @@ from .native_family import (
     NativeRuntimeContext,
 )
 from .native_forgejo_family import FORGEJO_RELEASE_FAMILY
+from .native_forgejo_migration_family import FORGEJO_MIGRATION_FAMILY
 from .native_forgejo_package_provenance_family import (
     FORGEJO_PACKAGE_PROVENANCE_FAMILY,
 )
@@ -769,6 +770,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         ERP_NEXT_MANUFACTURING_FAMILY,
         ERP_NEXT_MULTIWAREHOUSE_FAMILY,
         FORGEJO_RELEASE_FAMILY,
+        FORGEJO_MIGRATION_FAMILY,
         FORGEJO_PUBLICATION_FAMILY,
         FORGEJO_PACKAGE_PROVENANCE_FAMILY,
         KUBERNETES_ROLLOUT_FAMILY,

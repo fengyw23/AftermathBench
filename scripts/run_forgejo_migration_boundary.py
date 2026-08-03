@@ -46,9 +46,7 @@ def _wait_run(
                 return last
         if attempt + 1 < attempts:
             time.sleep(1)
-    raise RuntimeError(
-        f"Actions run did not reach {expected_status!r}: {last}"
-    )
+    raise RuntimeError(f"Actions run did not reach {expected_status!r}: {last}")
 
 
 def main() -> int:
@@ -57,13 +55,9 @@ def main() -> int:
     )
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--instance-spec", type=Path, required=True)
-    parser.add_argument(
-        "--variant", choices=FORGEJO_MIGRATION_VARIANTS, required=True
-    )
+    parser.add_argument("--variant", choices=FORGEJO_MIGRATION_VARIANTS, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument(
-        "--deployment-url", default="http://127.0.0.1:9095"
-    )
+    parser.add_argument("--deployment-url", default="http://127.0.0.1:9095")
     args = parser.parse_args()
     credentials = _read(args.credentials)
     instance = ForgejoMigrationInstanceSpec.from_path(args.instance_spec)
@@ -137,15 +131,20 @@ def main() -> int:
         is (specification.expected_run_status is not None),
         "native_run_status_matches": run is None
         or run.get("status") == specification.expected_run_status,
-        "migration_effect_matches": len(target_migrations)
-        == expected_effect[0],
-        "deployment_effect_matches": len(target_deployments)
-        == expected_effect[1],
+        "migration_effect_matches": len(target_migrations) == expected_effect[0],
+        "deployment_effect_matches": len(target_deployments) == expected_effect[1],
     }
     payload = {
         "schema_version": "1.0",
+        "scenario_id": instance.scenario_id,
+        "instance_spec_sha256": instance.sha256,
         "variant": args.variant,
         "surface_result": {
+            "ok": False,
+            "error": "connection closed before workflow dispatch was acknowledged",
+            "observed_exception": surface_error,
+        },
+        "visible_failure": {
             "ok": False,
             "error": "connection closed before workflow dispatch was acknowledged",
             "observed_exception": surface_error,
