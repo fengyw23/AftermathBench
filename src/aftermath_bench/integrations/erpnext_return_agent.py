@@ -28,6 +28,53 @@ UNFINISHED_JOB_STATUSES = {
 }
 
 
+def settle_document_webhook_delivery(
+    call: Callable[..., dict[str, Any]],
+    *,
+    doctype: str,
+    name: str,
+    webhook_name: str,
+    grace_seconds: int = 5,
+) -> dict[str, Any]:
+    """Observe native on-submit delivery before deciding to enqueue a repair.
+
+    ERPNext creates the background job asynchronously after a document submit.
+    An immediate read can therefore observe neither the delivery nor the job and
+    incorrectly enqueue a duplicate.  The grace wait closes that observation
+    race while keeping every action available through the public tool surface.
+    """
+    delivery = call("get_external_delivery", reference=name)
+    if delivery["delivered"]:
+        return delivery
+
+    settled = call(
+        "wait_for_external_delivery",
+        reference=name,
+        timeout_seconds=grace_seconds,
+    )
+    if settled["delivered"]:
+        return settled
+
+    jobs = call("find_background_jobs", reference=name)["jobs"]
+    if any(
+        str(job.get("status", "")).lower() in UNFINISHED_JOB_STATUSES
+        for job in jobs
+    ):
+        call("resume_workers")
+    else:
+        call(
+            "enqueue_document_webhook",
+            doctype=doctype,
+            name=name,
+            webhook_name=webhook_name,
+        )
+    return call(
+        "wait_for_external_delivery",
+        reference=name,
+        timeout_seconds=30,
+    )
+
+
 class ERPNextPartialReturnEnvironment(RecordedEnvironment):
     """Generic, auditable tool boundary for native purchase-return recovery."""
 

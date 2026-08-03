@@ -6,8 +6,8 @@ from typing import Any, ClassVar
 
 from .erpnext_manufacturing_evidence import ERPNextManufacturingEvidenceCollector
 from .erpnext_return_agent import (
-    UNFINISHED_JOB_STATUSES,
     ERPNextPartialReturnEnvironment,
+    settle_document_webhook_delivery,
 )
 from .erpnext_return_prefix import _payload
 from .frappe import FrappeHTTPAdapter
@@ -246,26 +246,12 @@ def reference_manufacturing_recovery(
             name=prefix["corrective_job_card"],
         )
 
-    delivery = call("get_external_delivery", reference=prefix["corrective_job_card"])
-    jobs = call("find_background_jobs", reference=prefix["corrective_job_card"])["jobs"]
-    if not delivery["delivered"]:
-        if any(
-            str(job.get("status", "")).lower() in UNFINISHED_JOB_STATUSES
-            for job in jobs
-        ):
-            call("resume_workers")
-        else:
-            call(
-                "enqueue_document_webhook",
-                doctype="Job Card",
-                name=prefix["corrective_job_card"],
-                webhook_name=prefix["quality_release_webhook"],
-            )
-        call(
-            "wait_for_external_delivery",
-            reference=prefix["corrective_job_card"],
-            timeout_seconds=30,
-        )
+    settle_document_webhook_delivery(
+        call,
+        doctype="Job Card",
+        name=prefix["corrective_job_card"],
+        webhook_name=prefix["quality_release_webhook"],
+    )
 
     stock_entries = call(
         "list_documents",

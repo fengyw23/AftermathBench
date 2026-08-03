@@ -7,7 +7,10 @@ from typing import Any, ClassVar
 from .erpnext_multiwarehouse_evidence import (
     ERPNextMultiwarehouseEvidenceCollector,
 )
-from .erpnext_return_agent import ERPNextPartialReturnEnvironment
+from .erpnext_return_agent import (
+    ERPNextPartialReturnEnvironment,
+    settle_document_webhook_delivery,
+)
 from .erpnext_return_prefix import _payload
 from .frappe import FrappeHTTPAdapter
 
@@ -268,29 +271,12 @@ def reference_multiwarehouse_recovery(
             "submit_document", doctype="Stock Entry", name=second_leg["name"]
         )["document"]
 
-    delivery = call("get_external_delivery", reference=second_leg["name"])
-    jobs = call("find_background_jobs", reference=second_leg["name"])["jobs"]
-    if not delivery["delivered"]:
-        unfinished = [
-            job
-            for job in jobs
-            if str(job.get("status", "")).lower()
-            in {"queued", "started", "failed", "deferred", "scheduled"}
-        ]
-        if unfinished:
-            call("resume_workers")
-        else:
-            call(
-                "enqueue_document_webhook",
-                doctype="Stock Entry",
-                name=second_leg["name"],
-                webhook_name=prefix["arrival_webhook"],
-            )
-        call(
-            "wait_for_external_delivery",
-            reference=second_leg["name"],
-            timeout_seconds=30,
-        )
+    settle_document_webhook_delivery(
+        call,
+        doctype="Stock Entry",
+        name=second_leg["name"],
+        webhook_name=prefix["arrival_webhook"],
+    )
 
     call("get_stock_ledger", voucher_no=second_leg["name"])
     call(
