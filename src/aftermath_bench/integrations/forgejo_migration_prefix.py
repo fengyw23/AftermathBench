@@ -189,15 +189,27 @@ class ForgejoMigrationPrefixBuilder:
         prior_commit = str(initial_branch.get("commit", {}).get("id", ""))
         if not prior_commit:
             raise RuntimeError("Forgejo returned no initial main commit")
+        prior_branch = f"release/{spec.prior_version}"
+        self._record(
+            "forgejo",
+            "create_branch",
+            {"name": prior_branch, "from_ref": prior_commit},
+            self.forgejo.create_branch(
+                spec.owner,
+                spec.repository,
+                name=prior_branch,
+                from_ref=prior_commit,
+            ),
+        )
         self._record(
             "forgejo",
             "create_release",
-            {"tag": spec.protected_release_tag, "target": prior_commit},
+            {"tag": spec.protected_release_tag, "target": prior_branch},
             self.forgejo.create_release(
                 spec.owner,
                 spec.repository,
                 tag=spec.protected_release_tag,
-                target=prior_commit,
+                target=prior_branch,
                 title=f"Protected prior release {spec.prior_version}",
                 body="Previously deployed and unrelated to the current recovery.",
             ),
