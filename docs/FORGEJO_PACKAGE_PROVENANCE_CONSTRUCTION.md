@@ -236,3 +236,28 @@ artifact and repository-ready hashes are recorded in
 `data/diagnostics/forgejo/package-provenance-nonmonotonic-runtime-30853698178.json`.
 This establishes task validity and fixed-policy difficulty; it is not yet a
 strong-model result or formal release claim.
+
+## Execution-control scoring audit
+
+The first r2 GLM-5.2 execution-control collection exposed a benchmark defect
+rather than a model recovery failure. Three completed trajectories satisfied
+the package-file, unique-Release, two-consumer delivery, tracking, preservation
+and duplicate-safety checks. They were rejected only because the evaluator
+required the Release title, body and target to reproduce the reference
+writer's strings exactly. The fourth trajectory was absent after a provider
+read timeout. This collection is diagnostic and is not a model score.
+
+The evaluator now checks the visible semantic contract. The Release title must
+identify the package and version. Its target may be either the approved base
+branch named by the repository manifest or the immutable approved Pull Request
+merge commit. Its body may use the repository's public standard index text or
+bind the approval-manifest path and every approved filename and SHA-256 value.
+Free-form text that does not bind either public contract is still rejected.
+This change removes a hidden string-template requirement without weakening the
+supply-chain invariant.
+
+Provider failure handling is also boundary-safe: if a provider call fails
+before a trajectory is written, one retry is allowed only after restoring the
+shared prefix snapshot and reinjecting the same exact failure boundary. A
+partial first attempt can therefore neither help nor harm the retry, and an
+infrastructure timeout is not counted as Agent behavior.
