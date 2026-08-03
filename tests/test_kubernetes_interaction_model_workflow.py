@@ -20,6 +20,11 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
         self.assertIn("compatible-mode/v1", self.text)
         self.assertNotIn("sk-", self.text)
 
+    def test_checkout_contains_history_required_by_reuse_seal(self) -> None:
+        checkout = self.text.index("uses: actions/checkout@v4")
+        setup = self.text.index("uses: actions/setup-python@v5", checkout)
+        self.assertIn("fetch-depth: 0", self.text[checkout:setup])
+
     def test_rebuilds_every_boundary_before_each_provider_attempt(self) -> None:
         boundary = self.text.index("run_kubernetes_interaction_boundary.py")
         model = self.text.index("run-native-model", boundary)
