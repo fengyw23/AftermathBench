@@ -73,6 +73,19 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
         self.assertIn("--expected-cases 4", self.text)
         self.assertIn("--minimum-pass-rate 0.8", self.text)
 
+    def test_provider_failure_restarts_from_the_exact_boundary_once(self) -> None:
+        model_block = self.text.split(
+            "Run selected models on all matched boundaries", 1
+        )[1].split("Capture diagnostics and remove credentials", 1)[0]
+        self.assertIn('while [ "$provider_attempt" -le 2 ]', model_block)
+        self.assertIn('rm -f "$trajectory"', model_block)
+        restore = 'manage_forgejo_stack.py restore'
+        boundary = 'run_forgejo_package_provenance_boundary.py'
+        model = 'run-native-model'
+        self.assertLess(model_block.index(restore), model_block.index(boundary))
+        self.assertLess(model_block.index(boundary), model_block.index(model))
+        self.assertIn("$variant-provider-attempts.txt", model_block)
+
 
 if __name__ == "__main__":
     unittest.main()

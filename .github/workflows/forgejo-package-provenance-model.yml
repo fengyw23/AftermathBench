@@ -186,33 +186,43 @@ jobs:
               mkdir -p "$run_dir"
               for variant in "${variants[@]}"
               do
-                python scripts/manage_forgejo_stack.py restore \
-                  --snapshot "$RUN_ROOT/package-prefix.tar.gz"
                 failure="$run_dir/$variant-failure.json"
                 trajectory="$run_dir/$variant.json"
-                python scripts/run_forgejo_package_provenance_boundary.py \
-                  --credentials runtimes/forgejo/.runtime/credentials.json \
-                  --prefix "$RUN_ROOT/prefix.json" \
-                  --variant "$variant" \
-                  --output "$failure"
-                if AFTERMATH_API_KEY="$api_key" \
-                  python -m aftermath_bench run-native-model \
-                    --provider openai-compatible \
-                    --base-url "$base_url" \
-                    --model "$model" \
-                    --scenario "$SCENARIO" \
+                provider_attempt=1
+                while [ "$provider_attempt" -le 2 ]
+                do
+                  rm -f "$trajectory"
+                  python scripts/manage_forgejo_stack.py restore \
+                    --snapshot "$RUN_ROOT/package-prefix.tar.gz"
+                  python scripts/run_forgejo_package_provenance_boundary.py \
                     --credentials runtimes/forgejo/.runtime/credentials.json \
                     --prefix "$RUN_ROOT/prefix.json" \
-                    --failure-report "$failure" \
-                    --max-turns 25 \
-                    "${control_flag[@]}" \
-                    --output "$trajectory"
-                then
-                  true
-                elif [ ! -s "$trajectory" ]
-                then
-                  run_status=1
-                fi
+                    --variant "$variant" \
+                    --output "$failure"
+                  if AFTERMATH_API_KEY="$api_key" \
+                    python -m aftermath_bench run-native-model \
+                      --provider openai-compatible \
+                      --base-url "$base_url" \
+                      --model "$model" \
+                      --scenario "$SCENARIO" \
+                      --credentials runtimes/forgejo/.runtime/credentials.json \
+                      --prefix "$RUN_ROOT/prefix.json" \
+                      --failure-report "$failure" \
+                      --max-turns 25 \
+                      "${control_flag[@]}" \
+                      --output "$trajectory"
+                  then
+                    break
+                  elif [ -s "$trajectory" ]
+                  then
+                    break
+                  elif [ "$provider_attempt" -eq 2 ]
+                  then
+                    run_status=1
+                  fi
+                  provider_attempt=$((provider_attempt + 1))
+                done
+                echo "$provider_attempt" > "$run_dir/$variant-provider-attempts.txt"
               done
             done
             python scripts/summarize_native_model_runs.py \
