@@ -32,6 +32,12 @@ class ERPNextManufacturingModelWorkflowTests(unittest.TestCase):
         self.assertLess(boundary, restore)
         self.assertLess(restore, model)
         self.assertIn("matched_variants", self.text)
+        self.assertEqual(
+            self.text.count("capture_erpnext_manufacturing_state_evidence.py"),
+            2,
+        )
+        self.assertIn("--phase reset", self.text)
+        self.assertIn("--phase boundary", self.text)
 
     def test_scope_control_and_full_summary_are_explicit(self) -> None:
         self.assertIn("--execution-control", self.text)
