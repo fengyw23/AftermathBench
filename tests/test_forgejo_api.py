@@ -105,6 +105,30 @@ class ForgejoAPITest(unittest.TestCase):
         self.assertEqual(payload["branch"], "post-approval-drift")
         self.assertEqual(payload["sha"], "old-blob-sha")
 
+    def test_hook_activation_uses_native_patch_endpoint(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"id": 12, "active": True}),
+        ) as opener:
+            result = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).edit_hook_active(
+                "aftermath",
+                "release-control",
+                12,
+                active=True,
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(request.method, "PATCH")
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/"
+            "release-control/hooks/12",
+        )
+        self.assertEqual(json.loads(request.data), {"active": True})
+        self.assertTrue(result["active"])
+
     def test_release_attachment_uses_native_raw_upload_endpoint(self) -> None:
         with patch(
             "urllib.request.urlopen",

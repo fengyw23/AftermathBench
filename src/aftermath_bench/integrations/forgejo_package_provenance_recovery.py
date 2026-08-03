@@ -241,6 +241,7 @@ class ForgejoPackageProvenanceEnvironment:
         "create_package_index_release",
         "delete_package_version",
         "delete_release",
+        "activate_webhook",
         "replay_webhook",
         "close_milestone",
         "close_issue",
@@ -251,6 +252,7 @@ class ForgejoPackageProvenanceEnvironment:
         "create_package_index_release",
         "delete_package_version",
         "delete_release",
+        "activate_webhook",
         "replay_webhook",
         "close_milestone",
         "close_issue",
@@ -428,6 +430,12 @@ class ForgejoPackageProvenanceEnvironment:
                 owner,
                 repository,
                 int(kwargs["release_id"]),
+            ),
+            "activate_webhook": lambda: self.api.edit_hook_active(
+                owner,
+                repository,
+                int(kwargs["hook_id"]),
+                active=True,
             ),
             "replay_webhook": lambda: self.web.replay_webhook(
                 owner,
@@ -719,7 +727,16 @@ def reference_forgejo_package_provenance_recovery(
 
     releases = call("list_releases")
     call("list_branch_protections")
-    call("list_hooks")
+    hooks = call("list_hooks")
+    relevant_hook_ids = {
+        int(prefix["coordinator_hook_id"]),
+        int(prefix["provenance_hook_id"]),
+    }
+    for hook in hooks:
+        if int(hook.get("id", -1)) in relevant_hook_ids and not bool(
+            hook.get("active")
+        ):
+            call("activate_webhook", hook_id=int(hook["id"]))
     histories = {
         int(prefix["coordinator_hook_id"]): call(
             "get_webhook_history", hook_id=prefix["coordinator_hook_id"]

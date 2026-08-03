@@ -174,6 +174,11 @@ FORGEJO_PACKAGE_PROVENANCE_TOOL_DEFINITIONS = (
         _schema({"release_id": {"type": "integer"}}, ("release_id",)),
     ),
     ToolDefinition(
+        "activate_webhook",
+        "Reactivate one inspected native repository webhook by its hook ID.",
+        _schema(_HOOK, ("hook_id",)),
+    ),
+    ToolDefinition(
         "replay_webhook",
         "Replay one failed native delivery UUID; Forgejo creates a new UUID.",
         _schema(

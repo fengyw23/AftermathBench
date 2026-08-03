@@ -235,6 +235,13 @@ def main() -> int:
         prefix,
         specification.preclosed_tracking_positions,
     )
+    for role in specification.disabled_hook_roles:
+        api.edit_hook_active(
+            prefix["owner"],
+            prefix["repository"],
+            int(prefix[f"{role}_hook_id"]),
+            active=False,
+        )
     pending_binary: tuple[dict[str, Any], bytes] | None = None
     if specification.attempted_operation == "upload_binary":
         # Read the approved source before arming the one-shot transport seam.
@@ -416,6 +423,21 @@ def main() -> int:
                 else "open"
             )
             for position, item in enumerate(state["tracking_issues"])
+        ),
+        "hook_activation_matches_variant": all(
+            bool(item.get("active"))
+            == (
+                not any(
+                    int(item.get("id", -1)) == int(prefix[f"{role}_hook_id"])
+                    for role in specification.disabled_hook_roles
+                )
+            )
+            for item in state["hooks"]
+            if int(item.get("id", -1))
+            in {
+                int(prefix["coordinator_hook_id"]),
+                int(prefix["provenance_hook_id"]),
+            }
         ),
     }
     visible_failure = {

@@ -426,6 +426,22 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no webhook list")
         return [item for item in result if isinstance(item, dict)]
 
+    def edit_hook_active(
+        self,
+        owner: str,
+        repository: str,
+        hook_id: int,
+        *,
+        active: bool,
+    ) -> dict[str, Any]:
+        result = self.patch(
+            f"/repos/{owner}/{repository}/hooks/{hook_id}",
+            {"active": active},
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no edited webhook document")
+        return result
+
     def create_release(
         self,
         owner: str,

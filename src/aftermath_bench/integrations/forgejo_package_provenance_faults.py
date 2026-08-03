@@ -17,6 +17,7 @@ class PackageProvenanceBoundaryVariant:
     provenance_mode: str
     corrupt_preloaded_file_roles: tuple[str, ...] = ()
     advance_base_branch_file_roles: tuple[str, ...] = ()
+    disabled_hook_roles: tuple[str, ...] = ()
 
 
 PACKAGE_PROVENANCE_VARIANTS = {
@@ -113,11 +114,9 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         attempted_operation="create_index_release",
         api_mode="suppress_request",
         release_committed=False,
-        # Release creation succeeds during recovery, but one downstream
-        # consumer then records a native failed attempt.  This creates a real
-        # asynchronous repair branch rather than another upload-count variant.
-        coordinator_mode="suppress_request",
+        coordinator_mode="normal",
         provenance_mode="normal",
+        disabled_hook_roles=("coordinator",),
     ),
     "r2_package_corrupt_binary_index_missing": PackageProvenanceBoundaryVariant(
         preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
@@ -126,13 +125,14 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         attempted_operation="create_index_release",
         api_mode="suppress_request",
         release_committed=False,
-        # Keep the notification behavior identical to the valid-inventory
-        # counterfactual so package content remains the pair's only changed
-        # boundary fact.
-        coordinator_mode="suppress_request",
+        coordinator_mode="normal",
         provenance_mode="normal",
         corrupt_preloaded_file_roles=("binary",),
         advance_base_branch_file_roles=("binary",),
+        # Keep the disabled subscription identical to the valid-inventory
+        # counterfactual so package content remains the pair's only changed
+        # boundary fact.
+        disabled_hook_roles=("coordinator",),
     ),
 }
 

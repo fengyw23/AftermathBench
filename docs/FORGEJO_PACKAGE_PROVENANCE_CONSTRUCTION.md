@@ -188,10 +188,21 @@ to digest
 `sha256:b89453df9826a7a9418e05cdd855c521eb671ffd898d398527642f06b4e143ce`.
 The rejected run is not an admitted scenario or model result.
 
-The next construction keeps the valid/corrupt pair's boundary difference
-limited to the post-approval binary change, but increases *real* recovery
-divergence elsewhere: the partial-package state has three durable approved
-files that must be preserved, while both complete-package states encounter one
-native failed downstream attempt after the index Release is created and must
-reconcile it through webhook history and the receiver ledger. The admission
-threshold remains unchanged.
+Run
+[`30851112327`](https://github.com/fengyw23/AftermathBench/actions/runs/30851112327)
+then proved that merely arming a future notification failure is insufficient:
+the native fault controller correctly restored its transport mode after the
+surface failure, so that proposed complexity was not present in the locked
+boundary and the measured distances remained 2. Its rejected diagnostic
+artifact has digest
+`sha256:5e383dd357f4205d1242cc033cd199ac2ce5c31466d1b5f15f5d788493b31594`.
+
+The current construction keeps the valid/corrupt pair's content difference
+limited to the post-approval binary change and makes the additional branch a
+real, queryable boundary fact. The partial-package state has three durable
+approved files that must be preserved. Both complete-package states contain
+one inactive native downstream webhook; recovery must discover and reactivate
+that exact subscription before creating the index Release. This state is
+visible through the ordinary hook inventory and scored by the native
+evaluator. It does not depend on a future hidden fault. The admission threshold
+remains unchanged.

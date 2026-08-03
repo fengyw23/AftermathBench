@@ -592,7 +592,10 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
                 ],
             },
             {"id": "index_release", "mutation_tools": ["create_package_index_release"]},
-            {"id": "delivery", "mutation_tools": ["replay_webhook"]},
+            {
+                "id": "delivery",
+                "mutation_tools": ["activate_webhook", "replay_webhook"],
+            },
             {"id": "tracking", "mutation_tools": ["close_issue", "close_milestone"]},
         ],
         "unsafe_actions": [
