@@ -43,6 +43,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
             "verify_hidden_test_eligibility.py",
         ):
             self.assertIn(token, self.text)
+        self.assertIn("ERPNext hidden replay failed", self.text)
 
     def test_each_family_can_be_frozen_from_a_dedicated_branch(self) -> None:
         self.assertIn("erpnext-hidden-candidate", self.text)

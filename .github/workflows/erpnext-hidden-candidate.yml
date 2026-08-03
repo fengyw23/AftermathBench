@@ -114,6 +114,16 @@ jobs:
       - name: Replay every boundary, reference, and fixed policy
         run: |
           runtime_root="runtimes/erpnext/.runtime"
+          run_private() {
+            label="$1"
+            log="$2"
+            shift 2
+            if ! "$@" > "$log" 2>&1
+            then
+              echo "::error title=ERPNext hidden replay failed::$label"
+              return 1
+            fi
+          }
           variants=(
             request_not_reached
             database_committed_response_lost
@@ -123,34 +133,37 @@ jobs:
           read -r -a baselines <<< "$BASELINES"
           for variant in "${variants[@]}"
           do
-            python "$FAILURE_SCRIPT" \
+            run_private "boundary:$variant" \
+              "$RUN_ROOT/private/logs/$variant-boundary.log" \
+              python "$FAILURE_SCRIPT" \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/private/runtime/prefix.json" \
               --snapshot-bundle "$RUN_ROOT/private/bundles/prefix" \
-              --output "$RUN_ROOT/private/runtime/$variant.json" \
-              > "$RUN_ROOT/private/logs/$variant-boundary.log" 2>&1
+              --output "$RUN_ROOT/private/runtime/$variant.json"
             python scripts/manage_erpnext_stack.py snapshot-bundle \
               --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
             python scripts/manage_erpnext_stack.py restore-bundle \
               --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
-            python "$CONTROL_SCRIPT" \
+            run_private "reference:$variant" \
+              "$RUN_ROOT/private/logs/$variant-reference.log" \
+              python "$CONTROL_SCRIPT" \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/private/runtime/prefix.json" \
-              --output "$RUN_ROOT/private/runtime/$variant-reference.json" \
-              > "$RUN_ROOT/private/logs/$variant-reference.log" 2>&1
+              --output "$RUN_ROOT/private/runtime/$variant-reference.json"
             for baseline in "${baselines[@]}"
             do
               python scripts/manage_erpnext_stack.py restore-bundle \
                 --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
-              python "$BASELINE_SCRIPT" \
+              run_private "baseline:$variant:$baseline" \
+                "$RUN_ROOT/private/logs/$variant-baseline-$baseline.log" \
+                python "$BASELINE_SCRIPT" \
                 --baseline "$baseline" \
                 --variant "$variant" \
                 --credentials "$runtime_root/credentials.json" \
                 --prefix "$RUN_ROOT/private/runtime/prefix.json" \
-                --output "$RUN_ROOT/private/runtime/$variant-baseline-$baseline.json" \
-                > "$RUN_ROOT/private/logs/$variant-baseline-$baseline.log" 2>&1
+                --output "$RUN_ROOT/private/runtime/$variant-baseline-$baseline.json"
             done
           done
 
