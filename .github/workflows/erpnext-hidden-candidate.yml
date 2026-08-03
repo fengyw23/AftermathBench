@@ -195,6 +195,7 @@ jobs:
 
       - name: Admit and freeze before any provider request
         run: |
+          mkdir -p "$RUN_ROOT/post-freeze-logs"
           run_private() {
             label="$1"
             log="$2"
@@ -217,7 +218,7 @@ jobs:
             --scenario "$RUN_ROOT/private/scenario/scenario.json"
           runtime_revision="$(python -c 'import json; print(json.load(open("runtimes/erpnext/runtime.lock.json"))["erpnext"]["revision"])')"
           run_private "bundle-freeze" \
-            "$RUN_ROOT/private/logs/freeze.log" \
+            "$RUN_ROOT/post-freeze-logs/freeze.log" \
             python scripts/freeze_native_bundle.py \
             --bundle-root "$RUN_ROOT/private" \
             --scenario "$RUN_ROOT/private/scenario/scenario.json" \
@@ -228,7 +229,7 @@ jobs:
             --public-commitment "$RUN_ROOT/private/public-commitment.json" \
             --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
           run_private "hidden-eligibility" \
-            "$RUN_ROOT/private/logs/hidden-eligibility.log" \
+            "$RUN_ROOT/post-freeze-logs/hidden-eligibility.log" \
             python scripts/verify_hidden_test_eligibility.py \
             --scenario "$RUN_ROOT/private/scenario/scenario.json" \
             --freeze "$RUN_ROOT/private/freeze.json" \
@@ -236,7 +237,7 @@ jobs:
           cp "$RUN_ROOT/private/public-commitment.json" \
             "$RUN_ROOT/public/pre-model-commitment.json"
           run_private "public-summary" \
-            "$RUN_ROOT/private/logs/summary.log" \
+            "$RUN_ROOT/post-freeze-logs/summary.log" \
             python scripts/summarize_frozen_candidate.py \
             --commitment "$RUN_ROOT/private/public-commitment.json" \
             --admission "$RUN_ROOT/private/scenario/artifacts/admission.json" \

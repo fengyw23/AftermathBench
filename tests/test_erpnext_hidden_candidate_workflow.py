@@ -31,6 +31,12 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("private/logs/novelty.log", self.text)
         self.assertIn("private/logs/render.log", self.text)
         self.assertIn("private/runtime/credentials.json", self.text)
+        self.assertIn("post-freeze-logs/freeze.log", self.text)
+        self.assertIn("post-freeze-logs/hidden-eligibility.log", self.text)
+        self.assertIn("post-freeze-logs/summary.log", self.text)
+        self.assertNotIn("private/logs/freeze.log", self.text)
+        self.assertNotIn("private/logs/hidden-eligibility.log", self.text)
+        self.assertNotIn("private/logs/summary.log", self.text)
         self.assertIn("${{ runner.temp }}/erpnext-hidden/public/", self.text)
         self.assertNotIn("include-hidden-files: true", self.text)
 

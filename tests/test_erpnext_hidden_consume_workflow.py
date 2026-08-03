@@ -48,6 +48,8 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
             "--hidden-evaluation-id",
             "--hidden-finalize",
             "consumed-bundle.tar.gz.enc",
+            "frozen-bundle-integrity",
+            "ERPNext hidden verification failed",
         ):
             self.assertIn(token, self.text)
         self.assertNotIn("include-hidden-files: true", self.text)

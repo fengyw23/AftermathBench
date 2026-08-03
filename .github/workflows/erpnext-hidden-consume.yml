@@ -178,17 +178,29 @@ jobs:
           python scripts/extract_sealed_hidden_bundle.py \
             --archive "$archive" --destination "$run_root"
           rm -f "$archive"
-          python scripts/verify_frozen_bundle.py \
+          run_private() {
+            label="$1"
+            log="$2"
+            shift 2
+            if ! "$@" > "$log" 2>&1
+            then
+              echo "::error title=ERPNext hidden verification failed::$label"
+              return 1
+            fi
+          }
+          run_private "frozen-bundle-integrity" \
+            "$RUNNER_TEMP/frozen-verification.log" \
+            python scripts/verify_frozen_bundle.py \
             --bundle-root "$run_root/private" \
             --private-attestation "$run_root/private/freeze.json" \
             --public-commitment "$run_root/private/public-commitment.json" \
-            --allow-unbound usage-ledger.json \
-            > "$RUNNER_TEMP/frozen-verification.log" 2>&1
-          python scripts/verify_hidden_test_eligibility.py \
+            --allow-unbound usage-ledger.json
+          run_private "hidden-eligibility" \
+            "$RUNNER_TEMP/eligibility.log" \
+            python scripts/verify_hidden_test_eligibility.py \
             --scenario "$run_root/private/scenario/scenario.json" \
             --freeze "$run_root/private/freeze.json" \
-            --usage-ledger "$run_root/private/usage-ledger.json" \
-            > "$RUNNER_TEMP/eligibility.log" 2>&1
+            --usage-ledger "$run_root/private/usage-ledger.json"
 
       - name: Build the exact frozen ERPNext runtime
         run: |
