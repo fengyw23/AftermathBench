@@ -278,7 +278,9 @@ The substrate decision and source evidence are documented in
 [Fully Open Runtime Selection](docs/OPEN_RUNTIME_SELECTION.md).
 The native hard-task recipe and experiment audit are documented in
 [Hard Task Construction](docs/HARD_TASK_CONSTRUCTION.md) and
-[GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md).
+[GLM-5.2 24-Hour Report](docs/GLM52_24H_REPORT.md). The first replay-admitted
+software-publication successor is detailed in
+[Forgejo Package-Provenance Construction](docs/FORGEJO_PACKAGE_PROVENANCE_CONSTRUCTION.md).
 
 `python -m aftermath_bench status` is the machine-derived source of truth for
 the boundary between the 183-case target matrix and locally implemented
