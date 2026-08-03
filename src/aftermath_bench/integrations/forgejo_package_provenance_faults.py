@@ -16,6 +16,7 @@ class PackageProvenanceBoundaryVariant:
     coordinator_mode: str
     provenance_mode: str
     corrupt_preloaded_file_roles: tuple[str, ...] = ()
+    advance_base_branch_file_roles: tuple[str, ...] = ()
 
 
 PACKAGE_PROVENANCE_VARIANTS = {
@@ -122,6 +123,7 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         coordinator_mode="normal",
         provenance_mode="normal",
         corrupt_preloaded_file_roles=("binary",),
+        advance_base_branch_file_roles=("binary",),
     ),
 }
 

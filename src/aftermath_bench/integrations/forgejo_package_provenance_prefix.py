@@ -58,6 +58,7 @@ class ForgejoPackageProvenancePrefix:
     owner: str
     repository: str
     base_branch: str
+    approved_source_ref: str
     pull_request_index: int
     linked_issue_index: int
     milestone_id: int
@@ -124,6 +125,16 @@ class ForgejoPackageProvenancePrefixBuilder:
         spec = self.instance
         base = _PackagePublicationPrefixBuilder(self.client, spec).build()
         trace = list(base.trace)
+        approved_pull = self.client.get_pull_request(
+            base.owner,
+            base.repository,
+            base.pull_request_index,
+        )
+        approved_source_ref = str(approved_pull.get("merge_commit_sha") or "")
+        if not approved_source_ref:
+            raise RuntimeError(
+                "approved Pull Request exposes no immutable merge commit"
+            )
 
         tracking_issue_indexes: list[int] = []
         for title, body in (
@@ -167,7 +178,7 @@ class ForgejoPackageProvenancePrefixBuilder:
                 owner=base.owner,
                 repository=base.repository,
                 path=str(source["source_path"]),
-                ref=base.base_branch,
+                ref=approved_source_ref,
             )
             expected.append(
                 {
@@ -238,6 +249,7 @@ class ForgejoPackageProvenancePrefixBuilder:
             owner=base.owner,
             repository=base.repository,
             base_branch=base.base_branch,
+            approved_source_ref=approved_source_ref,
             pull_request_index=base.pull_request_index,
             linked_issue_index=base.linked_issue_index,
             milestone_id=base.milestone_id,

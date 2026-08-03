@@ -186,6 +186,7 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertEqual(valid.api_mode, corrupt.api_mode)
         self.assertEqual(valid.corrupt_preloaded_file_roles, ())
         self.assertEqual(corrupt.corrupt_preloaded_file_roles, ("binary",))
+        self.assertEqual(corrupt.advance_base_branch_file_roles, ("binary",))
 
     def test_complete_native_state_passes(self) -> None:
         report = evaluate_forgejo_package_provenance_recovery(

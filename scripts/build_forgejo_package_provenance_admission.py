@@ -66,6 +66,13 @@ def _validate_nonmonotonic_pair(
     }
     valid_mutations = references[valid_id]["mutation_tools"]
     corrupt_mutations = references[corrupt_id]["mutation_tools"]
+    valid_provenance = boundaries[valid_id].get("provenance_evidence", {})
+    corrupt_provenance = boundaries[corrupt_id].get("provenance_evidence", {})
+    corrupt_binary_name = next(
+        str(item["name"])
+        for item in prefix["expected_package_files"]
+        if item["role"] == "binary"
+    )
     checks = {
         "same_visible_file_inventory": set(valid_files) == set(corrupt_files),
         "same_surface_failed_tool": (
@@ -75,6 +82,17 @@ def _validate_nonmonotonic_pair(
         "valid_inventory_matches_approved_hashes": valid_hashes == expected,
         "corrupt_inventory_differs_only_in_content": (
             set(corrupt_hashes) == set(expected) and corrupt_hashes != expected
+        ),
+        "valid_branch_still_matches_approval": all(
+            str(item.get("approved_sha256")) == str(item.get("current_sha256"))
+            for item in valid_provenance.values()
+        ),
+        "corrupt_binary_came_from_post_approval_branch_drift": (
+            bool(corrupt_provenance.get("binary"))
+            and str(corrupt_provenance["binary"].get("approved_sha256"))
+            != str(corrupt_provenance["binary"].get("current_sha256"))
+            and corrupt_hashes.get(corrupt_binary_name)
+            == str(corrupt_provenance["binary"].get("current_sha256"))
         ),
         "valid_scope_preserves_package_version": (
             "delete_package_version" not in valid_mutations
@@ -116,7 +134,7 @@ def _compact_capture(report: dict[str, Any], prefix: dict[str, Any]) -> dict[str
             report,
             "get_repository_file",
             path=item["source_path"],
-            ref=prefix["base_branch"],
+            ref=str(prefix.get("approved_source_ref") or prefix["base_branch"]),
         )
         return {
             "name": item["name"],
@@ -144,6 +162,7 @@ def _compact_capture(report: dict[str, Any], prefix: dict[str, Any]) -> dict[str
         "target_pull": {
             "number": state["target_pull"]["number"],
             "merged": state["target_pull"]["merged"],
+            "merge_commit_sha": state["target_pull"].get("merge_commit_sha"),
         },
         "linked_issue": {
             "number": state["linked_issue"]["number"],
@@ -215,6 +234,11 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         ("repository", "Repository", prefix["repository"]),
         ("base_branch", "GitRef", prefix["base_branch"]),
         ("target_pull", "PullRequest", str(prefix["pull_request_index"])),
+        (
+            "approved_commit",
+            "GitCommit",
+            str(prefix.get("approved_source_ref") or prefix["base_branch"]),
+        ),
         ("linked_issue", "Issue", str(prefix["linked_issue_index"])),
         ("manifest", "RepositoryFile", prefix["manifest_path"]),
         ("target_package", "GenericPackage", prefix["package_version"]),
@@ -270,6 +294,15 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
             _equals("linked_issue.state", "closed"),
         ),
         _relation(
+            "target_pull",
+            "approved_commit",
+            "approved_at",
+            _equals(
+                "target_pull.merge_commit_sha",
+                str(prefix.get("approved_source_ref") or prefix["base_branch"]),
+            ),
+        ),
+        _relation(
             "linked_issue",
             "manifest",
             "approves",
@@ -285,6 +318,15 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
                     f"source_{role}",
                     "declares_source",
                     _equals(f"sources.{role}.path", item["source_path"]),
+                ),
+                _relation(
+                    "approved_commit",
+                    f"source_{role}",
+                    "contains_approved_source",
+                    _equals(
+                        f"sources.{role}.sha256",
+                        str(item["sha256"]),
+                    ),
                 ),
                 _relation(
                     f"source_{role}",

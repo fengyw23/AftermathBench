@@ -77,6 +77,34 @@ class ForgejoAPITest(unittest.TestCase):
             {"Do": "merge", "delete_branch_after_merge": False},
         )
 
+    def test_file_update_binds_branch_and_previous_blob_sha(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({"commit": {"sha": "new-commit"}}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            ).update_file(
+                "aftermath",
+                "release-control",
+                path="dist/agent.tar.gz",
+                content="new build\n",
+                branch="post-approval-drift",
+                message="advance build after approval",
+                sha="old-blob-sha",
+            )
+        request = opener.call_args.args[0]
+        self.assertEqual(request.method, "PUT")
+        self.assertEqual(
+            request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/release-control/"
+            "contents/dist/agent.tar.gz",
+        )
+        payload = json.loads(request.data)
+        self.assertEqual(payload["branch"], "post-approval-drift")
+        self.assertEqual(payload["sha"], "old-blob-sha")
+
     def test_release_attachment_uses_native_raw_upload_endpoint(self) -> None:
         with patch(
             "urllib.request.urlopen",

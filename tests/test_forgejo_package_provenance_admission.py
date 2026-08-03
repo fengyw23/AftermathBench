@@ -23,7 +23,9 @@ class ForgejoPackageProvenanceAdmissionTest(unittest.TestCase):
             }
         }
         prefix = {
-            "expected_package_files": [{"name": "agent.tar.gz", "sha256": "approved"}]
+            "expected_package_files": [
+                {"role": "binary", "name": "agent.tar.gz", "sha256": "approved"}
+            ]
         }
         states = {
             "r2_package_complete_index_missing": "approved",
@@ -34,6 +36,12 @@ class ForgejoPackageProvenanceAdmissionTest(unittest.TestCase):
                 json.dumps(
                     {
                         "latest_attempt": {"tool": "create_package_index_release"},
+                        "provenance_evidence": {
+                            "binary": {
+                                "approved_sha256": "approved",
+                                "current_sha256": digest,
+                            }
+                        },
                         "failure_boundary_evidence": {
                             "target_package_files": [
                                 {

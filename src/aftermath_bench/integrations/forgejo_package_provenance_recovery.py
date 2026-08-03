@@ -43,6 +43,10 @@ def _file_hashes(items: list[dict[str, Any]]) -> dict[str, str]:
     return {str(item.get("name")): str(item.get("content_sha256")) for item in items}
 
 
+def _approved_source_ref(prefix: dict[str, Any]) -> str:
+    return str(prefix.get("approved_source_ref") or prefix["base_branch"])
+
+
 def evaluate_forgejo_package_provenance_recovery(
     evidence: dict[str, Any],
     *,
@@ -105,7 +109,7 @@ def evaluate_forgejo_package_provenance_recovery(
         and str(target_releases[0].get("body"))
         == str(prefix["package_index_release_body"])
         and str(target_releases[0].get("target_commitish"))
-        == str(prefix["base_branch"])
+        == _approved_source_ref(prefix)
     )
     goal_checks = {
         "target_package_version_exists": isinstance(
@@ -658,7 +662,7 @@ def reference_forgejo_package_provenance_recovery(
     call(
         "get_repository_file",
         path=prefix["manifest_path"],
-        ref=prefix["base_branch"],
+        ref=_approved_source_ref(prefix),
     )
     packages = call("list_packages", query=prefix["package_name"])
     target_package = next(
@@ -703,14 +707,14 @@ def reference_forgejo_package_provenance_recovery(
         call(
             "get_repository_file",
             path=item["source_path"],
-            ref=prefix["base_branch"],
+            ref=_approved_source_ref(prefix),
         )
         if item["name"] not in existing_hashes:
             call(
                 "upload_package_file_from_repository",
                 source_path=item["source_path"],
                 filename=item["name"],
-                ref=prefix["base_branch"],
+                ref=_approved_source_ref(prefix),
             )
 
     releases = call("list_releases")
@@ -740,7 +744,7 @@ def reference_forgejo_package_provenance_recovery(
     if target_release is not None and not (
         str(target_release.get("name")) == str(prefix["package_index_release_title"])
         and str(target_release.get("body")) == str(prefix["package_index_release_body"])
-        and str(target_release.get("target_commitish")) == str(prefix["base_branch"])
+        and str(target_release.get("target_commitish")) == _approved_source_ref(prefix)
     ):
         call("delete_release", release_id=int(target_release["id"]))
         target_release = None
@@ -748,7 +752,7 @@ def reference_forgejo_package_provenance_recovery(
         call(
             "create_package_index_release",
             tag=prefix["package_index_release_tag"],
-            target=prefix["base_branch"],
+            target=_approved_source_ref(prefix),
             title=prefix["package_index_release_title"],
             body=prefix["package_index_release_body"],
         )

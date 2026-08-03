@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import http.client
 import json
 import time
@@ -34,12 +35,14 @@ def _source_bytes(
     api: ForgejoAPI,
     prefix: dict[str, Any],
     source_path: str,
+    *,
+    ref: str | None = None,
 ) -> bytes:
     document = api.get_repository_content(
         prefix["owner"],
         prefix["repository"],
         path=source_path,
-        ref=prefix["base_branch"],
+        ref=ref or str(prefix.get("approved_source_ref") or prefix["base_branch"]),
     )
     return base64.b64decode(
         str(document["content"]).replace("\n", ""),
@@ -53,11 +56,12 @@ def _upload_role(
     role: str,
     *,
     corrupt: bool = False,
+    source_ref: str | None = None,
 ) -> None:
     item = next(
         value for value in prefix["expected_package_files"] if value["role"] == role
     )
-    content = _source_bytes(api, prefix, item["source_path"])
+    content = _source_bytes(api, prefix, item["source_path"], ref=source_ref)
     if corrupt:
         content = content + b"\nAFTERMATH-STale-build-artifact\n"
     api.upload_generic_package_file(
@@ -67,6 +71,61 @@ def _upload_role(
         filename=item["name"],
         content=content,
     )
+
+
+def _advance_base_branch_sources(
+    api: ForgejoAPI,
+    prefix: dict[str, Any],
+    roles: tuple[str, ...],
+) -> None:
+    if not roles:
+        return
+    branch = "post-approval-build-drift"
+    api.create_branch(
+        prefix["owner"],
+        prefix["repository"],
+        name=branch,
+        from_ref=prefix["base_branch"],
+    )
+    expected = {str(item["role"]): item for item in prefix["expected_package_files"]}
+    for role in roles:
+        item = expected[role]
+        current = api.get_repository_content(
+            prefix["owner"],
+            prefix["repository"],
+            path=item["source_path"],
+            ref=branch,
+        )
+        original = base64.b64decode(
+            str(current["content"]).replace("\n", ""), validate=True
+        ).decode("utf-8")
+        api.update_file(
+            prefix["owner"],
+            prefix["repository"],
+            path=item["source_path"],
+            content=original + "\npost_approval_build=unapproved-2197\n",
+            branch=branch,
+            message=f"advance {role} after release approval",
+            sha=str(current["sha"]),
+        )
+    pull = api.create_pull_request(
+        prefix["owner"],
+        prefix["repository"],
+        title="Advance build output after package approval",
+        body="Operational follow-up; this Pull Request is not part of the package approval.",
+        head=branch,
+        base=prefix["base_branch"],
+    )
+    for _ in range(40):
+        observed = api.get_pull_request(
+            prefix["owner"], prefix["repository"], int(pull["number"])
+        )
+        if bool(observed.get("mergeable")):
+            break
+        time.sleep(0.25)
+    else:
+        raise RuntimeError("post-approval source drift Pull Request was not mergeable")
+    api.merge_pull_request(prefix["owner"], prefix["repository"], int(pull["number"]))
 
 
 def _role_payload(
@@ -154,12 +213,22 @@ def main() -> int:
     )
     faults = ForgejoPackageProvenanceFaultController()
     specification = ALL_PACKAGE_PROVENANCE_VARIANTS[args.variant]
+    _advance_base_branch_sources(
+        api,
+        prefix,
+        specification.advance_base_branch_file_roles,
+    )
     for role in specification.preloaded_file_roles:
+        source_advanced = role in specification.advance_base_branch_file_roles
         _upload_role(
             api,
             prefix,
             role,
-            corrupt=role in specification.corrupt_preloaded_file_roles,
+            corrupt=(
+                role in specification.corrupt_preloaded_file_roles
+                and not source_advanced
+            ),
+            source_ref=prefix["base_branch"] if source_advanced else None,
         )
     _close_tracking_positions(
         api,
@@ -190,7 +259,7 @@ def main() -> int:
                 prefix["owner"],
                 prefix["repository"],
                 tag=prefix["package_index_release_tag"],
-                target=prefix["base_branch"],
+                target=str(prefix.get("approved_source_ref") or prefix["base_branch"]),
                 title=prefix["package_index_release_title"],
                 body=prefix["package_index_release_body"],
             )
@@ -224,6 +293,32 @@ def main() -> int:
         prefix=prefix,
     )
     state = environment.snapshot()
+    provenance_evidence = {
+        str(item["role"]): {
+            "source_path": str(item["source_path"]),
+            "approved_ref": str(
+                prefix.get("approved_source_ref") or prefix["base_branch"]
+            ),
+            "approved_sha256": hashlib.sha256(
+                _source_bytes(
+                    api,
+                    prefix,
+                    str(item["source_path"]),
+                    ref=str(prefix.get("approved_source_ref") or prefix["base_branch"]),
+                )
+            ).hexdigest(),
+            "current_branch": str(prefix["base_branch"]),
+            "current_sha256": hashlib.sha256(
+                _source_bytes(
+                    api,
+                    prefix,
+                    str(item["source_path"]),
+                    ref=str(prefix["base_branch"]),
+                )
+            ).hexdigest(),
+        }
+        for item in prefix["expected_package_files"]
+    }
     target_roles = {
         item["name"]: item["role"] for item in prefix["expected_package_files"]
     }
@@ -290,6 +385,17 @@ def main() -> int:
             for role, expected_hash in expected_hashes_by_role.items()
             if role in expected_roles
         ),
+        "immutable_approval_ref_remains_distinct_from_drifted_branch": (
+            not specification.advance_base_branch_file_roles
+            or str(
+                api.get_branch(
+                    prefix["owner"], prefix["repository"], prefix["base_branch"]
+                )
+                .get("commit", {})
+                .get("id")
+            )
+            != str(prefix["approved_source_ref"])
+        ),
         "release_commit_matches_variant": (
             len(target_releases) == (1 if specification.release_committed else 0)
         ),
@@ -330,7 +436,7 @@ def main() -> int:
             "arguments": {
                 "source_path": attempted_item["source_path"],
                 "filename": attempted_item["name"],
-                "ref": prefix["base_branch"],
+                "ref": str(prefix.get("approved_source_ref") or prefix["base_branch"]),
             },
             "result": visible_failure,
         }
@@ -339,7 +445,9 @@ def main() -> int:
             "tool": "create_package_index_release",
             "arguments": {
                 "tag": prefix["package_index_release_tag"],
-                "target": prefix["base_branch"],
+                "target": str(
+                    prefix.get("approved_source_ref") or prefix["base_branch"]
+                ),
                 "title": prefix["package_index_release_title"],
                 "body": prefix["package_index_release_body"],
             },
@@ -354,6 +462,7 @@ def main() -> int:
         "latest_attempt": latest_attempt,
         "harness_error_type": actual_error,
         "failure_boundary_evidence": state,
+        "provenance_evidence": provenance_evidence,
         "api_gateway_audit": api_gateway_audit,
         "coordinator_gateway_audit": _get_json("http://127.0.0.1:9093/audit"),
         "provenance_gateway_audit": _get_json("http://127.0.0.1:9094/audit"),

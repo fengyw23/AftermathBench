@@ -164,6 +164,9 @@ class ForgejoAPI:
     def post(self, path: str, payload: dict[str, Any]) -> Any:
         return self._request("POST", path, payload)
 
+    def put(self, path: str, payload: dict[str, Any]) -> Any:
+        return self._request("PUT", path, payload)
+
     def patch(self, path: str, payload: dict[str, Any]) -> Any:
         return self._request("PATCH", path, payload)
 
@@ -276,6 +279,31 @@ class ForgejoAPI:
         )
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no file commit document")
+        return result
+
+    def update_file(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        path: str,
+        content: str,
+        branch: str,
+        message: str,
+        sha: str,
+    ) -> dict[str, Any]:
+        encoded_path = urllib.parse.quote(path, safe="/")
+        result = self.put(
+            f"/repos/{owner}/{repository}/contents/{encoded_path}",
+            {
+                "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+                "branch": branch,
+                "message": message,
+                "sha": sha,
+            },
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no updated file commit document")
         return result
 
     def create_pull_request(
