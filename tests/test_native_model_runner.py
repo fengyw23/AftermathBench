@@ -180,6 +180,41 @@ class NativeModelRunnerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertTrue(report["evaluation"]["passed"])
 
+    def test_family_run_accepts_latest_attempt_boundary_layout(self) -> None:
+        client, calls = self._stub_client()
+        family, environment = self._stub_family_and_environment()
+        scenario = NativeScenario(
+            path=Path("development-scenario.json"),
+            raw={
+                "scenario_id": "development-001",
+                "benchmark_split": "development",
+                "matched_variants": [{"id": "state-1"}],
+            },
+        )
+        visible = {
+            "ok": False,
+            "error": "connection_lost_before_confirmation",
+        }
+        report = run_native_family_agent(
+            client,
+            family=family,
+            scenario=scenario,
+            environment=environment,
+            prefix={},
+            failure_report={
+                "variant": "state-1",
+                "latest_attempt": {
+                    "tool": "submit_document",
+                    "arguments": {"doctype": "Job Card", "name": "JC-1"},
+                    "result": visible,
+                },
+            },
+            max_turns=1,
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(report["surface_failure"], visible)
+        self.assertTrue(report["evaluation"]["passed"])
+
     def test_formal_input_lock_is_verified_before_provider_access(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)

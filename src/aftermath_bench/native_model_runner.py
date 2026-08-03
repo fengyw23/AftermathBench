@@ -402,6 +402,23 @@ def _invoke_tool(
         return {"ok": False, "error": str(error)}
 
 
+def _surface_failure(failure_report: dict[str, Any]) -> dict[str, Any]:
+    """Normalize the validated native boundary-report layouts."""
+
+    direct = failure_report.get("visible_failure")
+    if isinstance(direct, dict):
+        return dict(direct)
+    latest_attempt = failure_report.get("latest_attempt")
+    if isinstance(latest_attempt, dict):
+        result = latest_attempt.get("result")
+        if isinstance(result, dict):
+            return dict(result)
+    raise ValueError(
+        "native failure report must contain visible_failure or "
+        "latest_attempt.result"
+    )
+
+
 def _diagnose(
     *,
     turns: list[dict[str, Any]],
@@ -647,7 +664,7 @@ def run_native_family_agent(
         "max_turns": max_turns,
         "execution_control": execution_control,
         "stop_reason": stop_reason,
-        "surface_failure": failure_report["visible_failure"],
+        "surface_failure": _surface_failure(failure_report),
         "system_prompt": system,
         "initial_message": initial,
         "turns": turns,
@@ -821,6 +838,9 @@ def run_live_native_agent(
         failure_report=failure_report,
         family_id=family.family_id,
     )
+    # Normalize every family-specific boundary layout before a hidden-test
+    # lifecycle is locked and, crucially, before any provider can see it.
+    _surface_failure(failure_report)
     if (
         pre_model_boundary_evidence_path is not None
         and formal_input_lock_path is None
