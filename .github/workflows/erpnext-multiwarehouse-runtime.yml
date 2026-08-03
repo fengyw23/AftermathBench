@@ -6,6 +6,9 @@ on:
       - erpnext-multiwarehouse-runtime
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   native-smoke:
     runs-on: ubuntu-latest
@@ -16,6 +19,7 @@ jobs:
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
       RUN_ROOT: runtimes/erpnext/.runtime/multiwarehouse
       BLUEPRINT: data/scenario_blueprints/erpnext-multiwarehouse-transfer-dev-001/scenario.json
+      GENERATED_SCENARIO: data/scenarios/erpnext-multiwarehouse-transfer-dev-001
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -107,8 +111,56 @@ jobs:
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
               --output "$RUN_ROOT/runtime/$variant-reference.json"
+            baselines=(
+              no_op
+              blind_retry
+              assume_committed
+              repair_failed_record_only
+              all_rollback
+              duplicate_second_leg
+              cancel_protected_reservation
+            )
+            for baseline in "${baselines[@]}"
+            do
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+              run_checked "Multiwarehouse baseline failed: $variant/$baseline" \
+                "$RUN_ROOT/logs/$variant-baseline-$baseline.log" \
+                python scripts/run_erpnext_multiwarehouse_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/runtime/prefix.json" \
+                --output "$RUN_ROOT/runtime/$variant-baseline-$baseline.json"
+            done
             echo "::endgroup::"
           done
+
+      - name: Derive strict native hard admission
+        run: |
+          if ! python scripts/build_erpnext_multiwarehouse_admission.py \
+            --runtime-directory "$RUN_ROOT/runtime" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$GENERATED_SCENARIO" \
+            > "$RUN_ROOT/logs/admission.log" 2>&1
+          then
+            cat "$RUN_ROOT/logs/admission.log"
+            annotation="$({ tail -n 60 "$RUN_ROOT/logs/admission.log" || true; } \
+              | sed 's/%/%25/g; s/\r/%0D/g' \
+              | awk 'BEGIN { ORS="%0A" } { print }')"
+            echo "::error title=Multiwarehouse hard admission failed::$annotation"
+            exit 1
+          fi
+          cat "$RUN_ROOT/logs/admission.log"
+
+      - name: Publish admitted scenario to evidence branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force "$GENERATED_SCENARIO"
+          git commit -m "data(erpnext): generate multiwarehouse evidence"
+          git push --force origin \
+            HEAD:refs/heads/generated/erpnext-multiwarehouse-transfer-dev-001
 
       - name: Capture diagnostics
         if: always()
@@ -128,7 +180,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: erpnext-multiwarehouse-${{ github.run_id }}
-          path: runtimes/erpnext/.runtime/multiwarehouse/
+          path: |
+            runtimes/erpnext/.runtime/multiwarehouse/
+            data/scenarios/erpnext-multiwarehouse-transfer-dev-001/
           if-no-files-found: warn
 
       - name: Tear down services
