@@ -14,12 +14,13 @@ from aftermath_bench.schema import repository_root
 
 
 class ForgejoRuntimeTest(unittest.TestCase):
-    def test_native_repositories_enable_pull_requests(self) -> None:
+    def test_native_repositories_enable_used_release_units(self) -> None:
         compose = (
             repository_root() / "runtimes" / "forgejo" / "compose.yaml"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            'DEFAULT_REPO_UNITS: "repo.code,repo.issues,repo.pulls,repo.actions"',
+            'DEFAULT_REPO_UNITS: "repo.code,repo.releases,repo.issues,'
+            'repo.pulls,repo.packages,repo.actions"',
             compose,
         )
 
