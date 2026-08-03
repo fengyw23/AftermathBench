@@ -44,6 +44,8 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(token, self.text)
         self.assertNotIn("include-hidden-files: true", self.text)
+        self.assertIn("for attempt in 1 2", self.text)
+        self.assertIn("variant-retry-restore.log", self.text)
 
 
 if __name__ == "__main__":

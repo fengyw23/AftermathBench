@@ -224,21 +224,31 @@ jobs:
               > "$run_root/private/model/repetition-01/$variant-restore.log" 2>&1
             finalize=()
             if [ "$index" -eq "$last_index" ]; then finalize=(--hidden-finalize); fi
-            python -m aftermath_bench run-native-model \
-              --provider openai-compatible \
-              --base-url "$AFTERMATH_MODEL_BASE_URL" \
-              --model "$MODEL_ID" \
-              --scenario "$run_root/private/scenario/scenario.json" \
-              --credentials "$run_root/private/runtime/credentials.json" \
-              --prefix "$run_root/private/runtime/prefix.json" \
-              --failure-report "$run_root/private/runtime/$variant.json" \
-              --max-turns 25 \
-              --hidden-freeze "$run_root/private/freeze.json" \
-              --hidden-usage-ledger "$run_root/private/usage-ledger.json" \
-              --hidden-evaluation-id "$evaluation_id" \
-              "${finalize[@]}" \
-              --output "$run_root/private/model/repetition-01/$variant.json" \
-              > "$run_root/private/model/repetition-01/$variant.log" 2>&1 || true
+            output="$run_root/private/model/repetition-01/$variant.json"
+            for attempt in 1 2
+            do
+              rm -f "$output"
+              python -m aftermath_bench run-native-model \
+                --provider openai-compatible \
+                --base-url "$AFTERMATH_MODEL_BASE_URL" \
+                --model "$MODEL_ID" \
+                --scenario "$run_root/private/scenario/scenario.json" \
+                --credentials "$run_root/private/runtime/credentials.json" \
+                --prefix "$run_root/private/runtime/prefix.json" \
+                --failure-report "$run_root/private/runtime/$variant.json" \
+                --max-turns 25 \
+                --hidden-freeze "$run_root/private/freeze.json" \
+                --hidden-usage-ledger "$run_root/private/usage-ledger.json" \
+                --hidden-evaluation-id "$evaluation_id" \
+                "${finalize[@]}" \
+                --output "$output" \
+                > "$run_root/private/model/repetition-01/$variant-attempt-$attempt.log" 2>&1 \
+                || true
+              [ -s "$output" ] && break
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$run_root/private/bundles/boundary-$variant" \
+                > "$run_root/private/model/repetition-01/$variant-retry-restore.log" 2>&1
+            done
           done
           python scripts/summarize_native_model_runs.py \
             --run-directory "$run_root/private/model" \
