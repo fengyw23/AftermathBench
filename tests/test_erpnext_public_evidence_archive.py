@@ -16,6 +16,7 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
         files = {}
         mapping = {
             "database": "database.sql",
+            "site_config": "site-config.tar",
             "redis_queue": "redis-queue.tar",
             "gateway_audit": "gateway-audit.tar",
             "remittance_audit": "remittance-audit.tar",
@@ -31,7 +32,7 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
         (bundle / "bundle.json").write_text(
             json.dumps(
                 {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "capture_mode": "simultaneous_service_quiescence",
                     "running_services": ["backend"],
                     "files": files,
@@ -59,13 +60,11 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
                 expected_restore_bundle_count=1,
             )
             self.assertTrue(result["passed"])
-            self.assertFalse(
-                (output / "bundles" / "prefix" / "database.sql").exists()
-            )
+            self.assertFalse((output / "bundles" / "prefix" / "database.sql").exists())
             omissions = json.loads(
                 (output / "omissions.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(omissions["omitted_file_count"], 4)
+            self.assertEqual(omissions["omitted_file_count"], 5)
             self.assertTrue((output / "report.json").is_file())
 
     def test_rejects_a_drifted_native_archive(self) -> None:
@@ -74,9 +73,7 @@ class ERPNextPublicEvidenceArchiveTest(unittest.TestCase):
             source = base / "native"
             source.mkdir()
             self._bundle(source, "prefix")
-            (
-                source / "bundles" / "prefix" / "database.sql"
-            ).write_bytes(b"drift")
+            (source / "bundles" / "prefix" / "database.sql").write_bytes(b"drift")
             with self.assertRaises(ValueError):
                 build_public_archive(
                     source,

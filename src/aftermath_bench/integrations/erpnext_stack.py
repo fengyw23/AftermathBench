@@ -14,14 +14,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
-_BUNDLE_SCHEMA_VERSION = "1.0"
+_BUNDLE_SCHEMA_VERSION = "1.1"
+_LEGACY_BUNDLE_SCHEMA_VERSION = "1.0"
 _BUNDLE_CAPTURE_MODE = "simultaneous_service_quiescence"
 _BUNDLE_FILES = {
     "database": "database.sql",
+    "site_config": "site-config.tar",
     "redis_queue": "redis-queue.tar",
     "gateway_audit": "gateway-audit.tar",
     "remittance_audit": "remittance-audit.tar",
+}
+_LEGACY_BUNDLE_FILES = {
+    key: value for key, value in _BUNDLE_FILES.items() if key != "site_config"
 }
 _MUTATING_SERVICES = (
     "backend",
@@ -210,8 +214,7 @@ class ERPNextStack:
                 if value and value.strip()
             )
             raise RuntimeError(
-                "native remittance requeue failed"
-                + (f": {detail}" if detail else "")
+                "native remittance requeue failed" + (f": {detail}" if detail else "")
             ) from error
         return _parse_mapping_output(result.stdout)
 
@@ -342,6 +345,25 @@ class ERPNextStack:
         with destination.open("wb") as handle:
             self.runner(command, check=True, stdout=handle)
 
+    def _archive_site_config(self, destination: Path) -> None:
+        """Capture the site key material needed to decrypt Frappe secrets."""
+
+        command = self.compose_command(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "sh",
+            "backend",
+            "-c",
+            (
+                "tar -C /home/frappe/frappe-bench/sites/"
+                "aftermath.localhost -cf - site_config.json"
+            ),
+        )
+        with destination.open("wb") as handle:
+            self.runner(command, check=True, stdout=handle)
+
     def _restore_service_volume(
         self,
         *,
@@ -360,6 +382,20 @@ class ERPNextStack:
                 "find /data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + "
                 "&& tar -C /data -xf -"
             ),
+        )
+        with source.open("rb") as handle:
+            self.runner(command, check=True, stdin=handle)
+
+    def _restore_site_config(self, source: Path) -> None:
+        command = self.compose_command(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "sh",
+            "backend",
+            "-c",
+            ("tar -C /home/frappe/frappe-bench/sites/aftermath.localhost -xf -"),
         )
         with source.open("rb") as handle:
             self.runner(command, check=True, stdin=handle)
@@ -445,12 +481,9 @@ class ERPNextStack:
             if service in set(running_process.stdout.splitlines())
         )
         if not _BUNDLE_REQUIRED_RUNNING <= set(running_services):
-            missing = sorted(
-                _BUNDLE_REQUIRED_RUNNING - set(running_services)
-            )
+            missing = sorted(_BUNDLE_REQUIRED_RUNNING - set(running_services))
             raise RuntimeError(
-                "cannot snapshot incomplete ERPNext runtime; "
-                f"not running: {missing}"
+                f"cannot snapshot incomplete ERPNext runtime; not running: {missing}"
             )
         bundle.parent.mkdir(parents=True, exist_ok=True)
         temporary: Path | None = Path(
@@ -464,6 +497,7 @@ class ERPNextStack:
             try:
                 database = temporary / _BUNDLE_FILES["database"]
                 self.snapshot_database(database)
+                self._archive_site_config(temporary / _BUNDLE_FILES["site_config"])
                 for key, service in (
                     ("redis_queue", "redis-queue"),
                     ("gateway_audit", "fault-gateway"),
@@ -476,9 +510,7 @@ class ERPNextStack:
             finally:
                 if running_services:
                     self._resume_bundle_services(running_services)
-            self._wait_http_service(
-                "http://127.0.0.1:8080/api/method/ping"
-            )
+            self._wait_http_service("http://127.0.0.1:8080/api/method/ping")
             self._wait_http_service("http://127.0.0.1:9091/audit")
             self._wait_http_service("http://127.0.0.1:9092/health")
             files = {
@@ -520,11 +552,20 @@ class ERPNextStack:
         if not manifest_path.is_file():
             raise FileNotFoundError(manifest_path)
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        schema_version = (
+            manifest.get("schema_version") if isinstance(manifest, dict) else None
+        )
+        bundle_files = (
+            _BUNDLE_FILES
+            if schema_version == _BUNDLE_SCHEMA_VERSION
+            else _LEGACY_BUNDLE_FILES
+        )
         if (
             not isinstance(manifest, dict)
-            or manifest.get("schema_version") != _BUNDLE_SCHEMA_VERSION
+            or schema_version
+            not in {_BUNDLE_SCHEMA_VERSION, _LEGACY_BUNDLE_SCHEMA_VERSION}
             or manifest.get("capture_mode") != _BUNDLE_CAPTURE_MODE
-            or set(manifest.get("files", {})) != set(_BUNDLE_FILES)
+            or set(manifest.get("files", {})) != set(bundle_files)
             or not isinstance(manifest.get("running_services"), list)
             or len(manifest["running_services"])
             != len(set(map(str, manifest["running_services"])))
@@ -535,7 +576,7 @@ class ERPNextStack:
         ):
             raise ValueError("invalid ERPNext native bundle manifest")
         resolved_files: dict[str, Path] = {}
-        for key, expected_name in _BUNDLE_FILES.items():
+        for key, expected_name in bundle_files.items():
             declaration = manifest["files"].get(key)
             if (
                 not isinstance(declaration, dict)
@@ -551,13 +592,13 @@ class ERPNextStack:
                 or path.stat().st_size != int(declaration["bytes"])
                 or _sha256_file(path) != str(declaration["sha256"])
             ):
-                raise ValueError(
-                    f"ERPNext native bundle file drift: {key}"
-                )
+                raise ValueError(f"ERPNext native bundle file drift: {key}")
             resolved_files[key] = path
 
         self.run("stop", *_BUNDLE_STOP_SERVICES)
         try:
+            if "site_config" in resolved_files:
+                self._restore_site_config(resolved_files["site_config"])
             self._import_database(resolved_files["database"])
             self._restore_service_volume(
                 service="redis-queue",
@@ -576,9 +617,7 @@ class ERPNextStack:
             if running_services:
                 self._resume_bundle_services(running_services)
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
-        self._wait_http_service(
-            "http://127.0.0.1:8080/api/method/ping"
-        )
+        self._wait_http_service("http://127.0.0.1:8080/api/method/ping")
         self._wait_http_service("http://127.0.0.1:9091/audit")
         self._wait_http_service("http://127.0.0.1:9092/health")
         return manifest
@@ -602,9 +641,7 @@ class ERPNextStack:
         self.run("exec", "-T", "redis-cache", "redis-cli", "FLUSHALL")
         self.run("exec", "-T", "redis-queue", "redis-cli", "FLUSHALL")
         self.run("start", "queue-short", "queue-long")
-        self._wait_http_service(
-            "http://127.0.0.1:8080/api/method/ping"
-        )
+        self._wait_http_service("http://127.0.0.1:8080/api/method/ping")
         self._reset_http_service("http://127.0.0.1:9091/admin/reset")
         self._reset_http_service("http://127.0.0.1:9092/admin/reset")
 

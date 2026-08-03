@@ -14,9 +14,15 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
             / "erpnext-hidden-consume.yml"
         ).read_text(encoding="utf-8")
 
-    def test_provider_is_selected_before_any_hidden_artifact_is_downloaded(self) -> None:
-        provider = self.text.index("Select a working provider before hidden data access")
-        download = self.text.index("Download and verify the preregistered sealed artifact")
+    def test_provider_is_selected_before_any_hidden_artifact_is_downloaded(
+        self,
+    ) -> None:
+        provider = self.text.index(
+            "Select a working provider before hidden data access"
+        )
+        download = self.text.index(
+            "Download and verify the preregistered sealed artifact"
+        )
         decrypt = self.text.index("Decrypt and verify the exact frozen bundle")
         self.assertLess(provider, download)
         self.assertLess(download, decrypt)
@@ -55,6 +61,13 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         self.assertNotIn("include-hidden-files: true", self.text)
         self.assertIn("for attempt in 1 2", self.text)
         self.assertIn("variant-retry-restore.log", self.text)
+        restore = self.text.index(
+            '--snapshot "$run_root/private/bundles/boundary-$variant"'
+        )
+        credential_smoke = self.text.index("verify_erpnext_credentials.py")
+        model = self.text.index("python -m aftermath_bench run-native-model")
+        self.assertLess(restore, credential_smoke)
+        self.assertLess(credential_smoke, model)
 
 
 if __name__ == "__main__":

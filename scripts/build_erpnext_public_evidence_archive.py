@@ -11,12 +11,13 @@ from typing import Any
 
 from aftermath_bench.evidence_manifest import build_file_manifest
 
-_BUNDLE_FILES = (
+_BUNDLE_FILES_V1_0 = (
     "database.sql",
     "redis-queue.tar",
     "gateway-audit.tar",
     "remittance-audit.tar",
 )
+_BUNDLE_FILES_V1_1 = (*_BUNDLE_FILES_V1_0, "site-config.tar")
 _UNSAFE_NAMES = frozenset({"credentials.json", ".env"})
 _UNSAFE_SUFFIXES = frozenset({".key", ".pem"})
 
@@ -33,9 +34,8 @@ def _load_bundle(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if (
         not isinstance(payload, dict)
-        or payload.get("schema_version") != "1.0"
-        or payload.get("capture_mode")
-        != "simultaneous_service_quiescence"
+        or payload.get("schema_version") not in {"1.0", "1.1"}
+        or payload.get("capture_mode") != "simultaneous_service_quiescence"
         or not isinstance(payload.get("files"), dict)
     ):
         raise ValueError(f"invalid ERPNext bundle manifest: {path}")
@@ -55,25 +55,15 @@ def build_public_archive(
     if output.exists():
         raise ValueError("public output root already exists")
     if expected_restore_bundle_count < 1:
-        raise ValueError(
-            "expected restore bundle count must be positive"
-        )
-    if (
-        output == source
-        or source in output.parents
-        or output in source.parents
-    ):
-        raise ValueError(
-            "source and public output roots must not overlap"
-        )
+        raise ValueError("expected restore bundle count must be positive")
+    if output == source or source in output.parents or output in source.parents:
+        raise ValueError("source and public output roots must not overlap")
     source_entries = sorted(source.rglob("*"))
     symlinks = [path for path in source_entries if path.is_symlink()]
     if symlinks:
         raise ValueError(f"source contains a symlink: {symlinks[0]}")
     bundle_manifests = [
-        path
-        for path in source_entries
-        if path.is_file() and path.name == "bundle.json"
+        path for path in source_entries if path.is_file() and path.name == "bundle.json"
     ]
     if len(bundle_manifests) != expected_restore_bundle_count:
         raise ValueError(
@@ -92,25 +82,23 @@ def build_public_archive(
             for item in declarations.values()
             if isinstance(item, dict)
         }
-        if declared_names != set(_BUNDLE_FILES):
-            raise ValueError(
-                f"ERPNext bundle files are not exact: {manifest_path}"
-            )
+        expected_names = (
+            set(_BUNDLE_FILES_V1_1)
+            if manifest["schema_version"] == "1.1"
+            else set(_BUNDLE_FILES_V1_0)
+        )
+        if declared_names != expected_names:
+            raise ValueError(f"ERPNext bundle files are not exact: {manifest_path}")
         for declaration in declarations.values():
             name = str(declaration["path"])
             archive = manifest_path.parent / name
             if not archive.is_file() or archive.is_symlink():
-                raise ValueError(
-                    f"native restore file is missing or unsafe: {archive}"
-                )
+                raise ValueError(f"native restore file is missing or unsafe: {archive}")
             observed_sha256 = _sha256_file(archive)
-            if (
-                archive.stat().st_size != declaration.get("bytes")
-                or observed_sha256 != declaration.get("sha256")
-            ):
-                raise ValueError(
-                    f"native restore file hash drifted: {archive}"
-                )
+            if archive.stat().st_size != declaration.get(
+                "bytes"
+            ) or observed_sha256 != declaration.get("sha256"):
+                raise ValueError(f"native restore file hash drifted: {archive}")
             archive_paths.add(archive.resolve())
             omissions.append(
                 {
@@ -124,12 +112,10 @@ def build_public_archive(
     discovered_archives = {
         path.resolve()
         for path in source_entries
-        if path.is_file() and path.name in _BUNDLE_FILES
+        if path.is_file() and path.name in _BUNDLE_FILES_V1_1
     }
     if discovered_archives != archive_paths:
-        raise ValueError(
-            "every native restore file must belong to a declared bundle"
-        )
+        raise ValueError("every native restore file must belong to a declared bundle")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = Path(
@@ -143,10 +129,7 @@ def build_public_archive(
         for path in source_entries:
             if not path.is_file() or path.resolve() in archive_paths:
                 continue
-            if (
-                path.name in _UNSAFE_NAMES
-                or path.suffix.lower() in _UNSAFE_SUFFIXES
-            ):
+            if path.name in _UNSAFE_NAMES or path.suffix.lower() in _UNSAFE_SUFFIXES:
                 raise ValueError(
                     f"credential-like file cannot enter public staging: {path}"
                 )
@@ -214,9 +197,7 @@ def main() -> int:
         result = build_public_archive(
             args.source_root,
             args.output_root,
-            expected_restore_bundle_count=(
-                args.expected_restore_bundle_count
-            ),
+            expected_restore_bundle_count=(args.expected_restore_bundle_count),
         )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(json.dumps({"passed": False, "error": str(error)}))

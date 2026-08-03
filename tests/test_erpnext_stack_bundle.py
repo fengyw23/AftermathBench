@@ -163,6 +163,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
                 set(manifest["files"]),
                 {
                     "database",
+                    "site_config",
                     "redis_queue",
                     "gateway_audit",
                     "remittance_audit",
@@ -244,6 +245,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
             bundle.mkdir()
             payloads = {
                 "database": ("database.sql", b"database-state"),
+                "site_config": ("site-config.tar", b"site-config-state"),
                 "redis_queue": ("redis-queue.tar", b"redis-state"),
                 "gateway_audit": ("gateway-audit.tar", b"gateway-state"),
                 "remittance_audit": (
@@ -260,7 +262,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
                     "sha256": hashlib.sha256(content).hexdigest(),
                 }
             manifest = {
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "capture_mode": "simultaneous_service_quiescence",
                 "running_services": [
                     "redis-queue",
@@ -291,6 +293,7 @@ class ERPNextStackBundleTest(unittest.TestCase):
             self.assertEqual(
                 restored_inputs,
                 [
+                    b"site-config-state",
                     b"database-state",
                     b"redis-state",
                     b"gateway-state",

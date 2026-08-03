@@ -21,6 +21,7 @@ _NATIVE_RESTORE_ARCHIVES = frozenset(
         "forgejo-data.tar.gz",
         "webhook-sink-data.tar.gz",
         "database.sql",
+        "site-config.tar",
         "redis-queue.tar",
         "gateway-audit.tar",
         "remittance-audit.tar",
