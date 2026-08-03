@@ -21,7 +21,7 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         path = (
             root
             / "data"
-            / "scenario_blueprints"
+            / "quarantined_candidates"
             / "forgejo-migration-deployment-dev-001-r1"
             / "instance.json"
         )
