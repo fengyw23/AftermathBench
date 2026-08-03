@@ -31,6 +31,7 @@ class ERPNextMultiwarehousePrefixTests(unittest.TestCase):
             protected_sales_order="SAL-SO-NORTH",
             protected_pick_list="MAT-PICK-NORTH",
             protected_reservation="SRE-NORTH",
+            arrival_webhook="Aftermath Inter-Warehouse Arrival",
             protected_fingerprints={"outgoing_stock_entry": "{}"},
             trace=(
                 {

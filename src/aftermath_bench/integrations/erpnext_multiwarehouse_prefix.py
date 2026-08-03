@@ -37,6 +37,7 @@ class MultiwarehousePrefix:
     protected_sales_order: str
     protected_pick_list: str
     protected_reservation: str
+    arrival_webhook: str
     protected_fingerprints: dict[str, str]
     trace: tuple[dict[str, Any], ...]
 
@@ -45,6 +46,8 @@ class MultiwarehousePrefix:
 
 
 class ERPNextMultiwarehousePrefixBuilder:
+    ARRIVAL_WEBHOOK = "Aftermath Inter-Warehouse Arrival"
+
     def __init__(
         self,
         adapter: FrappeHTTPAdapter,
@@ -161,6 +164,29 @@ class ERPNextMultiwarehousePrefixBuilder:
                     "batch_id": batch_id,
                     "item": self.fixture["transfer_item"]["item_code"],
                     "description": "Traceable clinic gateway transfer batch",
+                },
+            )
+        if not self._exists("Webhook", self.ARRIVAL_WEBHOOK):
+            self.adapter.create_resource(
+                "Webhook",
+                {
+                    "name": self.ARRIVAL_WEBHOOK,
+                    "webhook_doctype": "Stock Entry",
+                    "webhook_docevent": "on_submit",
+                    "enabled": 1,
+                    "condition": "doc.outgoing_stock_entry",
+                    "request_url": "http://remittance:8080/webhooks/events",
+                    "request_method": "POST",
+                    "request_structure": "JSON",
+                    "background_jobs_queue": "short",
+                    "webhook_json": (
+                        '{"name":"{{ doc.name }}",'
+                        '"outgoing_stock_entry":"{{ doc.outgoing_stock_entry }}",'
+                        '"event":"inter_warehouse_arrival"}'
+                    ),
+                    "webhook_headers": [
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
                 },
             )
         return warehouses
@@ -405,6 +431,7 @@ class ERPNextMultiwarehousePrefixBuilder:
             protected_sales_order=str(protected_order["name"]),
             protected_pick_list=str(protected_pick["name"]),
             protected_reservation=str(protected_reservation["name"]),
+            arrival_webhook=self.ARRIVAL_WEBHOOK,
             protected_fingerprints={
                 "outgoing_stock_entry": multiwarehouse_document_fingerprint(outgoing),
                 "protected_reservation": multiwarehouse_document_fingerprint(

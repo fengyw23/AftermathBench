@@ -138,6 +138,13 @@ class ERPNextMultiwarehouseEvaluatorTests(unittest.TestCase):
                     "status": "Completed",
                 }
             ],
+            "rq_jobs": [],
+            "arrival_deliveries": {
+                "MAT-STE-IN-001": {
+                    "key": "MAT-STE-IN-001",
+                    "attempt_count": 1,
+                }
+            },
         }
 
     def test_complete_recovery_passes(self) -> None:
@@ -174,6 +181,12 @@ class ERPNextMultiwarehouseEvaluatorTests(unittest.TestCase):
         )
         result = evaluate_multiwarehouse_recovery(evidence, prefix=self.prefix)
         self.assertFalse(result.checks["second_leg_links_to_first_leg"])
+
+    def test_duplicate_arrival_notification_is_rejected(self) -> None:
+        evidence = copy.deepcopy(self.evidence)
+        evidence["arrival_deliveries"]["MAT-STE-IN-001"]["attempt_count"] = 2
+        result = evaluate_multiwarehouse_recovery(evidence, prefix=self.prefix)
+        self.assertFalse(result.checks["arrival_notification_exactly_once"])
 
 
 if __name__ == "__main__":

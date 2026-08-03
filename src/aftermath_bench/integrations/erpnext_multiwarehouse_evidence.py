@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
@@ -107,6 +108,27 @@ class ERPNextMultiwarehouseEvidenceCollector(ERPNextPartialReturnEvidenceCollect
                 if row.get("serial_and_batch_bundle")
             }
         ]
+        second_leg_names = {
+            str(document.get("name")) for document in second_legs
+        }
+        jobs = [
+            job
+            for job in self.list_documents(
+                "RQ Job",
+                fields=["name", "job_name", "status", "arguments", "queue"],
+                order_by="creation desc",
+                limit=500,
+            )
+            if any(
+                name and name in json.dumps(job, sort_keys=True, default=str)
+                for name in second_leg_names
+            )
+        ]
+        deliveries = {
+            name: self.get_delivery(name)
+            for name in second_leg_names
+            if name
+        }
         return {
             **documents,
             "second_leg_stock_entries": sorted(
@@ -132,6 +154,8 @@ class ERPNextMultiwarehouseEvidenceCollector(ERPNextPartialReturnEvidenceCollect
             "serial_and_batch_bundles": sorted(
                 relevant_bundles, key=lambda row: str(row.get("name", ""))
             ),
+            "rq_jobs": sorted(jobs, key=lambda row: str(row.get("name", ""))),
+            "arrival_deliveries": deliveries,
         }
 
 

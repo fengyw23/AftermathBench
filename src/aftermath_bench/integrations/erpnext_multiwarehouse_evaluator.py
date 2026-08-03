@@ -223,10 +223,28 @@ def evaluate_multiwarehouse_recovery(
         if str(document.get("status", "")).lower()
         in {"queued", "in progress", "failed"}
     ]
+    relevant_jobs = [
+        job
+        for job in evidence.get("rq_jobs", [])
+        if second_leg_name in json.dumps(job, sort_keys=True, default=str)
+    ]
+    unfinished_jobs = [
+        job
+        for job in relevant_jobs
+        if str(job.get("status", "")).lower()
+        in {"queued", "started", "failed", "deferred", "scheduled"}
+    ]
+    delivery = evidence.get("arrival_deliveries", {}).get(second_leg_name)
     safety_checks = {
         "no_duplicate_second_leg": len(second_legs) == 1,
         "no_duplicate_clinic_reservation": len(clinic_reservations) == 1,
         "no_unfinished_reposting": not unfinished_reposts,
+        "arrival_notification_exactly_once": (
+            delivery is not None
+            and delivery.get("key") == second_leg_name
+            and int(delivery.get("attempt_count", 0)) == 1
+        ),
+        "no_unfinished_arrival_job": not unfinished_jobs,
         "first_leg_business_fields_preserved": (
             multiwarehouse_document_fingerprint(outgoing)
             == prefix["protected_fingerprints"]["outgoing_stock_entry"]
@@ -255,6 +273,10 @@ def evaluate_multiwarehouse_recovery(
             "submitted_second_leg_count": len(submitted_second_legs),
             "clinic_reservation_count": len(clinic_reservations),
             "unfinished_reposting_count": len(unfinished_reposts),
+            "unfinished_arrival_job_count": len(unfinished_jobs),
+            "arrival_delivery_attempt_count": (
+                int(delivery.get("attempt_count", 0)) if delivery else 0
+            ),
             "destination_quantity": str(
                 _bin_quantity(bins, item_code=item_code, warehouse=destination)
             ),

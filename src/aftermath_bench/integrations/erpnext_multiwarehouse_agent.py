@@ -21,13 +21,16 @@ class ERPNextMultiwarehouseEnvironment(ERPNextPartialReturnEnvironment):
         "get_stock_ledger",
         "get_stock_balance",
         "find_background_jobs",
+        "get_external_delivery",
         "submit_document",
         "cancel_document",
         "create_second_transfer_leg",
         "create_pick_list_from_sales_order",
         "create_stock_reservation_entry",
+        "enqueue_document_webhook",
         "enqueue_stock_reposting",
         "resume_workers",
+        "wait_for_external_delivery",
     )
     ALLOWED_DOCUMENT_TYPES: ClassVar[set[str]] = {
         "Stock Entry",
@@ -48,6 +51,7 @@ class ERPNextMultiwarehouseEnvironment(ERPNextPartialReturnEnvironment):
         "create_second_transfer_leg",
         "create_pick_list_from_sales_order",
         "create_stock_reservation_entry",
+        "enqueue_document_webhook",
         "enqueue_stock_reposting",
         "resume_workers",
     }
@@ -83,6 +87,9 @@ class ERPNextMultiwarehouseEnvironment(ERPNextPartialReturnEnvironment):
             "find_background_jobs": lambda: self._find_jobs(
                 str(kwargs["reference"])
             ),
+            "get_external_delivery": lambda: self._get_delivery(
+                str(kwargs["reference"])
+            ),
             "submit_document": lambda: self._submit(
                 str(kwargs["doctype"]), str(kwargs["name"])
             ),
@@ -102,8 +109,16 @@ class ERPNextMultiwarehouseEnvironment(ERPNextPartialReturnEnvironment):
                 str(kwargs["warehouse"]),
                 float(kwargs["quantity"]),
             ),
+            "enqueue_document_webhook": lambda: self._enqueue_webhook(
+                str(kwargs["doctype"]),
+                str(kwargs["name"]),
+                str(kwargs["webhook_name"]),
+            ),
             "enqueue_stock_reposting": self._enqueue_stock_reposting,
             "resume_workers": self._resume_workers,
+            "wait_for_external_delivery": lambda: self._wait_for_delivery(
+                str(kwargs["reference"]), int(kwargs.get("timeout_seconds", 10))
+            ),
         }
         if tool not in operations:
             raise KeyError(f"unknown ERPNext multiwarehouse recovery tool: {tool}")
@@ -252,6 +267,30 @@ def reference_multiwarehouse_recovery(
             "submit_document", doctype="Stock Entry", name=second_leg["name"]
         )["document"]
 
+    delivery = call("get_external_delivery", reference=second_leg["name"])
+    jobs = call("find_background_jobs", reference=second_leg["name"])["jobs"]
+    if not delivery["delivered"]:
+        unfinished = [
+            job
+            for job in jobs
+            if str(job.get("status", "")).lower()
+            in {"queued", "started", "failed", "deferred", "scheduled"}
+        ]
+        if unfinished:
+            call("resume_workers")
+        else:
+            call(
+                "enqueue_document_webhook",
+                doctype="Stock Entry",
+                name=second_leg["name"],
+                webhook_name=prefix["arrival_webhook"],
+            )
+        call(
+            "wait_for_external_delivery",
+            reference=second_leg["name"],
+            timeout_seconds=30,
+        )
+
     call("get_stock_ledger", voucher_no=second_leg["name"])
     call(
         "get_stock_balance",
@@ -298,16 +337,6 @@ def reference_multiwarehouse_recovery(
     if unfinished:
         call("enqueue_stock_reposting")
         call("resume_workers")
-    call(
-        "get_document",
-        doctype="Stock Entry",
-        name=prefix["outgoing_stock_entry"],
-    )
-    call(
-        "get_document",
-        doctype="Stock Reservation Entry",
-        name=prefix["protected_reservation"],
-    )
     _ = outgoing
     return tuple(trace)
 
