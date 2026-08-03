@@ -39,10 +39,10 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         ):
             self.assertNotIn(token, self.text)
         for binding in (
-            'FREEZE_RUN_ID: "30784784346"',
-            'FREEZE_ARTIFACT_ID: "8845382678"',
-            'FREEZE_SOURCE_COMMIT: "988a79a1f3d6f7e82a7100ec884a5e473cd99ceb"',
-            'FREEZE_PUBLIC_COMMITMENT: "6218174a357e5f6f1bc284f8ace4c4d741a2b00a6550b49026030d424525c658"',
+            'FREEZE_RUN_ID: "30787897688"',
+            'FREEZE_ARTIFACT_ID: "8846752926"',
+            'FREEZE_SOURCE_COMMIT: "5d7cecd3116d4655ae6dd81ea94ae070a7e73ac0"',
+            'FREEZE_PUBLIC_COMMITMENT: "cb1da9a5214fc3f90231cce890beb8f0ce45f2df126999ab4a1c02f49f1a9094"',
         ):
             self.assertIn(binding, self.text)
         self.assertIn("Refuse an unbound workflow template", self.text)
