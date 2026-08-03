@@ -25,6 +25,22 @@ class HiddenEvaluationSession:
     lock_event_sha256: str
 
 
+def _declared_hidden_test_eligibility(
+    scenario: dict[str, Any],
+) -> tuple[bool, bool]:
+    """Read native-v1 top-level and legacy nested declarations strictly."""
+    declarations: list[bool] = []
+    if "hidden_test_eligible" in scenario:
+        declarations.append(scenario.get("hidden_test_eligible") is True)
+    evaluation_status = scenario.get("evaluation_status")
+    if isinstance(evaluation_status, dict) and "hidden_test_eligible" in evaluation_status:
+        declarations.append(evaluation_status.get("hidden_test_eligible") is True)
+    if not declarations:
+        return False, False
+    declarations_agree = len(set(declarations)) == 1
+    return declarations_agree and declarations[0], declarations_agree
+
+
 def verify_hidden_test_eligibility(
     *,
     scenario_path: Path,
@@ -64,6 +80,9 @@ def verify_hidden_test_eligibility(
         else ""
     )
     ledger_commitment = str(ledger.get("public_commitment_sha256", ""))
+    hidden_test_eligible, eligibility_declarations_agree = (
+        _declared_hidden_test_eligibility(scenario)
+    )
     bound_events = [
         item
         for item in events
@@ -73,12 +92,7 @@ def verify_hidden_test_eligibility(
         "scenario_id": str(scenario.get("scenario_id", "")),
         "benchmark_split": str(scenario.get("benchmark_split", "")),
         "benchmark_tier": str(scenario.get("benchmark_tier", "")),
-        "hidden_test_eligible": bool(
-            scenario.get("evaluation_status", {}).get(
-                "hidden_test_eligible",
-                False,
-            )
-        ),
+        "hidden_test_eligible": hidden_test_eligible,
         "freeze_status": str(freeze.get("status", "")),
         "usage_events": event_names,
     }
@@ -99,6 +113,7 @@ def verify_hidden_test_eligibility(
         "scenario_declares_hidden_eligibility": observed[
             "hidden_test_eligible"
         ],
+        "hidden_eligibility_declarations_agree": eligibility_declarations_agree,
         "freeze_is_active": observed["freeze_status"] == "active",
         "ledger_has_one_frozen_event": event_names.count("frozen") == 1,
         "ledger_hash_chain_valid": not ledger_integrity_failures,
@@ -170,13 +185,13 @@ def _load_matching_locked_session(
         failures.append("split_is_hidden_test")
     if scenario.get("benchmark_tier") != "hard":
         failures.append("tier_is_hard")
-    if not bool(
-        scenario.get("evaluation_status", {}).get(
-            "hidden_test_eligible",
-            False,
-        )
-    ):
+    hidden_test_eligible, eligibility_declarations_agree = (
+        _declared_hidden_test_eligibility(scenario)
+    )
+    if not hidden_test_eligible:
         failures.append("scenario_declares_hidden_eligibility")
+    if not eligibility_declarations_agree:
+        failures.append("hidden_eligibility_declarations_agree")
     if freeze.get("status") != "active":
         failures.append("freeze_is_active")
     if str(freeze.get("scenario_id", "")) != scenario_id:

@@ -110,6 +110,47 @@ class HiddenTestEligibilityTest(unittest.TestCase):
             )
         self.assertTrue(all(result["checks"].values()))
 
+    def test_native_v1_top_level_hidden_declaration_is_eligible(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario, freeze, ledger = self._new_hidden_fixture(root)
+            payload = json.loads(scenario.read_text(encoding="utf-8"))
+            payload["hidden_test_eligible"] = True
+            payload.pop("evaluation_status")
+            scenario.write_text(json.dumps(payload), encoding="utf-8")
+            frozen = json.loads(freeze.read_text(encoding="utf-8"))
+            frozen["scenario_sha256"] = file_sha256(scenario)
+            freeze.write_text(json.dumps(frozen), encoding="utf-8")
+
+            result = verify_hidden_test_eligibility(
+                scenario_path=scenario,
+                freeze_path=freeze,
+                usage_ledger_path=ledger,
+            )
+
+        self.assertTrue(all(result["checks"].values()))
+
+    def test_conflicting_hidden_declarations_are_rejected(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario, freeze, ledger = self._new_hidden_fixture(root)
+            payload = json.loads(scenario.read_text(encoding="utf-8"))
+            payload["hidden_test_eligible"] = False
+            scenario.write_text(json.dumps(payload), encoding="utf-8")
+            frozen = json.loads(freeze.read_text(encoding="utf-8"))
+            frozen["scenario_sha256"] = file_sha256(scenario)
+            freeze.write_text(json.dumps(frozen), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "hidden_eligibility_declarations_agree",
+            ):
+                verify_hidden_test_eligibility(
+                    scenario_path=scenario,
+                    freeze_path=freeze,
+                    usage_ledger_path=ledger,
+                )
+
     def test_scenario_bytes_must_still_match_the_freeze(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
