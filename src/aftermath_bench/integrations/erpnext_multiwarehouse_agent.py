@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -297,6 +298,26 @@ def reference_multiwarehouse_recovery(
         item_code=prefix["transfer_item"],
         warehouse=prefix["destination_warehouse"],
     )
+    pick_lists = call(
+        "list_documents",
+        doctype="Pick List",
+    )["documents"]
+    active_clinic_picks = [
+        document
+        for document in pick_lists
+        if int(document.get("docstatus", 0)) != 2
+        and str(prefix["clinic_sales_order"])
+        in json.dumps(document, sort_keys=True, default=str)
+    ]
+    if not active_clinic_picks:
+        pick_list = call(
+            "create_pick_list_from_sales_order",
+            sales_order=prefix["clinic_sales_order"],
+        )["document"]
+        call("submit_document", doctype="Pick List", name=pick_list["name"])
+    elif len(active_clinic_picks) > 1:
+        raise RuntimeError("duplicate active clinic Pick Lists")
+
     reservations = call(
         "list_documents",
         doctype="Stock Reservation Entry",

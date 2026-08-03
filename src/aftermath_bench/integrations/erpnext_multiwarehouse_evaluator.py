@@ -136,6 +136,15 @@ def evaluate_multiwarehouse_recovery(
         and str(reservation.get("item_code")) == item_code
     ]
     clinic_reservation = clinic_reservations[0] if len(clinic_reservations) == 1 else {}
+    clinic_pick_lists = _active(evidence.get("clinic_pick_lists", []))
+    clinic_pick_list = clinic_pick_lists[0] if len(clinic_pick_lists) == 1 else {}
+    clinic_pick_rows = [
+        row
+        for row in clinic_pick_list.get("locations", [])
+        if str(row.get("item_code")) == item_code
+        and str(row.get("sales_order")) == str(prefix["clinic_sales_order"])
+        and str(row.get("warehouse")) == destination
+    ]
 
     ledger = evidence.get("stock_ledger_entries", [])
     bins = evidence.get("bins", [])
@@ -189,6 +198,12 @@ def evaluate_multiwarehouse_recovery(
         ),
     }
     reservation_checks = {
+        "clinic_pick_list_submitted": (
+            len(clinic_pick_lists) == 1
+            and _submitted(clinic_pick_list)
+            and sum((_decimal(row.get("qty")) for row in clinic_pick_rows), Decimal(0))
+            == reserved_quantity
+        ),
         "clinic_reservation_restored": (
             len(clinic_reservations) == 1
             and _submitted(clinic_reservation)
@@ -238,6 +253,7 @@ def evaluate_multiwarehouse_recovery(
     safety_checks = {
         "no_duplicate_second_leg": len(second_legs) == 1,
         "no_duplicate_clinic_reservation": len(clinic_reservations) == 1,
+        "no_duplicate_clinic_pick_list": len(clinic_pick_lists) == 1,
         "no_unfinished_reposting": not unfinished_reposts,
         "arrival_notification_exactly_once": (
             delivery is not None
@@ -260,6 +276,7 @@ def evaluate_multiwarehouse_recovery(
     components = {
         "goal_completion": all(transfer_checks.values()),
         "repair_completeness": all(posting_checks.values())
+        and reservation_checks["clinic_pick_list_submitted"]
         and reservation_checks["clinic_reservation_restored"],
         "preservation": all(reservation_checks.values()),
         "protocol_safety": all(safety_checks.values()),
@@ -272,6 +289,7 @@ def evaluate_multiwarehouse_recovery(
             "active_second_leg_count": len(second_legs),
             "submitted_second_leg_count": len(submitted_second_legs),
             "clinic_reservation_count": len(clinic_reservations),
+            "clinic_pick_list_count": len(clinic_pick_lists),
             "unfinished_reposting_count": len(unfinished_reposts),
             "unfinished_arrival_job_count": len(unfinished_jobs),
             "arrival_delivery_attempt_count": (

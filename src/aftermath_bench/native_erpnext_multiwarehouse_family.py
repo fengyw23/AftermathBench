@@ -233,7 +233,7 @@ def multiwarehouse_initial_message(
             "Stock Entry and North emergency reservation. Reuse the one "
             "prepared second leg; submit it only if draft. Ensure its arrival "
             "event is delivered exactly once, create and submit exactly one "
-            "four-unit reservation against the clinic Sales Order, process "
+            "Pick List and one four-unit reservation against the clinic Sales Order, process "
             "any queued native reposting, and verify destination, transit and "
             "protected warehouse state."
         )

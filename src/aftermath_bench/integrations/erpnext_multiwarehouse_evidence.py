@@ -48,6 +48,13 @@ class ERPNextMultiwarehouseEvidenceCollector(ERPNextPartialReturnEvidenceCollect
             ],
             limit=50,
         )
+        pick_lists = self.full_documents("Pick List", limit=100)
+        clinic_pick_lists = [
+            document
+            for document in pick_lists
+            if str(prefix["clinic_sales_order"])
+            in json.dumps(document, sort_keys=True, default=str)
+        ]
         voucher_names = {
             str(prefix["stock_seed"]),
             str(prefix["outgoing_stock_entry"]),
@@ -136,6 +143,9 @@ class ERPNextMultiwarehouseEvidenceCollector(ERPNextPartialReturnEvidenceCollect
             ),
             "stock_reservation_entries": sorted(
                 reservations, key=lambda row: str(row.get("name", ""))
+            ),
+            "clinic_pick_lists": sorted(
+                clinic_pick_lists, key=lambda row: str(row.get("name", ""))
             ),
             "stock_ledger_entries": sorted(
                 stock_ledger, key=lambda row: str(row.get("name", ""))

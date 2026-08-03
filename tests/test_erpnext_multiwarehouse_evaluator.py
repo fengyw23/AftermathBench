@@ -100,6 +100,21 @@ class ERPNextMultiwarehouseEvaluatorTests(unittest.TestCase):
                 },
             ],
             "protected_reservation": protected_reservation,
+            "clinic_pick_lists": [
+                {
+                    "doctype": "Pick List",
+                    "name": "MAT-PICK-CLINIC-001",
+                    "docstatus": 1,
+                    "locations": [
+                        {
+                            "item_code": "CLINIC-GATEWAY-X12",
+                            "sales_order": "SO-CLINIC-001",
+                            "warehouse": "West Clinic - AL",
+                            "qty": 4,
+                        }
+                    ],
+                }
+            ],
             "stock_ledger_entries": [
                 {
                     "voucher_no": "MAT-STE-IN-001",
@@ -187,6 +202,15 @@ class ERPNextMultiwarehouseEvaluatorTests(unittest.TestCase):
         evidence["arrival_deliveries"]["MAT-STE-IN-001"]["attempt_count"] = 2
         result = evaluate_multiwarehouse_recovery(evidence, prefix=self.prefix)
         self.assertFalse(result.checks["arrival_notification_exactly_once"])
+
+    def test_duplicate_clinic_pick_list_is_rejected(self) -> None:
+        evidence = copy.deepcopy(self.evidence)
+        duplicate = copy.deepcopy(evidence["clinic_pick_lists"][0])
+        duplicate["name"] = "MAT-PICK-CLINIC-002"
+        evidence["clinic_pick_lists"].append(duplicate)
+        result = evaluate_multiwarehouse_recovery(evidence, prefix=self.prefix)
+        self.assertFalse(result.checks["no_duplicate_clinic_pick_list"])
+        self.assertFalse(result.passed)
 
 
 if __name__ == "__main__":
