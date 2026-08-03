@@ -1,0 +1,190 @@
+name: erpnext-manufacturing-public-dev-candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - erpnext-manufacturing-public-dev-candidate
+
+permissions:
+  contents: read
+
+jobs:
+  build-native-public-development-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      RUN_ROOT: runtimes/erpnext/.runtime/manufacturing-public-dev-002
+      INSTANCE_SPEC: data/instance_specs/erpnext-manufacturing-public-dev-002.json
+      TEMPLATE: data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json
+      COMMITTED_BLUEPRINT: data/scenario_blueprints/erpnext-manufacturing-rework-public-dev-002/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Render and verify the instance-bound blueprint
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_ROOT/runtime/state-evidence" \
+            "$RUN_ROOT/bundles" "$RUN_ROOT/baselines" \
+            "$RUN_ROOT/capture-manifests" "$RUN_ROOT/logs" \
+            "$RUN_ROOT/scenario-staging"
+          python scripts/render_erpnext_native_blueprint.py \
+            --instance-spec "$INSTANCE_SPEC" \
+            --template "$TEMPLATE" \
+            --output "$RUN_ROOT/blueprint.json" \
+            --instance-id dev-002 \
+            --benchmark-split public_dev
+          cmp "$COMMITTED_BLUEPRINT" "$RUN_ROOT/blueprint.json"
+          python -m unittest discover -s tests \
+            -p 'test_erpnext_native_instances.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and the native prefix
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute --report "$RUN_ROOT/runtime/source-verification.json"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python scripts/build_erpnext_manufacturing_prefix.py \
+            --scenario "$RUN_ROOT/blueprint.json" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$RUN_ROOT/runtime/prefix.json" \
+            > "$RUN_ROOT/logs/prefix.log" 2>&1
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/bundles/prefix" \
+            > "$RUN_ROOT/logs/prefix-bundle.log" 2>&1
+          cp "$RUN_ROOT/bundles/prefix/bundle.json" \
+            "$RUN_ROOT/capture-manifests/prefix.json"
+
+      - name: Replay every matched boundary reference and fixed policy
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          baselines=(
+            no_op blind_retry assume_committed repair_failed_record_only
+            all_rollback cancel_accepted_output duplicate_corrective
+          )
+          for variant in "${variants[@]}"
+          do
+            reset="$RUN_ROOT/runtime/state-evidence/$variant-reset.json"
+            boundary="$RUN_ROOT/runtime/state-evidence/$variant-boundary.json"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/prefix"
+            python scripts/capture_erpnext_manufacturing_state_evidence.py \
+              --scenario "$RUN_ROOT/blueprint.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" --phase reset \
+              --bundle-manifest "$RUN_ROOT/bundles/prefix/bundle.json" \
+              --output "$reset"
+            python scripts/run_erpnext_manufacturing_failure.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
+              --output "$RUN_ROOT/runtime/$variant.json" \
+              > "$RUN_ROOT/logs/$variant-boundary.log" 2>&1
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant" \
+              > "$RUN_ROOT/logs/$variant-bundle.log" 2>&1
+            cp "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              "$RUN_ROOT/capture-manifests/$variant.json"
+            python scripts/capture_erpnext_manufacturing_state_evidence.py \
+              --scenario "$RUN_ROOT/blueprint.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" --phase boundary \
+              --bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant.json" \
+              --reset-evidence "$reset" --output "$boundary"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            python scripts/run_erpnext_manufacturing_control.py \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --output "$RUN_ROOT/runtime/$variant-reference.json" \
+              > "$RUN_ROOT/logs/$variant-reference.log" 2>&1
+            for baseline in "${baselines[@]}"
+            do
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+              python scripts/run_erpnext_manufacturing_baseline.py \
+                --baseline "$baseline" --variant "$variant" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/runtime/prefix.json" \
+                --output "$RUN_ROOT/baselines/$variant-baseline-$baseline.json" \
+                > "$RUN_ROOT/logs/$variant-baseline-$baseline.log" 2>&1
+            done
+          done
+
+      - name: Derive hard admission and exact public evidence manifest
+        run: |
+          set -euo pipefail
+          cp "$RUN_ROOT"/baselines/*.json "$RUN_ROOT/runtime/"
+          python scripts/build_erpnext_manufacturing_admission.py \
+            --runtime-directory "$RUN_ROOT/runtime" \
+            --blueprint "$RUN_ROOT/blueprint.json" \
+            --output-directory "$RUN_ROOT/scenario-staging" \
+            > "$RUN_ROOT/logs/admission.log" 2>&1
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/scenario-staging/scenario.json"
+          python - "$INSTANCE_SPEC" "$RUN_ROOT/scenario-staging/scenario.json" "$RUN_ROOT/runtime/prefix.json" <<'PY'
+          import json
+          import sys
+          from aftermath_bench.integrations.erpnext_native_instance import ERPNextNativeInstanceSpec
+
+          instance = ERPNextNativeInstanceSpec.from_path(sys.argv[1])
+          scenario = json.load(open(sys.argv[2], encoding="utf-8"))
+          prefix = json.load(open(sys.argv[3], encoding="utf-8"))
+          assert scenario["instance_spec_sha256"] == instance.sha256
+          assert prefix["instance_spec_sha256"] == instance.sha256
+          assert scenario["admission_status"] == "validated_hard"
+          PY
+          rm -rf "$RUN_ROOT/bundles"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" --output "$RUN_ROOT/files.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT/runtime" \
+            --root "$RUN_ROOT/scenario-staging" \
+            --root "$RUN_ROOT/capture-manifests"
+
+      - name: Remove credentials and upload public candidate evidence
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          rm -rf "$RUN_ROOT/bundles"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: erpnext-manufacturing-public-dev-002-${{ github.run_id }}
+          path: |
+            ${{ env.RUN_ROOT }}/blueprint.json
+            ${{ env.RUN_ROOT }}/runtime/
+            ${{ env.RUN_ROOT }}/baselines/
+            ${{ env.RUN_ROOT }}/capture-manifests/
+            ${{ env.RUN_ROOT }}/scenario-staging/
+            ${{ env.RUN_ROOT }}/files.json
+            ${{ env.RUN_ROOT }}/logs/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Tear down native services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge || true
