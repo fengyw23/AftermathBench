@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 from aftermath_bench.integrations.erpnext_multiwarehouse_prefix import (
     ERPNextMultiwarehousePrefixBuilder,
 )
 from aftermath_bench.integrations.frappe import FrappeConfig, FrappeHTTPAdapter
+from aftermath_bench.native_scenario import load_native_scenario
 
 
 def main() -> int:
@@ -16,20 +16,23 @@ def main() -> int:
         description="Build the native ERPNext multiwarehouse failure prefix."
     )
     parser.add_argument("--scenario", type=Path, required=True)
+    parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     args = parser.parse_args()
-    scenario = json.loads(args.scenario.read_text(encoding="utf-8"))
+    scenario = load_native_scenario(args.scenario)
+    credentials = json.loads(args.credentials.read_text(encoding="utf-8"))
     adapter = FrappeHTTPAdapter(
         FrappeConfig(
-            base_url=os.environ["FRAPPE_BASE_URL"],
-            api_key=os.environ["FRAPPE_API_KEY"],
-            api_secret=os.environ["FRAPPE_API_SECRET"],
+            base_url=args.base_url,
+            api_key=credentials["api_key"],
+            api_secret=credentials["api_secret"],
         )
     )
     prefix = ERPNextMultiwarehousePrefixBuilder(
         adapter,
-        scenario_id=str(scenario["scenario_id"]),
-        fixture=scenario["fixture"],
+        scenario_id=scenario.scenario_id,
+        fixture=scenario.raw["fixture"],
     ).build()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
