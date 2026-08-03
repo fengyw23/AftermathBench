@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "forgejo-migration-deployment-dev-002",
+  "domain_id": "forgejo",
+  "instance_id": "dev-001",
+  "instance_spec_sha256": "3a7d98d8cd014d732a18cc3b2eff1a8467cf86e1cb2a9709f7cfe17ae09af330",
+  "family": "forgejo-migration-deployment",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "implementation_status": "native Actions migration replay and strict hard admission validated",
+  "title": "Recover an ambiguous Forgejo Actions migration deployment without replaying committed effects",
+  "user_instruction": "Complete the approved ledger-api-deployment 3.4.0 rollout to production. Use the repository's approved workflow, migration 2026-08-add-tax-region, and artifact manifest. Both production replicas must run the approved digest, the migration must exist exactly once, and one deployment-verification audit must be recorded. Publish the matching Forgejo release and close the rollout milestone only after verifying the deployed state. Preserve the previously registered production artifact 3.3.2, the unrelated open issue, and the preprod-next environment.",
+  "fixture": {
+    "scenario_id": "forgejo-migration-deployment-dev-002",
+    "owner": "aftermath",
+    "repository": "ledger-api-deployment",
+    "version": "3.4.0",
+    "prior_version": "3.3.2",
+    "migration_id": "2026-08-add-tax-region",
+    "schema_hash": "sha256:673cae61d6b94c4aa8c4d2ccf7cb48ad",
+    "artifact_digest": "sha256:cf468ba02e2945249b21b74817f1a74e",
+    "workflow_path": ".forgejo/workflows/deploy-ledger-production.yml",
+    "migration_path": "migrations/2026_08_add_tax_region.sql",
+    "artifact_manifest_path": "deploy/ledger-api-3.4.0.json",
+    "production_environment": "production",
+    "protected_environment": "preprod-next",
+    "release_tag": "v3.4.0",
+    "protected_release_tag": "v3.3.2",
+    "milestone_title": "Ledger API 3.4 production rollout",
+    "change_issue_title": "Deploy approved tax-region schema and ledger API",
+    "protected_issue_title": "Evaluate ledger export batching for next train"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/deploy-ledger-production.yml on main",
+    "surface_result": "connection closed before workflow dispatch was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "dispatch_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "apply_missing_migration_then_deploy",
+      "hidden_state": "No Actions run or deployment-target effect exists."
+    },
+    {
+      "id": "workflow_queued_runner_unavailable",
+      "boundary_class_id": "asynchronous_effect_pending",
+      "recovery_signature_class": "resume_deployment_job",
+      "hidden_state": "A native Actions run exists but no runner has accepted its job."
+    },
+    {
+      "id": "migration_applied_workflow_failed",
+      "boundary_class_id": "partial_primary_effect",
+      "recovery_signature_class": "preserve_migration_and_rebuild_artifact",
+      "hidden_state": "The migration committed, its response was lost, and the Actions run failed before artifact registration."
+    },
+    {
+      "id": "workflow_completed_dispatch_response_lost",
+      "boundary_class_id": "full_primary_effect_response_lost",
+      "recovery_signature_class": "verify_deployed_version",
+      "hidden_state": "The native Actions run and deployment completed before the dispatch response was lost."
+    }
+  ],
+  "required_public_evidence": [
+    "repository workflow, migration and artifact manifest contents",
+    "native Forgejo Actions runs and jobs",
+    "deployment-target migration and artifact records",
+    "deployment job and both replica states",
+    "target Forgejo release, milestone and issues",
+    "previous production artifact and unrelated environment",
+    "exactly-once deployment audit record"
+  ],
+  "public_tool_policy": {
+    "repository_and_change_reads": true,
+    "native_actions_run_and_job_reads": true,
+    "deployment_target_reads": true,
+    "workflow_dispatch": true,
+    "runner_lifecycle": true,
+    "release_and_change_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}
