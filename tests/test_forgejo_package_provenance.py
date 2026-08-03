@@ -243,6 +243,47 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         )
         self.assertTrue(report.checks["one_package_index_release"])
 
+    def test_release_accepts_visible_branch_target_and_semantic_binding(self) -> None:
+        prefix = _prefix()
+        evidence = _evidence()
+        evidence["releases"][1].update(
+            {
+                "name": "Telemetry CLI 3.7.0 supply-chain release",
+                "target_commitish": prefix["base_branch"],
+                "body": "\n".join(
+                    [
+                        f"Approved provenance: {prefix['manifest_path']}",
+                        *(
+                            f"{item['name']}: {item['sha256']}"
+                            for item in prefix["expected_package_files"]
+                        ),
+                    ]
+                ),
+            }
+        )
+        report = evaluate_forgejo_package_provenance_recovery(
+            evidence,
+            prefix=prefix,
+        )
+        self.assertTrue(report.passed, report.failures)
+
+    def test_release_rejects_unbound_free_form_metadata(self) -> None:
+        evidence = _evidence()
+        evidence["releases"][1].update(
+            {
+                "name": "Telemetry CLI 3.7.0 release",
+                "body": "Files verified.",
+            }
+        )
+        report = evaluate_forgejo_package_provenance_recovery(
+            evidence,
+            prefix=_prefix(),
+        )
+        self.assertFalse(report.passed)
+        self.assertFalse(
+            report.checks["package_index_release_matches_approved_metadata"]
+        )
+
     def test_prompt_exposes_exact_failed_call_but_not_hidden_outcome(self) -> None:
         prefix = {
             **_prefix(),

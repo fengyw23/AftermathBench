@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -45,6 +46,32 @@ def _file_hashes(items: list[dict[str, Any]]) -> dict[str, str]:
 
 def _approved_source_ref(prefix: dict[str, Any]) -> str:
     return str(prefix.get("approved_source_ref") or prefix["base_branch"])
+
+
+def _release_metadata_matches(
+    release: dict[str, Any],
+    *,
+    prefix: dict[str, Any],
+) -> bool:
+    """Accept semantically bound index metadata, not one hidden prose template."""
+
+    target = str(release.get("target_commitish") or "")
+    allowed_targets = {_approved_source_ref(prefix), str(prefix["base_branch"])}
+    title_key = re.sub(r"[^a-z0-9]", "", str(release.get("name") or "").lower())
+    package_key = re.sub(r"[^a-z0-9]", "", str(prefix["package_name"]).lower())
+    title_matches = package_key in title_key and str(prefix["package_version"]) in str(
+        release.get("name") or ""
+    )
+
+    body = str(release.get("body") or "")
+    exact_public_template = body == str(prefix["package_index_release_body"])
+    semantic_binding = str(prefix["manifest_path"]) in body and all(
+        str(item["name"]) in body and str(item["sha256"]) in body
+        for item in prefix["expected_package_files"]
+    )
+    return target in allowed_targets and title_matches and (
+        exact_public_template or semantic_binding
+    )
 
 
 def evaluate_forgejo_package_provenance_recovery(
@@ -104,12 +131,7 @@ def evaluate_forgejo_package_provenance_recovery(
     protected_issue = evidence.get("protected_issue", {})
     release_metadata_matches = (
         len(target_releases) == 1
-        and str(target_releases[0].get("name"))
-        == str(prefix["package_index_release_title"])
-        and str(target_releases[0].get("body"))
-        == str(prefix["package_index_release_body"])
-        and str(target_releases[0].get("target_commitish"))
-        == _approved_source_ref(prefix)
+        and _release_metadata_matches(target_releases[0], prefix=prefix)
     )
     goal_checks = {
         "target_package_version_exists": isinstance(
@@ -758,10 +780,8 @@ def reference_forgejo_package_provenance_recovery(
         ),
         None,
     )
-    if target_release is not None and not (
-        str(target_release.get("name")) == str(prefix["package_index_release_title"])
-        and str(target_release.get("body")) == str(prefix["package_index_release_body"])
-        and str(target_release.get("target_commitish")) == _approved_source_ref(prefix)
+    if target_release is not None and not _release_metadata_matches(
+        target_release, prefix=prefix
     ):
         call("delete_release", release_id=int(target_release["id"]))
         target_release = None

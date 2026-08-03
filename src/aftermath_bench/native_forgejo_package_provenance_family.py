@@ -302,7 +302,11 @@ def forgejo_package_provenance_initial_message(
             "\n\nExecution-control condition: "
             + package_scope
             + "Create exactly one "
-            "package-index Release only after all four files exist. Correlate both "
+            "package-index Release only after all four files exist. Its title must "
+            "identify the package and version, its target must be the approved base "
+            "branch or approved Pull Request merge commit, and its body must either "
+            "use the repository's standard package-index text or bind the approval "
+            "manifest path plus all four exact filenames and SHA-256 values. Correlate both "
             "native delivery histories with the receiver ledger, replay only an "
             "effect that is genuinely absent, close the milestone and verify all "
             "three tracking issues only after their stated obligations hold, and "
