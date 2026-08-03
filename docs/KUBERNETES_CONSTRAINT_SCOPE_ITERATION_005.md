@@ -172,3 +172,15 @@ the compact admitted task is in
 This construction result does not yet establish model difficulty. The next
 validity gate is an exact-target execution control on all 13 states, followed
 by the ordinary GLM-5.2 condition using the same public tools and evaluator.
+
+## Current-head full-history regression
+
+GitHub Actions run
+[`30840277757`](https://github.com/fengyw23/AftermathBench/actions/runs/30840277757)
+replayed the complete native construction again at source commit
+`9ccd90323cd602643536ba0a2c1ee7b766750e6a`. All 13 boundaries and references
+passed, all 117 fixed-policy runs completed, and strict hard admission passed.
+The strongest fixed policy remained the compact epoch/external-key tree at
+6/13 (46.15%); no fixed policy solved the matched group. The immutable artifact
+digest and compact measurements are recorded in
+`data/diagnostics/kubernetes/interaction-run-30840277757.json`.
