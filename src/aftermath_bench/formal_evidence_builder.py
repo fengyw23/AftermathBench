@@ -11,11 +11,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from .native_boundary_equivalence import native_boundaries_equivalent
 from .native_scenario import (
     load_native_scenario,
     validate_native_scenario_document,
 )
-from .native_boundary_equivalence import native_boundaries_equivalent
 from .path_safety import safe_relative_path
 from .release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
@@ -2144,6 +2144,7 @@ def _finish_completion_stage(
         prefix_source.read_bytes(),
     )
 
+    validation_failures: list[str] = []
     try:
         accepted = validate_formal_evidence_roles(
             root=staging_root,
@@ -2159,6 +2160,7 @@ def _finish_completion_stage(
             declarations_manifest_path=prepared.declarations_relative,
             declarations_manifest_sha256=file_sha256(declarations_path),
             require_trusted_evaluator=True,
+            failure_diagnostics=validation_failures,
         )
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise FormalEvidenceBuildError(
@@ -2166,8 +2168,14 @@ def _finish_completion_stage(
             "formal validator"
         ) from error
     if not accepted:
+        detail = (
+            ": " + ", ".join(validation_failures)
+            if validation_failures
+            else ""
+        )
         raise FormalEvidenceBuildError(
             "generated evidence failed the authoritative formal validator"
+            + detail
         )
     return state.declarations, control_evidence
 
