@@ -15,6 +15,7 @@ from .native_scenario import (
     load_native_scenario,
     validate_native_scenario_document,
 )
+from .native_boundary_equivalence import native_boundaries_equivalent
 from .path_safety import safe_relative_path
 from .release_manifest import (
     FORMAL_EVIDENCE_DEPENDENCIES,
@@ -1591,11 +1592,16 @@ def _validate_input_semantics(
             ),
             "raw_failure_report_present": bool(raw_failure_report),
             "reference_start_bound": reference_start is not None,
-            "reference_start_hash_bound": (
-                reference.get("reference_start_state_sha256")
-                == boundary.get("boundary_state_sha256")
+            "reference_start_file_hash_bound": reference_start is not None,
+            "reference_starts_from_boundary": (
+                reference_start is not None
+                and boundary_state is not None
+                and native_boundaries_equivalent(
+                    prepared.family_id,
+                    boundary_state,
+                    reference_start,
+                )
             ),
-            "reference_starts_from_boundary": reference_start == boundary_state,
             "reference_evaluator_passed": (
                 reference.get("evaluator_passed") is True
             ),
@@ -1961,10 +1967,13 @@ def _validate_completion_causality(
             or raw_run.get("passed") is not run.get("passed")
             or run.get("boundary_state_sha256")
             != expected_lock["boundary_state_sha256"]
-            or pre_model_hash != run.get("boundary_state_sha256")
             or pre_model_boundary is None
             or boundary_state is None
-            or pre_model_boundary != boundary_state
+            or not native_boundaries_equivalent(
+                prepared.family_id,
+                boundary_state,
+                pre_model_boundary,
+            )
         ):
             raise FormalEvidenceBuildError(
                 "raw run bytes are not bound to the formal input lock"

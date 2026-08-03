@@ -1078,9 +1078,32 @@ def _collect_variant_evidence(
                 if not selected.is_file():
                     raise ERPNextFormalBuildSpecError(f"{label} is missing")
                 control_manifest.require_file(selected, label=label)
-            if pre_model_path.read_bytes() != boundary_path.read_bytes():
+            pre_model = strict_object(
+                pre_model_path,
+                label=f"ERPNext pre-model boundary {variant_id}",
+            )
+            pre_model_manifest = _validate_boundary(
+                pre_model,
+                path=pre_model_path,
+                reset_path=reset_path,
+                raw_boundary_path=raw_boundary_path,
+                raw_boundary=raw_boundary,
+                scenario=scenario,
+                variant_id=variant_id,
+                prefix_sha256=prefix_sha256,
+                bundle_manifests=bundle_manifests,
+                profile=profile,
+            )
+            _validate_boundary_replay_equivalence(
+                boundary,
+                pre_model,
+                variant_id=variant_id,
+                profile=profile,
+            )
+            if pre_model_manifest != boundary_manifest:
                 raise ERPNextFormalBuildSpecError(
-                    f"ERPNext pre-model boundary {variant_id} drifted"
+                    f"ERPNext pre-model boundary {variant_id} changed "
+                    "the native snapshot bundle"
                 )
             trajectory_relative = trajectory_path.relative_to(root).as_posix()
             pre_model_relative = pre_model_path.relative_to(root).as_posix()
