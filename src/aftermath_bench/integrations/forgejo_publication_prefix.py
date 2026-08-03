@@ -254,9 +254,18 @@ class ForgejoPublicationPrefixBuilder:
                 message="Record the approved release publication manifest",
             ),
         )
+        # Resolve both refs through Forgejo immediately before creating the
+        # pull request.  Besides rejecting an incomplete prefix early, using
+        # an owner-qualified head avoids the API having to infer whether the
+        # head belongs to the base repository.
+        self.client.get_branch(owner, repository, spec.base_branch)
+        self.client.get_branch(owner, repository, spec.feature_branch)
         pull = self._record(
             "create_pull_request",
-            {"head": spec.feature_branch, "base": spec.base_branch},
+            {
+                "head": f"{owner}:{spec.feature_branch}",
+                "base": spec.base_branch,
+            },
             self.client.create_pull_request(
                 owner,
                 repository,
@@ -265,7 +274,7 @@ class ForgejoPublicationPrefixBuilder:
                     f"Fixes #{int(issue['number'])}\n\nBinary, checksum and "
                     "SBOM were approved for publication."
                 ),
-                head=spec.feature_branch,
+                head=f"{owner}:{spec.feature_branch}",
                 base=spec.base_branch,
             ),
         )
@@ -297,10 +306,11 @@ class ForgejoPublicationPrefixBuilder:
                 message="Start next release notes",
             ),
         )
+        self.client.get_branch(owner, repository, spec.protected_branch)
         protected_pull = self._record(
             "create_pull_request",
             {
-                "head": spec.protected_branch,
+                "head": f"{owner}:{spec.protected_branch}",
                 "base": spec.base_branch,
             },
             self.client.create_pull_request(
@@ -308,7 +318,7 @@ class ForgejoPublicationPrefixBuilder:
                 repository,
                 title=spec.protected_pull_title,
                 body=f"Do not merge as part of {spec.release_tag}.",
-                head=spec.protected_branch,
+                head=f"{owner}:{spec.protected_branch}",
                 base=spec.base_branch,
             ),
         )
