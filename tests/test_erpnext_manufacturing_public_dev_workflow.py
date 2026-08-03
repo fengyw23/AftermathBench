@@ -254,6 +254,23 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         ]
         self.assertIn('exit "$run_status"', control)
 
+    def test_control_validator_replays_trusted_semantic_boundary(self) -> None:
+        control = self.text[
+            self.text.index("Run execution controls"):
+            self.text.index("Complete and validate")
+        ]
+        self.assertIn("validate_native_control_trajectory.py", control)
+        self.assertIn("--locked-boundary", control)
+        self.assertIn("--pre-model-boundary", control)
+        self.assertIn(
+            '"$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"',
+            control,
+        )
+        self.assertIn(
+            '"$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"',
+            control,
+        )
+
     def test_completion_and_public_archive_are_fail_closed(self) -> None:
         control = self.text.index("Run execution controls")
         complete = self.text.index("Complete and validate", control)
