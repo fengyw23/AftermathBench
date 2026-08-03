@@ -25,6 +25,34 @@ def _last_json_object(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _restore_failure_class(path: Path) -> str:
+    """Map a private restore log to a fixed, non-content-bearing category."""
+
+    if not path.is_file():
+        return "restore_not_started"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    markers = (
+        ("invalid_bundle_manifest", "invalid ERPNext native bundle manifest"),
+        ("bundle_file_drift", "ERPNext native bundle file drift"),
+        ("erpnext_readiness_timeout", "127.0.0.1:8080/api/method/ping"),
+        ("gateway_readiness_timeout", "127.0.0.1:9091/audit"),
+        ("remittance_readiness_timeout", "127.0.0.1:9092/health"),
+        ("site_config_restore_command", "site_config.json"),
+        ("database_import_command", "mariadb"),
+        ("queue_state_restore_command", "redis-queue"),
+        ("gateway_state_restore_command", "fault-gateway"),
+        ("remittance_state_restore_command", "remittance"),
+    )
+    for category, marker in markers:
+        if marker in text:
+            return category
+    if "Traceback (most recent call last)" in text:
+        return "unclassified_python_failure"
+    if text.strip():
+        return "unclassified_restore_failure"
+    return "empty_restore_log"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Emit only aggregate facts about a private ERPNext startup failure."
@@ -34,6 +62,7 @@ def main() -> int:
     args = parser.parse_args()
     root = args.private_root
     model = root / "model"
+    restore_log = model / "repetition-01" / "credential-probe-restore.log"
     smoke = _last_json_object(model / "repetition-01" / "credential-smoke.log")
     manifests = []
     for path in sorted((root / "bundles").glob("boundary-*/bundle.json")):
@@ -65,6 +94,8 @@ def main() -> int:
         "credential_smoke_passed": (
             smoke.get("passed") if isinstance(smoke, dict) else None
         ),
+        "credential_probe_restore_present": restore_log.is_file(),
+        "credential_probe_restore_failure_class": _restore_failure_class(restore_log),
         "boundary_bundle_count": len(manifests),
         "bundle_schema_version_counts": dict(sorted(versions.items())),
         "site_config_bound_bundle_count": site_config_bound,

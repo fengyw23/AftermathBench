@@ -21,6 +21,11 @@ class ERPNextHiddenStartupAuditTests(unittest.TestCase):
                 '{"passed": false, "secret": "must-not-escape"}\n',
                 encoding="utf-8",
             )
+            (model / "credential-probe-restore.log").write_text(
+                "service did not become ready: http://127.0.0.1:8080/api/method/ping\n"
+                "hidden document must-not-escape\n",
+                encoding="utf-8",
+            )
             for index in range(2):
                 bundle = private / "bundles" / f"boundary-secret-{index}"
                 bundle.mkdir(parents=True)
@@ -52,6 +57,11 @@ class ERPNextHiddenStartupAuditTests(unittest.TestCase):
             text = output.read_text(encoding="utf-8")
             payload = json.loads(text)
             self.assertFalse(payload["credential_smoke_passed"])
+            self.assertTrue(payload["credential_probe_restore_present"])
+            self.assertEqual(
+                payload["credential_probe_restore_failure_class"],
+                "erpnext_readiness_timeout",
+            )
             self.assertEqual(payload["site_config_bound_bundle_count"], 2)
             self.assertNotIn("must-not-escape", text)
             self.assertNotIn("secret-", text)
