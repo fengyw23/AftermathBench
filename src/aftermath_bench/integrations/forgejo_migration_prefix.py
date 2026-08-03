@@ -116,7 +116,13 @@ class ForgejoMigrationPrefixBuilder:
         self.trace: list[dict[str, Any]] = []
 
     def _record(
-        self, system: str, tool: str, arguments: dict[str, Any], result: Any
+        self,
+        system: str,
+        tool: str,
+        arguments: dict[str, Any],
+        result: Any,
+        *,
+        kind: str = "write",
     ) -> Any:
         self.trace.append(
             {
@@ -124,7 +130,7 @@ class ForgejoMigrationPrefixBuilder:
                 "tool": tool,
                 "arguments": arguments,
                 "result": result,
-                "kind": "write",
+                "kind": kind,
                 "status": "success",
             }
         )
@@ -172,6 +178,29 @@ class ForgejoMigrationPrefixBuilder:
             "create_repository",
             {"name": spec.repository, "private": True, "auto_init": True},
             self.forgejo.create_repository(spec.repository),
+        )
+        initial_branch = self._record(
+            "forgejo",
+            "get_branch",
+            {"branch": "main"},
+            self.forgejo.get_branch(spec.owner, spec.repository, "main"),
+            kind="read",
+        )
+        prior_commit = str(initial_branch.get("commit", {}).get("id", ""))
+        if not prior_commit:
+            raise RuntimeError("Forgejo returned no initial main commit")
+        self._record(
+            "forgejo",
+            "create_release",
+            {"tag": spec.protected_release_tag, "target": prior_commit},
+            self.forgejo.create_release(
+                spec.owner,
+                spec.repository,
+                tag=spec.protected_release_tag,
+                target=prior_commit,
+                title=f"Protected prior release {spec.prior_version}",
+                body="Previously deployed and unrelated to the current recovery.",
+            ),
         )
         milestone = self._record(
             "forgejo",
@@ -266,19 +295,6 @@ class ForgejoMigrationPrefixBuilder:
                 spec.repository,
                 name="protected/staging-next",
                 from_ref="main",
-            ),
-        )
-        self._record(
-            "forgejo",
-            "create_release",
-            {"tag": spec.protected_release_tag, "target": "main"},
-            self.forgejo.create_release(
-                spec.owner,
-                spec.repository,
-                tag=spec.protected_release_tag,
-                target="main",
-                title=f"Protected prior release {spec.prior_version}",
-                body="Previously deployed and unrelated to the current recovery.",
             ),
         )
         self._record(

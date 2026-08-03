@@ -247,6 +247,20 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no branch document")
         return result
 
+    def get_branch(
+        self,
+        owner: str,
+        repository: str,
+        branch: str,
+    ) -> dict[str, Any]:
+        encoded = urllib.parse.quote(branch, safe="")
+        result = self.get(
+            f"/repos/{owner}/{repository}/branches/{encoded}"
+        )
+        if not isinstance(result, dict):
+            raise TypeError("Forgejo returned no branch document")
+        return result
+
     def create_file(
         self,
         owner: str,

@@ -64,6 +64,10 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             "id": 1,
             "owner": {"login": "aftermath"},
         }
+        forgejo.get_branch.return_value = {
+            "name": "main",
+            "commit": {"id": "initial-commit"},
+        }
         forgejo.create_milestone.return_value = {"id": 10}
         forgejo.create_issue.side_effect = [
             {"number": 1},
@@ -88,7 +92,12 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         self.assertEqual(prefix.source_commit, "commit-4")
         self.assertEqual(prefix.change_issue_index, 1)
         self.assertEqual(prefix.protected_issue_index, 2)
-        self.assertEqual(len(prefix.trace), 19)
+        self.assertEqual(len(prefix.trace), 20)
+        forgejo.create_release.assert_called_once()
+        self.assertEqual(
+            forgejo.create_release.call_args.kwargs["target"],
+            "initial-commit",
+        )
         self.assertEqual(
             {event["system"] for event in prefix.trace},
             {"forgejo", "deployment-target"},
