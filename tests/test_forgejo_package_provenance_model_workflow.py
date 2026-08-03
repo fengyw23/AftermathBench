@@ -70,6 +70,10 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
 
     def test_execution_control_has_a_strict_acceptance_gate(self) -> None:
         self.assertIn("validate_native_control_summary.py", self.text)
+        self.assertIn(
+            "analyze_forgejo_package_provenance_runs.py",
+            self.text,
+        )
         self.assertIn("--expected-cases 4", self.text)
         self.assertIn("--minimum-pass-rate 0.8", self.text)
 
