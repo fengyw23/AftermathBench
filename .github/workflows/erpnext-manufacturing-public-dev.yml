@@ -359,8 +359,15 @@ jobs:
           restore_and_capture_boundary() {
             local variant="$1"
             local pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
-            python scripts/manage_erpnext_stack.py restore-bundle \
+            restore_args=(
+              restore-bundle
               --snapshot "$NATIVE_ROOT/bundles/boundary-$variant"
+            )
+            if [ "$variant" = "database_committed_response_lost" ]
+            then
+              restore_args+=(--keep-workers-stopped)
+            fi
+            python scripts/manage_erpnext_stack.py "${restore_args[@]}"
             python scripts/capture_erpnext_manufacturing_state_evidence.py \
               --phase boundary \
               --scenario "$SCENARIO_DIRECTORY/scenario.json" \
