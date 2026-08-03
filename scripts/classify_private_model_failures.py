@@ -6,6 +6,20 @@ import re
 from collections import Counter
 from pathlib import Path
 
+_SAFE_KEY_NAMES = frozenset(
+    {
+        "choices",
+        "message",
+        "function",
+        "name",
+        "arguments",
+        "id",
+        "variant",
+        "visible_failure",
+        "result",
+    }
+)
+
 _CLASSIFIERS = (
     ("provider_timeout", re.compile(r"timed out|TimeoutError", re.IGNORECASE)),
     (
@@ -23,8 +37,8 @@ _CLASSIFIERS = (
     (
         "provider_response_error",
         re.compile(
-            r"JSONDecodeError|choices.*(?:missing|KeyError)|"
-            r"tool_calls.*(?:invalid|KeyError)",
+            r"JSONDecodeError|KeyError:\s*['\"](?:choices|message|function|"
+            r"name|arguments|id)['\"]|choices.*missing|tool_calls.*invalid",
             re.IGNORECASE,
         ),
     ),
@@ -54,6 +68,26 @@ def classify(text: str) -> str:
     return "unknown"
 
 
+def _terminal_project_frame(text: str) -> str | None:
+    frames = re.findall(
+        r'(?m)^\s*File "[^"]*[\\/](?P<file>[A-Za-z0-9_]+\.py)", '
+        r'line (?P<line>\d+), in (?P<function>[A-Za-z0-9_<>]+)\s*$',
+        text,
+    )
+    if not frames:
+        return None
+    filename, line, function = frames[-1]
+    return f"{filename}:{line}:{function}"
+
+
+def _safe_key_error_name(text: str) -> str | None:
+    matches = re.findall(r"(?m)^KeyError:\s*['\"]([^'\"]+)['\"]\s*$", text)
+    if not matches:
+        return None
+    key = matches[-1]
+    return key if key in _SAFE_KEY_NAMES else "other"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -67,6 +101,8 @@ def main() -> int:
     logs = sorted(args.run_directory.rglob("*-attempt-*.log"))
     counts: Counter[str] = Counter()
     exception_types: Counter[str] = Counter()
+    terminal_frames: Counter[str] = Counter()
+    safe_key_errors: Counter[str] = Counter()
     nonempty = 0
     for path in logs:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -78,6 +114,12 @@ def main() -> int:
         )
         if observed_types:
             exception_types[observed_types[-1].rsplit(".", 1)[-1]] += 1
+        frame = _terminal_project_frame(text)
+        if frame is not None:
+            terminal_frames[frame] += 1
+        key_name = _safe_key_error_name(text)
+        if key_name is not None:
+            safe_key_errors[key_name] += 1
     trajectories = [
         path
         for path in args.run_directory.rglob("*.json")
@@ -92,6 +134,8 @@ def main() -> int:
         "terminal_exception_type_counts": dict(
             sorted(exception_types.items())
         ),
+        "terminal_project_frame_counts": dict(sorted(terminal_frames.items())),
+        "safe_key_error_counts": dict(sorted(safe_key_errors.items())),
         "raw_log_text_published": False,
         "variant_identities_published": False,
         "task_content_published": False,

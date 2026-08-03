@@ -24,7 +24,10 @@ class PrivateModelFailureClassifierTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (runs / "secret-c-attempt-1.log").write_text(
-                "credentials=/private/credentials.json\nValueError: hidden",
+                "credentials=/private/credentials.json\n"
+                '  File "/workspace/src/aftermath_bench/model_runner.py", '
+                "line 465, in complete\n"
+                "KeyError: 'choices'",
                 encoding="utf-8",
             )
             output = root / "result.json"
@@ -46,17 +49,28 @@ class PrivateModelFailureClassifierTests(unittest.TestCase):
                 payload["classification_counts"],
                 {
                     "provider_http_error": 1,
+                    "provider_response_error": 1,
                     "provider_timeout": 1,
-                    "unknown": 1,
                 },
             )
             self.assertEqual(
                 payload["terminal_exception_type_counts"],
-                {"RuntimeError": 1, "TimeoutError": 1, "ValueError": 1},
+                {"KeyError": 1, "RuntimeError": 1, "TimeoutError": 1},
             )
+            self.assertEqual(
+                payload["terminal_project_frame_counts"],
+                {"model_runner.py:465:complete": 1},
+            )
+            self.assertEqual(payload["safe_key_error_counts"], {"choices": 1})
             self.assertNotIn("hidden-name-123", text)
             self.assertNotIn("private body", text)
             self.assertNotIn("secret-a", text)
+
+    def test_redacts_non_protocol_key_errors(self) -> None:
+        self.assertEqual(
+            classifier._safe_key_error_name("KeyError: 'hidden-entity-42'"),
+            "other",
+        )
 
 
 if __name__ == "__main__":
