@@ -1,0 +1,208 @@
+name: erpnext-hidden-candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      family:
+        description: Native ERPNext recovery family
+        required: true
+        type: choice
+        options:
+          - manufacturing
+          - multiwarehouse
+      instance_id:
+        description: Formal hidden slot
+        required: true
+        default: test-001
+        type: choice
+        options:
+          - test-001
+          - test-002
+
+permissions:
+  contents: read
+
+jobs:
+  replay-admit-and-freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      HIDDEN_INSTANCE_B64: ${{ inputs.family == 'manufacturing' && secrets.ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64 || secrets.ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Select a native family without materializing hidden data
+        run: |
+          case "${{ inputs.family }}" in
+            manufacturing)
+              echo "TEMPLATE=data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json" >> "$GITHUB_ENV"
+              echo "PREFIX_SCRIPT=scripts/build_erpnext_manufacturing_prefix.py" >> "$GITHUB_ENV"
+              echo "FAILURE_SCRIPT=scripts/run_erpnext_manufacturing_failure.py" >> "$GITHUB_ENV"
+              echo "CONTROL_SCRIPT=scripts/run_erpnext_manufacturing_control.py" >> "$GITHUB_ENV"
+              echo "BASELINE_SCRIPT=scripts/run_erpnext_manufacturing_baseline.py" >> "$GITHUB_ENV"
+              echo "ADMISSION_SCRIPT=scripts/build_erpnext_manufacturing_admission.py" >> "$GITHUB_ENV"
+              echo "BASELINES=no_op blind_retry assume_committed repair_failed_record_only all_rollback cancel_accepted_output duplicate_corrective" >> "$GITHUB_ENV"
+              ;;
+            multiwarehouse)
+              echo "TEMPLATE=data/scenario_blueprints/erpnext-multiwarehouse-transfer-dev-001/scenario.json" >> "$GITHUB_ENV"
+              echo "PREFIX_SCRIPT=scripts/build_erpnext_multiwarehouse_prefix.py" >> "$GITHUB_ENV"
+              echo "FAILURE_SCRIPT=scripts/run_erpnext_multiwarehouse_failure.py" >> "$GITHUB_ENV"
+              echo "CONTROL_SCRIPT=scripts/run_erpnext_multiwarehouse_control.py" >> "$GITHUB_ENV"
+              echo "BASELINE_SCRIPT=scripts/run_erpnext_multiwarehouse_baseline.py" >> "$GITHUB_ENV"
+              echo "ADMISSION_SCRIPT=scripts/build_erpnext_multiwarehouse_admission.py" >> "$GITHUB_ENV"
+              echo "BASELINES=no_op blind_retry assume_committed repair_failed_record_only all_rollback duplicate_second_leg cancel_protected_reservation" >> "$GITHUB_ENV"
+              ;;
+            *) exit 2 ;;
+          esac
+          echo "RUN_ROOT=$RUNNER_TEMP/erpnext-hidden" >> "$GITHUB_ENV"
+
+      - name: Materialize and validate the private instance without model credentials
+        run: |
+          test -n "$HIDDEN_INSTANCE_B64"
+          mkdir -p "$RUN_ROOT/private/runtime" \
+            "$RUN_ROOT/private/baselines" \
+            "$RUN_ROOT/private/bundles" \
+            "$RUN_ROOT/private/logs" \
+            "$RUN_ROOT/public"
+          printf '%s' "$HIDDEN_INSTANCE_B64" \
+            | base64 --decode > "$RUN_ROOT/private/instance.json"
+          python scripts/verify_erpnext_instance_novelty.py \
+            --instance-spec "$RUN_ROOT/private/instance.json"
+          python scripts/render_erpnext_native_blueprint.py \
+            --instance-spec "$RUN_ROOT/private/instance.json" \
+            --template "$TEMPLATE" \
+            --output "$RUN_ROOT/private/blueprint.json" \
+            --instance-id "${{ inputs.instance_id }}" \
+            --benchmark-split hidden_test
+          python -m unittest discover -s tests \
+            -p 'test_erpnext_native_instances.py' -v
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUN_ROOT/private/source-verification.json"
+
+      - name: Build and snapshot the native prefix
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+          python "$PREFIX_SCRIPT" \
+            --scenario "$RUN_ROOT/private/blueprint.json" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$RUN_ROOT/private/runtime/prefix.json" \
+            > "$RUN_ROOT/private/logs/prefix.log" 2>&1
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/private/bundles/prefix"
+
+      - name: Replay every boundary, reference, and fixed policy
+        run: |
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          read -r -a baselines <<< "$BASELINES"
+          for variant in "${variants[@]}"
+          do
+            python "$FAILURE_SCRIPT" \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/private/runtime/prefix.json" \
+              --snapshot-bundle "$RUN_ROOT/private/bundles/prefix" \
+              --output "$RUN_ROOT/private/runtime/$variant.json" \
+              > "$RUN_ROOT/private/logs/$variant-boundary.log" 2>&1
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
+            python "$CONTROL_SCRIPT" \
+              --variant "$variant" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/private/runtime/prefix.json" \
+              --output "$RUN_ROOT/private/runtime/$variant-reference.json" \
+              > "$RUN_ROOT/private/logs/$variant-reference.log" 2>&1
+            for baseline in "${baselines[@]}"
+            do
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUN_ROOT/private/bundles/boundary-$variant"
+              python "$BASELINE_SCRIPT" \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/private/runtime/prefix.json" \
+                --output "$RUN_ROOT/private/runtime/$variant-baseline-$baseline.json" \
+                > "$RUN_ROOT/private/logs/$variant-baseline-$baseline.log" 2>&1
+            done
+          done
+
+      - name: Admit and freeze before any provider request
+        run: |
+          python "$ADMISSION_SCRIPT" \
+            --runtime-directory "$RUN_ROOT/private/runtime" \
+            --blueprint "$RUN_ROOT/private/blueprint.json" \
+            --output-directory "$RUN_ROOT/private/scenario" \
+            > "$RUN_ROOT/private/logs/admission.log" 2>&1
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$RUN_ROOT/private/scenario/scenario.json" \
+            > "$RUN_ROOT/private/logs/scenario-validation.log" 2>&1
+          runtime_revision="$(python -c 'import json; print(json.load(open("runtimes/erpnext/runtime.lock.json"))["erpnext"]["revision"])')"
+          python scripts/freeze_native_bundle.py \
+            --bundle-root "$RUN_ROOT/private" \
+            --scenario "$RUN_ROOT/private/scenario/scenario.json" \
+            --instance-spec "$RUN_ROOT/private/instance.json" \
+            --source-commit "$GITHUB_SHA" \
+            --runtime-revision "$runtime_revision" \
+            --private-attestation "$RUN_ROOT/private/freeze.json" \
+            --public-commitment "$RUN_ROOT/private/public-commitment.json" \
+            --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
+          python scripts/verify_hidden_test_eligibility.py \
+            --scenario "$RUN_ROOT/private/scenario/scenario.json" \
+            --freeze "$RUN_ROOT/private/freeze.json" \
+            --usage-ledger "$RUN_ROOT/private/usage-ledger.json" \
+            > "$RUN_ROOT/private/logs/hidden-eligibility.log" 2>&1
+          cp "$RUN_ROOT/private/public-commitment.json" \
+            "$RUN_ROOT/public/pre-model-commitment.json"
+
+      - name: Seal unseen private state
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          archive="$RUNNER_TEMP/erpnext-hidden-private.tar.gz"
+          ciphertext="$RUN_ROOT/public/hidden-bundle.tar.gz.enc"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 \
+            --numeric-owner -czf "$archive" -C "$RUN_ROOT" private
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$archive" -out "$ciphertext"
+          sha256sum "$ciphertext" \
+            | cut -d ' ' -f 1 > "$RUN_ROOT/public/ciphertext.sha256"
+          rm -f "$archive"
+
+      - name: Upload commitment and encrypted bundle only
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-${{ inputs.family }}-${{ inputs.instance_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/erpnext-hidden/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge plaintext hidden state and runtime
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+          python scripts/manage_erpnext_stack.py purge || true
+          rm -rf "$RUNNER_TEMP/erpnext-hidden/private"
