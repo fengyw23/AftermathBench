@@ -63,13 +63,17 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         self.assertNotIn("include-hidden-files: true", self.text)
         self.assertIn("for attempt in 1 2", self.text)
         self.assertIn("variant-retry-restore.log", self.text)
-        restore = self.text.index(
-            '--snapshot "$run_root/private/bundles/boundary-$variant"'
+        smoke_restore = self.text.index(
+            '--snapshot "$run_root/private/bundles/boundary-$credential_probe_variant"'
         )
         credential_smoke = self.text.index("verify_erpnext_credentials.py")
+        clean_restore = self.text.index(
+            '--snapshot "$run_root/private/bundles/boundary-$variant"'
+        )
         model = self.text.index("python -m aftermath_bench run-native-model")
-        self.assertLess(restore, credential_smoke)
-        self.assertLess(credential_smoke, model)
+        self.assertLess(smoke_restore, credential_smoke)
+        self.assertLess(credential_smoke, clean_restore)
+        self.assertLess(clean_restore, model)
 
 
 if __name__ == "__main__":
