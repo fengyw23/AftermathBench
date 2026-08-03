@@ -53,6 +53,9 @@ promoted into the final native-runtime benchmark.
 - [x] Construct, replay, formally seal and repository-bind an independent
   public-development instance; the consumed development scenario is not a
   release case.
+- [x] Freeze and consume one independent manufacturing hidden instance with a
+  locked usage ledger; GLM-5.2 completed 4/4 runs, passed 3/4 tasks and failed
+  the matched group without provider/runtime errors.
 - [ ] Construct and freeze two unconsumed hidden instances without model
   access.
 

@@ -87,27 +87,30 @@ failures.
 
 ## Current release boundary
 
-The canonical development manifest selects two hard candidates:
+The current partial release contains three fully bound public-development
+slots, one in each native domain:
 
+- ERPNext sales-return, exchange and reconciliation: 4 variants;
 - Forgejo multi-consumer release publication: 8 variants;
 - Kubernetes constraint-interaction recovery: 13 variants.
 
-Both pass structural admission, runtime admission, reference replay,
-fixed-policy rejection, artifact-hash verification, and a supplied-scope
-execution control of at least 80%. Together they contain 21 development cases.
-ERPNext customer return and exchange remains structurally hard-admitted, but
-its recovered raw boundary and recovery files predate the current evidence
-contract: they do not contain per-variant reset snapshots or cross-bound
-formal envelopes. They are retained as historical evidence, while ERPNext
-remains excluded until a fresh native replay satisfies the current gate.
-Easy pilots, the consumed historical holdout, candidate-tier scenarios, and
-model-saturated scenarios are explicitly excluded from this set.
+All three pass structural and runtime admission, reference replay,
+fixed-policy rejection, artifact-hash verification, seven-role evidence
+sealing, and a supplied-scope execution control of at least 80%. Together they
+contain 25 formal cases. The implementation now covers all 12 target families;
+10 are hard-admitted, but only these three have complete release evidence.
+Easy pilots, candidate-tier scenarios, consumed development instances and
+model-saturated scenarios remain excluded from formal claims.
 
 The target matrix no longer multiplies every instance by one global four-state
 list. Each family declares its own required variant count, producing 183
-planned cases across 36 instances. No implemented scenario currently belongs
-to a formal `public_dev` or `hidden_test` release slot, and no unconsumed hidden
-instance exists. `python -m aftermath_bench status` and
+planned cases across 36 instances. Two independently frozen hidden lifecycles
+have been consumed as methodology evidence: Forgejo publication test-002 and
+ERPNext manufacturing test-003. Neither is reused or treated as an unconsumed
+leaderboard slot, so no formal hidden-test slot currently exists. The ERPNext
+test-003 run completed all four trajectories without infrastructure errors,
+with 75% task pass and 0% matched-group success. `python -m aftermath_bench
+status` and
 `python -m aftermath_bench validate-release` derive this boundary from the
 matrix, scenario identities, admission artifacts, runtime evidence, hashes,
 and execution-control summaries.

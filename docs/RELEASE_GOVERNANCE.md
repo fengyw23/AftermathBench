@@ -160,4 +160,6 @@ python -m aftermath_bench validate-release --require-full
 ```
 
 The last command is expected to fail for the current partial-release
-checkpoint because 35 formal slots and all hidden-test lifecycles remain open.
+checkpoint because 33 formal slots remain open. Two hidden-test lifecycles are
+complete as consumed methodology evidence, but all formal hidden leaderboard
+slots remain open.
