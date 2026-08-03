@@ -26,6 +26,8 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64", self.text)
         self.assertIn("HIDDEN_BUNDLE_ENCRYPTION_KEY", self.text)
         self.assertIn("hidden-bundle.tar.gz.enc", self.text)
+        self.assertIn("sealed-bundle.json", self.text)
+        self.assertIn("summarize_frozen_candidate.py", self.text)
         self.assertIn("${{ runner.temp }}/erpnext-hidden/public/", self.text)
         self.assertNotIn("include-hidden-files: true", self.text)
 

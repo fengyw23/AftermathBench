@@ -181,6 +181,13 @@ jobs:
             > "$RUN_ROOT/private/logs/hidden-eligibility.log" 2>&1
           cp "$RUN_ROOT/private/public-commitment.json" \
             "$RUN_ROOT/public/pre-model-commitment.json"
+          python scripts/summarize_frozen_candidate.py \
+            --commitment "$RUN_ROOT/private/public-commitment.json" \
+            --admission "$RUN_ROOT/private/scenario/artifacts/admission.json" \
+            --reference "$RUN_ROOT/private/scenario/artifacts/reference.json" \
+            --baselines "$RUN_ROOT/private/scenario/artifacts/baselines.json" \
+            --usage-ledger "$RUN_ROOT/private/usage-ledger.json" \
+            --output "$RUN_ROOT/public/result.json"
 
       - name: Seal unseen private state
         env:
@@ -194,8 +201,39 @@ jobs:
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
             -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
             -in "$archive" -out "$ciphertext"
-          sha256sum "$ciphertext" \
-            | cut -d ' ' -f 1 > "$RUN_ROOT/public/ciphertext.sha256"
+          python - \
+            "$RUN_ROOT/private/public-commitment.json" \
+            "$ciphertext" \
+            "$RUN_ROOT/public/sealed-bundle.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          commitment = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          ciphertext = Path(sys.argv[2])
+          payload = {
+              "schema_version": "1.0",
+              "lifecycle_status": "frozen_unseen",
+              "source_commit": os.environ["GITHUB_SHA"],
+              "source_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "source_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "public_commitment_sha256": commitment[
+                  "public_commitment_sha256"
+              ],
+              "cipher": "aes-256-cbc-pbkdf2-sha256",
+              "pbkdf2_iterations": 200000,
+              "ciphertext_file": ciphertext.name,
+              "ciphertext_sha256": hashlib.sha256(
+                  ciphertext.read_bytes()
+              ).hexdigest(),
+          }
+          Path(sys.argv[3]).write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
           rm -f "$archive"
 
       - name: Upload commitment and encrypted bundle only
