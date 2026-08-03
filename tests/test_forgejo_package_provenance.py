@@ -304,6 +304,41 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertNotIn("tracking_issue_indexes", message)
         self.assertNotIn('"result": {\n      "id": 11', message)
 
+    def test_r2_execution_control_names_the_opposite_package_scope(self) -> None:
+        prefix = {
+            **_prefix(),
+            "owner": "aftermath",
+            "repository": "telemetry-cli",
+            "pull_request_index": 1,
+            "linked_issue_index": 1,
+            "milestone_id": 1,
+            "trace": [],
+        }
+        scenario = SimpleNamespace(
+            raw={"user_instruction": "Complete the approved package."}
+        )
+        ordinary = forgejo_package_provenance_initial_message(
+            scenario=scenario,
+            prefix=prefix,
+            failure_report={
+                "variant": "r2_package_corrupt_binary_index_missing",
+                "latest_attempt": {"result": {"error": "connection lost"}},
+            },
+        )
+        control = forgejo_package_provenance_initial_message(
+            scenario=scenario,
+            prefix=prefix,
+            failure_report={
+                "variant": "r2_package_corrupt_binary_index_missing",
+                "latest_attempt": {"result": {"error": "connection lost"}},
+            },
+            execution_control=True,
+        )
+        self.assertNotIn("Delete the current target package version", ordinary)
+        self.assertIn("Delete the current target package version", control)
+        self.assertIn("approved Pull Request merge commit", control)
+        self.assertNotIn("Retain the prior target package version", control)
+
 
 if __name__ == "__main__":
     unittest.main()

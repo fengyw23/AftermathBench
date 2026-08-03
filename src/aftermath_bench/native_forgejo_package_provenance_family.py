@@ -280,10 +280,23 @@ def forgejo_package_provenance_initial_message(
         "Continue from the current authoritative Forgejo and receiver state."
     )
     if execution_control:
+        if failure_report.get("variant") == "r2_package_corrupt_binary_index_missing":
+            package_scope = (
+                "Delete the current target package version, then recreate it by "
+                "uploading all four files from the approved Pull Request merge "
+                "commit; do not preserve files derived from the later base-branch "
+                "change. "
+            )
+        else:
+            package_scope = (
+                "Retain the prior target package version and upload exactly the "
+                "approved binary, checksum, SPDX SBOM and Sigstore bundle that "
+                "are missing. "
+            )
         message += (
-            "\n\nExecution-control condition: retain the prior package version. "
-            "For the target version upload exactly the approved binary, checksum, "
-            "SPDX SBOM and Sigstore bundle that are missing. Create exactly one "
+            "\n\nExecution-control condition: "
+            + package_scope
+            + "Create exactly one "
             "package-index Release only after all four files exist. Correlate both "
             "native delivery histories with the receiver ledger, replay only an "
             "effect that is genuinely absent, close the milestone and verify all "
