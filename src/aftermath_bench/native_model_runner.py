@@ -35,6 +35,8 @@ from .model_runner import (
     _assistant_message,
     _without_private_reasoning,
 )
+from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
+from .native_erpnext_multiwarehouse_family import ERP_NEXT_MULTIWAREHOUSE_FAMILY
 from .native_family import (
     NativeFamilyDefinition,
     NativeFamilyRegistry,
@@ -45,7 +47,6 @@ from .native_forgejo_package_provenance_family import (
     FORGEJO_PACKAGE_PROVENANCE_FAMILY,
 )
 from .native_forgejo_publication_family import FORGEJO_PUBLICATION_FAMILY
-from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
 from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
 from .native_kubernetes_interaction_family import KUBERNETES_INTERACTION_FAMILY
@@ -749,6 +750,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         PARTIAL_RETURN_FAMILY,
         SALES_RETURN_FAMILY,
         ERP_NEXT_MANUFACTURING_FAMILY,
+        ERP_NEXT_MULTIWAREHOUSE_FAMILY,
         FORGEJO_RELEASE_FAMILY,
         FORGEJO_PUBLICATION_FAMILY,
         FORGEJO_PACKAGE_PROVENANCE_FAMILY,
