@@ -1,0 +1,214 @@
+name: forgejo-package-provenance-model-suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Models to run against the same native prefix
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - glm-5.2
+          - DeepSeek-V4-Pro
+      repetitions:
+        description: Repetitions per matched failure boundary
+        required: true
+        default: "1"
+        type: string
+      execution_control:
+        description: Supply the correct recovery scope for execution control
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run-model-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_BAILIAN_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+      AFTERMATH_PARATERA_API_KEY: ${{ secrets.PARATERA_API_KEY }}
+      BAILIAN_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      PARATERA_BASE_URL: https://llmapi.paratera.com/v1
+      INSTANCE: data/instance_specs/forgejo-package-provenance-public-dev-001.json
+      SCENARIO: data/scenarios/forgejo-package-provenance-public-dev-001/scenario.json
+      RUN_ROOT: runtimes/forgejo/.runtime/package-provenance-model-suite
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the frozen experiment surface
+        run: |
+          requested_suite="${{ inputs.suite }}"
+          requested_repetitions="${{ inputs.repetitions }}"
+          requested_control="${{ inputs.execution_control }}"
+          test -n "$requested_suite" || requested_suite=both
+          test -n "$requested_repetitions" || requested_repetitions=1
+          test "$requested_repetitions" -ge 1
+          test "$requested_repetitions" -le 5
+          test -n "$requested_control" || requested_control=false
+          case "$requested_suite" in
+            both|glm-5.2|DeepSeek-V4-Pro) ;;
+            *) echo "Unknown model suite: $requested_suite" >&2; exit 2 ;;
+          esac
+          echo "MODEL_SUITE=$requested_suite" >> "$GITHUB_ENV"
+          echo "REPETITIONS=$requested_repetitions" >> "$GITHUB_ENV"
+          echo "EXECUTION_CONTROL=$requested_control" >> "$GITHUB_ENV"
+          python -m unittest discover -s tests \
+            -p 'test_forgejo_package_provenance*.py' -v
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$SCENARIO"
+
+      - name: Build pinned Forgejo once from audited source
+        run: |
+          mkdir -p "$RUN_ROOT/model-runs"
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Build and freeze the shared native prefix
+        run: |
+          owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$INSTANCE")"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
+          python scripts/build_forgejo_package_provenance_prefix.py \
+            --credentials runtimes/forgejo/.runtime/credentials.json \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$RUN_ROOT/package-prefix.tar.gz"
+
+      - name: Run selected models on all matched boundaries
+        run: |
+          run_status=0
+          conditions=()
+          if [ "$MODEL_SUITE" = both ] || [ "$MODEL_SUITE" = glm-5.2 ]
+          then
+            conditions+=(glm-5.2)
+          fi
+          if [ "$MODEL_SUITE" = both ] || [ "$MODEL_SUITE" = DeepSeek-V4-Pro ]
+          then
+            conditions+=(DeepSeek-V4-Pro)
+          fi
+          variants=(
+            package_request_not_reached
+            package_binary_committed_response_lost
+            package_complete_index_missing
+            package_complete_index_accepted_response_lost
+          )
+          control_flag=()
+          if [ "$EXECUTION_CONTROL" = true ]
+          then
+            control_flag=(--execution-control)
+          fi
+          for condition in "${conditions[@]}"
+          do
+            case "$condition" in
+              glm-5.2)
+                provider=bailian
+                api_key="$AFTERMATH_BAILIAN_API_KEY"
+                base_url="$BAILIAN_BASE_URL"
+                model=glm-5.2
+                ;;
+              DeepSeek-V4-Pro)
+                provider=paratera
+                api_key="$AFTERMATH_PARATERA_API_KEY"
+                base_url="$PARATERA_BASE_URL"
+                model=DeepSeek-V4-Pro
+                ;;
+            esac
+            test -n "$api_key"
+            echo "::add-mask::$api_key"
+            condition_root="$RUN_ROOT/model-runs/$condition"
+            mkdir -p "$condition_root"
+            {
+              echo "schema_version=0.1"
+              echo "provider=$provider"
+              echo "base_url=$base_url"
+              echo "model=$model"
+              echo "execution_control=$EXECUTION_CONTROL"
+              echo "repetitions=$REPETITIONS"
+              echo "commit=$GITHUB_SHA"
+            } > "$condition_root/manifest.txt"
+            for repetition in $(seq 1 "$REPETITIONS")
+            do
+              run_dir="$condition_root/repetition-$(printf '%02d' "$repetition")"
+              mkdir -p "$run_dir"
+              for variant in "${variants[@]}"
+              do
+                python scripts/manage_forgejo_stack.py restore \
+                  --snapshot "$RUN_ROOT/package-prefix.tar.gz"
+                failure="$run_dir/$variant-failure.json"
+                trajectory="$run_dir/$variant.json"
+                python scripts/run_forgejo_package_provenance_boundary.py \
+                  --credentials runtimes/forgejo/.runtime/credentials.json \
+                  --prefix "$RUN_ROOT/prefix.json" \
+                  --variant "$variant" \
+                  --output "$failure"
+                if AFTERMATH_API_KEY="$api_key" \
+                  python -m aftermath_bench run-native-model \
+                    --provider openai-compatible \
+                    --base-url "$base_url" \
+                    --model "$model" \
+                    --scenario "$SCENARIO" \
+                    --credentials runtimes/forgejo/.runtime/credentials.json \
+                    --prefix "$RUN_ROOT/prefix.json" \
+                    --failure-report "$failure" \
+                    --max-turns 25 \
+                    "${control_flag[@]}" \
+                    --output "$trajectory"
+                then
+                  true
+                elif [ ! -s "$trajectory" ]
+                then
+                  run_status=1
+                fi
+              done
+            done
+            python scripts/summarize_native_model_runs.py \
+              --run-directory "$condition_root" \
+              --scenario "$SCENARIO" \
+              --expected-execution-control "$EXECUTION_CONTROL" \
+              --output "$condition_root/summary.json" \
+              || run_status=1
+          done
+          exit "$run_status"
+
+      - name: Capture diagnostics and remove credentials
+        if: always()
+        run: |
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            ps --all > "$RUN_ROOT/compose-ps.txt" 2>&1 || true
+          rm -f runtimes/forgejo/.runtime/credentials.json
+
+      - name: Upload complete public trajectories
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-package-provenance-model-suite-${{ github.run_id }}
+          path: |
+            runtimes/forgejo/.runtime/package-provenance-model-suite/model-runs/
+            runtimes/forgejo/.runtime/package-provenance-model-suite/prefix.json
+            runtimes/forgejo/.runtime/package-provenance-model-suite/compose-ps.txt
+            runtimes/forgejo/.runtime/package-provenance-model-suite/source-verification.json
+          if-no-files-found: error
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true
