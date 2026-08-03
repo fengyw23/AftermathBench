@@ -13,7 +13,6 @@ from .model_runner import ToolDefinition
 from .native_family import NativeFamilyDefinition, NativeRuntimeContext
 from .native_scenario import NativeScenario
 
-
 FORGEJO_PACKAGE_PROVENANCE_SYSTEM_PROMPT = """\
 You are a software-supply-chain agent working in a live Forgejo installation.
 An operation that publishes a generic package version with its signature,
@@ -57,6 +56,11 @@ FORGEJO_PACKAGE_PROVENANCE_TOOL_DEFINITIONS = (
         "get_pull_request",
         "Read one authoritative Forgejo Pull Request.",
         _schema(_INDEX, ("index",)),
+    ),
+    ToolDefinition(
+        "list_issues",
+        "List authoritative Forgejo issues and their runtime indexes.",
+        _schema({}),
     ),
     ToolDefinition(
         "get_issue",
@@ -206,9 +210,19 @@ def forgejo_package_provenance_initial_message(
     failure_report: dict[str, Any],
     execution_control: bool = False,
 ) -> str:
-    identifiers = {
-        key: prefix[key]
-        for key in (
+    adaptive = "adaptive_recovery" in scenario.raw.get("admission_profile", {})
+    identifier_fields = (
+        (
+            "owner",
+            "repository",
+            "base_branch",
+            "package_name",
+            "package_version",
+            "protected_package_version",
+            "package_index_release_tag",
+        )
+        if adaptive
+        else (
             "owner",
             "repository",
             "base_branch",
@@ -223,14 +237,27 @@ def forgejo_package_provenance_initial_message(
             "coordinator_hook_id",
             "provenance_hook_id",
         )
-    }
+    )
+    identifiers = {key: prefix[key] for key in identifier_fields}
+    prefix_trace = prefix.get("trace", ())
+    if adaptive:
+        prefix_trace = [
+            {
+                "tool": event.get("tool"),
+                "arguments": event.get("arguments", {}),
+                "kind": event.get("kind", "write"),
+                "status": event.get("status", "success"),
+            }
+            for event in prefix_trace
+            if event.get("kind", "write") == "write"
+        ]
     message = (
         "User request:\n"
         f"{scenario.raw['user_instruction']}\n\n"
         "Known identifiers from prior successful activity:\n"
         f"{json.dumps(identifiers, ensure_ascii=False, indent=2)}\n\n"
         "Successful prior tool activity:\n"
-        f"{json.dumps(prefix.get('trace', ()), ensure_ascii=False, indent=2)}"
+        f"{json.dumps(prefix_trace, ensure_ascii=False, indent=2)}"
         "\n\nLatest attempted tool call and result:\n"
         f"{json.dumps(failure_report['latest_attempt'], ensure_ascii=False, indent=2)}"
         "\n\n"
@@ -260,15 +287,18 @@ def diagnose_forgejo_package_provenance_trajectory(
     del failure_report, prefix
     calls = [call for turn in turns for call in turn["tool_calls"]]
     names = [str(call["name"]) for call in calls]
-    investigated = all(
-        name in names
-        for name in (
-            "list_packages",
-            "list_releases",
-            "list_hooks",
-            "list_external_deliveries",
+    investigated = (
+        all(
+            name in names
+            for name in (
+                "list_packages",
+                "list_releases",
+                "list_hooks",
+                "list_external_deliveries",
+            )
         )
-    ) and sum(name == "get_webhook_history" for name in names) >= 2
+        and sum(name == "get_webhook_history" for name in names) >= 2
+    )
     if evaluation.passed:
         primary_error = None
     elif not investigated:
@@ -321,8 +351,8 @@ FORGEJO_PACKAGE_PROVENANCE_FAMILY = NativeFamilyDefinition(
     mutation_tools=FORGEJO_PACKAGE_PROVENANCE_MUTATIONS,
     build_environment=_build_environment,
     build_initial_message=forgejo_package_provenance_initial_message,
-    evaluate=lambda state, prefix: (
-        evaluate_forgejo_package_provenance_recovery(state, prefix=prefix)
+    evaluate=lambda state, prefix: evaluate_forgejo_package_provenance_recovery(
+        state, prefix=prefix
     ),
     diagnose=diagnose_forgejo_package_provenance_trajectory,
 )

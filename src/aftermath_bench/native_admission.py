@@ -159,6 +159,13 @@ def _leaf_tokens(value: Any, *, key: str = "") -> set[tuple[str, str]]:
     text = value.strip()
     if not text:
         return set()
+    if normalised_key in {"content", "body"} and text[:1] in {"{", "["}:
+        try:
+            decoded = json.loads(text)
+        except (TypeError, ValueError):
+            pass
+        else:
+            return _leaf_tokens(decoded)
     ignored = {
         "success",
         "failure",

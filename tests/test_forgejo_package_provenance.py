@@ -7,6 +7,7 @@ from aftermath_bench.integrations.forgejo_package_provenance_faults import (
     PACKAGE_PROVENANCE_VARIANTS,
 )
 from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
+    ForgejoPackageProvenanceEnvironment,
     evaluate_forgejo_package_provenance_recovery,
 )
 from aftermath_bench.native_forgejo_package_provenance_family import (
@@ -105,9 +106,37 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertIs(family, FORGEJO_PACKAGE_PROVENANCE_FAMILY)
         names = {item.name for item in family.tool_definitions}
         self.assertIn("list_package_files", names)
+        self.assertIn("list_issues", names)
         self.assertIn("upload_package_file_from_repository", names)
         self.assertNotIn("repair_package", names)
         self.assertNotIn("get_global_state", names)
+        self.assertEqual(names, set(ForgejoPackageProvenanceEnvironment.TOOL_NAMES))
+
+    def test_external_delivery_listing_is_an_index_not_a_global_summary(self) -> None:
+        def get_json(url: str) -> dict:
+            if url.endswith("/deliveries"):
+                return {"deliveries": [{"key": "native-uuid-17"}]}
+            if url.endswith("/deliveries/native-uuid-17"):
+                return {
+                    "key": "native-uuid-17",
+                    "attempt_count": 1,
+                    "payload": {"release": {"tag_name": "v3.7.0"}},
+                }
+            raise AssertionError(url)
+
+        environment = ForgejoPackageProvenanceEnvironment(
+            api=SimpleNamespace(),
+            web=SimpleNamespace(),
+            prefix={"owner": "aftermath", "repository": "telemetry-cli"},
+            json_getter=get_json,
+        )
+        index = environment.invoke("list_external_deliveries")
+        self.assertEqual(index["result"], [{"key": "native-uuid-17"}])
+        self.assertNotIn("payload", index["result"][0])
+        record = environment.invoke(
+            "get_external_delivery", delivery_key="native-uuid-17"
+        )
+        self.assertEqual(record["result"]["attempt_count"], 1)
 
     def test_four_boundaries_require_four_recovery_directions(self) -> None:
         self.assertEqual(len(PACKAGE_PROVENANCE_VARIANTS), 4)
@@ -129,9 +158,7 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
 
     def test_missing_signature_is_a_repair_completeness_failure(self) -> None:
         evidence = _evidence()
-        evidence["target_package_files"] = evidence[
-            "target_package_files"
-        ][:-1]
+        evidence["target_package_files"] = evidence["target_package_files"][:-1]
         report = evaluate_forgejo_package_provenance_recovery(
             evidence,
             prefix=_prefix(),
@@ -172,6 +199,47 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertIn("telemetry.tar.gz", message)
         self.assertNotIn("request_not_reached", message)
         self.assertNotIn("response_lost", message)
+
+    def test_adaptive_prompt_requires_runtime_id_discovery(self) -> None:
+        prefix = {
+            **_prefix(),
+            "owner": "meridian-supply",
+            "repository": "orbitctl-distribution",
+            "base_branch": "release/2.4",
+            "pull_request_index": 7,
+            "linked_issue_index": 11,
+            "milestone_id": 3,
+            "trace": [
+                {
+                    "tool": "create_hook",
+                    "arguments": {"target": "https://consumer.invalid/events"},
+                    "result": {"id": 11, "active": True},
+                    "kind": "write",
+                    "status": "success",
+                }
+            ],
+        }
+        message = forgejo_package_provenance_initial_message(
+            scenario=SimpleNamespace(
+                raw={
+                    "user_instruction": "Complete the approved package.",
+                    "admission_profile": {"adaptive_recovery": {}},
+                }
+            ),
+            prefix=prefix,
+            failure_report={
+                "latest_attempt": {
+                    "tool": "upload_package_file_from_repository",
+                    "arguments": {"filename": "orbitctl.tar.gz"},
+                    "result": {"ok": False, "error": "connection lost"},
+                }
+            },
+        )
+        self.assertIn("orbitctl-distribution", message)
+        self.assertIn("create_hook", message)
+        self.assertNotIn("coordinator_hook_id", message)
+        self.assertNotIn("tracking_issue_indexes", message)
+        self.assertNotIn('"result": {\n      "id": 11', message)
 
 
 if __name__ == "__main__":

@@ -40,10 +40,7 @@ class ForgejoPackageProvenanceEvaluation:
 
 
 def _file_hashes(items: list[dict[str, Any]]) -> dict[str, str]:
-    return {
-        str(item.get("name")): str(item.get("content_sha256"))
-        for item in items
-    }
+    return {str(item.get("name")): str(item.get("content_sha256")) for item in items}
 
 
 def evaluate_forgejo_package_provenance_recovery(
@@ -80,9 +77,7 @@ def evaluate_forgejo_package_provenance_recovery(
         evidence.get("external_deliveries", []),
         str(prefix["package_index_release_tag"]),
     )
-    external_by_key = {
-        str(record.get("key")): record for record in target_external
-    }
+    external_by_key = {str(record.get("key")): record for record in target_external}
     histories = {
         "coordinator": evidence.get("coordinator_history", []),
         "provenance": evidence.get("provenance_history", []),
@@ -91,12 +86,11 @@ def evaluate_forgejo_package_provenance_recovery(
     for role, history in histories.items():
         keys = [str(item.get("uuid")) for item in history]
         matched = [external_by_key[key] for key in keys if key in external_by_key]
-        delivery_checks[f"{role}_history_bounded"] = (
-            1 <= len(history) <= 2 and len(keys) == len(set(keys))
-        )
+        delivery_checks[f"{role}_history_bounded"] = 1 <= len(history) <= 2 and len(
+            keys
+        ) == len(set(keys))
         delivery_checks[f"{role}_effect_once"] = (
-            len(matched) == 1
-            and int(matched[0].get("attempt_count", 0)) == 1
+            len(matched) == 1 and int(matched[0].get("attempt_count", 0)) == 1
         )
 
     target_pull = evidence.get("target_pull", {})
@@ -114,12 +108,9 @@ def evaluate_forgejo_package_provenance_recovery(
         "package_file_contents_match_sources": target_hashes == expected,
         "one_package_index_release": len(target_releases) == 1,
         "both_index_consumers_applied": all(
-            delivery_checks.get(f"{role}_effect_once", False)
-            for role in histories
+            delivery_checks.get(f"{role}_effect_once", False) for role in histories
         ),
-        "milestone_closed": str(
-            evidence.get("release_milestone", {}).get("state")
-        )
+        "milestone_closed": str(evidence.get("release_milestone", {}).get("state"))
         == "closed",
         "tracking_issues_closed": (
             len(evidence.get("tracking_issues", []))
@@ -140,15 +131,11 @@ def evaluate_forgejo_package_provenance_recovery(
             not bool(protected_pull.get("merged"))
             and str(protected_pull.get("state")) == "open"
         ),
-        "unrelated_issue_preserved": (
-            str(protected_issue.get("state")) == "open"
-        ),
+        "unrelated_issue_preserved": (str(protected_issue.get("state")) == "open"),
         "protected_package_version_preserved": isinstance(
             evidence.get("protected_package"), dict
         ),
-        "protected_package_files_preserved": (
-            protected_hashes == protected_expected
-        ),
+        "protected_package_files_preserved": (protected_hashes == protected_expected),
         "protected_release_preserved": len(protected_releases) == 1,
         "protected_release_asset_preserved": any(
             item.get("name") == prefix["protected_asset_name"]
@@ -212,6 +199,7 @@ def evaluate_forgejo_package_provenance_recovery(
 class ForgejoPackageProvenanceEnvironment:
     TOOL_NAMES = (
         "get_pull_request",
+        "list_issues",
         "get_issue",
         "get_milestone",
         "get_repository_file",
@@ -279,9 +267,7 @@ class ForgejoPackageProvenanceEnvironment:
                 "error_type": type(error).__name__,
                 "error": str(error),
             }
-        self._events.append(
-            {"tool": tool, "arguments": arguments, "result": result}
-        )
+        self._events.append({"tool": tool, "arguments": arguments, "result": result})
         return result
 
     def _repository_file(self, path: str, ref: str) -> dict[str, Any]:
@@ -347,6 +333,7 @@ class ForgejoPackageProvenanceEnvironment:
             "get_pull_request": lambda: self.api.get_pull_request(
                 owner, repository, int(kwargs["index"])
             ),
+            "list_issues": lambda: self.api.list_issues(owner, repository),
             "get_issue": lambda: self.api.get(
                 f"/repos/{owner}/{repository}/issues/{int(kwargs['index'])}"
             ),
@@ -373,9 +360,7 @@ class ForgejoPackageProvenanceEnvironment:
                 name=str(kwargs["name"]),
                 version=str(kwargs["version"]),
             ),
-            "get_package_file": lambda: self._package_file(
-                str(kwargs["filename"])
-            ),
+            "get_package_file": lambda: self._package_file(str(kwargs["filename"])),
             "list_releases": lambda: self.api.list_releases(owner, repository),
             "list_branch_protections": lambda: self.api.list_branch_protections(
                 owner, repository
@@ -387,17 +372,15 @@ class ForgejoPackageProvenanceEnvironment:
                     owner, repository, int(kwargs["hook_id"])
                 )
             ],
-            "list_external_deliveries": self._external_records,
+            "list_external_deliveries": self._external_record_index,
             "get_external_delivery": lambda: self.json_getter(
                 f"{self.external_url}/deliveries/"
                 f"{urllib.parse.quote(str(kwargs['delivery_key']), safe='')}"
             ),
-            "upload_package_file_from_repository": lambda: (
-                self._upload_from_repository(
-                    str(kwargs["source_path"]),
-                    str(kwargs["filename"]),
-                    str(kwargs["ref"]),
-                )
+            "upload_package_file_from_repository": lambda: self._upload_from_repository(
+                str(kwargs["source_path"]),
+                str(kwargs["filename"]),
+                str(kwargs["ref"]),
             ),
             "create_package_index_release": lambda: self.api.create_release(
                 owner,
@@ -437,14 +420,18 @@ class ForgejoPackageProvenanceEnvironment:
         return self._record(tool, dict(kwargs), operations[tool])
 
     def _external_records(self) -> list[dict[str, Any]]:
-        summary = self.json_getter(f"{self.external_url}/deliveries")
+        summary = self._external_record_index()
         return [
             self.json_getter(
                 f"{self.external_url}/deliveries/"
                 f"{urllib.parse.quote(str(item['key']), safe='')}"
             )
-            for item in summary.get("deliveries", [])
+            for item in summary
         ]
+
+    def _external_record_index(self) -> list[dict[str, Any]]:
+        summary = self.json_getter(f"{self.external_url}/deliveries")
+        return list(summary.get("deliveries", []))
 
     def _wait_for_webhook_history_change(
         self,
@@ -456,15 +443,13 @@ class ForgejoPackageProvenanceEnvironment:
         deadline = time.monotonic() + timeout_seconds
         known = set(known_delivery_uuids)
         while True:
-            history = self.web.webhook_history(
-                self.owner, self.repository, hook_id
-            )
-            records = relevant_release_deliveries(
-                self._external_records(), release_tag
-            )
+            history = self.web.webhook_history(self.owner, self.repository, hook_id)
+            records = relevant_release_deliveries(self._external_records(), release_tag)
             by_key = {str(item.get("key")): item for item in records}
             new_history = [item for item in history if item.uuid not in known]
-            matching = [by_key[item.uuid] for item in new_history if item.uuid in by_key]
+            matching = [
+                by_key[item.uuid] for item in new_history if item.uuid in by_key
+            ]
             if new_history and matching:
                 return {
                     "new_history": [
@@ -474,9 +459,7 @@ class ForgejoPackageProvenanceEnvironment:
                     "deliveries": matching,
                 }
             if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f"no new package-index delivery for hook {hook_id}"
-                )
+                raise TimeoutError(f"no new package-index delivery for hook {hook_id}")
             time.sleep(0.25)
 
     def event_log(self) -> tuple[dict[str, Any], ...]:
@@ -626,10 +609,16 @@ def reference_forgejo_package_provenance_recovery(
         return _require(environment.invoke(tool, **kwargs), tool)
 
     call("get_pull_request", index=prefix["pull_request_index"])
+    call("list_issues")
     call("get_issue", index=prefix["linked_issue_index"])
     for index in prefix["tracking_issue_indexes"]:
         call("get_issue", index=index)
     milestone = call("get_milestone", milestone_id=prefix["milestone_id"])
+    call(
+        "get_repository_file",
+        path=prefix["manifest_path"],
+        ref=prefix["base_branch"],
+    )
     packages = call("list_packages", query=prefix["package_name"])
     target_package = next(
         (
@@ -675,7 +664,11 @@ def reference_forgejo_package_provenance_recovery(
             "get_webhook_history", hook_id=prefix["provenance_hook_id"]
         ),
     }
-    external = call("list_external_deliveries")
+    external_index = call("list_external_deliveries")
+    external = [
+        call("get_external_delivery", delivery_key=str(item["key"]))
+        for item in external_index
+    ]
     target_release = next(
         (
             item

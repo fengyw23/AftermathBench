@@ -5,12 +5,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from aftermath_bench.native_admission import (
-    native_admission_report_payload,
-    validate_native_scenario,
-)
-from aftermath_bench.native_baseline_summary import summarize_baselines
-from aftermath_bench.native_scenario import load_native_scenario
 from build_forgejo_publication_admission import (
     _copy_exact_prefix_artifact,
     _equals,
@@ -21,6 +15,13 @@ from build_forgejo_publication_admission import (
     _write,
 )
 
+from aftermath_bench.native_admission import (
+    native_admission_report_payload,
+    validate_native_scenario,
+)
+from aftermath_bench.native_baseline_summary import summarize_baselines
+from aftermath_bench.native_scenario import load_native_scenario
+
 
 def _read(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -30,13 +31,9 @@ def _by_name(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(item.get("name")): item for item in items}
 
 
-def _compact_capture(
-    report: dict[str, Any], prefix: dict[str, Any]
-) -> dict[str, Any]:
+def _compact_capture(report: dict[str, Any], prefix: dict[str, Any]) -> dict[str, Any]:
     state = report["final_evidence"]
-    expected = {
-        str(item["role"]): item for item in prefix["expected_package_files"]
-    }
+    expected = {str(item["role"]): item for item in prefix["expected_package_files"]}
     target_files = _by_name(state["target_package_files"])
     protected_files = _by_name(state["protected_package_files"])
     target_release = next(
@@ -49,9 +46,7 @@ def _compact_capture(
         for item in state["releases"]
         if item.get("tag_name") == prefix["protected_release_tag"]
     )
-    external = {
-        str(item.get("key")): item for item in state["external_deliveries"]
-    }
+    external = {str(item.get("key")): item for item in state["external_deliveries"]}
 
     def source(role: str) -> dict[str, Any]:
         item = expected[role]
@@ -136,9 +131,7 @@ def _compact_capture(
             for name, item in sorted(protected_files.items())
         ],
         "protected_release": {"tag": protected_release["tag_name"]},
-        "protected_asset": {
-            "name": state["protected_release_assets"][0]["name"]
-        },
+        "protected_asset": {"name": state["protected_release_assets"][0]["name"]},
         "protected_pull": {
             "number": state["protected_pull"]["number"],
             "state": state["protected_pull"]["state"],
@@ -155,9 +148,7 @@ def _compact_capture(
 
 
 def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
-    roles = {
-        str(item["role"]): item for item in prefix["expected_package_files"]
-    }
+    roles = {str(item["role"]): item for item in prefix["expected_package_files"]}
     entities: list[tuple[str, str, str | None]] = [
         ("repository", "Repository", prefix["repository"]),
         ("base_branch", "GitRef", prefix["base_branch"]),
@@ -196,49 +187,228 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         )
 
     relations = [
-        _relation("repository", "base_branch", "contains", _equals("repository.name", prefix["repository"]), _equals("base_branch.name", prefix["base_branch"])),
-        _relation("repository", "target_pull", "contains", _equals("target_pull.number", prefix["pull_request_index"])),
-        _relation("target_pull", "linked_issue", "closes", _equals("target_pull.merged", True), _equals("linked_issue.state", "closed")),
-        _relation("linked_issue", "manifest", "approves", _equals("linked_issue.state", "closed"), _equals("manifest.path", prefix["manifest_path"])),
+        _relation(
+            "repository",
+            "base_branch",
+            "contains",
+            _equals("repository.name", prefix["repository"]),
+            _equals("base_branch.name", prefix["base_branch"]),
+        ),
+        _relation(
+            "repository",
+            "target_pull",
+            "contains",
+            _equals("target_pull.number", prefix["pull_request_index"]),
+        ),
+        _relation(
+            "target_pull",
+            "linked_issue",
+            "closes",
+            _equals("target_pull.merged", True),
+            _equals("linked_issue.state", "closed"),
+        ),
+        _relation(
+            "linked_issue",
+            "manifest",
+            "approves",
+            _equals("linked_issue.state", "closed"),
+            _equals("manifest.path", prefix["manifest_path"]),
+        ),
     ]
     for role, item in roles.items():
         relations.extend(
             [
-                _relation("manifest", f"source_{role}", "declares_source", _equals(f"sources.{role}.path", item["source_path"])),
-                _relation(f"source_{role}", f"target_file_{role}", "published_as", _intersects(f"sources.{role}.sha256", f"target_files.{role}.sha256")),
-                _relation(f"target_file_{role}", "target_package", "member_of", _equals(f"target_files.{role}.name", item["name"]), _equals("target_package.version", prefix["package_version"])),
+                _relation(
+                    "manifest",
+                    f"source_{role}",
+                    "declares_source",
+                    _equals(f"sources.{role}.path", item["source_path"]),
+                ),
+                _relation(
+                    f"source_{role}",
+                    f"target_file_{role}",
+                    "published_as",
+                    _intersects(
+                        f"sources.{role}.sha256", f"target_files.{role}.sha256"
+                    ),
+                ),
+                _relation(
+                    f"target_file_{role}",
+                    "target_package",
+                    "member_of",
+                    _equals(f"target_files.{role}.name", item["name"]),
+                    _equals("target_package.version", prefix["package_version"]),
+                ),
             ]
         )
     relations.extend(
         [
-            _relation("target_package", "target_release", "indexed_by", _equals("target_package.version", prefix["package_version"]), _equals("target_release.tag", prefix["package_index_release_tag"])),
-            _relation("target_release", "coordinator_delivery", "triggers", _intersects("target_release.tag", "coordinator_delivery.release_tag")),
-            _relation("coordinator_hook", "coordinator_delivery", "dispatches", _equals("coordinator_hook.active", True), _nonempty("coordinator_delivery.uuid")),
-            _relation("coordinator_delivery", "coordinator_external", "applies_exactly_once", _intersects("coordinator_delivery.uuid", "coordinator_delivery.external_key"), _equals("coordinator_delivery.attempt_count", 1)),
-            _relation("target_release", "provenance_delivery", "triggers", _intersects("target_release.tag", "provenance_delivery.release_tag")),
-            _relation("provenance_hook", "provenance_delivery", "dispatches", _equals("provenance_hook.active", True), _nonempty("provenance_delivery.uuid")),
-            _relation("provenance_delivery", "provenance_external", "applies_exactly_once", _intersects("provenance_delivery.uuid", "provenance_delivery.external_key"), _equals("provenance_delivery.attempt_count", 1)),
-            _relation("target_file_signature", "tracking_integrity", "satisfies", _equals("tracking.integrity.state", "closed")),
-            _relation("target_file_sbom", "tracking_integrity", "satisfies", _equals("tracking.integrity.state", "closed")),
-            _relation("target_release", "tracking_index", "satisfies", _equals("tracking.index.state", "closed")),
-            _relation("coordinator_external", "tracking_delivery", "satisfies", _equals("tracking.delivery.state", "closed")),
-            _relation("provenance_external", "tracking_delivery", "satisfies", _equals("tracking.delivery.state", "closed")),
-            _relation("tracking_integrity", "release_milestone", "completes", _equals("release_milestone.state", "closed")),
-            _relation("tracking_index", "release_milestone", "completes", _equals("release_milestone.state", "closed")),
-            _relation("tracking_delivery", "release_milestone", "completes", _equals("release_milestone.state", "closed")),
-            _relation("repository", "protected_package", "contains_protected", _equals("protected_package.version", prefix["protected_package_version"])),
-            _relation("repository", "protected_release", "contains_protected", _equals("protected_release.tag", prefix["protected_release_tag"])),
-            _relation("protected_release", "protected_asset", "owns", _equals("protected_asset.name", prefix["protected_asset_name"])),
-            _relation("protected_package", "protected_release", "coexists_with", _nonempty("protected_package.version"), _nonempty("protected_release.tag")),
-            _relation("repository", "protected_pull", "contains_protected", _equals("protected_pull.number", prefix["protected_pull_request_index"]), _equals("protected_pull.state", "open"), _equals("protected_pull.merged", False)),
-            _relation("base_branch", "protected_pull", "base_of", _equals("base_branch.name", prefix["base_branch"])),
-            _relation("protected_pull", "protected_issue", "coexists_with", _equals("protected_issue.number", prefix["protected_issue_index"]), _equals("protected_issue.state", "open")),
-            _relation("branch_protection", "base_branch", "governs", _equals("branch_protections.*", prefix["branch_protection_rule"])),
+            _relation(
+                "target_package",
+                "target_release",
+                "indexed_by",
+                _equals("target_package.version", prefix["package_version"]),
+                _equals("target_release.tag", prefix["package_index_release_tag"]),
+            ),
+            _relation(
+                "target_release",
+                "coordinator_delivery",
+                "triggers",
+                _intersects("target_release.tag", "coordinator_delivery.release_tag"),
+            ),
+            _relation(
+                "coordinator_hook",
+                "coordinator_delivery",
+                "dispatches",
+                _equals("coordinator_hook.active", True),
+                _nonempty("coordinator_delivery.uuid"),
+            ),
+            _relation(
+                "coordinator_delivery",
+                "coordinator_external",
+                "applies_exactly_once",
+                _intersects(
+                    "coordinator_delivery.uuid", "coordinator_delivery.external_key"
+                ),
+                _equals("coordinator_delivery.attempt_count", 1),
+            ),
+            _relation(
+                "target_release",
+                "provenance_delivery",
+                "triggers",
+                _intersects("target_release.tag", "provenance_delivery.release_tag"),
+            ),
+            _relation(
+                "provenance_hook",
+                "provenance_delivery",
+                "dispatches",
+                _equals("provenance_hook.active", True),
+                _nonempty("provenance_delivery.uuid"),
+            ),
+            _relation(
+                "provenance_delivery",
+                "provenance_external",
+                "applies_exactly_once",
+                _intersects(
+                    "provenance_delivery.uuid", "provenance_delivery.external_key"
+                ),
+                _equals("provenance_delivery.attempt_count", 1),
+            ),
+            _relation(
+                "target_file_signature",
+                "tracking_integrity",
+                "satisfies",
+                _equals("tracking.integrity.state", "closed"),
+            ),
+            _relation(
+                "target_file_sbom",
+                "tracking_integrity",
+                "satisfies",
+                _equals("tracking.integrity.state", "closed"),
+            ),
+            _relation(
+                "target_release",
+                "tracking_index",
+                "satisfies",
+                _equals("tracking.index.state", "closed"),
+            ),
+            _relation(
+                "coordinator_external",
+                "tracking_delivery",
+                "satisfies",
+                _equals("tracking.delivery.state", "closed"),
+            ),
+            _relation(
+                "provenance_external",
+                "tracking_delivery",
+                "satisfies",
+                _equals("tracking.delivery.state", "closed"),
+            ),
+            _relation(
+                "tracking_integrity",
+                "release_milestone",
+                "completes",
+                _equals("release_milestone.state", "closed"),
+            ),
+            _relation(
+                "tracking_index",
+                "release_milestone",
+                "completes",
+                _equals("release_milestone.state", "closed"),
+            ),
+            _relation(
+                "tracking_delivery",
+                "release_milestone",
+                "completes",
+                _equals("release_milestone.state", "closed"),
+            ),
+            _relation(
+                "repository",
+                "protected_package",
+                "contains_protected",
+                _equals(
+                    "protected_package.version", prefix["protected_package_version"]
+                ),
+            ),
+            _relation(
+                "repository",
+                "protected_release",
+                "contains_protected",
+                _equals("protected_release.tag", prefix["protected_release_tag"]),
+            ),
+            _relation(
+                "protected_release",
+                "protected_asset",
+                "owns",
+                _equals("protected_asset.name", prefix["protected_asset_name"]),
+            ),
+            _relation(
+                "protected_package",
+                "protected_release",
+                "coexists_with",
+                _nonempty("protected_package.version"),
+                _nonempty("protected_release.tag"),
+            ),
+            _relation(
+                "repository",
+                "protected_pull",
+                "contains_protected",
+                _equals(
+                    "protected_pull.number", prefix["protected_pull_request_index"]
+                ),
+                _equals("protected_pull.state", "open"),
+                _equals("protected_pull.merged", False),
+            ),
+            _relation(
+                "base_branch",
+                "protected_pull",
+                "base_of",
+                _equals("base_branch.name", prefix["base_branch"]),
+            ),
+            _relation(
+                "protected_pull",
+                "protected_issue",
+                "coexists_with",
+                _equals("protected_issue.number", prefix["protected_issue_index"]),
+                _equals("protected_issue.state", "open"),
+            ),
+            _relation(
+                "branch_protection",
+                "base_branch",
+                "governs",
+                _equals("branch_protections.*", prefix["branch_protection_rule"]),
+            ),
         ]
     )
     for index, item in enumerate(prefix["protected_package_files"]):
         relations.append(
-            _relation("protected_package", f"protected_file_{index}", "owns", _equals("protected_files.*.name", item["name"]), _equals("protected_files.*.sha256", item["sha256"]))
+            _relation(
+                "protected_package",
+                f"protected_file_{index}",
+                "owns",
+                _equals("protected_files.*.name", item["name"]),
+                _equals("protected_files.*.sha256", item["sha256"]),
+            )
         )
 
     return {
@@ -247,7 +417,11 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         "instance_spec_sha256": prefix["instance_spec_sha256"],
         "source": "native Forgejo package, repository, release and receiver replay",
         "entities": [
-            {"id": entity_id, "type": kind, **({"native_name": name} if name is not None else {})}
+            {
+                "id": entity_id,
+                "type": kind,
+                **({"native_name": name} if name is not None else {}),
+            }
             for entity_id, kind, name in entities
         ],
         "relations": relations,
@@ -261,26 +435,55 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         "required_evidence_groups": [
             ["target_pull", "linked_issue", "release_milestone", "tracking_integrity"],
             ["manifest", "source_binary", "source_signature", "source_sbom"],
-            ["target_package", "target_file_binary", "target_file_signature", "target_file_sbom"],
+            [
+                "target_package",
+                "target_file_binary",
+                "target_file_signature",
+                "target_file_sbom",
+            ],
             ["target_release", "coordinator_hook", "provenance_hook"],
             ["coordinator_delivery", "provenance_delivery"],
             ["coordinator_external", "provenance_external"],
             ["protected_package", "protected_release", "protected_pull"],
         ],
         "evidence_tool_groups": [
-            {"id": "approval", "tools": ["get_pull_request", "get_issue", "get_milestone"]},
+            {
+                "id": "approval",
+                "tools": ["get_pull_request", "get_issue", "get_milestone"],
+            },
             {"id": "sources", "tools": ["get_repository_file"]},
-            {"id": "packages", "tools": ["list_packages", "list_package_files", "get_package_file"]},
+            {
+                "id": "packages",
+                "tools": ["list_packages", "list_package_files", "get_package_file"],
+            },
             {"id": "index", "tools": ["list_releases"]},
             {"id": "native_delivery", "tools": ["get_webhook_history"]},
-            {"id": "external_delivery", "tools": ["list_external_deliveries", "get_external_delivery", "wait_for_webhook_history_change"]},
-            {"id": "preservation", "tools": ["list_branch_protections", "list_hooks", "list_packages", "list_releases"]},
+            {
+                "id": "external_delivery",
+                "tools": [
+                    "list_external_deliveries",
+                    "get_external_delivery",
+                    "wait_for_webhook_history_change",
+                ],
+            },
+            {
+                "id": "preservation",
+                "tools": [
+                    "list_branch_protections",
+                    "list_hooks",
+                    "list_packages",
+                    "list_releases",
+                ],
+            },
         ],
         "minimum_boundary_query_groups": 6,
         "single_query_decisive": False,
         "minimum_semantic_recovery_directions": 4,
         "action_branches": [
-            {"id": "package_files", "mutation_tools": ["upload_package_file_from_repository"]},
+            {
+                "id": "package_files",
+                "mutation_tools": ["upload_package_file_from_repository"],
+            },
             {"id": "index_release", "mutation_tools": ["create_package_index_release"]},
             {"id": "delivery", "mutation_tools": ["replay_webhook"]},
             {"id": "tracking", "mutation_tools": ["close_issue", "close_milestone"]},
@@ -323,11 +526,23 @@ def build_admission(
                 "passed": report["evaluation"]["passed"],
                 "query_tools": report["query_tools"],
                 "query_events": [
-                    {"tool": event["tool"], "arguments": event.get("arguments", {})}
+                    {
+                        "tool": event["tool"],
+                        "arguments": event.get("arguments", {}),
+                        "result": event.get("result", {}).get("result"),
+                    }
                     for event in report["reference_trace"]
                     if event["tool"] in report["query_tools"]
                 ],
                 "mutation_tools": report["mutation_tools"],
+                "mutation_events": [
+                    {
+                        "tool": event["tool"],
+                        "arguments": event.get("arguments", {}),
+                    }
+                    for event in report["reference_trace"]
+                    if event["tool"] in report["mutation_tools"]
+                ],
                 "downstream_repairs": report["downstream_repairs"],
                 "repaired_groups": report["repaired_groups"],
                 "semantic_recovery_direction": report["semantic_recovery_direction"],
@@ -376,7 +591,9 @@ def build_admission(
     _write(artifacts / "baselines.json", baselines)
     _write(artifacts / "replay_evidence.json", replay)
     result = native_admission_report_payload(
-        validate_native_scenario(load_native_scenario(output_directory / "scenario.json"))
+        validate_native_scenario(
+            load_native_scenario(output_directory / "scenario.json")
+        )
     )
     _write(artifacts / "admission.json", result)
     return result

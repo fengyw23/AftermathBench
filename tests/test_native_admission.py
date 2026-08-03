@@ -72,6 +72,25 @@ class NativeAdmissionTest(unittest.TestCase):
         }
         self.assertEqual(_adaptive_query_depth(report), 2)
 
+    def test_json_document_content_can_drive_followup_reads(self) -> None:
+        report = {
+            "query_events": [
+                {
+                    "tool": "get_manifest",
+                    "arguments": {"path": "release/manifest.json"},
+                    "result": {
+                        "content": '{"assets":[{"source_path":"dist/app.sig"}]}'
+                    },
+                },
+                {
+                    "tool": "get_file",
+                    "arguments": {"path": "dist/app.sig"},
+                    "result": {"sha256": "abcdef1234567890"},
+                },
+            ]
+        }
+        self.assertEqual(_adaptive_query_depth(report), 2)
+
     def test_recovery_divergence_separates_branch_work_from_common_tail(self) -> None:
         reports = [
             {

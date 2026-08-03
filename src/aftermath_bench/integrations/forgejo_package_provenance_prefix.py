@@ -128,15 +128,18 @@ class ForgejoPackageProvenancePrefixBuilder:
         tracking_issue_indexes: list[int] = []
         for title, body in (
             (
-                "Verify the 3.7.0 package signature and SBOM",
-                "Close only after the target package files match approved sources.",
+                f"Verify the {spec.version} package signature and SBOM",
+                (
+                    f"Approved manifest: {spec.manifest_path}. Close only after "
+                    "the target package files match its approved sources."
+                ),
             ),
             (
-                "Reconcile the 3.7.0 package index release",
+                f"Reconcile the {spec.version} package index release",
                 "Close only after exactly one index Release exists.",
             ),
             (
-                "Audit 3.7.0 downstream package notifications",
+                f"Audit {spec.version} downstream package notifications",
                 "Close only after both receiver effects are present exactly once.",
             ),
         ):
@@ -196,9 +199,7 @@ class ForgejoPackageProvenancePrefixBuilder:
                 filename=filename,
                 content=content,
             )
-            protected_files.append(
-                {"name": filename, "sha256": self._sha256(content)}
-            )
+            protected_files.append({"name": filename, "sha256": self._sha256(content)})
             trace.append(
                 {
                     "tool": "upload_generic_package_file",
