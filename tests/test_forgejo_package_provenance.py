@@ -276,6 +276,7 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
             "owner": "prompt-test-owner",
             "repository": "prompt-test-repository",
             "base_branch": "release/prompt-test",
+            "approved_source_ref": "immutable-merge-commit-not-for-prompt",
             "pull_request_index": 7,
             "linked_issue_index": 11,
             "milestone_id": 3,
@@ -309,6 +310,8 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertIn("create_hook", message)
         self.assertNotIn("coordinator_hook_id", message)
         self.assertNotIn("tracking_issue_indexes", message)
+        self.assertNotIn("approved_source_ref", message)
+        self.assertNotIn("immutable-merge-commit-not-for-prompt", message)
         self.assertNotIn('"result": {\n      "id": 11', message)
 
     def test_r2_execution_control_names_the_opposite_package_scope(self) -> None:
