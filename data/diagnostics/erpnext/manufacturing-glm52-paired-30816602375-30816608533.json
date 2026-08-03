@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-manufacturing-rework-dev-001",
+  "purpose": "Same-commit paired GLM-5.2 experiment separating autonomous recovery reasoning from execution under an explicit correct recovery scope.",
+  "pair_binding": {
+    "head_sha": "6e0137267fcc6a74505ed502d4529900b1017577",
+    "model": "glm-5.2",
+    "variant_ids": [
+      "request_not_reached",
+      "database_committed_response_lost",
+      "after_commit_enqueue_failed",
+      "async_job_pending"
+    ],
+    "repetitions": 1
+  },
+  "ordinary": {
+    "run_id": 30816602375,
+    "conclusion": "success",
+    "artifact": {
+      "id": 8857820048,
+      "name": "erpnext-manufacturing-model-30816602375",
+      "digest": "sha256:c09b7da4ac0ecb19517cf328682679945f8ff06242964f2eb61c1f46c1c01a3f"
+    },
+    "completed_runs": 4,
+    "run_errors": 0,
+    "task_pass_rate": 0.75,
+    "matched_group_success_rate": 0.0,
+    "component_pass_rates": {
+      "goal_completion": 1.0,
+      "repair_completeness": 1.0,
+      "preservation": 1.0,
+      "protocol_safety": 0.75
+    },
+    "failure_type_counts": {
+      "execution_failure": 1
+    }
+  },
+  "execution_control": {
+    "run_id": 30816608533,
+    "conclusion": "success",
+    "artifact": {
+      "id": 8857762279,
+      "name": "erpnext-manufacturing-model-30816608533",
+      "digest": "sha256:8c5f23371159b2e857bdecc60d7601ca8dd8c96c675a64ac88aded40565ffff4"
+    },
+    "completed_runs": 4,
+    "run_errors": 0,
+    "task_pass_rate": 1.0,
+    "matched_group_success_rate": 1.0,
+    "component_pass_rates": {
+      "goal_completion": 1.0,
+      "repair_completeness": 1.0,
+      "preservation": 1.0,
+      "protocol_safety": 1.0
+    },
+    "failure_type_counts": {}
+  },
+  "paired_result": {
+    "absolute_execution_control_gap": 0.25,
+    "ordinary_failed_variant": "request_not_reached",
+    "failed_check": "quality_release_applied_exactly_once",
+    "observed_quality_release_attempt_count": 2,
+    "tool_error_count": 0,
+    "infrastructure_error_count": 0
+  },
+  "failure_analysis": "The ordinary model correctly found the corrective Job Card still draft, submitted it, completed the remaining manufacture and inspection, preserved all protected state, and balanced stock and accounting. It then manually enqueued the quality-release webhook without first resolving the configured on-submit controller semantics, while submission had already enqueued the same release. The terminal state therefore met every goal, completeness and preservation check but failed exactly-once protocol safety. Under the explicit recovery-scope control, GLM-5.2 executed all four variants without duplication."
+}
