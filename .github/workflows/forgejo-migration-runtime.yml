@@ -54,6 +54,8 @@ jobs:
             --credentials runtimes/forgejo/.runtime/credentials.json \
             --instance-spec "$INSTANCE" \
             --output "$RUN_ROOT/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+            --snapshot "$RUN_ROOT/prefix-bundle"
 
       - name: Dispatch and verify a native Actions deployment
         run: |
@@ -61,6 +63,34 @@ jobs:
             --credentials runtimes/forgejo/.runtime/credentials.json \
             --instance-spec "$INSTANCE" \
             --output "$RUN_ROOT/native-smoke.json"
+
+      - name: Replay all four ambiguous dispatch boundaries
+        run: |
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            migration_applied_workflow_failed
+            workflow_completed_dispatch_response_lost
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore-migration-bundle \
+              --snapshot "$RUN_ROOT/prefix-bundle"
+            python scripts/run_forgejo_migration_boundary.py \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --instance-spec "$INSTANCE" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-boundary.json"
+            if [ "$variant" = workflow_queued_runner_unavailable ]
+            then
+              python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle" \
+                --runner-disabled
+            else
+              python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+            fi
+          done
 
       - name: Surface native logs on failure
         if: failure()

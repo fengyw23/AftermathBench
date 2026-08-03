@@ -24,6 +24,10 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertNotIn("AFTERMATH_MODEL_API_KEY", text)
         self.assertNotIn("run-native-model", text)
+        self.assertIn("snapshot-migration-bundle", text)
+        self.assertIn("restore-migration-bundle", text)
+        self.assertIn("run_forgejo_migration_boundary.py", text)
+        self.assertIn("--runner-disabled", text)
 
 
 if __name__ == "__main__":
