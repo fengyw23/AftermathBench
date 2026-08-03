@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import copy
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from aftermath_bench.evidence_replay import (
     project_evidence,
@@ -10,6 +14,7 @@ from aftermath_bench.evidence_replay import (
 )
 from scripts.build_erpnext_multiwarehouse_admission import (
     VARIANT_DIRECTIONS,
+    build_admission,
     _build_graph,
     _normalise_evidence,
 )
@@ -134,6 +139,35 @@ class ERPNextMultiwarehouseAdmissionBuilderTests(unittest.TestCase):
         self.assertTrue(all(result.passed for result in results), results)
         self.assertGreaterEqual(len(graph["entities"]), 20)
         self.assertGreaterEqual(len({row["type"] for row in graph["relations"]}), 8)
+
+    def test_public_split_cannot_claim_hidden_eligibility(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            runtime.mkdir()
+            (runtime / "prefix.json").write_text(
+                json.dumps({"scenario_id": "public-001"}), encoding="utf-8"
+            )
+            blueprint = root / "blueprint.json"
+            blueprint.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": "public-001",
+                        "benchmark_split": "public_dev",
+                        "hidden_test_eligible": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch(
+                "scripts.build_erpnext_multiwarehouse_admission._load_inputs"
+            ):
+                with self.assertRaisesRegex(RuntimeError, "eligibility"):
+                    build_admission(
+                        runtime_directory=runtime,
+                        blueprint_path=blueprint,
+                        output_directory=root / "output",
+                    )
 
 
 if __name__ == "__main__":

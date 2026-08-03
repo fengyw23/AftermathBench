@@ -558,6 +558,15 @@ def build_admission(
     blueprint = _read(blueprint_path)
     if prefix["scenario_id"] != blueprint["scenario_id"]:
         raise RuntimeError("blueprint and prefix scenario IDs do not match")
+    benchmark_split = blueprint.get("benchmark_split")
+    if benchmark_split not in {"development", "public_dev", "hidden_test"}:
+        raise RuntimeError("blueprint has an invalid benchmark split")
+    if blueprint.get("hidden_test_eligible") is not (
+        benchmark_split == "hidden_test"
+    ):
+        raise RuntimeError(
+            "blueprint hidden-test eligibility does not match its split"
+        )
     references, failures, baseline_reports = _load_inputs(runtime_directory)
     graph = _build_graph(prefix, references, failures)
     reference = _build_reference(prefix, references)
@@ -566,7 +575,7 @@ def build_admission(
     scenario = {
         **blueprint,
         "schema_version": "1.0",
-        "benchmark_split": "development",
+        "benchmark_split": benchmark_split,
         "benchmark_tier": "hard",
         "implementation_status": (
             "native multiwarehouse replay, reference controls, fixed baselines "
