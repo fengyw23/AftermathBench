@@ -221,3 +221,18 @@ evaluator. It does not depend on a future hidden fault. The unchanged strict
 admission algorithm projects a minimum branch prefix of 4 and a minimum
 pairwise mutation distance of 3 for the intended recovery traces; native
 replay must still verify those values before admission.
+
+GitHub Actions run
+[`30853698178`](https://github.com/fengyw23/AftermathBench/actions/runs/30853698178)
+subsequently verified the complete construction against pinned Forgejo. All
+four reference recoveries passed; all seven fixed policies scored `0/4`; and
+strict admission measured 35 relevant entities, 47 replayed semantic edges,
+dependency depth 12, seven evidence groups, minimum adaptive query depth 6,
+minimum repair mutations 6, minimum variant-specific prefix 4, and minimum
+pairwise mutation distance 3. The admitted public-development scenario is now
+frozen under
+`data/scenarios/forgejo-package-provenance-nonmonotonic-dev-001/`. Its source
+artifact and repository-ready hashes are recorded in
+`data/diagnostics/forgejo/package-provenance-nonmonotonic-runtime-30853698178.json`.
+This establishes task validity and fixed-policy difficulty; it is not yet a
+strong-model result or formal release claim.
