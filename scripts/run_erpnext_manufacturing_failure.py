@@ -72,9 +72,10 @@ def validate_manufacturing_boundary(
         "one_submit_attempt_audited": len(submit_events) == 1,
         "surface_result_hidden": gateway.get("outcome")
         in {"request_suppressed", "upstream_completed_response_dropped"},
-        "accepted_eight_unit_posting_preserved": (
+        "accepted_manufacture_posting_preserved": (
             int(evidence["accepted_manufacture_stock_entry"].get("docstatus", 0)) == 1
-            and float(evidence["work_order"].get("produced_qty", 0)) == 8
+            and float(evidence["work_order"].get("produced_qty", 0))
+            == float(prefix["accepted_quantity"])
         ),
         "final_rework_posting_not_started": not final_entries,
     }

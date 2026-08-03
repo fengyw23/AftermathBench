@@ -14,6 +14,7 @@ class ERPNextManufacturingBoundaryTest(unittest.TestCase):
             "corrective_job_card": "JC-C",
             "accepted_manufacture_stock_entry": "SE-A",
             "expected_corrective_operation_cost": 120,
+            "accepted_quantity": 8,
         }
         self.evidence = {
             "corrective_job_card": {"name": "JC-C", "docstatus": 1},
@@ -62,6 +63,18 @@ class ERPNextManufacturingBoundaryTest(unittest.TestCase):
         evidence["rq_jobs"] = [{"status": "queued", "arguments": '{"doc":"JC-C"}'}]
         result = validate_manufacturing_boundary(
             "async_job_pending", evidence, self.prefix, self.gateway
+        )
+        self.assertTrue(result["passed"], result["failures"])
+
+    def test_boundary_uses_instance_quantity_instead_of_public_fixture(self) -> None:
+        prefix = {**self.prefix, "accepted_quantity": 11}
+        evidence = copy.deepcopy(self.evidence)
+        evidence["work_order"]["produced_qty"] = 11
+        result = validate_manufacturing_boundary(
+            "database_committed_response_lost",
+            evidence,
+            prefix,
+            self.gateway,
         )
         self.assertTrue(result["passed"], result["failures"])
 
