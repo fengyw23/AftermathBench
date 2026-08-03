@@ -313,7 +313,7 @@ def diagnose_forgejo_package_provenance_trajectory(
     failure_report: dict[str, Any],
     prefix: dict[str, Any],
 ) -> dict[str, Any]:
-    del failure_report, prefix
+    del prefix
     calls = [call for turn in turns for call in turn["tool_calls"]]
     names = [str(call["name"]) for call in calls]
     investigated = (
@@ -328,9 +328,26 @@ def diagnose_forgejo_package_provenance_trajectory(
         )
         and sum(name == "get_webhook_history" for name in names) >= 2
     )
+    variant = str(failure_report.get("variant") or "")
+    r2_provenance_required = variant.startswith("r2_")
+    approved_source_inspected = (
+        "get_pull_request" in names and "get_repository_file" in names
+    )
+    installed_content_inspected = "get_package_file" in names
+    same_inventory_pair = variant in {
+        "r2_package_complete_index_missing",
+        "r2_package_corrupt_binary_index_missing",
+    }
+    provenance_join_complete = (
+        not r2_provenance_required
+        or (
+            approved_source_inspected
+            and (not same_inventory_pair or installed_content_inspected)
+        )
+    )
     if evaluation.passed:
         primary_error = None
-    elif not investigated:
+    elif not investigated or not provenance_join_complete:
         primary_error = "investigation_failure"
     elif not evaluation.components["preservation"]:
         primary_error = "scope_failure"
@@ -352,6 +369,9 @@ def diagnose_forgejo_package_provenance_trajectory(
             name for name in names if name in FORGEJO_PACKAGE_PROVENANCE_MUTATIONS
         ],
         "inspected_package_release_and_receivers": investigated,
+        "inspected_approved_source": approved_source_inspected,
+        "inspected_installed_package_content": installed_content_inspected,
+        "provenance_join_complete": provenance_join_complete,
     }
 
 

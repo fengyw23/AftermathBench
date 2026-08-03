@@ -13,6 +13,7 @@ from aftermath_bench.integrations.forgejo_package_provenance_recovery import (
 )
 from aftermath_bench.native_forgejo_package_provenance_family import (
     FORGEJO_PACKAGE_PROVENANCE_FAMILY,
+    diagnose_forgejo_package_provenance_trajectory,
     forgejo_package_provenance_initial_message,
 )
 from aftermath_bench.native_model_runner import NATIVE_FAMILY_REGISTRY
@@ -338,6 +339,51 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertIn("Delete the current target package version", control)
         self.assertIn("approved Pull Request merge commit", control)
         self.assertNotIn("Retain the prior target package version", control)
+
+    def test_r2_same_inventory_failure_requires_the_approval_hash_join(self) -> None:
+        ordinary_inventory_queries = [
+            "list_packages",
+            "list_releases",
+            "list_hooks",
+            "list_external_deliveries",
+            "get_webhook_history",
+            "get_webhook_history",
+        ]
+        failed = SimpleNamespace(
+            passed=False,
+            components={
+                "preservation": False,
+                "protocol_safety": True,
+                "goal_completion": False,
+            },
+        )
+
+        def diagnose(extra: list[str]) -> dict:
+            return diagnose_forgejo_package_provenance_trajectory(
+                turns=[
+                    {
+                        "tool_calls": [
+                            {"name": name, "arguments": {}}
+                            for name in ordinary_inventory_queries + extra
+                        ]
+                    }
+                ],
+                evaluation=failed,
+                failure_report={
+                    "variant": "r2_package_corrupt_binary_index_missing"
+                },
+                prefix={},
+            )
+
+        missing_join = diagnose([])
+        self.assertEqual(missing_join["primary_error"], "investigation_failure")
+        self.assertFalse(missing_join["provenance_join_complete"])
+
+        joined = diagnose(
+            ["get_pull_request", "get_repository_file", "get_package_file"]
+        )
+        self.assertTrue(joined["provenance_join_complete"])
+        self.assertEqual(joined["primary_error"], "scope_failure")
 
 
 if __name__ == "__main__":
