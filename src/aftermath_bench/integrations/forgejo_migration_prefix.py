@@ -179,6 +179,16 @@ class ForgejoMigrationPrefixBuilder:
             {"name": spec.repository, "private": True, "auto_init": True},
             self.forgejo.create_repository(spec.repository),
         )
+        self._record(
+            "forgejo",
+            "edit_repository",
+            {"has_releases": True},
+            self.forgejo.edit_repository(
+                spec.owner,
+                spec.repository,
+                {"has_releases": True},
+            ),
+        )
         milestone = self._record(
             "forgejo",
             "create_milestone",

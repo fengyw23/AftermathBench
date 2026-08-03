@@ -21,8 +21,8 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         path = (
             root
             / "data"
-            / "quarantined_candidates"
-            / "forgejo-migration-deployment-dev-001-r1"
+            / "scenario_blueprints"
+            / "forgejo-migration-deployment-dev-002"
             / "instance.json"
         )
         self.assertEqual(
@@ -64,6 +64,7 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             "id": 1,
             "owner": {"login": "aftermath"},
         }
+        forgejo.edit_repository.return_value = {"has_releases": True}
         forgejo.create_milestone.return_value = {"id": 10}
         forgejo.create_issue.side_effect = [
             {"number": 1},
@@ -90,7 +91,12 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
         self.assertEqual(prefix.source_commit, "commit-4")
         self.assertEqual(prefix.change_issue_index, 1)
         self.assertEqual(prefix.protected_issue_index, 2)
-        self.assertEqual(len(prefix.trace), 19)
+        self.assertEqual(len(prefix.trace), 20)
+        forgejo.edit_repository.assert_called_once_with(
+            DEFAULT_FORGEJO_MIGRATION_INSTANCE.owner,
+            DEFAULT_FORGEJO_MIGRATION_INSTANCE.repository,
+            {"has_releases": True},
+        )
         forgejo.create_release.assert_called_once_with(
             DEFAULT_FORGEJO_MIGRATION_INSTANCE.owner,
             DEFAULT_FORGEJO_MIGRATION_INSTANCE.repository,

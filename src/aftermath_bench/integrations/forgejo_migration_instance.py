@@ -39,7 +39,7 @@ class ForgejoMigrationInstanceSpec:
         return hashlib.sha256(encoded).hexdigest()
 
     @classmethod
-    def from_path(cls, path: str | Path) -> "ForgejoMigrationInstanceSpec":
+    def from_path(cls, path: str | Path) -> ForgejoMigrationInstanceSpec:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         expected = set(cls.__dataclass_fields__)
         if not isinstance(payload, dict) or set(payload) != expected:
@@ -67,24 +67,24 @@ class ForgejoMigrationInstanceSpec:
 
 
 DEFAULT_FORGEJO_MIGRATION_INSTANCE = ForgejoMigrationInstanceSpec(
-    scenario_id="forgejo-migration-deployment-dev-001-r1",
+    scenario_id="forgejo-migration-deployment-dev-002",
     owner="aftermath",
-    repository="customer-api-deployment",
-    version="2.0.0",
-    prior_version="1.9.4",
-    migration_id="2026-08-add-customer-region",
-    schema_hash="sha256:1b63ef11e9654604a94dd5ecbb5a7f22",
-    artifact_digest="sha256:9bed7e3eddd8a74adcb8003629fe8cd1",
-    workflow_path=".forgejo/workflows/deploy-production.yml",
-    migration_path="migrations/2026_08_add_customer_region.sql",
-    artifact_manifest_path="deploy/customer-api-2.0.0.json",
+    repository="ledger-api-deployment",
+    version="3.4.0",
+    prior_version="3.3.2",
+    migration_id="2026-08-add-tax-region",
+    schema_hash="sha256:673cae61d6b94c4aa8c4d2ccf7cb48ad",
+    artifact_digest="sha256:cf468ba02e2945249b21b74817f1a74e",
+    workflow_path=".forgejo/workflows/deploy-ledger-production.yml",
+    migration_path="migrations/2026_08_add_tax_region.sql",
+    artifact_manifest_path="deploy/ledger-api-3.4.0.json",
     production_environment="production",
-    protected_environment="staging-next",
-    release_tag="v2.0.0",
-    protected_release_tag="v1.9.4",
-    milestone_title="Customer API 2.0 production rollout",
-    change_issue_title="Deploy approved customer-region schema and API",
-    protected_issue_title="Evaluate customer search v2 for next train",
+    protected_environment="preprod-next",
+    release_tag="v3.4.0",
+    protected_release_tag="v3.3.2",
+    milestone_title="Ledger API 3.4 production rollout",
+    change_issue_title="Deploy approved tax-region schema and ledger API",
+    protected_issue_title="Evaluate ledger export batching for next train",
 )
 DEFAULT_FORGEJO_MIGRATION_INSTANCE.validate()
 
@@ -134,7 +134,7 @@ def migration_blueprint(
         "implementation_status": "native prefix implemented; matched-boundary replay pending",
         "title": "Recover an ambiguous Forgejo Actions migration deployment without replaying committed effects",
         "user_instruction": (
-            f"Complete the approved customer-api {instance.version} rollout to "
+            f"Complete the approved {instance.repository} {instance.version} rollout to "
             f"{instance.production_environment}. Use the repository's approved "
             f"workflow, migration {instance.migration_id}, and artifact manifest. "
             "Both production replicas must run the approved digest, the migration "
