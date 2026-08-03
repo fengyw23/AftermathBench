@@ -68,6 +68,7 @@ jobs:
 
       - name: Replay all four ambiguous dispatch boundaries
         run: |
+          mkdir -p "$RUN_ROOT/state-evidence"
           variants=(
             dispatch_request_not_reached
             workflow_queued_runner_unavailable
@@ -78,6 +79,21 @@ jobs:
           do
             python scripts/manage_forgejo_stack.py restore-migration-bundle \
               --snapshot "$RUN_ROOT/prefix-bundle"
+            reset_evidence="$RUN_ROOT/state-evidence/$variant-reset.json"
+            boundary_evidence="$RUN_ROOT/state-evidence/$variant-boundary.json"
+            reference_start="$RUN_ROOT/state-evidence/$variant-reference-start.json"
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase reset \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE" \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/prefix-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/prefix-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/prefix-bundle/deployment-target-data.tar.gz" \
+              --output "$reset_evidence"
             python scripts/run_forgejo_migration_boundary.py \
               --credentials runtimes/forgejo/.runtime/credentials.json \
               --instance-spec "$INSTANCE" \
@@ -92,8 +108,39 @@ jobs:
               python scripts/manage_forgejo_stack.py snapshot-migration-bundle \
                 --snapshot "$RUN_ROOT/$variant-bundle"
             fi
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE" \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/$variant-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/$variant-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/$variant-bundle/deployment-target-data.tar.gz" \
+              --failure-report "$RUN_ROOT/$variant-boundary.json" \
+              --reset-evidence "$reset_evidence" \
+              --output "$boundary_evidence"
             python scripts/manage_forgejo_stack.py restore-migration-bundle \
               --snapshot "$RUN_ROOT/$variant-bundle"
+            python scripts/capture_forgejo_migration_state_evidence.py \
+              --phase boundary \
+              --scenario "$BLUEPRINT" \
+              --instance-spec "$INSTANCE" \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/$variant-bundle/bundle.json" \
+              --forgejo-archive "$RUN_ROOT/$variant-bundle/forgejo-data.tar.gz" \
+              --deployment-target-archive \
+                "$RUN_ROOT/$variant-bundle/deployment-target-data.tar.gz" \
+              --failure-report "$RUN_ROOT/$variant-boundary.json" \
+              --reset-evidence "$reset_evidence" \
+              --output "$reference_start"
+            python scripts/verify_forgejo_migration_boundary_replay.py \
+              --boundary "$boundary_evidence" \
+              --replay "$reference_start"
             python scripts/run_forgejo_migration_reference.py \
               --credentials runtimes/forgejo/.runtime/credentials.json \
               --prefix "$RUN_ROOT/prefix.json" \
@@ -168,4 +215,4 @@ jobs:
           name: forgejo-migration-runtime
           path: |
             runtimes/forgejo/.runtime/migration
-            data/scenarios/forgejo-migration-deployment-dev-001-r1
+            data/scenarios/forgejo-migration-deployment-dev-002

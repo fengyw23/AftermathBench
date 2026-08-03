@@ -27,6 +27,30 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertIn("snapshot-migration-bundle", text)
         self.assertIn("restore-migration-bundle", text)
         self.assertIn("run_forgejo_migration_boundary.py", text)
+        self.assertEqual(
+            text.count("capture_forgejo_migration_state_evidence.py"),
+            3,
+        )
+        self.assertIn(
+            "verify_forgejo_migration_boundary_replay.py",
+            text,
+        )
+        reset = text.index("--phase reset")
+        failure = text.index("run_forgejo_migration_boundary.py", reset)
+        boundary = text.index("--phase boundary", failure)
+        restore = text.index("restore-migration-bundle", boundary)
+        recapture = text.index("--phase boundary", restore)
+        verify = text.index(
+            "verify_forgejo_migration_boundary_replay.py",
+            recapture,
+        )
+        reference = text.index("run_forgejo_migration_reference.py", verify)
+        self.assertLess(reset, failure)
+        self.assertLess(failure, boundary)
+        self.assertLess(boundary, restore)
+        self.assertLess(restore, recapture)
+        self.assertLess(recapture, verify)
+        self.assertLess(verify, reference)
         self.assertIn("--runner-disabled", text)
         self.assertIn("run_forgejo_migration_reference.py", text)
         self.assertIn("run_forgejo_migration_baseline.py", text)
@@ -34,6 +58,14 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertIn("build_forgejo_migration_admission.py", text)
         self.assertIn(
             "generated/forgejo-migration-deployment-dev-002", text
+        )
+        self.assertIn(
+            "data/scenarios/forgejo-migration-deployment-dev-002",
+            text,
+        )
+        self.assertNotIn(
+            "data/scenarios/forgejo-migration-deployment-dev-001-r1",
+            text,
         )
 
 
