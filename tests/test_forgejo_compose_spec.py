@@ -24,6 +24,9 @@ class ForgejoComposeSpecTest(unittest.TestCase):
             "provenance-webhook-fault-gateway:", self.compose
         )
         self.assertIn("webhook-sink:", self.compose)
+        self.assertIn("deployment-target:", self.compose)
+        self.assertIn("deployment-fault-gateway:", self.compose)
+        self.assertIn("runtime_services.deployment_target", self.compose)
         self.assertIn("runtime_services.webhook_sink", self.compose)
         self.assertIn("AFTERMATH_GATEWAY_UPSTREAM: http://forgejo:3000", self.compose)
         self.assertIn(

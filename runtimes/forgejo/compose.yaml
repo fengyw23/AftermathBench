@@ -61,6 +61,29 @@ services:
       forgejo:
         condition: service_healthy
 
+  deployment-target:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.deployment_target"]
+    environment:
+      AFTERMATH_DEPLOYMENT_DB: /data/deployment-target.sqlite3
+    volumes:
+      - deployment-target-data:/data
+    ports:
+      - "127.0.0.1:9095:8080"
+
+  deployment-fault-gateway:
+    <<: *control_image
+    command: ["python", "-m", "runtime_services.gateway"]
+    environment:
+      AFTERMATH_GATEWAY_UPSTREAM: http://deployment-target:8080
+      AFTERMATH_GATEWAY_DB: /data/deployment-gateway.sqlite3
+    volumes:
+      - deployment-gateway-audit:/data
+    ports:
+      - "127.0.0.1:9096:8081"
+    depends_on:
+      - deployment-target
+
   api-fault-gateway:
     <<: *control_image
     command: ["python", "-m", "runtime_services.gateway"]
@@ -115,6 +138,8 @@ services:
 volumes:
   forgejo-data:
   forgejo-runner-data:
+  deployment-target-data:
+  deployment-gateway-audit:
   api-gateway-audit:
   webhook-sink-audit:
   webhook-gateway-audit:
