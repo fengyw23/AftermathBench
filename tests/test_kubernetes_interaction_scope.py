@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-import unittest
+import hashlib
 import json
+import unittest
 
+from aftermath_bench.integrations.kubernetes_interaction_recovery import (
+    _scalar_text,
+)
 from aftermath_bench.integrations.kubernetes_interaction_scope import (
     INTERACTION_FACT_GROUPS,
     INTERACTION_VARIANT_FACTS,
@@ -10,10 +14,8 @@ from aftermath_bench.integrations.kubernetes_interaction_scope import (
     derive_interaction_scope,
     interaction_projection_report,
 )
-from aftermath_bench.integrations.kubernetes_interaction_recovery import (
-    _scalar_text,
-)
 from aftermath_bench.schema import repository_root
+from aftermath_bench.scope_decision_audit import analyze_scope_decision_matrix
 
 
 class KubernetesInteractionScopeTest(unittest.TestCase):
@@ -53,6 +55,65 @@ class KubernetesInteractionScopeTest(unittest.TestCase):
         }
         self.assertGreaterEqual(len(scopes), 8)
 
+    def test_replayed_scope_decision_matrix_requires_composed_queries(self) -> None:
+        root = repository_root()
+        scenario_root = (
+            root / "data" / "scenarios" / "k8s-constraint-interactions-dev-005"
+        )
+        scenario = json.loads(
+            (scenario_root / "scenario.json").read_text(encoding="utf-8")
+        )
+        matrix = json.loads(
+            (scenario_root / "artifacts" / "scope-decision-matrix.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        audit = analyze_scope_decision_matrix(matrix)
+        self.assertEqual(audit.variant_count, 13)
+        self.assertEqual(audit.recovery_signature_count, 13)
+        self.assertEqual(audit.observable_surface_count, 5)
+        self.assertEqual(audit.minimum_static_certificate_size, 5)
+        self.assertEqual(audit.optimal_adaptive_worst_case_depth, 3)
+        self.assertEqual(audit.single_surface_solvers, ())
+        self.assertEqual(
+            scenario["admission_profile"]["scope_decision"],
+            {
+                "minimum_adaptive_worst_case_depth": 3,
+                "minimum_static_certificate_size": 4,
+            },
+        )
+
+        runtime = root / "data" / "generated" / "public-dev-slot-003" / "native"
+        runtime = runtime / "runtime"
+        groups = {
+            "catalog_and_batch": (
+                "schema_epoch",
+                "bridge_lease",
+                "batch_state",
+            ),
+            "consumer_deployments": ("api_version", "worker_version"),
+            "credential_secret": ("credential_generation",),
+            "controller_owners": (
+                "migration_state",
+                "transition_controller",
+                "publication_task",
+            ),
+            "external_registry": ("preparation_present", "release_accepted"),
+        }
+        for row in matrix["rows"]:
+            boundary_path = runtime / f"{row['variant']}-boundary.json"
+            boundary_bytes = boundary_path.read_bytes()
+            self.assertEqual(
+                row["source_boundary_sha256"],
+                hashlib.sha256(boundary_bytes).hexdigest(),
+            )
+            facts = json.loads(boundary_bytes)["counterfactual_facts"]
+            expected = {
+                group: {key: facts[key] for key in keys}
+                for group, keys in groups.items()
+            }
+            self.assertEqual(row["observations"], expected)
+
     def test_every_declared_group_has_a_projection_witness(self) -> None:
         report = interaction_projection_report()
         self.assertTrue(report["all_declared_groups_have_witnesses"], report)
@@ -63,7 +124,7 @@ class KubernetesInteractionScopeTest(unittest.TestCase):
 
     def test_epoch_and_external_keys_do_not_form_a_complete_tree(self) -> None:
         compact: dict[tuple[object, ...], set[str]] = {}
-        for variant, facts in INTERACTION_VARIANT_FACTS.items():
+        for facts in INTERACTION_VARIANT_FACTS.values():
             key = (
                 facts["schema_epoch"],
                 facts["preparation_present"],

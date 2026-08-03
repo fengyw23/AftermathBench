@@ -25,6 +25,16 @@ replays, no policy solves the full matched group; the strongest policy solves
 46.15% of individual boundaries. This establishes directional hardness against
 fixed recovery rules, but it is not yet a current-interface model result.
 
+A retrospective scope-decision audit now binds all 13 exact boundaries to five
+ordinary query surfaces: catalog/batch records, consumer Deployments, the shared
+credential Secret, controller Jobs, and the external registry. All five surfaces
+are required by the smallest static certificate, while the optimal adaptive
+decision tree has worst-case depth three. No single surface solves the matched
+group. This is materially stronger than reference-trace length: it proves the
+different recovery scopes require composed boundary observations. Because this
+gate was added after family construction, it is reported as a retrospective
+audit; future families must freeze the matrix and thresholds before model runs.
+
 ### Forgejo
 
 Run [30853698178](https://github.com/fengyw23/AftermathBench/actions/runs/30853698178)
