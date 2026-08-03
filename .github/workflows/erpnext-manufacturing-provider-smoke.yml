@@ -1,0 +1,163 @@
+name: erpnext-manufacturing-provider-smoke
+
+on:
+  push:
+    branches:
+      - erpnext-manufacturing-provider-smoke
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-native-runner-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
+      MODEL_ID: glm-5.2
+      RUN_ROOT: runtimes/erpnext/.runtime/manufacturing-provider-smoke
+      BLUEPRINT: data/scenario_blueprints/erpnext-manufacturing-rework-dev-001/scenario.json
+      SCENARIO: data/scenarios/erpnext-manufacturing-rework-dev-001/scenario.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the repaired runner before provider access
+        run: |
+          set -euo pipefail
+          test -n "$AFTERMATH_API_KEY"
+          python -m pytest \
+            tests/test_native_model_runner.py \
+            tests/test_native_erpnext_manufacturing_family.py -q
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build the pinned native ERPNext runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUN_ROOT/runtime" "$RUN_ROOT/bundles" "$RUN_ROOT/model"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUN_ROOT/source-verification.json"
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+
+      - name: Create one public ambiguous failure boundary
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          python scripts/build_erpnext_manufacturing_prefix.py \
+            --scenario "$BLUEPRINT" \
+            --credentials "$runtime_root/credentials.json" \
+            --output "$RUN_ROOT/runtime/prefix.json"
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/bundles/prefix"
+          python scripts/run_erpnext_manufacturing_failure.py \
+            --variant request_not_reached \
+            --credentials "$runtime_root/credentials.json" \
+            --prefix "$RUN_ROOT/runtime/prefix.json" \
+            --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
+            --output "$RUN_ROOT/runtime/request_not_reached.json"
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUN_ROOT/bundles/boundary-request_not_reached"
+
+      - name: Exercise BigModel tool calling and persist the trajectory
+        run: |
+          set -euo pipefail
+          runtime_root="runtimes/erpnext/.runtime"
+          trajectory="$RUN_ROOT/model/request_not_reached.json"
+          run_status=1
+          for attempt in 1 2
+          do
+            rm -f "$trajectory"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-request_not_reached"
+            if python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$SCENARIO" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --failure-report "$RUN_ROOT/runtime/request_not_reached.json" \
+              --max-turns 2 \
+              --model-timeout-seconds 600 \
+              --output "$trajectory" \
+              > "$RUN_ROOT/model/attempt-$attempt.log" 2>&1
+            then
+              run_status=0
+            elif [ -s "$trajectory" ]
+            then
+              # A semantically unsuccessful recovery is acceptable here: this
+              # job verifies provider/tool/serialization infrastructure only.
+              run_status=0
+            fi
+            [ "$run_status" -eq 0 ] && break
+          done
+          [ "$run_status" -eq 0 ]
+          python - "$trajectory" "$RUN_ROOT/model/smoke-summary.json" <<'PY'
+          import json
+          import sys
+
+          source, destination = sys.argv[1:]
+          trajectory = json.load(open(source, encoding="utf-8"))
+          checks = {
+              "schema": trajectory.get("schema_version") == "0.6",
+              "family": trajectory.get("family") == "erpnext-manufacturing-rework",
+              "variant": trajectory.get("variant") == "request_not_reached",
+              "turn_recorded": len(trajectory.get("turns", [])) >= 1,
+              "surface_failure_recorded": (
+                  trajectory.get("surface_failure", {}).get("error")
+                  == "connection_lost_before_confirmation"
+              ),
+              "final_evidence_recorded": isinstance(
+                  trajectory.get("final_evidence"), dict
+              ),
+              "evaluation_recorded": isinstance(
+                  trajectory.get("evaluation"), dict
+              ),
+          }
+          failed = [name for name, passed in checks.items() if not passed]
+          if failed:
+              raise SystemExit(f"public native runner regression failed: {failed}")
+          summary = {
+              "schema_version": "1.0",
+              "provider_profile": "zhipu",
+              "model": trajectory.get("model"),
+              "checks": checks,
+              "turn_count": len(trajectory["turns"]),
+              "tool_call_count": sum(
+                  len(turn.get("tool_calls", [])) for turn in trajectory["turns"]
+              ),
+              "trajectory_persisted": True,
+              "task_passed": bool(trajectory["evaluation"].get("passed")),
+          }
+          json.dump(summary, open(destination, "w", encoding="utf-8"), indent=2)
+          PY
+
+      - name: Remove credentials and upload public regression evidence
+        if: always()
+        run: |
+          rm -f runtimes/erpnext/.runtime/credentials.json
+
+      - name: Upload public provider smoke
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-manufacturing-provider-smoke-${{ github.run_id }}
+          path: |
+            ${{ env.RUN_ROOT }}/model/
+            ${{ env.RUN_ROOT }}/source-verification.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge || true

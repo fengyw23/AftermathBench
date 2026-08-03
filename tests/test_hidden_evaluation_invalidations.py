@@ -51,6 +51,30 @@ class HiddenEvaluationInvalidationTests(unittest.TestCase):
         self.assertTrue(regression["source_stack_destroyed_before_restore"])
         self.assertTrue(regression["old_token_authenticated_after_restore"])
 
+    def test_post_model_serialization_failure_is_not_a_model_score(self) -> None:
+        path = (
+            ROOT
+            / "data"
+            / "diagnostics"
+            / "erpnext"
+            / "hidden-run-30797882168-invalidation.json"
+        )
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        disposition = payload["disposition"]
+        self.assertFalse(disposition["valid_model_evaluation"])
+        self.assertFalse(disposition["included_in_benchmark_metrics"])
+        self.assertFalse(disposition["hidden_instance_reusable"])
+        audit = payload["redacted_audit"]
+        self.assertEqual(audit["attempt_log_count"], 8)
+        self.assertEqual(audit["trajectory_count"], 0)
+        self.assertEqual(audit["safe_key_error_counts"], {"visible_failure": 7})
+        self.assertEqual(
+            payload["remediation"]["fix_commit"],
+            "48298fe46e3eff9cdfadd5d2511e0ac8ab354037",
+        )
+        self.assertFalse(payload["raw_hidden_content_published"])
+        self.assertFalse(payload["raw_model_logs_published"])
+
 
 if __name__ == "__main__":
     unittest.main()
