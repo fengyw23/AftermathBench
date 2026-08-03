@@ -1,12 +1,15 @@
 import hashlib
+import json
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from aftermath_bench.native_admission import (
+    _adaptive_query_depth,
     _constraint_prompt_admission,
     _projection_witness_admission,
+    _recovery_divergence,
     _reference_evidence_groups,
     native_admission_report_payload,
     validate_native_scenario,
@@ -22,6 +25,112 @@ from scripts.refresh_native_admission_report import (
 
 
 class NativeAdmissionTest(unittest.TestCase):
+    def test_adaptive_query_depth_requires_result_derived_arguments(self) -> None:
+        report = {
+            "query_events": [
+                {
+                    "tool": "list_runs",
+                    "arguments": {},
+                    "result": [{"id": 73, "status": "waiting"}],
+                },
+                {
+                    "tool": "get_run",
+                    "arguments": {"run_id": 73},
+                    "result": {"id": 73, "job_id": 811, "status": "waiting"},
+                },
+                {
+                    "tool": "get_job",
+                    "arguments": {"job_id": 811},
+                    "result": {"id": 811, "status": "queued"},
+                },
+                {
+                    "tool": "get_job",
+                    "arguments": {"job_id": 811},
+                    "result": {"id": 811, "status": "success"},
+                },
+            ]
+        }
+        self.assertEqual(_adaptive_query_depth(report), 3)
+
+    def test_repeated_polling_does_not_inflate_adaptive_depth(self) -> None:
+        report = {
+            "query_events": [
+                {
+                    "tool": "list_runs",
+                    "arguments": {},
+                    "result": [{"id": 73}],
+                },
+                *[
+                    {
+                        "tool": "get_run",
+                        "arguments": {"run_id": 73},
+                        "result": {"id": 73, "status": status},
+                    }
+                    for status in ("queued", "running", "success")
+                ],
+            ]
+        }
+        self.assertEqual(_adaptive_query_depth(report), 2)
+
+    def test_recovery_divergence_separates_branch_work_from_common_tail(self) -> None:
+        reports = [
+            {
+                "mutation_events": [
+                    {"tool": "repair", "arguments": {"part": "a"}},
+                    {"tool": "verify", "arguments": {"part": "a"}},
+                    {"tool": "close", "arguments": {}},
+                ]
+            },
+            {
+                "mutation_events": [
+                    {"tool": "repair", "arguments": {"part": "b"}},
+                    {"tool": "verify", "arguments": {"part": "b"}},
+                    {"tool": "close", "arguments": {}},
+                ]
+            },
+        ]
+        common_tail, branch_mutations, pairwise_distance = _recovery_divergence(reports)
+        self.assertEqual(common_tail, 1)
+        self.assertEqual(branch_mutations, 2)
+        self.assertEqual(pairwise_distance, 2)
+
+    def test_easy_parallel_read_pattern_fails_adaptive_recovery_profile(self) -> None:
+        source = (
+            repository_root()
+            / "data"
+            / "scenarios"
+            / "forgejo-migration-deployment-public-dev-001"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            scenario_root = Path(directory) / source.name
+            shutil.copytree(source, scenario_root)
+            scenario_path = scenario_root / "scenario.json"
+            payload = json.loads(scenario_path.read_text(encoding="utf-8"))
+            payload["admission_profile"] = {
+                "adaptive_recovery": {
+                    "minimum_adaptive_query_depth": 2,
+                    "minimum_variant_specific_mutations": 2,
+                    "minimum_pairwise_mutation_distance": 2,
+                }
+            }
+            scenario_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            report = validate_native_scenario(load_native_scenario(scenario_path))
+
+            self.assertFalse(report.passed)
+            self.assertFalse(
+                report.checks["reference_queries_include_replayed_results"]
+            )
+            self.assertFalse(report.checks["adaptive_query_depth_meets_profile"])
+            self.assertFalse(report.checks["variant_specific_mutations_meet_profile"])
+            self.assertFalse(report.checks["pairwise_mutation_distance_meets_profile"])
+            self.assertEqual(report.observed["minimum_adaptive_query_depth"], 0)
+            self.assertEqual(report.observed["minimum_variant_specific_mutations"], 0)
+            self.assertEqual(report.observed["minimum_pairwise_mutation_distance"], 0)
+
     def test_derived_admission_report_is_not_a_recursive_input(self) -> None:
         source = (
             repository_root()
@@ -40,12 +149,8 @@ class NativeAdmissionTest(unittest.TestCase):
 
             self.assertTrue(report.passed, report.failures)
             self.assertNotIn("admission", report.artifact_sha256)
-            self.assertTrue(
-                report.checks["artifact_scenario_ids_match"]
-            )
-            persisted = refresh_native_admission_report(
-                scenario_root / "scenario.json"
-            )
+            self.assertTrue(report.checks["artifact_scenario_ids_match"])
+            persisted = refresh_native_admission_report(scenario_root / "scenario.json")
             self.assertEqual(
                 persisted,
                 native_admission_report_payload(report),
@@ -107,9 +212,7 @@ class NativeAdmissionTest(unittest.TestCase):
             minimum_witnesses=2,
         )
         self.assertFalse(checks["projection_witnesses_meet_profile"])
-        self.assertFalse(
-            checks["every_declared_evidence_group_has_projection_witness"]
-        )
+        self.assertFalse(checks["every_declared_evidence_group_has_projection_witness"])
 
     def _constraint_audit(self) -> dict:
         texts = {

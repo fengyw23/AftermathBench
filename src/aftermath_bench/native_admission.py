@@ -112,6 +112,186 @@ def _recovery_signature(report: dict[str, Any]) -> tuple[tuple[str, int], ...]:
     return tuple(sorted(Counter(map(str, report.get("mutation_tools", ()))).items()))
 
 
+def _canonical_call(event: dict[str, Any]) -> str:
+    """Return a stable semantic signature for a replayed public-tool call."""
+
+    return json.dumps(
+        {
+            "tool": str(event.get("tool", "")),
+            "arguments": event.get("arguments", {}),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def _leaf_tokens(value: Any, *, key: str = "") -> set[tuple[str, str]]:
+    """Extract conservative identifier-like tokens from a replay result.
+
+    Query adaptivity is only credited when a later public call consumes a
+    value returned by an earlier call.  Status words, booleans and other
+    low-information values are deliberately ignored so that repeated polling
+    cannot manufacture a long investigation chain.
+    """
+
+    if isinstance(value, dict):
+        tokens: set[tuple[str, str]] = set()
+        for child_key, child in value.items():
+            tokens.update(_leaf_tokens(child, key=str(child_key)))
+        return tokens
+    if isinstance(value, (list, tuple)):
+        tokens: set[tuple[str, str]] = set()
+        for child in value:
+            tokens.update(_leaf_tokens(child, key=key))
+        return tokens
+    if value is None or isinstance(value, bool):
+        return set()
+
+    normalised_key = re.sub(r"[^a-z0-9]+", "", key.lower())
+    if isinstance(value, int):
+        if "id" not in normalised_key and "index" not in normalised_key:
+            return set()
+        return {("identifier", str(value))}
+    if not isinstance(value, str):
+        return set()
+
+    text = value.strip()
+    if not text:
+        return set()
+    ignored = {
+        "success",
+        "failure",
+        "failed",
+        "waiting",
+        "queued",
+        "running",
+        "ready",
+        "open",
+        "closed",
+        "main",
+        "true",
+        "false",
+    }
+    if text.lower() in ignored:
+        return set()
+    if (
+        "id" in normalised_key
+        or "index" in normalised_key
+        or "sha" in normalised_key
+        or "digest" in normalised_key
+        or "name" in normalised_key
+        or "path" in normalised_key
+        or len(text) >= 8
+    ):
+        return {("identifier", text)}
+    return set()
+
+
+def _argument_tokens(value: Any, *, key: str = "") -> set[tuple[str, str]]:
+    """Extract values that can be proved to have come from an earlier result."""
+
+    if isinstance(value, dict):
+        tokens: set[tuple[str, str]] = set()
+        for child_key, child in value.items():
+            tokens.update(_argument_tokens(child, key=str(child_key)))
+        return tokens
+    if isinstance(value, (list, tuple)):
+        tokens: set[tuple[str, str]] = set()
+        for child in value:
+            tokens.update(_argument_tokens(child, key=key))
+        return tokens
+    if value is None or isinstance(value, bool):
+        return set()
+    normalised_key = re.sub(r"[^a-z0-9]+", "", key.lower())
+    if isinstance(value, int):
+        if "id" in normalised_key or "index" in normalised_key:
+            return {("identifier", str(value))}
+        return set()
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            return {("identifier", text)}
+    return set()
+
+
+def _adaptive_query_depth(report: dict[str, Any]) -> int:
+    """Measure replay-proven read-after-read discovery depth.
+
+    Identical query signatures are collapsed before building the dependency
+    DAG.  This prevents a polling loop from being mistaken for adaptive state
+    reconstruction.
+    """
+
+    events = []
+    seen: set[str] = set()
+    for raw in report.get("query_events", ()):
+        if "result" not in raw:
+            continue
+        signature = _canonical_call(raw)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        events.append(raw)
+    if not events:
+        return 0
+
+    result_tokens = [_leaf_tokens(event.get("result")) for event in events]
+    argument_tokens = [_argument_tokens(event.get("arguments", {})) for event in events]
+    depth = [1] * len(events)
+    for target in range(len(events)):
+        for source in range(target):
+            if result_tokens[source] & argument_tokens[target]:
+                depth[target] = max(depth[target], depth[source] + 1)
+    return max(depth, default=0)
+
+
+def _edit_distance(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    previous = list(range(len(right) + 1))
+    for left_index, left_item in enumerate(left, start=1):
+        current = [left_index]
+        for right_index, right_item in enumerate(right, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[right_index] + 1,
+                    previous[right_index - 1] + (left_item != right_item),
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def _mutation_sequence(report: dict[str, Any]) -> tuple[str, ...]:
+    events = report.get("mutation_events")
+    if events:
+        return tuple(_canonical_call(event) for event in events)
+    return tuple(map(str, report.get("mutation_tools", ())))
+
+
+def _recovery_divergence(
+    reports: Iterable[dict[str, Any]],
+) -> tuple[int, int, int]:
+    """Return common-tail length, minimum branch prefix and pairwise distance."""
+
+    sequences = tuple(_mutation_sequence(report) for report in reports)
+    if not sequences:
+        return 0, 0, 0
+    common_tail = 0
+    while all(len(sequence) > common_tail for sequence in sequences):
+        candidate = sequences[0][-(common_tail + 1)]
+        if not all(sequence[-(common_tail + 1)] == candidate for sequence in sequences):
+            break
+        common_tail += 1
+    minimum_branch_prefix = min(len(sequence) - common_tail for sequence in sequences)
+    pairwise = [
+        _edit_distance(sequences[left], sequences[right])
+        for left in range(len(sequences))
+        for right in range(left + 1, len(sequences))
+    ]
+    return common_tail, minimum_branch_prefix, min(pairwise, default=0)
+
+
 def _normalise_prompt_text(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.lower())).strip()
 
@@ -405,9 +585,7 @@ def validate_native_scenario(
         if "projection_witnesses" in paths
         else None
     )
-    artifact_payloads = {
-        name: _load_json(path) for name, path in paths.items()
-    }
+    artifact_payloads = {name: _load_json(path) for name, path in paths.items()}
     artifact_scenario_ids_match = all(
         str(payload.get("scenario_id", "")) == scenario.scenario_id
         for payload in artifact_payloads.values()
@@ -502,6 +680,16 @@ def validate_native_scenario(
         variants,
         action_branches,
     )
+    reasoning_profile = scenario.raw.get("admission_profile", {}).get(
+        "adaptive_recovery", {}
+    )
+    adaptive_depths = [_adaptive_query_depth(report) for report in variants]
+    minimum_adaptive_query_depth = min(adaptive_depths, default=0)
+    (
+        common_completion_tail_length,
+        minimum_variant_specific_mutations,
+        minimum_pairwise_mutation_distance,
+    ) = _recovery_divergence(variants)
 
     observed: dict[str, int | float | bool] = {
         "successful_prefix_writes": successful_prefix_writes,
@@ -562,6 +750,44 @@ def validate_native_scenario(
         "heuristic_matched_group_zero": not any(matched_heuristic_successes),
         "artifact_scenario_ids_match": artifact_scenario_ids_match,
     }
+    if reasoning_profile:
+        observed.update(
+            {
+                "minimum_adaptive_query_depth": minimum_adaptive_query_depth,
+                "common_completion_tail_length": common_completion_tail_length,
+                "minimum_variant_specific_mutations": (
+                    minimum_variant_specific_mutations
+                ),
+                "minimum_pairwise_mutation_distance": (
+                    minimum_pairwise_mutation_distance
+                ),
+            }
+        )
+        required_depth = int(reasoning_profile.get("minimum_adaptive_query_depth", 2))
+        required_variant_mutations = int(
+            reasoning_profile.get("minimum_variant_specific_mutations", 2)
+        )
+        required_pairwise_distance = int(
+            reasoning_profile.get("minimum_pairwise_mutation_distance", 2)
+        )
+        checks.update(
+            {
+                "reference_queries_include_replayed_results": all(
+                    bool(report.get("query_events"))
+                    and all("result" in event for event in report["query_events"])
+                    for report in variants
+                ),
+                "adaptive_query_depth_meets_profile": (
+                    minimum_adaptive_query_depth >= required_depth
+                ),
+                "variant_specific_mutations_meet_profile": (
+                    minimum_variant_specific_mutations >= required_variant_mutations
+                ),
+                "pairwise_mutation_distance_meets_profile": (
+                    minimum_pairwise_mutation_distance >= required_pairwise_distance
+                ),
+            }
+        )
     if prompt_audit is not None:
         prompt_checks, prompt_observed = _constraint_prompt_admission(
             prompt_audit,
