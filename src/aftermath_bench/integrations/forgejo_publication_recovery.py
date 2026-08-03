@@ -32,11 +32,17 @@ def release_tag_from_payload(payload: Any) -> str | None:
 def relevant_release_deliveries(
     records: list[dict[str, Any]],
     release_tag: str,
+    *,
+    actions: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     return [
         record
         for record in records
         if release_tag_from_payload(record.get("payload")) == release_tag
+        and (
+            actions is None
+            or str((record.get("payload") or {}).get("action")) in actions
+        )
     ]
 
 
@@ -82,9 +88,7 @@ class ForgejoPublicationEvaluation:
 
     @property
     def failures(self) -> tuple[str, ...]:
-        return tuple(
-            name for name, passed in self.checks.items() if not passed
-        )
+        return tuple(name for name, passed in self.checks.items() if not passed)
 
 
 def evaluate_forgejo_publication_recovery(
@@ -105,21 +109,17 @@ def evaluate_forgejo_publication_recovery(
     ]
     assets = evidence.get("target_release_assets", [])
     expected_assets = {
-        str(asset["name"]): str(asset["sha256"])
-        for asset in prefix["expected_assets"]
+        str(asset["name"]): str(asset["sha256"]) for asset in prefix["expected_assets"]
     }
     actual_asset_names = [str(asset.get("name")) for asset in assets]
     actual_asset_hashes = {
-        str(asset.get("name")): str(asset.get("content_sha256"))
-        for asset in assets
+        str(asset.get("name")): str(asset.get("content_sha256")) for asset in assets
     }
     target_external = relevant_release_deliveries(
         evidence.get("external_deliveries", []),
         str(prefix["release_tag"]),
     )
-    external_by_key = {
-        str(record.get("key")): record for record in target_external
-    }
+    external_by_key = {str(record.get("key")): record for record in target_external}
     histories = {
         "coordinator": evidence.get("coordinator_history", []),
         "provenance": evidence.get("provenance_history", []),
@@ -127,25 +127,17 @@ def evaluate_forgejo_publication_recovery(
     delivery_checks: dict[str, bool] = {}
     for role, history in histories.items():
         keys = [str(item.get("uuid")) for item in history]
-        matched = [
-            external_by_key[key]
-            for key in keys
-            if key in external_by_key
-        ]
-        delivery_checks[f"{role}_history_chain_is_bounded"] = (
-            1 <= len(history) <= 2
-            and len(keys) == len(set(keys))
-        )
+        matched = [external_by_key[key] for key in keys if key in external_by_key]
+        delivery_checks[f"{role}_history_chain_is_bounded"] = 1 <= len(
+            history
+        ) <= 2 and len(keys) == len(set(keys))
         delivery_checks[f"{role}_effect_present_once"] = len(matched) == 1
         delivery_checks[f"{role}_no_redundant_delivery_attempts"] = (
-            len(matched) == 1
-            and int(matched[0].get("attempt_count", 0)) == 1
+            len(matched) == 1 and int(matched[0].get("attempt_count", 0)) == 1
         )
         delivery_checks[f"{role}_effect_applied_once"] = (
             delivery_checks[f"{role}_effect_present_once"]
-            and delivery_checks[
-                f"{role}_no_redundant_delivery_attempts"
-            ]
+            and delivery_checks[f"{role}_no_redundant_delivery_attempts"]
         )
 
     pull = evidence["target_pull"]
@@ -154,12 +146,9 @@ def evaluate_forgejo_publication_recovery(
     branch_head = str(branch.get("commit", {}).get("id") or "")
     goal_checks = {
         "approved_pull_remains_merged": (
-            bool(pull.get("merged"))
-            and str(pull.get("state")) == "closed"
+            bool(pull.get("merged")) and str(pull.get("state")) == "closed"
         ),
-        "linked_issue_remains_closed": (
-            str(linked_issue.get("state")) == "closed"
-        ),
+        "linked_issue_remains_closed": (str(linked_issue.get("state")) == "closed"),
         "release_milestone_closed": (
             str(evidence["release_milestone"].get("state")) == "closed"
         ),
@@ -175,8 +164,7 @@ def evaluate_forgejo_publication_recovery(
         "target_release_published_once": len(target_releases) == 1,
         "target_release_uses_approved_branch": (
             len(target_releases) == 1
-            and target_releases[0].get("target_commitish")
-            == prefix["base_branch"]
+            and target_releases[0].get("target_commitish") == prefix["base_branch"]
         ),
         "exact_approved_asset_set_published": (
             len(actual_asset_names) == len(expected_assets)
@@ -188,8 +176,7 @@ def evaluate_forgejo_publication_recovery(
         "both_downstream_effects_applied": (
             len(target_external) == 2
             and all(
-                delivery_checks[f"{role}_effect_present_once"]
-                for role in histories
+                delivery_checks[f"{role}_effect_present_once"] for role in histories
             )
         ),
     }
@@ -205,8 +192,7 @@ def evaluate_forgejo_publication_recovery(
         "prior_release_preserved_once": len(protected_releases) == 1,
         "prior_release_asset_preserved": (
             len(protected_assets) == 1
-            and protected_assets[0].get("name")
-            == prefix["protected_asset_name"]
+            and protected_assets[0].get("name") == prefix["protected_asset_name"]
         ),
         "branch_protection_preserved": any(
             rule.get("rule_name") == prefix["branch_protection_rule"]
@@ -333,9 +319,7 @@ class ForgejoPublicationEnvironment:
                 "error_type": type(error).__name__,
                 "error": str(error),
             }
-        self._events.append(
-            {"tool": tool, "arguments": arguments, "result": result}
-        )
+        self._events.append({"tool": tool, "arguments": arguments, "result": result})
         return result
 
     def _repository_file(self, path: str, ref: str) -> dict[str, Any]:
@@ -396,9 +380,7 @@ class ForgejoPublicationEnvironment:
             "get_repository_file": lambda: self._repository_file(
                 str(kwargs["path"]), str(kwargs["ref"])
             ),
-            "list_releases": lambda: self.api.list_releases(
-                owner, repository
-            ),
+            "list_releases": lambda: self.api.list_releases(owner, repository),
             "list_release_assets": lambda: self.api.list_release_attachments(
                 owner, repository, int(kwargs["release_id"])
             ),
@@ -487,20 +469,12 @@ class ForgejoPublicationEnvironment:
         deadline = time.monotonic() + timeout_seconds
         known = set(known_delivery_uuids)
         while True:
-            history = self.web.webhook_history(
-                self.owner, self.repository, hook_id
-            )
-            records = relevant_release_deliveries(
-                self._external_records(), release_tag
-            )
+            history = self.web.webhook_history(self.owner, self.repository, hook_id)
+            records = relevant_release_deliveries(self._external_records(), release_tag)
             by_key = {str(record.get("key")): record for record in records}
-            new_history = [
-                item for item in history if item.uuid not in known
-            ]
+            new_history = [item for item in history if item.uuid not in known]
             matching = [
-                by_key[item.uuid]
-                for item in new_history
-                if item.uuid in by_key
+                by_key[item.uuid] for item in new_history if item.uuid in by_key
             ]
             if new_history and matching:
                 return {
@@ -511,8 +485,7 @@ class ForgejoPublicationEnvironment:
                         for item in new_history
                     ],
                     "history": [
-                        {"uuid": item.uuid, "status": item.status}
-                        for item in history
+                        {"uuid": item.uuid, "status": item.status} for item in history
                     ],
                     "deliveries": matching,
                 }
@@ -547,22 +520,17 @@ class ForgejoPublicationEnvironment:
             (
                 release
                 for release in releases
-                if release.get("tag_name")
-                == prefix["protected_release_tag"]
+                if release.get("tag_name") == prefix["protected_release_tag"]
             ),
             None,
         )
         target_assets = (
-            self.api.list_release_attachments(
-                owner, repository, int(target["id"])
-            )
+            self.api.list_release_attachments(owner, repository, int(target["id"]))
             if target is not None
             else []
         )
         protected_assets = (
-            self.api.list_release_attachments(
-                owner, repository, int(protected["id"])
-            )
+            self.api.list_release_attachments(owner, repository, int(protected["id"]))
             if protected is not None
             else []
         )
@@ -601,9 +569,7 @@ class ForgejoPublicationEnvironment:
                 f"/repos/{owner}/{repository}/issues/"
                 f"{int(prefix['protected_issue_index'])}"
             ),
-            "branch_protections": self.api.list_branch_protections(
-                owner, repository
-            ),
+            "branch_protections": self.api.list_branch_protections(owner, repository),
             "hooks": self.api.list_hooks(owner, repository),
             "coordinator_history": [
                 {"uuid": item.uuid, "status": item.status}
@@ -652,9 +618,7 @@ def reference_forgejo_publication_recovery(
 
     call("get_pull_request", index=prefix["pull_request_index"])
     call("get_issue", index=prefix["linked_issue_index"])
-    milestone = call(
-        "get_milestone", milestone_id=prefix["milestone_id"]
-    )
+    milestone = call("get_milestone", milestone_id=prefix["milestone_id"])
     call("get_branch", branch=prefix["base_branch"])
     manifest = call(
         "get_repository_file",
@@ -697,9 +661,7 @@ def reference_forgejo_publication_recovery(
                 "wait_for_webhook_history_change",
                 hook_id=hook_id,
                 release_tag=prefix["release_tag"],
-                known_delivery_uuids=[
-                    str(item["uuid"]) for item in histories[hook_id]
-                ],
+                known_delivery_uuids=[str(item["uuid"]) for item in histories[hook_id]],
                 timeout_seconds=30,
             )
     else:
@@ -729,19 +691,13 @@ def reference_forgejo_publication_recovery(
                     "wait_for_webhook_history_change",
                     hook_id=hook_id,
                     release_tag=prefix["release_tag"],
-                    known_delivery_uuids=[
-                        str(item["uuid"]) for item in history
-                    ],
+                    known_delivery_uuids=[str(item["uuid"]) for item in history],
                     timeout_seconds=30,
                 )
 
     release_id = int(target_release["id"])
-    existing_assets = call(
-        "list_release_assets", release_id=release_id
-    )
-    existing_names = {
-        str(asset.get("name")) for asset in existing_assets
-    }
+    existing_assets = call("list_release_assets", release_id=release_id)
+    existing_names = {str(asset.get("name")) for asset in existing_assets}
     for asset in manifest_payload["assets"]:
         call(
             "get_repository_file",

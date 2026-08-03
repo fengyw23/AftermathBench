@@ -34,6 +34,9 @@ def _prefix() -> dict:
             {"name": "old.spdx.json", "sha256": "old-c"},
         ],
         "package_index_release_tag": "v3.7.0",
+        "package_index_release_title": "Telemetry CLI 3.7.0",
+        "package_index_release_body": "approved package index",
+        "base_branch": "release/3.7",
         "protected_release_tag": "v3.6.4",
         "protected_asset_name": "old.sha256",
         "branch_protection_rule": "release/*",
@@ -77,8 +80,14 @@ def _evidence() -> dict:
             {"name": "old.spdx.json", "content_sha256": "old-c"},
         ],
         "releases": [
-            {"tag_name": "v3.6.4"},
-            {"tag_name": "v3.7.0"},
+            {"id": 64, "tag_name": "v3.6.4"},
+            {
+                "id": 70,
+                "tag_name": "v3.7.0",
+                "name": "Telemetry CLI 3.7.0",
+                "body": "approved package index",
+                "target_commitish": "release/3.7",
+            },
         ],
         "protected_release_assets": [{"name": "old.sha256"}],
         "branch_protections": [{"rule_name": "release/*"}],
@@ -89,12 +98,18 @@ def _evidence() -> dict:
             {
                 "key": "delivery-a",
                 "attempt_count": 1,
-                "payload": {"release": {"tag_name": "v3.7.0"}},
+                "payload": {
+                    "action": "published",
+                    "release": {"tag_name": "v3.7.0"},
+                },
             },
             {
                 "key": "delivery-b",
                 "attempt_count": 1,
-                "payload": {"release": {"tag_name": "v3.7.0"}},
+                "payload": {
+                    "action": "published",
+                    "release": {"tag_name": "v3.7.0"},
+                },
             },
         ],
     }
@@ -177,6 +192,30 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertFalse(report.passed)
         self.assertFalse(report.components["repair_completeness"])
         self.assertTrue(report.components["preservation"])
+
+    def test_wrong_binary_with_identical_file_inventory_fails(self) -> None:
+        evidence = _evidence()
+        evidence["target_package_files"][0]["content_sha256"] = "wrong-binary"
+        report = evaluate_forgejo_package_provenance_recovery(
+            evidence,
+            prefix=_prefix(),
+        )
+        self.assertFalse(report.passed)
+        self.assertFalse(report.checks["package_file_contents_match_sources"])
+        self.assertTrue(report.checks["exact_provenance_file_set"])
+
+    def test_release_with_correct_tag_but_wrong_metadata_fails(self) -> None:
+        evidence = _evidence()
+        evidence["releases"][1]["target_commitish"] = "main"
+        report = evaluate_forgejo_package_provenance_recovery(
+            evidence,
+            prefix=_prefix(),
+        )
+        self.assertFalse(report.passed)
+        self.assertFalse(
+            report.checks["package_index_release_matches_approved_metadata"]
+        )
+        self.assertTrue(report.checks["one_package_index_release"])
 
     def test_prompt_exposes_exact_failed_call_but_not_hidden_outcome(self) -> None:
         prefix = {

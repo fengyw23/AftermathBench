@@ -76,6 +76,7 @@ def evaluate_forgejo_package_provenance_recovery(
     target_external = relevant_release_deliveries(
         evidence.get("external_deliveries", []),
         str(prefix["package_index_release_tag"]),
+        actions=frozenset({"published"}),
     )
     external_by_key = {str(record.get("key")): record for record in target_external}
     histories = {
@@ -97,6 +98,15 @@ def evaluate_forgejo_package_provenance_recovery(
     target_issue = evidence.get("linked_issue", {})
     protected_pull = evidence.get("protected_pull", {})
     protected_issue = evidence.get("protected_issue", {})
+    release_metadata_matches = (
+        len(target_releases) == 1
+        and str(target_releases[0].get("name"))
+        == str(prefix["package_index_release_title"])
+        and str(target_releases[0].get("body"))
+        == str(prefix["package_index_release_body"])
+        and str(target_releases[0].get("target_commitish"))
+        == str(prefix["base_branch"])
+    )
     goal_checks = {
         "target_package_version_exists": isinstance(
             evidence.get("target_package"), dict
@@ -107,6 +117,7 @@ def evaluate_forgejo_package_provenance_recovery(
         ),
         "package_file_contents_match_sources": target_hashes == expected,
         "one_package_index_release": len(target_releases) == 1,
+        "package_index_release_matches_approved_metadata": release_metadata_matches,
         "both_index_consumers_applied": all(
             delivery_checks.get(f"{role}_effect_once", False) for role in histories
         ),
@@ -175,6 +186,7 @@ def evaluate_forgejo_package_provenance_recovery(
                 "exact_provenance_file_set",
                 "package_file_contents_match_sources",
                 "one_package_index_release",
+                "package_index_release_matches_approved_metadata",
                 "both_index_consumers_applied",
             )
         ),
@@ -189,6 +201,14 @@ def evaluate_forgejo_package_provenance_recovery(
             "target_package_file_names": target_names,
             "target_package_file_hashes": target_hashes,
             "target_release_count": len(target_releases),
+            "target_release_metadata": (
+                {
+                    key: target_releases[0].get(key)
+                    for key in ("id", "tag_name", "name", "body", "target_commitish")
+                }
+                if len(target_releases) == 1
+                else None
+            ),
             "target_external_keys": sorted(external_by_key),
             "coordinator_history": histories["coordinator"],
             "provenance_history": histories["provenance"],
@@ -459,7 +479,11 @@ class ForgejoPackageProvenanceEnvironment:
         known = set(known_delivery_uuids)
         while True:
             history = self.web.webhook_history(self.owner, self.repository, hook_id)
-            records = relevant_release_deliveries(self._external_records(), release_tag)
+            records = relevant_release_deliveries(
+                self._external_records(),
+                release_tag,
+                actions=frozenset({"published"}),
+            )
             by_key = {str(item.get("key")): item for item in records}
             new_history = [item for item in history if item.uuid not in known]
             matching = [
@@ -646,23 +670,42 @@ def reference_forgejo_package_provenance_recovery(
         ),
         None,
     )
-    existing_names: set[str] = set()
+    existing_hashes: dict[str, str] = {}
     if target_package is not None:
         files = call(
             "list_package_files",
             name=prefix["package_name"],
             version=prefix["package_version"],
         )
-        existing_names = {str(item.get("name")) for item in files}
-        for filename in sorted(existing_names):
-            call("get_package_file", filename=filename)
+        for filename in sorted(str(item.get("name")) for item in files):
+            document = call("get_package_file", filename=filename)
+            existing_hashes[filename] = str(document.get("sha256"))
+    expected_hashes = {
+        str(item["name"]): str(item["sha256"])
+        for item in prefix["expected_package_files"]
+    }
+    package_requires_replacement = bool(existing_hashes) and any(
+        existing_hashes.get(name) != expected_hash
+        for name, expected_hash in expected_hashes.items()
+        if name in existing_hashes
+    )
+    package_requires_replacement = package_requires_replacement or any(
+        name not in expected_hashes for name in existing_hashes
+    )
+    if package_requires_replacement:
+        call(
+            "delete_package_version",
+            name=prefix["package_name"],
+            version=prefix["package_version"],
+        )
+        existing_hashes = {}
     for item in prefix["expected_package_files"]:
         call(
             "get_repository_file",
             path=item["source_path"],
             ref=prefix["base_branch"],
         )
-        if item["name"] not in existing_names:
+        if item["name"] not in existing_hashes:
             call(
                 "upload_package_file_from_repository",
                 source_path=item["source_path"],
@@ -694,6 +737,13 @@ def reference_forgejo_package_provenance_recovery(
         ),
         None,
     )
+    if target_release is not None and not (
+        str(target_release.get("name")) == str(prefix["package_index_release_title"])
+        and str(target_release.get("body")) == str(prefix["package_index_release_body"])
+        and str(target_release.get("target_commitish")) == str(prefix["base_branch"])
+    ):
+        call("delete_release", release_id=int(target_release["id"]))
+        target_release = None
     if target_release is None:
         call(
             "create_package_index_release",
@@ -714,7 +764,9 @@ def reference_forgejo_package_provenance_recovery(
         external_by_key = {
             str(item.get("key")): item
             for item in relevant_release_deliveries(
-                external, str(prefix["package_index_release_tag"])
+                external,
+                str(prefix["package_index_release_tag"]),
+                actions=frozenset({"published"}),
             )
         }
         for hook_id, history in histories.items():
