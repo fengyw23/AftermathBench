@@ -14,11 +14,11 @@ class ERPNextHiddenFailureAuditWorkflowTests(unittest.TestCase):
         cls.text = WORKFLOW.read_text(encoding="utf-8")
 
     def test_is_bound_to_the_failed_encrypted_artifact(self) -> None:
-        self.assertIn('SOURCE_RUN_ID: "30786512162"', self.text)
-        self.assertIn('SOURCE_ARTIFACT_ID: "8845660300"', self.text)
+        self.assertIn('SOURCE_RUN_ID: "30797882168"', self.text)
+        self.assertIn('SOURCE_ARTIFACT_ID: "8850647675"', self.text)
         self.assertIn(
             "SOURCE_CIPHERTEXT_SHA256: "
-            "fd1600226eef1481383241bc3a6b6bd8e722079b36daaf16c9b2de4c87d03966",
+            "8f55a91e3d0be8ae9ce26a33f8ee103528b405a21687ed114b4a1701569a81c6",
             self.text,
         )
         self.assertIn('"four_run_errors"', self.text)
