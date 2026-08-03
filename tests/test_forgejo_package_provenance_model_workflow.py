@@ -50,6 +50,8 @@ class ForgejoPackageProvenanceModelWorkflowTest(unittest.TestCase):
             "forgejo-package-provenance-nonmonotonic-dev-001/scenario.json",
             self.text,
         )
+        self.assertIn('--scenario "$scenario"', self.text)
+        self.assertNotIn('--scenario "$SCENARIO"\n', self.text)
         for variant in (
             "r2_package_request_not_reached",
             "r2_package_binary_committed_response_lost",
