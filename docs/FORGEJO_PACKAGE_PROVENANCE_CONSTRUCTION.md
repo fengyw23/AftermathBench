@@ -149,14 +149,31 @@ Generation r2 uses a separate Beacon Agent `5.1.2` instance and retains the
 same ordinary Forgejo tools. Its decisive counterfactual pair has the same
 four package filenames, the same failed Release call, and the same user goal.
 In one boundary every file hash matches the approved repository sources, so
-the package must be preserved. In the other, the binary comes from a stale
-build, so Forgejo's immutable Generic Package version must be deleted and
-recreated before indexing.
+the package must be preserved. In the other, the binary was built from a
+post-approval change that was later merged into the mutable base branch. It
+therefore agrees with the *current* branch but disagrees with the immutable
+merge commit of the approved Pull Request. Forgejo's immutable Generic Package
+version must be deleted and recreated from that approved commit before
+indexing. A policy that merely compares filenames, or even compares bytes with
+the current branch, chooses the wrong scope.
+
+The resulting reasoning join is:
+
+`approved Pull Request -> merge commit -> source-file hash -> package-file hash -> Release target`
+
+The ordinary prompt does not expose the expected hash or the correct scope.
+The agent must discover the Pull Request and its merge commit, read the source
+at that immutable ref, hash the installed package file, and decide whether the
+existing version is evidence to preserve or an invalid commitment to replace.
+The supplied-scope execution control is deliberately variant-specific: it
+names preservation for the valid boundary and deletion/recreation for the
+post-approval-drift boundary, while leaving the same public tools in place.
 
 The admission builder now rejects r2 unless the native replays prove all of
 the following: equal visible inventories, different content validity, equal
-surface failure, preservation in the valid state, replacement in the corrupt
-state, and successful deterministic references for both. The stronger
+surface failure, provenance of the corrupt binary from the post-approval base
+change, preservation in the valid state, replacement in the corrupt state,
+and successful deterministic references for both. The stronger
 `inventory_diff_completion` baseline remains in the gate; a high score from
 that policy rejects the candidate instead of allowing a graph-size metric to
 label it hard.
