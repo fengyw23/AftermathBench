@@ -158,6 +158,22 @@ FORGEJO_PACKAGE_PROVENANCE_TOOL_DEFINITIONS = (
         ),
     ),
     ToolDefinition(
+        "delete_package_version",
+        (
+            "Delete one complete Generic Package version when authoritative "
+            "provenance proves that its durable files are invalid."
+        ),
+        _schema(_PACKAGE, ("name", "version")),
+    ),
+    ToolDefinition(
+        "delete_release",
+        (
+            "Delete one repository Release by native release ID when its "
+            "index metadata is invalid."
+        ),
+        _schema({"release_id": {"type": "integer"}}, ("release_id",)),
+    ),
+    ToolDefinition(
         "replay_webhook",
         "Replay one failed native delivery UUID; Forgejo creates a new UUID.",
         _schema(

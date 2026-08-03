@@ -108,6 +108,8 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         self.assertIn("list_package_files", names)
         self.assertIn("list_issues", names)
         self.assertIn("upload_package_file_from_repository", names)
+        self.assertIn("delete_package_version", names)
+        self.assertIn("delete_release", names)
         self.assertNotIn("repair_package", names)
         self.assertNotIn("get_global_state", names)
         self.assertEqual(names, set(ForgejoPackageProvenanceEnvironment.TOOL_NAMES))
@@ -151,9 +153,7 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         complete = PACKAGE_PROVENANCE_VARIANTS[
             "package_complete_index_accepted_response_lost"
         ]
-        partial = PACKAGE_PROVENANCE_VARIANTS[
-            "package_binary_committed_response_lost"
-        ]
+        partial = PACKAGE_PROVENANCE_VARIANTS["package_binary_committed_response_lost"]
         self.assertEqual(partial.preloaded_file_roles, ("checksum",))
         self.assertEqual(complete.preclosed_tracking_positions, (0,))
         self.assertEqual(complete.postcommit_tracking_positions, (1,))

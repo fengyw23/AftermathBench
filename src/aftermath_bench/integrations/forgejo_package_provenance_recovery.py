@@ -215,6 +215,8 @@ class ForgejoPackageProvenanceEnvironment:
         "get_external_delivery",
         "upload_package_file_from_repository",
         "create_package_index_release",
+        "delete_package_version",
+        "delete_release",
         "replay_webhook",
         "close_milestone",
         "close_issue",
@@ -223,6 +225,8 @@ class ForgejoPackageProvenanceEnvironment:
     MUTATION_TOOLS = (
         "upload_package_file_from_repository",
         "create_package_index_release",
+        "delete_package_version",
+        "delete_release",
         "replay_webhook",
         "close_milestone",
         "close_issue",
@@ -389,6 +393,17 @@ class ForgejoPackageProvenanceEnvironment:
                 target=str(kwargs["target"]),
                 title=str(kwargs["title"]),
                 body=str(kwargs["body"]),
+            ),
+            "delete_package_version": lambda: self.api.delete_package_version(
+                owner,
+                package_type="generic",
+                name=str(kwargs["name"]),
+                version=str(kwargs["version"]),
+            ),
+            "delete_release": lambda: self.api.delete_release(
+                owner,
+                repository,
+                int(kwargs["release_id"]),
             ),
             "replay_webhook": lambda: self.web.replay_webhook(
                 owner,

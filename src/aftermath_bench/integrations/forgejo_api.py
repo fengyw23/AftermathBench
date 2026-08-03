@@ -44,11 +44,7 @@ class ForgejoAPI:
             headers={
                 "Accept": "application/json",
                 "Authorization": f"token {self.token}",
-                **(
-                    {"Content-Type": "application/json"}
-                    if payload is not None
-                    else {}
-                ),
+                **({"Content-Type": "application/json"} if payload is not None else {}),
             },
             method=method,
         )
@@ -254,9 +250,7 @@ class ForgejoAPI:
         branch: str,
     ) -> dict[str, Any]:
         encoded = urllib.parse.quote(branch, safe="")
-        result = self.get(
-            f"/repos/{owner}/{repository}/branches/{encoded}"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/branches/{encoded}")
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no branch document")
         return result
@@ -275,9 +269,7 @@ class ForgejoAPI:
         result = self.post(
             f"/repos/{owner}/{repository}/contents/{encoded_path}",
             {
-                "content": base64.b64encode(
-                    content.encode("utf-8")
-                ).decode("ascii"),
+                "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
                 "branch": branch,
                 "message": message,
             },
@@ -315,9 +307,7 @@ class ForgejoAPI:
         repository: str,
         index: int,
     ) -> dict[str, Any]:
-        result = self.get(
-            f"/repos/{owner}/{repository}/pulls/{index}"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/pulls/{index}")
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no Pull Request document")
         return result
@@ -390,9 +380,7 @@ class ForgejoAPI:
         owner: str,
         repository: str,
     ) -> list[dict[str, Any]]:
-        result = self.get(
-            f"/repos/{owner}/{repository}/branch_protections"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/branch_protections")
         if not isinstance(result, list):
             raise TypeError("Forgejo returned no branch-protection list")
         return [item for item in result if isinstance(item, dict)]
@@ -448,6 +436,17 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no release list")
         return [item for item in result if isinstance(item, dict)]
 
+    def delete_release(
+        self,
+        owner: str,
+        repository: str,
+        release_id: int,
+    ) -> None:
+        components = [
+            urllib.parse.quote(value, safe="") for value in (owner, repository)
+        ]
+        self.delete("/repos/" + "/".join(components) + f"/releases/{int(release_id)}")
+
     def get_repository_content(
         self,
         owner: str,
@@ -472,9 +471,7 @@ class ForgejoAPI:
         tag: str,
     ) -> dict[str, Any]:
         encoded_tag = urllib.parse.quote(tag, safe="")
-        result = self.get(
-            f"/repos/{owner}/{repository}/releases/tags/{encoded_tag}"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/releases/tags/{encoded_tag}")
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no release document")
         return result
@@ -485,9 +482,7 @@ class ForgejoAPI:
         repository: str,
         release_id: int,
     ) -> list[dict[str, Any]]:
-        result = self.get(
-            f"/repos/{owner}/{repository}/releases/{release_id}/assets"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/releases/{release_id}/assets")
         if not isinstance(result, list):
             raise TypeError("Forgejo returned no release attachment list")
         return [item for item in result if isinstance(item, dict)]
@@ -502,9 +497,7 @@ class ForgejoAPI:
         content: bytes,
     ) -> dict[str, Any]:
         encoded_name = urllib.parse.quote(name, safe="")
-        content_type = (
-            mimetypes.guess_type(name)[0] or "application/octet-stream"
-        )
+        content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
         result = self._request_bytes(
             "POST",
             (
@@ -562,12 +555,24 @@ class ForgejoAPI:
             urllib.parse.quote(value, safe="")
             for value in (owner, package_type, name, version)
         ]
-        result = self.get(
-            "/packages/" + "/".join(components) + "/files"
-        )
+        result = self.get("/packages/" + "/".join(components) + "/files")
         if not isinstance(result, list):
             raise TypeError("Forgejo returned no package file list")
         return [item for item in result if isinstance(item, dict)]
+
+    def delete_package_version(
+        self,
+        owner: str,
+        *,
+        package_type: str,
+        name: str,
+        version: str,
+    ) -> None:
+        components = [
+            urllib.parse.quote(value, safe="")
+            for value in (owner, package_type, name, version)
+        ]
+        self.delete("/packages/" + "/".join(components))
 
     def link_package(
         self,
@@ -578,14 +583,11 @@ class ForgejoAPI:
         repository: str,
     ) -> Any:
         components = [
-            urllib.parse.quote(value, safe="")
-            for value in (owner, package_type, name)
+            urllib.parse.quote(value, safe="") for value in (owner, package_type, name)
         ]
         encoded_repository = urllib.parse.quote(repository, safe="")
         return self.post(
-            "/packages/"
-            + "/".join(components)
-            + f"/-/link/{encoded_repository}",
+            "/packages/" + "/".join(components) + f"/-/link/{encoded_repository}",
             {},
         )
 
@@ -604,10 +606,7 @@ class ForgejoAPI:
         ]
         self._request_package_bytes(
             "PUT",
-            "/api/packages/"
-            + components[0]
-            + "/generic/"
-            + "/".join(components[1:]),
+            "/api/packages/" + components[0] + "/generic/" + "/".join(components[1:]),
             content,
         )
 
@@ -625,10 +624,7 @@ class ForgejoAPI:
         ]
         return self._request_package_bytes(
             "GET",
-            "/api/packages/"
-            + components[0]
-            + "/generic/"
-            + "/".join(components[1:]),
+            "/api/packages/" + components[0] + "/generic/" + "/".join(components[1:]),
         )
 
     def list_issues(
@@ -716,9 +712,7 @@ class ForgejoAPI:
         repository: str,
         milestone_id: int,
     ) -> dict[str, Any]:
-        result = self.get(
-            f"/repos/{owner}/{repository}/milestones/{milestone_id}"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/milestones/{milestone_id}")
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no milestone document")
         return result
@@ -794,9 +788,7 @@ class ForgejoAPI:
     def get_action_run(
         self, owner: str, repository: str, run_id: int
     ) -> dict[str, Any]:
-        result = self.get(
-            f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}"
-        )
+        result = self.get(f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}")
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no workflow run")
         return result
@@ -822,9 +814,7 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no workflow-artifact list")
         return [artifact for artifact in result if isinstance(artifact, dict)]
 
-    def cancel_action_run(
-        self, owner: str, repository: str, run_id: int
-    ) -> Any:
+    def cancel_action_run(self, owner: str, repository: str, run_id: int) -> Any:
         return self.post(
             f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}/cancel",
             {},

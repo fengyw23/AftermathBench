@@ -147,6 +147,37 @@ class ForgejoAPITest(unittest.TestCase):
         )
         self.assertEqual(result[0]["name"], "recovery-agent")
 
+    def test_native_package_and_release_deletes_are_narrowly_addressed(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            side_effect=(_Response({}), _Response({})),
+        ) as opener:
+            client = ForgejoAPI(
+                base_url="http://forgejo.invalid/api/v1",
+                token="secret-token",
+            )
+            client.delete_package_version(
+                "aftermath",
+                package_type="generic",
+                name="recovery agent",
+                version="2.4.1+build.7",
+            )
+            client.delete_release("aftermath", "release-control", 19)
+        package_request = opener.call_args_list[0].args[0]
+        release_request = opener.call_args_list[1].args[0]
+        self.assertEqual(package_request.method, "DELETE")
+        self.assertEqual(
+            package_request.full_url,
+            "http://forgejo.invalid/api/v1/packages/aftermath/generic/"
+            "recovery%20agent/2.4.1%2Bbuild.7",
+        )
+        self.assertEqual(release_request.method, "DELETE")
+        self.assertEqual(
+            release_request.full_url,
+            "http://forgejo.invalid/api/v1/repos/aftermath/"
+            "release-control/releases/19",
+        )
+
     def test_workflow_dispatch_requests_native_run_information(self) -> None:
         with patch(
             "urllib.request.urlopen",
@@ -220,8 +251,12 @@ class ForgejoAPITest(unittest.TestCase):
             )
         self.assertEqual(runs[0]["id"], 71)
         self.assertEqual(artifacts[0]["name"], "deployment-record")
-        self.assertIn("workflow_id=deploy.yml", opener.call_args_list[0].args[0].full_url)
-        self.assertIn("ref=refs%2Fheads%2Fmain", opener.call_args_list[0].args[0].full_url)
+        self.assertIn(
+            "workflow_id=deploy.yml", opener.call_args_list[0].args[0].full_url
+        )
+        self.assertIn(
+            "ref=refs%2Fheads%2Fmain", opener.call_args_list[0].args[0].full_url
+        )
 
 
 if __name__ == "__main__":
