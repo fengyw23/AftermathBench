@@ -17,6 +17,9 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
     def test_provider_is_selected_before_any_hidden_artifact_is_downloaded(
         self,
     ) -> None:
+        registry = self.text.index(
+            "Refuse reuse of a terminal hidden instance"
+        )
         provider = self.text.index(
             "Select a working provider before hidden data access"
         )
@@ -24,12 +27,14 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
             "Download and verify the preregistered sealed artifact"
         )
         decrypt = self.text.index("Decrypt and verify the exact frozen bundle")
+        self.assertLess(registry, provider)
         self.assertLess(provider, download)
         self.assertLess(download, decrypt)
         self.assertIn("BAILIAN_API_KEY", self.text)
         self.assertIn("ZHIPU_CODING_API_KEY", self.text)
         self.assertIn('"name": "provider_probe"', self.text)
         self.assertIn('get("tool_calls")', self.text)
+        self.assertIn("verify_hidden_consumption_registry.py", self.text)
 
     def test_workflow_is_bound_to_one_immutable_freeze(self) -> None:
         for token in (
