@@ -60,6 +60,8 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
         )
         self.assertIn("11-unit manufacture entry", message)
         self.assertIn("remaining 3-unit", message)
+        self.assertIn("on-submit hook already enqueues", message)
+        self.assertIn("manually enqueue", message)
         self.assertNotIn("eight-unit", message)
 
     def test_diagnostics_read_the_current_trajectory_schema(self) -> None:
@@ -121,6 +123,34 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
             prefix={"corrective_job_card": "JC-1"},
         )
         self.assertEqual(report["primary_error"], "scope_failure")
+
+    def test_duplicate_release_delivery_is_an_execution_failure(self) -> None:
+        report = diagnose_manufacturing_trajectory(
+            turns=[
+                {
+                    "tool_calls": [
+                        {"name": "get_document", "arguments": {}},
+                        {"name": "find_background_jobs", "arguments": {}},
+                        {"name": "get_external_delivery", "arguments": {}},
+                        {"name": "enqueue_document_webhook", "arguments": {}},
+                    ],
+                    "tool_results": [],
+                }
+            ],
+            evaluation=SimpleNamespace(
+                passed=False,
+                components={
+                    "goal_completion": True,
+                    "repair_completeness": True,
+                    "preservation": True,
+                    "protocol_safety": False,
+                },
+                failures=["quality_release_applied_exactly_once"],
+            ),
+            failure_report={"variant": "request_not_reached"},
+            prefix={"corrective_job_card": "JC-1"},
+        )
+        self.assertEqual(report["primary_error"], "execution_failure")
 
     def test_resubmitting_committed_corrective_card_is_state_inference_failure(
         self,

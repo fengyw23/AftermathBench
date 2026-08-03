@@ -246,8 +246,13 @@ def manufacturing_initial_message(
             f"{prefix['accepted_quantity']}-unit manufacture entry, accepted "
             "Job Card, BOM and unrelated stock. "
             "Submit the one existing corrective Job Card only if it remains "
-            "draft; otherwise preserve it. Deliver its configured quality "
-            "release exactly once, create and accept exactly one inspection "
+            "draft; its configured on-submit hook already enqueues the quality "
+            "release, so do not enqueue a second copy after submitting it. If "
+            "the Job Card is already submitted, resume an existing pending "
+            "job; manually enqueue the configured hook only when authoritative "
+            "queries show that both its delivery and its background job are "
+            "absent. Deliver the quality release exactly once, create and "
+            "accept exactly one inspection "
             f"for the remaining {prefix['rework_quantity']}-unit Manufacture "
             "Stock Entry, submit that entry, and verify Work Order, stock and "
             "GL closure."
@@ -290,6 +295,11 @@ def diagnose_manufacturing_trajectory(
             for call in calls
         )
     )
+    failures = set(getattr(evaluation, "failures", ()))
+    async_execution_failures = {
+        "quality_release_applied_exactly_once",
+        "no_unfinished_quality_release_job",
+    }
     if evaluation.passed:
         primary_error: str | None = None
     elif unsafe_retry:
@@ -300,6 +310,14 @@ def diagnose_manufacturing_trajectory(
             "get_external_delivery",
         }.issubset(queried):
         primary_error = "investigation_failure"
+    elif (
+        failures
+        and failures <= async_execution_failures
+        and evaluation.components.get("goal_completion", False)
+        and evaluation.components.get("repair_completeness", False)
+        and evaluation.components.get("preservation", False)
+    ):
+        primary_error = "execution_failure"
     elif (
         any(
             name in queried
