@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import MagicMock
 
 from aftermath_bench.integrations.forgejo_migration_instance import (
     DEFAULT_FORGEJO_MIGRATION_INSTANCE,
     migration_blueprint,
 )
-from aftermath_bench.integrations.forgejo_migration_prefix import deployment_workflow
+from aftermath_bench.integrations.forgejo_migration_prefix import (
+    ForgejoMigrationPrefixBuilder,
+    deployment_workflow,
+)
 from aftermath_bench.schema import repository_root
 
 
@@ -51,6 +55,42 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             self.assertIn(path, workflow)
         self.assertNotIn("recommended", workflow.lower())
         self.assertNotIn("hidden", workflow.lower())
+
+    def test_prefix_records_cross_system_writes_from_real_api_results(self) -> None:
+        forgejo = MagicMock()
+        forgejo.create_repository.return_value = {
+            "id": 1,
+            "owner": {"login": "aftermath"},
+        }
+        forgejo.create_milestone.return_value = {"id": 10}
+        forgejo.create_issue.side_effect = [
+            {"number": 1},
+            {"number": 2},
+        ]
+        forgejo.create_file.side_effect = [
+            {"commit": {"sha": f"commit-{index}"}} for index in range(1, 5)
+        ]
+        forgejo.create_branch.return_value = {"name": "protected/staging-next"}
+        forgejo.create_release.return_value = {"id": 20}
+        forgejo.create_branch_protection.return_value = {"rule_name": "protected/*"}
+
+        deployment = MagicMock()
+        deployment.apply_migration.return_value = {"first_application": True}
+        deployment.register_artifact.return_value = {"first_registration": True}
+        deployment.request_deployment.return_value = {"created": True}
+        deployment.run_workers.return_value = {"completed_job_ids": [1]}
+        deployment.state.return_value = {"deployments": [{"environment": "production"}]}
+
+        prefix = ForgejoMigrationPrefixBuilder(forgejo, deployment).build()
+
+        self.assertEqual(prefix.source_commit, "commit-4")
+        self.assertEqual(prefix.change_issue_index, 1)
+        self.assertEqual(prefix.protected_issue_index, 2)
+        self.assertEqual(len(prefix.trace), 19)
+        self.assertEqual(
+            {event["system"] for event in prefix.trace},
+            {"forgejo", "deployment-target"},
+        )
 
 
 if __name__ == "__main__":

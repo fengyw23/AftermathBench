@@ -1,0 +1,79 @@
+name: forgejo-migration-deployment-runtime
+
+on:
+  push:
+    branches:
+      - forgejo-migration-runtime
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE: data/scenario_blueprints/forgejo-migration-deployment-dev-001/instance.json
+      RUN_ROOT: runtimes/forgejo/.runtime/migration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate migration family contracts
+        run: |
+          python -m unittest discover -s tests -p 'test_deployment_target.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_migration_blueprint.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_compose_spec.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_stack.py' -v
+
+      - name: Build pinned Forgejo from audited source
+        run: |
+          mkdir -p "$RUN_ROOT"
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Start source-built server and pinned open-source runner
+        run: |
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username aftermath \
+            --email aftermath@aftermath.invalid
+          python scripts/manage_forgejo_stack.py setup-runner
+
+      - name: Build the successful persistent prefix
+        run: |
+          python scripts/build_forgejo_migration_prefix.py \
+            --credentials runtimes/forgejo/.runtime/credentials.json \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/prefix.json"
+
+      - name: Dispatch and verify a native Actions deployment
+        run: |
+          python scripts/validate_forgejo_migration_runtime.py \
+            --credentials runtimes/forgejo/.runtime/credentials.json \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/native-smoke.json"
+
+      - name: Surface native logs on failure
+        if: failure()
+        run: |
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            logs --no-color --tail 350 \
+            forgejo runner-daemon deployment-target deployment-fault-gateway
+
+      - name: Upload replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-migration-runtime
+          path: runtimes/forgejo/.runtime/migration
