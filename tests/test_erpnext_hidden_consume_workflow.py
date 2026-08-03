@@ -28,6 +28,8 @@ class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
         self.assertLess(download, decrypt)
         self.assertIn("BAILIAN_API_KEY", self.text)
         self.assertIn("ZHIPU_CODING_API_KEY", self.text)
+        self.assertIn('"name": "provider_probe"', self.text)
+        self.assertIn('get("tool_calls")', self.text)
 
     def test_workflow_is_bound_to_one_immutable_freeze(self) -> None:
         for token in (

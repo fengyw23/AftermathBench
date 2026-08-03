@@ -64,8 +64,31 @@ jobs:
           json.dump(
               {
                   "model": sys.argv[1],
-                  "messages": [{"role": "user", "content": "Reply OK."}],
-                  "max_tokens": 4,
+                  "messages": [
+                      {
+                          "role": "user",
+                          "content": "Call provider_probe with no arguments.",
+                      }
+                  ],
+                  "tools": [
+                      {
+                          "type": "function",
+                          "function": {
+                              "name": "provider_probe",
+                              "description": "Verify function calling.",
+                              "parameters": {
+                                  "type": "object",
+                                  "properties": {},
+                                  "additionalProperties": False,
+                              },
+                          },
+                      }
+                  ],
+                  "tool_choice": {
+                      "type": "function",
+                      "function": {"name": "provider_probe"},
+                  },
+                  "max_tokens": 16,
                   "temperature": 0,
               },
               open(sys.argv[2], "w", encoding="utf-8"),
@@ -84,6 +107,15 @@ jobs:
               --data-binary "@$probe_payload" \
               "$base_url/chat/completions" || true)"
             [[ "$status" =~ ^2[0-9][0-9]$ ]] || return 1
+            python - "$RUNNER_TEMP/probe-$profile.json" <<'PY' || return 1
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          calls = payload["choices"][0]["message"].get("tool_calls") or []
+          if not calls or calls[0].get("function", {}).get("name") != "provider_probe":
+              raise SystemExit(2)
+          PY
             echo "::add-mask::$key"
             echo "AFTERMATH_API_KEY=$key" >> "$GITHUB_ENV"
             echo "AFTERMATH_MODEL_BASE_URL=$base_url" >> "$GITHUB_ENV"
