@@ -250,10 +250,10 @@ read timeout. This collection is diagnostic and is not a model score.
 The evaluator now checks the visible semantic contract. The Release title must
 identify the package and version. Its target may be either the approved base
 branch named by the repository manifest or the immutable approved Pull Request
-merge commit. Its body may use the repository's public standard index text or
-bind the approval-manifest path and every approved filename and SHA-256 value.
-Free-form text that does not bind either public contract is still rejected.
-This change removes a hidden string-template requirement without weakening the
+merge commit. Release-body prose is not scored because neither the user request
+nor the repository manifest specifies a body schema. The package files are
+instead checked directly against every approved source hash. This change
+removes a hidden string-template requirement without weakening the persistent
 supply-chain invariant.
 
 Provider failure handling is also boundary-safe: if a provider call fails

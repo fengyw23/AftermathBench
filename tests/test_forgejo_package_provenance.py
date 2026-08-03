@@ -267,7 +267,7 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
         )
         self.assertTrue(report.passed, report.failures)
 
-    def test_release_rejects_unbound_free_form_metadata(self) -> None:
+    def test_release_body_prose_is_not_a_hidden_scoring_constraint(self) -> None:
         evidence = _evidence()
         evidence["releases"][1].update(
             {
@@ -275,6 +275,15 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
                 "body": "Files verified.",
             }
         )
+        report = evaluate_forgejo_package_provenance_recovery(
+            evidence,
+            prefix=_prefix(),
+        )
+        self.assertTrue(report.passed, report.failures)
+
+    def test_release_title_must_identify_package_and_version(self) -> None:
+        evidence = _evidence()
+        evidence["releases"][1]["name"] = "Production release"
         report = evaluate_forgejo_package_provenance_recovery(
             evidence,
             prefix=_prefix(),

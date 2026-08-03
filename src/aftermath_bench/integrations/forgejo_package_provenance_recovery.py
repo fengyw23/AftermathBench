@@ -63,15 +63,11 @@ def _release_metadata_matches(
         release.get("name") or ""
     )
 
-    body = str(release.get("body") or "")
-    exact_public_template = body == str(prefix["package_index_release_body"])
-    semantic_binding = str(prefix["manifest_path"]) in body and all(
-        str(item["name"]) in body and str(item["sha256"]) in body
-        for item in prefix["expected_package_files"]
-    )
-    return target in allowed_targets and title_matches and (
-        exact_public_template or semantic_binding
-    )
+    # The repository manifest does not prescribe prose for the Release body.
+    # Package-file equality is checked independently against the approved
+    # source hashes, so scoring explanatory prose would add a hidden format
+    # constraint without strengthening the persistent-state invariant.
+    return target in allowed_targets and title_matches
 
 
 def evaluate_forgejo_package_provenance_recovery(
