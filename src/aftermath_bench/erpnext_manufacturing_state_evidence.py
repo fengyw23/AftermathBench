@@ -17,6 +17,36 @@ class ERPNextManufacturingStateEvidenceError(ValueError):
     """Raised when a manufacturing capture is not bound to native state."""
 
 
+_UNFINISHED_RQ_JOB_STATUSES = frozenset(
+    {"queued", "started", "failed", "deferred", "scheduled"}
+)
+
+
+def manufacturing_boundary_projection(
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    """Project a capture onto recovery-relevant manufacturing state.
+
+    ERPNext may retain a completed ``RQ Job`` audit row immediately after the
+    corresponding external delivery has settled.  Whether that terminal row
+    has become query-visible is not a recovery choice and can race with the
+    quiesced database snapshot.  Pending/failed jobs are recovery-relevant and
+    therefore remain in the projection.
+    """
+
+    projected = dict(state)
+    jobs = state.get("rq_jobs")
+    if isinstance(jobs, list):
+        projected["rq_jobs"] = [
+            job
+            for job in jobs
+            if isinstance(job, dict)
+            and str(job.get("status", "")).lower()
+            in _UNFINISHED_RQ_JOB_STATUSES
+        ]
+    return projected
+
+
 def build_manufacturing_state_evidence(
     *,
     scenario_id: str,
@@ -82,8 +112,17 @@ def build_manufacturing_state_evidence(
                 "failure report does not prove the captured boundary state"
             )
         reported_state = failure_report.get("boundary_evidence")
-        if reported_state != state:
-            differences = json_difference_paths(reported_state, state)
+        reported_projection = (
+            manufacturing_boundary_projection(reported_state)
+            if isinstance(reported_state, dict)
+            else reported_state
+        )
+        captured_projection = manufacturing_boundary_projection(state)
+        if reported_projection != captured_projection:
+            differences = json_difference_paths(
+                reported_projection,
+                captured_projection,
+            )
             detail = ", ".join(differences) or "<unknown>"
             raise ERPNextManufacturingStateEvidenceError(
                 "failure report does not prove the captured boundary state; "
@@ -133,6 +172,9 @@ def build_manufacturing_state_evidence(
                 "reset_evidence_file_sha256": file_sha256(reset_file),
                 "reset_snapshot_sha256": file_sha256(reset_file),
                 "failure_report_file_sha256": file_sha256(failure_file),
+                "failure_state_semantic_fingerprint": (
+                    canonical_state_fingerprint(captured_projection)
+                ),
                 "surface_result": failure_report.get("surface_error"),
                 "visible_failure": visible_failure,
                 "boundary_validation_passed": True,
@@ -144,4 +186,5 @@ def build_manufacturing_state_evidence(
 __all__ = [
     "ERPNextManufacturingStateEvidenceError",
     "build_manufacturing_state_evidence",
+    "manufacturing_boundary_projection",
 ]

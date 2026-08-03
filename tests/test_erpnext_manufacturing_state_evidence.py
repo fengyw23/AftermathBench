@@ -124,6 +124,110 @@ class ERPNextManufacturingStateEvidenceTests(unittest.TestCase):
                     reset_evidence_path=reset_path,
                 )
 
+    def test_terminal_queue_audit_visibility_drift_is_not_boundary_drift(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            prefix = root / "prefix.json"
+            prefix.write_text("{}\n")
+            manifest = self._bundle(root / "bundle")
+            reset = build_manufacturing_state_evidence(
+                scenario_id="manufacturing-1",
+                instance_id="dev-001",
+                variant_id="committed",
+                phase="reset",
+                prefix_path=prefix,
+                bundle_manifest_path=manifest,
+                state={},
+            )
+            reset_path = root / "reset.json"
+            self._write_json(reset_path, reset)
+            failure_path = root / "failure.json"
+            stable_state = {
+                "work_order": {"status": "Open"},
+                "rq_jobs": [],
+            }
+            self._write_json(
+                failure_path,
+                {
+                    "schema_version": "0.1",
+                    "artifact_type": "erpnext_manufacturing_failure_boundary",
+                    "scenario_id": "manufacturing-1",
+                    "variant": "committed",
+                    "phase": "boundary",
+                    "surface_error": "connection_lost_before_confirmation",
+                    "latest_attempt": {"result": {"ok": False}},
+                    "boundary_evidence": stable_state,
+                    "boundary_validation": {"passed": True},
+                },
+            )
+            captured_state = {
+                **stable_state,
+                "rq_jobs": [{"name": "job-1", "status": "finished"}],
+            }
+            boundary = build_manufacturing_state_evidence(
+                scenario_id="manufacturing-1",
+                instance_id="dev-001",
+                variant_id="committed",
+                phase="boundary",
+                prefix_path=prefix,
+                bundle_manifest_path=manifest,
+                state=captured_state,
+                failure_report_path=failure_path,
+                reset_evidence_path=reset_path,
+            )
+            self.assertEqual(boundary["state"], captured_state)
+            self.assertIn("failure_state_semantic_fingerprint", boundary)
+
+    def test_pending_queue_job_visibility_drift_is_rejected(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            prefix = root / "prefix.json"
+            prefix.write_text("{}\n")
+            manifest = self._bundle(root / "bundle")
+            reset = build_manufacturing_state_evidence(
+                scenario_id="manufacturing-1",
+                instance_id="dev-001",
+                variant_id="pending",
+                phase="reset",
+                prefix_path=prefix,
+                bundle_manifest_path=manifest,
+                state={},
+            )
+            reset_path = root / "reset.json"
+            self._write_json(reset_path, reset)
+            failure_path = root / "failure.json"
+            self._write_json(
+                failure_path,
+                {
+                    "schema_version": "0.1",
+                    "artifact_type": "erpnext_manufacturing_failure_boundary",
+                    "scenario_id": "manufacturing-1",
+                    "variant": "pending",
+                    "phase": "boundary",
+                    "latest_attempt": {"result": {"ok": False}},
+                    "boundary_evidence": {
+                        "work_order": {"status": "Open"},
+                        "rq_jobs": [{"name": "job-1", "status": "queued"}],
+                    },
+                    "boundary_validation": {"passed": True},
+                },
+            )
+            with self.assertRaisesRegex(
+                ERPNextManufacturingStateEvidenceError,
+                "difference paths",
+            ):
+                build_manufacturing_state_evidence(
+                    scenario_id="manufacturing-1",
+                    instance_id="dev-001",
+                    variant_id="pending",
+                    phase="boundary",
+                    prefix_path=prefix,
+                    bundle_manifest_path=manifest,
+                    state={"work_order": {"status": "Open"}, "rq_jobs": []},
+                    failure_report_path=failure_path,
+                    reset_evidence_path=reset_path,
+                )
+
     @staticmethod
     def _write_json(path: Path, value: object) -> None:
         path.write_text(
