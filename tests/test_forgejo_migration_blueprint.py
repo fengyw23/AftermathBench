@@ -6,6 +6,7 @@ from unittest.mock import ANY, MagicMock
 
 from aftermath_bench.integrations.forgejo_migration_instance import (
     DEFAULT_FORGEJO_MIGRATION_INSTANCE,
+    ForgejoMigrationInstanceSpec,
     migration_blueprint,
 )
 from aftermath_bench.integrations.forgejo_migration_prefix import (
@@ -16,6 +17,34 @@ from aftermath_bench.schema import repository_root
 
 
 class ForgejoMigrationBlueprintTest(unittest.TestCase):
+    def test_public_development_blueprint_is_instance_bound(self) -> None:
+        root = repository_root()
+        instance = ForgejoMigrationInstanceSpec.from_path(
+            root
+            / "data"
+            / "instance_specs"
+            / "forgejo-migration-public-dev-001.json"
+        )
+        rendered = json.loads(
+            (
+                root
+                / "data"
+                / "scenario_blueprints"
+                / instance.scenario_id
+                / "scenario.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            rendered,
+            migration_blueprint(
+                instance,
+                instance_id="dev-001",
+                benchmark_split="public_dev",
+            ),
+        )
+        self.assertEqual(rendered["instance_spec_sha256"], instance.sha256)
+        self.assertEqual(rendered["benchmark_split"], "public_dev")
+
     def test_instance_file_matches_code_and_matrix_contract(self) -> None:
         root = repository_root()
         path = (

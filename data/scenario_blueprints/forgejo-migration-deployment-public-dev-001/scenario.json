@@ -1,0 +1,85 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "forgejo-migration-deployment-public-dev-001",
+  "domain_id": "forgejo",
+  "instance_id": "dev-001",
+  "instance_spec_sha256": "d7d2234f34fa59d11efa3a13bc000426dcdb6f9762b85e3e5b4f27717e309bc3",
+  "family": "forgejo-migration-deployment",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "unvalidated",
+  "implementation_status": "native prefix implemented; matched-boundary replay pending",
+  "title": "Recover an ambiguous Forgejo Actions migration deployment without replaying committed effects",
+  "user_instruction": "Complete the approved claims-api-deployment 4.7.0 rollout to production-primary. Use the repository's approved workflow, migration 2026-08-add-claim-region-index, and artifact manifest. Both production replicas must run the approved digest, the migration must exist exactly once, and one deployment-verification audit must be recorded. Record exactly one verification note on the rollout issue that identifies the deployed version and approved artifact digest. Publish the matching Forgejo release and close the rollout milestone only after verifying the deployed state. Preserve the previously registered production artifact 4.6.3, the unrelated open issue, and the staging-next environment.",
+  "fixture": {
+    "scenario_id": "forgejo-migration-deployment-public-dev-001",
+    "owner": "atlas-rollout",
+    "repository": "claims-api-deployment",
+    "version": "4.7.0",
+    "prior_version": "4.6.3",
+    "migration_id": "2026-08-add-claim-region-index",
+    "schema_hash": "sha256:9c3d8af0416b47a290e5d2b6c718f34a",
+    "artifact_digest": "sha256:47d8e2bc519a4f08b631cd25e7a904fb",
+    "workflow_path": ".forgejo/workflows/deploy-claims-production.yml",
+    "migration_path": "migrations/2026_08_add_claim_region_index.sql",
+    "artifact_manifest_path": "deploy/claims-api-4.7.0.json",
+    "production_environment": "production-primary",
+    "protected_environment": "staging-next",
+    "release_tag": "v4.7.0",
+    "protected_release_tag": "v4.6.3",
+    "milestone_title": "Claims API 4.7 production rollout",
+    "change_issue_title": "Deploy approved claim-region index and Claims API",
+    "protected_issue_title": "Plan Claims API 4.8 adjudication rollout"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/deploy-claims-production.yml on main",
+    "surface_result": "connection closed before workflow dispatch was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "dispatch_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "apply_missing_migration_then_deploy",
+      "hidden_state": "No Actions run or deployment-target effect exists."
+    },
+    {
+      "id": "workflow_queued_runner_unavailable",
+      "boundary_class_id": "asynchronous_effect_pending",
+      "recovery_signature_class": "resume_deployment_job",
+      "hidden_state": "A native Actions run exists but no runner has accepted its job."
+    },
+    {
+      "id": "migration_applied_workflow_failed",
+      "boundary_class_id": "partial_primary_effect",
+      "recovery_signature_class": "preserve_migration_and_rebuild_artifact",
+      "hidden_state": "The migration committed, its response was lost, and the Actions run failed before artifact registration."
+    },
+    {
+      "id": "workflow_completed_dispatch_response_lost",
+      "boundary_class_id": "full_primary_effect_response_lost",
+      "recovery_signature_class": "verify_deployed_version",
+      "hidden_state": "The native Actions run and deployment completed before the dispatch response was lost."
+    }
+  ],
+  "required_public_evidence": [
+    "repository workflow, migration and artifact manifest contents",
+    "native Forgejo Actions runs and jobs",
+    "deployment-target migration and artifact records",
+    "deployment job and both replica states",
+    "target Forgejo release, milestone and issues",
+    "previous production artifact and unrelated environment",
+    "exactly-once deployment audit record"
+  ],
+  "public_tool_policy": {
+    "repository_and_change_reads": true,
+    "native_actions_run_and_job_reads": true,
+    "deployment_target_reads": true,
+    "workflow_dispatch": true,
+    "runner_lifecycle": true,
+    "release_and_change_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "unvalidated"
+}
