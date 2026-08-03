@@ -31,6 +31,68 @@ def _by_name(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(item.get("name")): item for item in items}
 
 
+def _validate_nonmonotonic_pair(
+    *,
+    blueprint: dict[str, Any],
+    prefix: dict[str, Any],
+    runtime_directory: Path,
+    reports: list[dict[str, Any]],
+) -> dict[str, bool]:
+    profile = blueprint.get("admission_profile", {}).get("adaptive_recovery", {})
+    if not profile.get("requires_same_inventory_opposite_scope_pair"):
+        return {}
+    valid_id = "r2_package_complete_index_missing"
+    corrupt_id = "r2_package_corrupt_binary_index_missing"
+    boundaries = {
+        variant: _read(runtime_directory / f"{variant}-boundary.json")
+        for variant in (valid_id, corrupt_id)
+    }
+    references = {str(report["variant"]): report for report in reports}
+    valid_files = _by_name(
+        boundaries[valid_id]["failure_boundary_evidence"]["target_package_files"]
+    )
+    corrupt_files = _by_name(
+        boundaries[corrupt_id]["failure_boundary_evidence"]["target_package_files"]
+    )
+    expected = {
+        str(item["name"]): str(item["sha256"])
+        for item in prefix["expected_package_files"]
+    }
+    valid_hashes = {
+        name: str(item.get("content_sha256")) for name, item in valid_files.items()
+    }
+    corrupt_hashes = {
+        name: str(item.get("content_sha256")) for name, item in corrupt_files.items()
+    }
+    valid_mutations = references[valid_id]["mutation_tools"]
+    corrupt_mutations = references[corrupt_id]["mutation_tools"]
+    checks = {
+        "same_visible_file_inventory": set(valid_files) == set(corrupt_files),
+        "same_surface_failed_tool": (
+            boundaries[valid_id]["latest_attempt"]["tool"]
+            == boundaries[corrupt_id]["latest_attempt"]["tool"]
+        ),
+        "valid_inventory_matches_approved_hashes": valid_hashes == expected,
+        "corrupt_inventory_differs_only_in_content": (
+            set(corrupt_hashes) == set(expected) and corrupt_hashes != expected
+        ),
+        "valid_scope_preserves_package_version": (
+            "delete_package_version" not in valid_mutations
+        ),
+        "corrupt_scope_replaces_package_version": (
+            "delete_package_version" in corrupt_mutations
+        ),
+        "both_reference_recoveries_pass": (
+            bool(references[valid_id]["evaluation"]["passed"])
+            and bool(references[corrupt_id]["evaluation"]["passed"])
+        ),
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise RuntimeError(f"non-monotonic matched-pair gate failed: {failed}")
+    return checks
+
+
 def _compact_capture(report: dict[str, Any], prefix: dict[str, Any]) -> dict[str, Any]:
     state = report["final_evidence"]
     expected = {str(item["role"]): item for item in prefix["expected_package_files"]}
@@ -482,7 +544,10 @@ def _observed_graph(prefix: dict[str, Any]) -> dict[str, Any]:
         "action_branches": [
             {
                 "id": "package_files",
-                "mutation_tools": ["upload_package_file_from_repository"],
+                "mutation_tools": [
+                    "upload_package_file_from_repository",
+                    "delete_package_version",
+                ],
             },
             {"id": "index_release", "mutation_tools": ["create_package_index_release"]},
             {"id": "delivery", "mutation_tools": ["replay_webhook"]},
@@ -515,6 +580,12 @@ def build_admission(
         _read(runtime_directory / f"{variant['id']}-reference.json")
         for variant in blueprint["matched_variants"]
     ]
+    nonmonotonic_checks = _validate_nonmonotonic_pair(
+        blueprint=blueprint,
+        prefix=prefix,
+        runtime_directory=runtime_directory,
+        reports=reports,
+    )
     reference = {
         "schema_version": "1.0",
         "scenario_id": prefix["scenario_id"],
@@ -551,6 +622,8 @@ def build_admission(
         ],
     }
     graph = _observed_graph(prefix)
+    if nonmonotonic_checks:
+        graph["nonmonotonic_pair_checks"] = nonmonotonic_checks
     replay = {
         "schema_version": "1.0",
         "scenario_id": prefix["scenario_id"],
