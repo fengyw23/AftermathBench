@@ -100,6 +100,39 @@ jobs:
               --output "$RUN_ROOT/$variant-reference.json"
           done
 
+      - name: Execute fixed recovery baselines on every boundary
+        run: |
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            migration_applied_workflow_failed
+            workflow_completed_dispatch_response_lost
+          )
+          baselines=(
+            no_op
+            assume_effect_complete
+            blind_redispatch
+            always_skip_migration
+            always_restart_runner
+            close_tracking_only
+          )
+          mkdir -p "$RUN_ROOT/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-migration-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+              python scripts/run_forgejo_migration_baseline.py \
+                --credentials runtimes/forgejo/.runtime/credentials.json \
+                --prefix "$RUN_ROOT/prefix.json" \
+                --instance-spec "$INSTANCE" \
+                --variant "$variant" \
+                --baseline "$baseline" \
+                --output "$RUN_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+
       - name: Surface native logs on failure
         if: failure()
         run: |

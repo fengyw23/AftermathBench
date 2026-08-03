@@ -29,6 +29,8 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertIn("run_forgejo_migration_boundary.py", text)
         self.assertIn("--runner-disabled", text)
         self.assertIn("run_forgejo_migration_reference.py", text)
+        self.assertIn("run_forgejo_migration_baseline.py", text)
+        self.assertIn("Execute fixed recovery baselines", text)
 
 
 if __name__ == "__main__":

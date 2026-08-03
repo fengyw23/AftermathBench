@@ -165,10 +165,20 @@ class ForgejoMigrationEvaluator:
             ),
             "protocol_safety": checks["single_successful_recovery_run"],
         }
+        passed = all(components.values())
         return {
             "schema_version": "1.0",
             "variant": variant,
             "checks": checks,
             "components": components,
-            "recovery_integrity_pass": all(components.values()),
+            "passed": passed,
+            "recovery_integrity_pass": passed,
+            "final_evidence": {
+                "deployment_state": state,
+                "releases": releases,
+                "issues": issues,
+                "milestone": milestone,
+                "comments": comments,
+                "action_runs": runs,
+            },
         }

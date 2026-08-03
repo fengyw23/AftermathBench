@@ -109,6 +109,9 @@ class ForgejoMigrationEvaluatorTest(unittest.TestCase):
             variant="workflow_completed_dispatch_response_lost"
         )
         self.assertTrue(result["recovery_integrity_pass"])
+        self.assertTrue(result["passed"])
+        self.assertIn("deployment_state", result["final_evidence"])
+        self.assertIn("action_runs", result["final_evidence"])
 
     def test_duplicate_action_run_fails_protocol_safety_only(self) -> None:
         evaluator, forgejo = self._evaluator()
