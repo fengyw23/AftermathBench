@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   native-smoke:
@@ -17,6 +17,8 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
       INSTANCE: data/scenario_blueprints/forgejo-migration-deployment-dev-001/instance.json
+      BLUEPRINT: data/scenario_blueprints/forgejo-migration-deployment-dev-001/scenario.json
+      GENERATED_SCENARIO: data/scenarios/forgejo-migration-deployment-dev-001
       RUN_ROOT: runtimes/forgejo/.runtime/migration
     steps:
       - uses: actions/checkout@v4
@@ -133,6 +135,23 @@ jobs:
             done
           done
 
+      - name: Derive strict native hard admission
+        run: |
+          python scripts/build_forgejo_migration_admission.py \
+            --runtime-directory "$RUN_ROOT" \
+            --baseline-directory "$RUN_ROOT/baselines" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$GENERATED_SCENARIO"
+
+      - name: Publish admitted scenario to evidence branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force "$GENERATED_SCENARIO"
+          git commit -m "data(forgejo): generate migration deployment evidence"
+          git push --force origin \
+            HEAD:refs/heads/generated/forgejo-migration-deployment-dev-001
+
       - name: Surface native logs on failure
         if: failure()
         run: |
@@ -147,4 +166,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: forgejo-migration-runtime
-          path: runtimes/forgejo/.runtime/migration
+          path: |
+            runtimes/forgejo/.runtime/migration
+            data/scenarios/forgejo-migration-deployment-dev-001

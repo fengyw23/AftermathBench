@@ -31,6 +31,10 @@ class ForgejoMigrationWorkflowTest(unittest.TestCase):
         self.assertIn("run_forgejo_migration_reference.py", text)
         self.assertIn("run_forgejo_migration_baseline.py", text)
         self.assertIn("Execute fixed recovery baselines", text)
+        self.assertIn("build_forgejo_migration_admission.py", text)
+        self.assertIn(
+            "generated/forgejo-migration-deployment-dev-001", text
+        )
 
 
 if __name__ == "__main__":
