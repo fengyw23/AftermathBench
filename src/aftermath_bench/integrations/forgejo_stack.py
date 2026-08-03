@@ -17,6 +17,7 @@ TOKEN_PATTERN = re.compile(
 BUNDLE_SERVICES = (
     "api-fault-gateway",
     "forgejo",
+    "runner-daemon",
     "webhook-fault-gateway",
     "provenance-webhook-fault-gateway",
     "webhook-sink",
@@ -110,6 +111,63 @@ class ForgejoStack:
             "password": password,
             "token": match.group(1),
         }
+
+    def register_action_runner(
+        self,
+        *,
+        name: str = "aftermath-native-runner",
+        label: str = "aftermath-native:host",
+    ) -> None:
+        """Register the pinned native runner without exposing Docker itself.
+
+        The short-lived registration token is obtained from the source-built
+        Forgejo server and passed directly to the official pinned runner.  It
+        is never written to the benchmark repository or its evidence files.
+        """
+
+        token_result = self.run(
+            "exec",
+            "-T",
+            "-u",
+            "git",
+            "forgejo",
+            "forgejo",
+            "actions",
+            "generate-runner-token",
+            capture_output=True,
+        )
+        token = token_result.stdout.strip().splitlines()[-1].strip()
+        if not token:
+            raise RuntimeError("Forgejo did not return an Actions runner token")
+        self.run(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "forgejo-runner",
+            "runner-register",
+            "register",
+            "--no-interactive",
+            "--instance",
+            "http://forgejo:3000",
+            "--name",
+            name,
+            "--token",
+            token,
+            "--labels",
+            label,
+        )
+        self.run(
+            "run",
+            "--rm",
+            "--no-deps",
+            "--entrypoint",
+            "sh",
+            "runner-register",
+            "-ec",
+            "forgejo-runner generate-config > /data/config.yml",
+        )
+        self.run("restart", "runner-daemon")
 
     def snapshot(self, destination: str | Path) -> str:
         path = Path(destination).resolve()

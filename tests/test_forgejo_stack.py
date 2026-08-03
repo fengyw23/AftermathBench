@@ -98,6 +98,26 @@ class ForgejoStackTest(unittest.TestCase):
         self.assertIn("--access-token", command)
         self.assertIn("--access-token-scopes", command)
 
+    def test_register_action_runner_uses_ephemeral_server_token(self) -> None:
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append(tuple(command))
+            stdout = "temporary-runner-token\n" if "generate-runner-token" in command else ""
+            return subprocess.CompletedProcess(command, 0, stdout=stdout)
+
+        stack = ForgejoStack(compose_file=Path("compose.yaml"), runner=runner)
+        stack.register_action_runner()
+
+        self.assertEqual(len(calls), 4)
+        register = calls[1]
+        self.assertIn("register", register)
+        self.assertIn("temporary-runner-token", register)
+        self.assertIn("aftermath-native:host", register)
+        self.assertNotIn("/var/run/docker.sock", " ".join(register))
+        self.assertIn("generate-config", " ".join(calls[2]))
+        self.assertIn("runner-daemon", calls[3])
+
     def test_readiness_retries_transient_connection_errors(self) -> None:
         ready = _ReadyResponse()
         opener = Mock(side_effect=[OSError("starting"), ready])

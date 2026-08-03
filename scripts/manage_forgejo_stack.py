@@ -24,6 +24,7 @@ def main() -> int:
         choices=(
             "up",
             "setup",
+            "setup-runner",
             "snapshot",
             "restore",
             "snapshot-bundle",
@@ -71,6 +72,9 @@ def main() -> int:
         )
         os.chmod(path, 0o600)
         print(f"credentials written to {path}")
+    elif args.action == "setup-runner":
+        stack.register_action_runner()
+        print("pinned Forgejo Actions runner registered")
     elif args.action == "snapshot":
         if not args.snapshot:
             parser.error("--snapshot is required")

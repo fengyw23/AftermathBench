@@ -49,6 +49,24 @@ class ForgejoComposeSpecTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(pinned, containerfile)
 
+    def test_actions_runner_is_open_source_digest_pinned_and_socketless(self) -> None:
+        runtime = repository_root() / "runtimes" / "forgejo"
+        runner = json.loads(
+            (runtime / "runner.lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(runner["source"]["license"], "MIT")
+        self.assertEqual(
+            runner["source"]["revision"],
+            "33e0ab7b6891adba1aea650b9b59f471bab352b0",
+        )
+        pinned = (
+            f'{runner["image"]["reference"]}@'
+            f'{runner["image"]["digest"]}'
+        )
+        self.assertIn(pinned, self.compose)
+        self.assertNotIn("/var/run/docker.sock", self.compose)
+        self.assertFalse(runner["docker_socket_mounted"])
+
 
 if __name__ == "__main__":
     unittest.main()

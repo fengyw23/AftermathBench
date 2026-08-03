@@ -7,6 +7,9 @@ x-control-image: &control_image
     context: ../..
     dockerfile: runtimes/forgejo/control/Containerfile
 
+x-runner-image: &runner_image
+  image: code.forgejo.org/forgejo/runner:9.1.1@sha256:fb38cf65183f935821b930de7bd27c303aa188d297be709c762dae564f838402
+
 services:
   forgejo:
     <<: *forgejo_image
@@ -17,6 +20,8 @@ services:
       FORGEJO__database__PATH: /data/gitea/forgejo.db
       FORGEJO__security__INSTALL_LOCK: "true"
       FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__actions__ENABLED: "true"
+      FORGEJO__repository__DEFAULT_REPO_UNITS: "repo.code,repo.issues,repo.actions"
       FORGEJO__server__DOMAIN: forgejo
       FORGEJO__server__HTTP_PORT: "3000"
       FORGEJO__server__ROOT_URL: http://127.0.0.1:8080/
@@ -28,6 +33,33 @@ services:
       interval: 3s
       timeout: 3s
       retries: 40
+
+  runner-register:
+    <<: *runner_image
+    profiles: ["runner-setup"]
+    user: "1000:1000"
+    working_dir: /data
+    volumes:
+      - forgejo-runner-data:/data
+    depends_on:
+      forgejo:
+        condition: service_healthy
+
+  runner-daemon:
+    <<: *runner_image
+    user: "1000:1000"
+    working_dir: /data
+    command:
+      - sh
+      - -ec
+      - |
+        while [ ! -s /data/.runner ] || [ ! -s /data/config.yml ]; do sleep 1; done
+        exec forgejo-runner --config /data/config.yml daemon
+    volumes:
+      - forgejo-runner-data:/data
+    depends_on:
+      forgejo:
+        condition: service_healthy
 
   api-fault-gateway:
     <<: *control_image
@@ -82,6 +114,7 @@ services:
 
 volumes:
   forgejo-data:
+  forgejo-runner-data:
   api-gateway-audit:
   webhook-sink-audit:
   webhook-gateway-audit:
