@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+
+class ERPNextHiddenConsumeWorkflowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.text = (
+            Path(__file__).resolve().parents[1]
+            / ".github"
+            / "workflows"
+            / "erpnext-hidden-consume.yml"
+        ).read_text(encoding="utf-8")
+
+    def test_provider_is_selected_before_any_hidden_artifact_is_downloaded(self) -> None:
+        provider = self.text.index("Select a working provider before hidden data access")
+        download = self.text.index("Download and verify the preregistered sealed artifact")
+        decrypt = self.text.index("Decrypt and verify the exact frozen bundle")
+        self.assertLess(provider, download)
+        self.assertLess(download, decrypt)
+        self.assertIn("BAILIAN_API_KEY", self.text)
+        self.assertIn("ZHIPU_CODING_API_KEY", self.text)
+
+    def test_template_cannot_run_until_bound_to_one_freeze(self) -> None:
+        for token in (
+            "__FREEZE_RUN_ID__",
+            "__FREEZE_ARTIFACT_ID__",
+            "__FREEZE_SOURCE_COMMIT__",
+            "Refuse an unbound workflow template",
+        ):
+            self.assertIn(token, self.text)
+
+    def test_model_run_is_locked_and_private_results_are_reencrypted(self) -> None:
+        for token in (
+            "verify_frozen_bundle.py",
+            "verify_hidden_test_eligibility.py",
+            "--hidden-freeze",
+            "--hidden-usage-ledger",
+            "--hidden-evaluation-id",
+            "--hidden-finalize",
+            "consumed-bundle.tar.gz.enc",
+        ):
+            self.assertIn(token, self.text)
+        self.assertNotIn("include-hidden-files: true", self.text)
+
+
+if __name__ == "__main__":
+    unittest.main()

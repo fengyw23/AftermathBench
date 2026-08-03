@@ -1,0 +1,304 @@
+name: erpnext-hidden-consume
+
+on:
+  push:
+    branches:
+      - erpnext-hidden-consume
+  workflow_dispatch:
+    inputs:
+      provider_profile:
+        description: Probe Bailian first, then the configured Zhipu fallback
+        required: true
+        default: auto
+        type: choice
+        options: [auto, bailian, zhipu]
+      model:
+        description: Frozen hidden evaluation model identifier
+        required: true
+        default: glm-5.2
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  consume-frozen-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: src
+      FREEZE_RUN_ID: __FREEZE_RUN_ID__
+      FREEZE_ARTIFACT_ID: __FREEZE_ARTIFACT_ID__
+      FREEZE_ARTIFACT_NAME: __FREEZE_ARTIFACT_NAME__
+      FREEZE_ARTIFACT_DIGEST: __FREEZE_ARTIFACT_DIGEST__
+      FREEZE_SOURCE_COMMIT: __FREEZE_SOURCE_COMMIT__
+      FREEZE_PUBLIC_COMMITMENT: __FREEZE_PUBLIC_COMMITMENT__
+      FREEZE_CIPHERTEXT_SHA256: __FREEZE_CIPHERTEXT_SHA256__
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refuse an unbound workflow template
+        run: |
+          case "$FREEZE_RUN_ID:$FREEZE_ARTIFACT_ID:$FREEZE_SOURCE_COMMIT" in
+            *__FREEZE_*) exit 2 ;;
+          esac
+
+      - name: Select a working provider before hidden data access
+        env:
+          REQUESTED_PROVIDER: ${{ inputs.provider_profile || 'auto' }}
+          REQUESTED_MODEL: ${{ inputs.model || 'glm-5.2' }}
+          BAILIAN_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          ZHIPU_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
+        run: |
+          set -euo pipefail
+          probe_payload="$RUNNER_TEMP/provider-probe.json"
+          python - "$REQUESTED_MODEL" "$probe_payload" <<'PY'
+          import json
+          import sys
+          json.dump(
+              {
+                  "model": sys.argv[1],
+                  "messages": [{"role": "user", "content": "Reply OK."}],
+                  "max_tokens": 4,
+                  "temperature": 0,
+              },
+              open(sys.argv[2], "w", encoding="utf-8"),
+          )
+          PY
+          probe() {
+            profile="$1"
+            base_url="$2"
+            key="$3"
+            [ -n "$key" ] || return 1
+            status="$(curl --silent --show-error --connect-timeout 20 \
+              --max-time 90 --output "$RUNNER_TEMP/probe-$profile.json" \
+              --write-out '%{http_code}' \
+              --header 'Content-Type: application/json' \
+              --header "Authorization: Bearer $key" \
+              --data-binary "@$probe_payload" \
+              "$base_url/chat/completions" || true)"
+            [[ "$status" =~ ^2[0-9][0-9]$ ]] || return 1
+            echo "::add-mask::$key"
+            echo "AFTERMATH_API_KEY=$key" >> "$GITHUB_ENV"
+            echo "AFTERMATH_MODEL_BASE_URL=$base_url" >> "$GITHUB_ENV"
+            echo "SELECTED_PROVIDER_PROFILE=$profile" >> "$GITHUB_ENV"
+            echo "MODEL_ID=$REQUESTED_MODEL" >> "$GITHUB_ENV"
+          }
+          selected=false
+          if [ "$REQUESTED_PROVIDER" = auto ] || [ "$REQUESTED_PROVIDER" = bailian ]
+          then
+            probe bailian \
+              'https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1' \
+              "$BAILIAN_KEY" && selected=true || true
+          fi
+          if [ "$selected" = false ] && \
+             { [ "$REQUESTED_PROVIDER" = auto ] || [ "$REQUESTED_PROVIDER" = zhipu ]; }
+          then
+            probe zhipu \
+              'https://open.bigmodel.cn/api/coding/paas/v4' \
+              "$ZHIPU_KEY" && selected=true || true
+          fi
+          [ "$selected" = true ] || exit 2
+
+      - name: Download and verify the preregistered sealed artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sealed="$RUNNER_TEMP/erpnext-sealed"
+          mkdir -p "$sealed"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FREEZE_RUN_ID" \
+            > "$RUNNER_TEMP/freeze-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$FREEZE_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/freeze-artifact.json"
+          python - "$RUNNER_TEMP/freeze-run.json" \
+            "$RUNNER_TEMP/freeze-artifact.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          artifact = json.load(open(sys.argv[2], encoding="utf-8"))
+          checks = {
+              "run": int(run["id"]) == int(os.environ["FREEZE_RUN_ID"]),
+              "success": run["conclusion"] == "success",
+              "commit": run["head_sha"] == os.environ["FREEZE_SOURCE_COMMIT"],
+              "artifact": int(artifact["id"]) == int(os.environ["FREEZE_ARTIFACT_ID"]),
+              "name": artifact["name"] == os.environ["FREEZE_ARTIFACT_NAME"],
+              "digest": artifact.get("digest") == os.environ["FREEZE_ARTIFACT_DIGEST"],
+              "active": not artifact["expired"],
+          }
+          failures = [key for key, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"freeze provenance failed: {failures}")
+          PY
+          gh run download "$FREEZE_RUN_ID" --name "$FREEZE_ARTIFACT_NAME" \
+            --dir "$sealed"
+          python - "$sealed/sealed-bundle.json" \
+            "$sealed/pre-model-commitment.json" \
+            "$sealed/hidden-bundle.tar.gz.enc" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+
+          sealed = json.load(open(sys.argv[1], encoding="utf-8"))
+          commitment = json.load(open(sys.argv[2], encoding="utf-8"))
+          ciphertext = hashlib.sha256(open(sys.argv[3], "rb").read()).hexdigest()
+          checks = {
+              "lifecycle": sealed["lifecycle_status"] == "frozen_unseen",
+              "commitment": sealed["public_commitment_sha256"] == os.environ["FREEZE_PUBLIC_COMMITMENT"],
+              "commitment_copy": commitment["public_commitment_sha256"] == os.environ["FREEZE_PUBLIC_COMMITMENT"],
+              "ciphertext": ciphertext == os.environ["FREEZE_CIPHERTEXT_SHA256"],
+              "ciphertext_metadata": sealed["ciphertext_sha256"] == ciphertext,
+          }
+          failures = [key for key, passed in checks.items() if not passed]
+          if failures:
+              raise SystemExit(f"sealed bundle verification failed: {failures}")
+          PY
+
+      - name: Decrypt and verify the exact frozen bundle
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          sealed="$RUNNER_TEMP/erpnext-sealed"
+          run_root="$RUNNER_TEMP/erpnext-consume"
+          archive="$RUNNER_TEMP/erpnext-private.tar.gz"
+          mkdir -p "$run_root"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$sealed/hidden-bundle.tar.gz.enc" -out "$archive"
+          python scripts/extract_sealed_hidden_bundle.py \
+            --archive "$archive" --destination "$run_root"
+          rm -f "$archive"
+          python scripts/verify_frozen_bundle.py \
+            --bundle-root "$run_root/private" \
+            --private-attestation "$run_root/private/freeze.json" \
+            --public-commitment "$run_root/private/public-commitment.json" \
+            --allow-unbound usage-ledger.json \
+            > "$RUNNER_TEMP/frozen-verification.log" 2>&1
+          python scripts/verify_hidden_test_eligibility.py \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --freeze "$run_root/private/freeze.json" \
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            > "$RUNNER_TEMP/eligibility.log" 2>&1
+
+      - name: Build the exact frozen ERPNext runtime
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/frozen-source"
+          git worktree add --detach "$source_root" "$FREEZE_SOURCE_COMMIT"
+          cd "$source_root"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute --report "$RUNNER_TEMP/source-verification.json" \
+            > "$RUNNER_TEMP/source-build.log" 2>&1
+          python scripts/manage_erpnext_stack.py up \
+            > "$RUNNER_TEMP/empty-stack.log" 2>&1
+
+      - name: Run one locked matched-group evaluation
+        run: |
+          set -euo pipefail
+          source_root="$RUNNER_TEMP/frozen-source"
+          run_root="$RUNNER_TEMP/erpnext-consume"
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$run_root/private/blueprint.json"
+          )
+          mkdir -p "$run_root/private/model/repetition-01" "$run_root/public"
+          evaluation_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-hidden"
+          last_index=$((${#variants[@]} - 1))
+          cd "$source_root"
+          for index in "${!variants[@]}"
+          do
+            variant="${variants[$index]}"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$run_root/private/bundles/boundary-$variant" \
+              > "$run_root/private/model/repetition-01/$variant-restore.log" 2>&1
+            finalize=()
+            if [ "$index" -eq "$last_index" ]; then finalize=(--hidden-finalize); fi
+            python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$run_root/private/scenario/scenario.json" \
+              --credentials "$run_root/private/runtime/credentials.json" \
+              --prefix "$run_root/private/runtime/prefix.json" \
+              --failure-report "$run_root/private/runtime/$variant.json" \
+              --max-turns 25 \
+              --hidden-freeze "$run_root/private/freeze.json" \
+              --hidden-usage-ledger "$run_root/private/usage-ledger.json" \
+              --hidden-evaluation-id "$evaluation_id" \
+              "${finalize[@]}" \
+              --output "$run_root/private/model/repetition-01/$variant.json" \
+              > "$run_root/private/model/repetition-01/$variant.log" 2>&1 || true
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$run_root/private/model" \
+            --scenario "$run_root/private/scenario/scenario.json" \
+            --expected-execution-control false \
+            --output "$run_root/private/model/summary.json"
+
+      - name: Publish only aggregate result and encrypted audit evidence
+        if: always()
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          run_root="$RUNNER_TEMP/erpnext-consume"
+          [ -d "$run_root/private" ] || exit 0
+          mkdir -p "$run_root/public"
+          if [ -s "$run_root/private/model/summary.json" ]
+          then
+            python scripts/summarize_consumed_hidden_evaluation.py \
+              --commitment "$run_root/private/public-commitment.json" \
+              --usage-ledger "$run_root/private/usage-ledger.json" \
+              --model-summary "$run_root/private/model/summary.json" \
+              --provider-profile "${SELECTED_PROVIDER_PROFILE:-not_selected}" \
+              --model "${MODEL_ID:-glm-5.2}" \
+              --evaluation-run-id "$GITHUB_RUN_ID" \
+              --freeze-run-id "$FREEZE_RUN_ID" \
+              --freeze-artifact-id "$FREEZE_ARTIFACT_ID" \
+              --freeze-artifact-digest "$FREEZE_ARTIFACT_DIGEST" \
+              --ciphertext-sha256 "$FREEZE_CIPHERTEXT_SHA256" \
+              --output "$run_root/public/result.json"
+          fi
+          archive="$RUNNER_TEMP/erpnext-consumed.tar.gz"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 \
+            --numeric-owner -czf "$archive" -C "$run_root" private
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY \
+            -in "$archive" -out "$run_root/public/consumed-bundle.tar.gz.enc"
+          rm -f "$archive"
+
+      - name: Upload public receipt and encrypted audit bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-hidden-consumed-${{ github.run_id }}
+          path: ${{ runner.temp }}/erpnext-consume/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge all plaintext hidden state
+        if: always()
+        run: |
+          source_root="$RUNNER_TEMP/frozen-source"
+          if [ -d "$source_root" ]
+          then
+            cd "$source_root"
+            python scripts/manage_erpnext_stack.py purge || true
+            cd "$GITHUB_WORKSPACE"
+            git worktree remove --force "$source_root" || true
+          fi
+          rm -rf "$RUNNER_TEMP/erpnext-consume/private"
+          rm -rf "$RUNNER_TEMP/erpnext-sealed"
+          rm -f "$RUNNER_TEMP/erpnext-private.tar.gz"
+          rm -f "$RUNNER_TEMP/erpnext-consumed.tar.gz"
