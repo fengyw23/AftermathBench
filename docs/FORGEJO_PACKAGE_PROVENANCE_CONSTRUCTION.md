@@ -137,3 +137,26 @@ manifest. The successor must add action-polarity diversity, provenance joins,
 same-inventory/different-scope counterfactuals, and a protected shared effect.
 The exact aggregate result and artifact digest are recorded in
 `data/diagnostics/forgejo/package-provenance-dual-model-30843759108.json`.
+
+The supplied-scope execution control in run `30845225631` also passed `4/4`
+for both models. This rules out a broken tool surface as the explanation for
+the ordinary-run score: the instance is executable, but its recovery decision
+is still structurally too simple.
+
+## Non-monotonic r2 development candidate
+
+Generation r2 uses a separate Beacon Agent `5.1.2` instance and retains the
+same ordinary Forgejo tools. Its decisive counterfactual pair has the same
+four package filenames, the same failed Release call, and the same user goal.
+In one boundary every file hash matches the approved repository sources, so
+the package must be preserved. In the other, the binary comes from a stale
+build, so Forgejo's immutable Generic Package version must be deleted and
+recreated before indexing.
+
+The admission builder now rejects r2 unless the native replays prove all of
+the following: equal visible inventories, different content validity, equal
+surface failure, preservation in the valid state, replacement in the corrupt
+state, and successful deterministic references for both. The stronger
+`inventory_diff_completion` baseline remains in the gate; a high score from
+that policy rejects the candidate instead of allowing a graph-size metric to
+label it hard.
