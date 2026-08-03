@@ -62,6 +62,8 @@ class ERPNextHiddenStartupAuditTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertNotIn("run-native-model", text)
         self.assertNotIn("AFTERMATH_API_KEY", text)
+        self.assertIn("publish-aggregate-verdict", text)
+        self.assertIn("credential_smoke_passed", text)
         upload = text.index("Upload redacted startup audit only")
         purge = text.index("Purge plaintext and encrypted inputs")
         section = text[upload:purge]

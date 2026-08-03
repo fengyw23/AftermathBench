@@ -13,6 +13,13 @@ jobs:
   audit-encrypted-startup-failure:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      credential_smoke_present: ${{ steps.aggregate.outputs.credential_smoke_present }}
+      credential_smoke_passed: ${{ steps.aggregate.outputs.credential_smoke_passed }}
+      boundary_bundle_count: ${{ steps.aggregate.outputs.boundary_bundle_count }}
+      site_config_bound_bundle_count: ${{ steps.aggregate.outputs.site_config_bound_bundle_count }}
+      attempt_log_count: ${{ steps.aggregate.outputs.attempt_log_count }}
+      trajectory_count: ${{ steps.aggregate.outputs.trajectory_count }}
     env:
       SOURCE_RUN_ID: "30790567945"
       SOURCE_ARTIFACT_ID: "8846971405"
@@ -57,6 +64,7 @@ jobs:
             --dir "$artifact_root"
 
       - name: Decrypt privately and emit aggregate startup facts
+        id: aggregate
         env:
           HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
         run: |
@@ -79,6 +87,27 @@ jobs:
           PYTHONPATH=src python scripts/audit_erpnext_hidden_startup_failure.py \
             --private-root "$unseal_root/private" \
             --output "$audit_root/public/startup-audit.json"
+          python - "$audit_root/public/startup-audit.json" <<'PY'
+          import json
+          import os
+          import sys
+
+          facts = json.load(open(sys.argv[1], encoding="utf-8"))
+          names = (
+              "credential_smoke_present",
+              "credential_smoke_passed",
+              "boundary_bundle_count",
+              "site_config_bound_bundle_count",
+              "attempt_log_count",
+              "trajectory_count",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name in names:
+                  value = facts[name]
+                  if isinstance(value, bool):
+                      value = str(value).lower()
+                  output.write(f"{name}={value}\n")
+          PY
 
       - name: Upload redacted startup audit only
         uses: actions/upload-artifact@v4
@@ -94,3 +123,17 @@ jobs:
           rm -rf "$RUNNER_TEMP/hidden-startup-unsealed"
           rm -rf "$RUNNER_TEMP/hidden-startup-artifact"
           rm -f "$RUNNER_TEMP/hidden-startup-private.tar.gz"
+
+  publish-aggregate-verdict:
+    needs: audit-encrypted-startup-failure
+    name: >-
+      smoke-present-${{ needs.audit-encrypted-startup-failure.outputs.credential_smoke_present }}
+      smoke-pass-${{ needs.audit-encrypted-startup-failure.outputs.credential_smoke_passed }}
+      bundles-${{ needs.audit-encrypted-startup-failure.outputs.boundary_bundle_count }}
+      site-config-${{ needs.audit-encrypted-startup-failure.outputs.site_config_bound_bundle_count }}
+      attempts-${{ needs.audit-encrypted-startup-failure.outputs.attempt_log_count }}
+      trajectories-${{ needs.audit-encrypted-startup-failure.outputs.trajectory_count }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm aggregate report publication
+        run: echo "The job name contains the redacted startup audit facts."
