@@ -129,8 +129,6 @@ def validate_bundle_manifest(
         "fault-gateway",
         "remittance",
     }
-    if schema_version == "1.2":
-        required_services.update({"queue-short", "queue-long"})
     if not required_services <= set(services):
         raise ERPNextSalesReturnStateEvidenceError(
             "native bundle omits a required running service"

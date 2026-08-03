@@ -228,6 +228,31 @@ class ERPNextManufacturingStateEvidenceTests(unittest.TestCase):
                     reset_evidence_path=reset_path,
                 )
 
+    def test_async_boundary_bundle_may_intentionally_keep_workers_stopped(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            prefix = root / "prefix.json"
+            prefix.write_text("{}\n")
+            manifest = self._bundle(root / "bundle")
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["running_services"] = [
+                service
+                for service in payload["running_services"]
+                if service not in {"queue-short", "queue-long"}
+            ]
+            self._write_json(manifest, payload)
+            reset = build_manufacturing_state_evidence(
+                scenario_id="manufacturing-1",
+                instance_id="dev-001",
+                variant_id="async_job_pending",
+                phase="reset",
+                prefix_path=prefix,
+                bundle_manifest_path=manifest,
+                state={"rq_jobs": [{"name": "job-1", "status": "queued"}]},
+            )
+            self.assertNotIn("queue-short", reset["bundle"]["running_services"])
+            self.assertNotIn("queue-long", reset["bundle"]["running_services"])
+
     @staticmethod
     def _write_json(path: Path, value: object) -> None:
         path.write_text(
