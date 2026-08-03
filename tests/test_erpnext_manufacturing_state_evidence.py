@@ -138,6 +138,7 @@ class ERPNextManufacturingStateEvidenceTests(unittest.TestCase):
             "redis_queue": ("redis-queue.tar", b"queue"),
             "gateway_audit": ("gateway-audit.tar", b"gateway"),
             "remittance_audit": ("remittance-audit.tar", b"delivery"),
+            "site_crypto": ("site-crypto.json", b"crypto"),
         }
         files = {}
         for key, (name, content) in sources.items():
@@ -151,12 +152,14 @@ class ERPNextManufacturingStateEvidenceTests(unittest.TestCase):
         self._write_json(
             manifest,
             {
-                "schema_version": "1.0",
+                "schema_version": "1.2",
                 "capture_mode": "simultaneous_service_quiescence",
                 "running_services": [
                     "redis-queue",
                     "queue-fault",
                     "backend",
+                    "queue-short",
+                    "queue-long",
                     "websocket",
                     "frontend",
                     "fault-gateway",

@@ -84,12 +84,19 @@ def validate_bundle_manifest(
         raise ERPNextSalesReturnStateEvidenceError(
             "native bundle manifest must be strict readable JSON"
         ) from error
+    schema_version = (
+        manifest.get("schema_version")
+        if isinstance(manifest, dict)
+        else None
+    )
     expected_files = {
         "database": "database.sql",
         "redis_queue": "redis-queue.tar",
         "gateway_audit": "gateway-audit.tar",
         "remittance_audit": "remittance-audit.tar",
     }
+    if schema_version == "1.2":
+        expected_files["site_crypto"] = "site-crypto.json"
     if (
         not isinstance(manifest, dict)
         or set(manifest)
@@ -99,7 +106,7 @@ def validate_bundle_manifest(
             "running_services",
             "files",
         }
-        or manifest.get("schema_version") != "1.0"
+        or schema_version not in {"1.0", "1.2"}
         or manifest.get("capture_mode")
         != "simultaneous_service_quiescence"
         or not isinstance(manifest.get("running_services"), list)
@@ -122,6 +129,8 @@ def validate_bundle_manifest(
         "fault-gateway",
         "remittance",
     }
+    if schema_version == "1.2":
+        required_services.update({"queue-short", "queue-long"})
     if not required_services <= set(services):
         raise ERPNextSalesReturnStateEvidenceError(
             "native bundle omits a required running service"
