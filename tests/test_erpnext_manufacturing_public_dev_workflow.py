@@ -100,7 +100,7 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
             section,
         )
 
-    def test_reset_boundary_and_reference_are_byte_bound(self) -> None:
+    def test_reset_boundary_and_reference_are_semantically_bound(self) -> None:
         section = self.text[
             self.text.index("Capture four exact boundaries"):
             self.text.index("Execute every fixed policy")
@@ -120,7 +120,7 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
             restore,
         )
         compare = section.index(
-            'cmp "$boundary" "$reference_start"',
+            "verify_erpnext_manufacturing_boundary_replay.py",
             recapture,
         )
         reference = section.index(
@@ -135,6 +135,14 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
         self.assertLess(recapture, compare)
         self.assertLess(compare, reference)
         self.assertNotIn("--formal-contract", section)
+        self.assertIn('--boundary "$boundary"', section)
+        self.assertIn('--replay "$reference_start"', section)
+
+    def test_every_restored_consumer_uses_semantic_boundary_verifier(self) -> None:
+        self.assertEqual(
+            self.text.count("verify_erpnext_manufacturing_boundary_replay.py"),
+            3,
+        )
 
     def test_admission_failure_surfaces_its_captured_log(self) -> None:
         section = self.text[

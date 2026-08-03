@@ -31,6 +31,10 @@ class ERPNextManufacturingPublicDevCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("run_erpnext_manufacturing_failure.py", self.text)
         self.assertIn("run_erpnext_manufacturing_control.py", self.text)
         self.assertIn("capture_erpnext_manufacturing_state_evidence.py", self.text)
+        self.assertIn(
+            "verify_erpnext_manufacturing_boundary_replay.py",
+            self.text,
+        )
 
     def test_public_artifact_excludes_database_and_credentials(self) -> None:
         upload = self.text[self.text.index("name: erpnext-manufacturing-public-dev-002-") :]

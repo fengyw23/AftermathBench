@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import unittest
@@ -9,6 +10,11 @@ from tempfile import TemporaryDirectory
 from aftermath_bench.erpnext_manufacturing_state_evidence import (
     ERPNextManufacturingStateEvidenceError,
     build_manufacturing_state_evidence,
+    manufacturing_boundary_projection,
+    validate_manufacturing_boundary_replay,
+)
+from aftermath_bench.erpnext_sales_return_state_evidence import (
+    canonical_state_fingerprint,
 )
 
 
@@ -252,6 +258,66 @@ class ERPNextManufacturingStateEvidenceTests(unittest.TestCase):
             )
             self.assertNotIn("queue-short", reset["bundle"]["running_services"])
             self.assertNotIn("queue-long", reset["bundle"]["running_services"])
+
+    def test_boundary_replay_accepts_only_terminal_queue_audit_drift(self) -> None:
+        boundary = self._boundary_capture(
+            {"work_order": {"status": "Completed"}, "rq_jobs": []}
+        )
+        replay = self._boundary_capture(
+            {
+                "work_order": {"status": "Completed"},
+                "rq_jobs": [{"name": "job-1", "status": "finished"}],
+            }
+        )
+        result = validate_manufacturing_boundary_replay(boundary, replay)
+        self.assertTrue(result["passed"])
+        self.assertFalse(result["exact_state_match"])
+
+    def test_boundary_replay_rejects_pending_job_drift(self) -> None:
+        boundary = self._boundary_capture(
+            {
+                "work_order": {"status": "In Process"},
+                "rq_jobs": [{"name": "job-1", "status": "queued"}],
+            }
+        )
+        replay = self._boundary_capture(
+            {"work_order": {"status": "In Process"}, "rq_jobs": []}
+        )
+        with self.assertRaisesRegex(
+            ERPNextManufacturingStateEvidenceError,
+            "replay bindings differ|replay state differs",
+        ):
+            validate_manufacturing_boundary_replay(boundary, replay)
+
+    def test_boundary_replay_rejects_source_binding_drift(self) -> None:
+        boundary = self._boundary_capture({"rq_jobs": []})
+        replay = copy.deepcopy(boundary)
+        replay["failure_report_file_sha256"] = "b" * 64
+        with self.assertRaisesRegex(
+            ERPNextManufacturingStateEvidenceError,
+            "replay bindings differ",
+        ):
+            validate_manufacturing_boundary_replay(boundary, replay)
+
+    @staticmethod
+    def _boundary_capture(state: dict) -> dict:
+        projection = manufacturing_boundary_projection(state)
+        return {
+            "schema_version": "1.0",
+            "artifact_type": "erpnext_manufacturing_state_evidence",
+            "scenario_id": "manufacturing-1",
+            "instance_id": "dev-001",
+            "variant_id": "committed",
+            "phase": "boundary",
+            "bundle_manifest_file_sha256": "a" * 64,
+            "failure_report_file_sha256": "a" * 64,
+            "boundary_validation_passed": True,
+            "state_fingerprint": canonical_state_fingerprint(state),
+            "failure_state_semantic_fingerprint": (
+                canonical_state_fingerprint(projection)
+            ),
+            "state": state,
+        }
 
     @staticmethod
     def _write_json(path: Path, value: object) -> None:

@@ -552,7 +552,6 @@ def _validate_reset(
         label=label,
     )
     state = capture.get("state")
-    raw_state = raw_boundary[profile.raw_boundary_state_field]
     if (
         capture.get("schema_version") != "1.0"
         or capture.get("artifact_type")
@@ -637,15 +636,16 @@ def _validate_boundary(
         capture,
         scenario=scenario,
         variant_id=variant_id,
-        profile=profile,
         label=label,
     )
     visible = _validate_raw_boundary(
         raw_boundary,
         scenario=scenario,
         variant_id=variant_id,
+        profile=profile,
     )
     state = capture.get("state")
+    raw_state = raw_boundary[profile.raw_boundary_state_field]
     if (
         capture.get("schema_version") != "1.0"
         or capture.get("artifact_type")
@@ -675,6 +675,48 @@ def _validate_boundary(
         manifests=bundle_manifests,
         label=label,
     )
+
+
+def _validate_boundary_replay_equivalence(
+    boundary: dict[str, Any],
+    replay: dict[str, Any],
+    *,
+    variant_id: str,
+    profile: ERPNextFormalBuildProfile = _SALES_RETURN_PROFILE,
+) -> None:
+    """Require identical bindings and recovery-relevant boundary state.
+
+    Both captures must first pass ``_validate_boundary`` independently.  This
+    comparison then permits only exact-state drift that the selected native
+    profile explicitly projects away.  The sales-return profile uses the
+    identity projection, while manufacturing excludes terminal RQ audit rows
+    but retains all pending work.
+    """
+
+    ignored = {"state", "state_fingerprint"}
+    boundary_bindings = {
+        key: value for key, value in boundary.items() if key not in ignored
+    }
+    replay_bindings = {
+        key: value for key, value in replay.items() if key not in ignored
+    }
+    if boundary_bindings != replay_bindings:
+        raise ERPNextFormalBuildSpecError(
+            f"ERPNext reference-start capture {variant_id} does not "
+            "preserve the admitted boundary bindings"
+        )
+    boundary_state = boundary.get("state")
+    replay_state = replay.get("state")
+    if (
+        not isinstance(boundary_state, dict)
+        or not isinstance(replay_state, dict)
+        or profile.boundary_state_projection(boundary_state)
+        != profile.boundary_state_projection(replay_state)
+    ):
+        raise ERPNextFormalBuildSpecError(
+            f"ERPNext reference-start capture {variant_id} does not "
+            "match the admitted recovery boundary"
+        )
 
 
 def _evaluation_payload(
@@ -947,11 +989,6 @@ def _collect_variant_evidence(
             reference_start_path,
             label=f"ERPNext reference-start capture {variant_id}",
         )
-        if reference_start_path.read_bytes() != boundary_path.read_bytes():
-            raise ERPNextFormalBuildSpecError(
-                f"ERPNext reference-start capture {variant_id} does not "
-                "exactly match the admitted boundary"
-            )
         reset_manifest = _validate_reset(
             reset,
             scenario=scenario,
@@ -972,6 +1009,29 @@ def _collect_variant_evidence(
             bundle_manifests=bundle_manifests,
             profile=profile,
         )
+        reference_start_manifest = _validate_boundary(
+            reference_start,
+            path=reference_start_path,
+            reset_path=reset_path,
+            raw_boundary_path=raw_boundary_path,
+            raw_boundary=raw_boundary,
+            scenario=scenario,
+            variant_id=variant_id,
+            prefix_sha256=prefix_sha256,
+            bundle_manifests=bundle_manifests,
+            profile=profile,
+        )
+        _validate_boundary_replay_equivalence(
+            boundary,
+            reference_start,
+            variant_id=variant_id,
+            profile=profile,
+        )
+        if reference_start_manifest != boundary_manifest:
+            raise ERPNextFormalBuildSpecError(
+                f"ERPNext reference-start capture {variant_id} changed "
+                "the native snapshot bundle"
+            )
         used_manifests["reset"].add(reset_manifest)
         used_manifests["boundary"].add(boundary_manifest)
         check_ids = _validate_reference(

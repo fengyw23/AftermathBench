@@ -7,7 +7,11 @@ from aftermath_bench.erpnext_formal_build_spec import (
     ERPNextFormalBuildSpecError,
     _evaluator_role,
     _tool_role,
+    _validate_boundary_replay_equivalence,
     _validate_reference,
+)
+from aftermath_bench.erpnext_manufacturing_formal_build_spec import (
+    MANUFACTURING_FORMAL_PROFILE,
 )
 from aftermath_bench.integrations.erpnext_sales_return_evaluator import (
     evaluate_sales_return_recovery,
@@ -124,6 +128,76 @@ class ERPNextFormalBuildSpecTest(unittest.TestCase):
                 prefix=self.prefix,
                 scenario=self.scenario,
                 variant_id="request_not_reached",
+            )
+
+    def test_sales_boundary_replay_requires_exact_business_state(self) -> None:
+        boundary = {
+            "source": "same",
+            "state": {"sales_return": {"docstatus": 0}},
+            "state_fingerprint": "first",
+        }
+        replay = copy.deepcopy(boundary)
+        replay["state"] = {"sales_return": {"docstatus": 1}}
+        replay["state_fingerprint"] = "second"
+        with self.assertRaisesRegex(
+            ERPNextFormalBuildSpecError,
+            "recovery boundary",
+        ):
+            _validate_boundary_replay_equivalence(
+                boundary,
+                replay,
+                variant_id="request_not_reached",
+            )
+
+    def test_manufacturing_replay_may_drop_terminal_queue_audit(self) -> None:
+        boundary = {
+            "source": "same",
+            "failure_state_semantic_fingerprint": "semantic",
+            "state": {
+                "work_order": {"status": "Completed"},
+                "rq_jobs": [{"name": "job-1", "status": "finished"}],
+            },
+            "state_fingerprint": "first",
+        }
+        replay = copy.deepcopy(boundary)
+        replay["state"] = {
+            "work_order": {"status": "Completed"},
+            "rq_jobs": [],
+        }
+        replay["state_fingerprint"] = "second"
+        _validate_boundary_replay_equivalence(
+            boundary,
+            replay,
+            variant_id="database_committed_response_lost",
+            profile=MANUFACTURING_FORMAL_PROFILE,
+        )
+
+    def test_manufacturing_replay_keeps_pending_queue_job_binding(self) -> None:
+        boundary = {
+            "source": "same",
+            "failure_state_semantic_fingerprint": "first-semantic",
+            "state": {
+                "work_order": {"status": "In Process"},
+                "rq_jobs": [{"name": "job-1", "status": "queued"}],
+            },
+            "state_fingerprint": "first",
+        }
+        replay = copy.deepcopy(boundary)
+        replay["state"] = {
+            "work_order": {"status": "In Process"},
+            "rq_jobs": [],
+        }
+        replay["state_fingerprint"] = "second"
+        replay["failure_state_semantic_fingerprint"] = "second-semantic"
+        with self.assertRaisesRegex(
+            ERPNextFormalBuildSpecError,
+            "boundary bindings|recovery boundary",
+        ):
+            _validate_boundary_replay_equivalence(
+                boundary,
+                replay,
+                variant_id="async_job_pending",
+                profile=MANUFACTURING_FORMAL_PROFILE,
             )
 
 

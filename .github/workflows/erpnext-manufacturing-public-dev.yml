@@ -188,7 +188,10 @@ jobs:
               --reset-evidence "$reset" \
               --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
               --output "$reference_start"
-            cmp "$boundary" "$reference_start"
+            run_logged "$RUN_ROOT/logs/$variant-reference-equivalence.log" \
+              python scripts/verify_erpnext_manufacturing_boundary_replay.py \
+              --boundary "$boundary" \
+              --replay "$reference_start"
             run_logged "$RUN_ROOT/logs/$variant-reference.log" \
               python scripts/run_erpnext_manufacturing_control.py \
               --variant "$variant" \
@@ -234,9 +237,10 @@ jobs:
                 --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
                 --output "$baseline_start" \
                 > "$RUN_ROOT/logs/$baseline-$variant-pre-state.log" 2>&1
-              cmp \
-                "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
-                "$baseline_start"
+              python scripts/verify_erpnext_manufacturing_boundary_replay.py \
+                --boundary \
+                  "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+                --replay "$baseline_start"
               python scripts/run_erpnext_manufacturing_baseline.py \
                 --baseline "$baseline" \
                 --variant "$variant" \
@@ -368,9 +372,10 @@ jobs:
               --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" \
               --output "$pre_model" \
               > "$RUN_ROOT/logs/pre-model-$variant.log" 2>&1
-            cmp \
-              "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
-              "$pre_model"
+            python scripts/verify_erpnext_manufacturing_boundary_replay.py \
+              --boundary \
+                "$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json" \
+              --replay "$pre_model"
           }
           run_control_once() {
             local variant="$1"

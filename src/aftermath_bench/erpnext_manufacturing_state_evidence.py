@@ -47,6 +47,82 @@ def manufacturing_boundary_projection(
     return projected
 
 
+def validate_manufacturing_boundary_replay(
+    boundary: dict[str, Any],
+    replay: dict[str, Any],
+) -> dict[str, Any]:
+    """Prove that two captures represent the same recovery boundary.
+
+    Exact source and bundle bindings remain byte-sensitive.  Only the native
+    state and its exact fingerprint may differ, and their recovery-relevant
+    projections must still be identical.  This permits visibility drift of
+    terminal RQ audit rows without permitting drift of pending work.
+    """
+
+    for label, payload in (("boundary", boundary), ("replay", replay)):
+        if (
+            not isinstance(payload, dict)
+            or payload.get("schema_version") != "1.0"
+            or payload.get("artifact_type")
+            != "erpnext_manufacturing_state_evidence"
+            or payload.get("phase") != "boundary"
+            or payload.get("boundary_validation_passed") is not True
+            or not isinstance(payload.get("state"), dict)
+        ):
+            raise ERPNextManufacturingStateEvidenceError(
+                f"{label} is not a validated manufacturing boundary capture"
+            )
+        exact_fingerprint = canonical_state_fingerprint(payload["state"])
+        if payload.get("state_fingerprint") != exact_fingerprint:
+            raise ERPNextManufacturingStateEvidenceError(
+                f"{label} exact state fingerprint does not match"
+            )
+        semantic_fingerprint = canonical_state_fingerprint(
+            manufacturing_boundary_projection(payload["state"])
+        )
+        if (
+            payload.get("failure_state_semantic_fingerprint")
+            != semantic_fingerprint
+        ):
+            raise ERPNextManufacturingStateEvidenceError(
+                f"{label} semantic state fingerprint does not match"
+            )
+
+    ignored = {"state", "state_fingerprint"}
+    boundary_bindings = {
+        key: value for key, value in boundary.items() if key not in ignored
+    }
+    replay_bindings = {
+        key: value for key, value in replay.items() if key not in ignored
+    }
+    if boundary_bindings != replay_bindings:
+        differences = json_difference_paths(boundary_bindings, replay_bindings)
+        detail = ", ".join(differences) or "<unknown>"
+        raise ERPNextManufacturingStateEvidenceError(
+            "manufacturing boundary replay bindings differ; "
+            f"difference paths: {detail}"
+        )
+    boundary_projection = manufacturing_boundary_projection(boundary["state"])
+    replay_projection = manufacturing_boundary_projection(replay["state"])
+    if boundary_projection != replay_projection:
+        differences = json_difference_paths(boundary_projection, replay_projection)
+        detail = ", ".join(differences) or "<unknown>"
+        raise ERPNextManufacturingStateEvidenceError(
+            "manufacturing boundary replay state differs; "
+            f"difference paths: {detail}"
+        )
+    return {
+        "passed": True,
+        "scenario_id": boundary["scenario_id"],
+        "instance_id": boundary["instance_id"],
+        "variant_id": boundary["variant_id"],
+        "exact_state_match": boundary["state"] == replay["state"],
+        "semantic_state_fingerprint": boundary[
+            "failure_state_semantic_fingerprint"
+        ],
+    }
+
+
 def build_manufacturing_state_evidence(
     *,
     scenario_id: str,
@@ -192,4 +268,5 @@ __all__ = [
     "ERPNextManufacturingStateEvidenceError",
     "build_manufacturing_state_evidence",
     "manufacturing_boundary_projection",
+    "validate_manufacturing_boundary_replay",
 ]
