@@ -757,11 +757,25 @@ def reference_forgejo_package_provenance_recovery(
             body=prefix["package_index_release_body"],
         )
         for hook_id, history in histories.items():
+            known = [str(item["uuid"]) for item in history]
+            updated = call("get_webhook_history", hook_id=hook_id)
+            created = [item for item in updated if str(item["uuid"]) not in known]
+            if len(created) != 1:
+                raise RuntimeError(
+                    f"release creation did not create one inspectable delivery: "
+                    f"hook={hook_id}, deliveries={created}"
+                )
+            if created[0].get("status") == "failed":
+                call(
+                    "replay_webhook",
+                    hook_id=hook_id,
+                    delivery_uuid=created[0]["uuid"],
+                )
             call(
                 "wait_for_webhook_history_change",
                 hook_id=hook_id,
                 release_tag=prefix["package_index_release_tag"],
-                known_delivery_uuids=[str(item["uuid"]) for item in history],
+                known_delivery_uuids=known,
                 timeout_seconds=30,
             )
     else:

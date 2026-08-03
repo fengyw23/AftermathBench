@@ -94,7 +94,10 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         provenance_mode="normal",
     ),
     "r2_package_binary_committed_response_lost": PackageProvenanceBoundaryVariant(
-        preloaded_file_roles=("checksum",),
+        # The publication already attached two independent attestations before
+        # the binary write lost its response.  Recovery must preserve all
+        # three durable files and add only the missing signature.
+        preloaded_file_roles=("checksum", "sbom"),
         preclosed_tracking_positions=(),
         postcommit_tracking_positions=(),
         attempted_operation="upload_binary",
@@ -110,7 +113,10 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         attempted_operation="create_index_release",
         api_mode="suppress_request",
         release_committed=False,
-        coordinator_mode="normal",
+        # Release creation succeeds during recovery, but one downstream
+        # consumer then records a native failed attempt.  This creates a real
+        # asynchronous repair branch rather than another upload-count variant.
+        coordinator_mode="suppress_request",
         provenance_mode="normal",
     ),
     "r2_package_corrupt_binary_index_missing": PackageProvenanceBoundaryVariant(
@@ -120,7 +126,10 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         attempted_operation="create_index_release",
         api_mode="suppress_request",
         release_committed=False,
-        coordinator_mode="normal",
+        # Keep the notification behavior identical to the valid-inventory
+        # counterfactual so package content remains the pair's only changed
+        # boundary fact.
+        coordinator_mode="suppress_request",
         provenance_mode="normal",
         corrupt_preloaded_file_roles=("binary",),
         advance_base_branch_file_roles=("binary",),
