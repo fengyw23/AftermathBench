@@ -270,6 +270,14 @@ class ERPNextManufacturingPublicDevWorkflowTest(unittest.TestCase):
             seal_text,
         )
         self.assertIn(
+            "generate_formal_release_binding.py",
+            seal_text,
+        )
+        self.assertLess(
+            seal_text.index("generate_formal_release_binding.py"),
+            seal_text.index("build_erpnext_public_evidence_archive.py"),
+        )
+        self.assertIn(
             "--expected-restore-bundle-count 5",
             seal_text,
         )
