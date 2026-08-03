@@ -7,6 +7,32 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from aftermath_bench.integrations.kubernetes_interaction_recovery import (
+    KubernetesInteractionEnvironment,
+)
+
+
+def _evidence_groups(calls: list[dict[str, Any]]) -> dict[str, bool]:
+    names = [str(call.get("name", "")) for call in calls]
+    listed = {
+        str(call.get("arguments", {}).get("resource", "")).lower().rstrip("s")
+        for call in calls
+        if call.get("name") == "list_objects"
+    }
+    fetched = {
+        str(call.get("arguments", {}).get("resource", "")).lower().rstrip("s")
+        for call in calls
+        if call.get("name") == "get_object"
+    }
+    return {
+        "contracts_and_local_state": "configmap" in listed or "configmap" in fetched,
+        "both_consumers": "deployment" in listed or "deployment" in fetched,
+        "service_routing": "service" in listed or "service" in fetched,
+        "shared_credential": "secret" in listed or "secret" in fetched,
+        "controller_ownership": "job" in listed or "job" in fetched,
+        "external_registry": "list_external_deliveries" in names,
+    }
+
 
 def _load_reports(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
     reports = []
@@ -48,6 +74,8 @@ def analyze_kubernetes_interaction_runs(root: Path) -> dict[str, Any]:
     missing_external_keys: Counter[str] = Counter()
     turn_counts = []
     call_counts = []
+    prewrite_query_counts = []
+    complete_prewrite_investigations = 0
     rows = []
 
     for report in reports:
@@ -94,10 +122,26 @@ def analyze_kubernetes_interaction_runs(root: Path) -> dict[str, Any]:
         selected = tuple(map(str, diagnostics.get("selected_mutations", ())))
         mutation_signatures[" -> ".join(selected) or "<no mutation>"] += 1
         turns = len(report.get("turns", ()))
-        calls = sum(
-            len(turn.get("tool_calls", ()))
+        ordered_calls = [
+            call
             for turn in report.get("turns", ())
+            for call in turn.get("tool_calls", ())
+        ]
+        calls = len(ordered_calls)
+        mutation_tools = set(KubernetesInteractionEnvironment.MUTATION_TOOLS)
+        first_mutation = next(
+            (
+                index
+                for index, call in enumerate(ordered_calls)
+                if str(call.get("name")) in mutation_tools
+            ),
+            len(ordered_calls),
         )
+        prewrite_calls = ordered_calls[:first_mutation]
+        prewrite_evidence = _evidence_groups(prewrite_calls)
+        complete_prewrite = all(prewrite_evidence.values())
+        complete_prewrite_investigations += int(complete_prewrite)
+        prewrite_query_counts.append(len(prewrite_calls))
         turn_counts.append(turns)
         call_counts.append(calls)
         rows.append(
@@ -109,6 +153,9 @@ def analyze_kubernetes_interaction_runs(root: Path) -> dict[str, Any]:
                 "semantic_recovery_direction": direction,
                 "turns": turns,
                 "tool_calls": calls,
+                "prewrite_query_calls": len(prewrite_calls),
+                "prewrite_evidence_groups": prewrite_evidence,
+                "complete_investigation_before_first_mutation": complete_prewrite,
                 "selected_mutations": list(selected),
                 "allowed_external_keys": sorted(allowed),
                 "actual_external_keys": sorted(actual),
@@ -160,6 +207,12 @@ def analyze_kubernetes_interaction_runs(root: Path) -> dict[str, Any]:
         "mutation_signature_counts": dict(sorted(mutation_signatures.items())),
         "mean_turns": mean(turn_counts) if turn_counts else 0.0,
         "mean_tool_calls": mean(call_counts) if call_counts else 0.0,
+        "mean_prewrite_query_calls": (
+            mean(prewrite_query_counts) if prewrite_query_counts else 0.0
+        ),
+        "complete_prewrite_investigation_rate": (
+            complete_prewrite_investigations / total if total else 0.0
+        ),
         "reports": rows,
     }
 

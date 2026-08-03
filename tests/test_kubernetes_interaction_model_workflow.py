@@ -57,6 +57,10 @@ class KubernetesInteractionModelWorkflowTest(unittest.TestCase):
         self.assertIn('summary["task_pass_rate"]', self.text)
         self.assertIn("observed < threshold", self.text)
 
+    def test_archives_scope_attribution_analysis(self) -> None:
+        self.assertIn("analyze_kubernetes_interaction_runs.py", self.text)
+        self.assertIn('model-runs/analysis.json', self.text)
+
     def test_all_thirteen_neutral_variants_are_declared(self) -> None:
         for index in range(1, 14):
             self.assertIn(f"state_{index:02d}", self.text)

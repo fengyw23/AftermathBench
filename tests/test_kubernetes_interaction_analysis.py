@@ -61,6 +61,52 @@ class KubernetesInteractionAnalysisTest(unittest.TestCase):
         )
         self.assertEqual(result["primary_error_counts"], {"scope_failure": 1})
 
+    def test_separates_prewrite_investigation_from_later_queries(self) -> None:
+        query_calls = [
+            {"name": "get_object", "arguments": {"resource": resource}}
+            for resource in (
+                "ConfigMaps",
+                "Deployments",
+                "Services",
+                "Secrets",
+                "Jobs",
+            )
+        ]
+        query_calls.append(
+            {"name": "list_external_deliveries", "arguments": {}}
+        )
+        report = {
+            "family": "k8s-constraint-interaction-recovery",
+            "variant": "state_01",
+            "execution_control": False,
+            "turns": [
+                {"tool_calls": query_calls},
+                {
+                    "tool_calls": [
+                        {"name": "patch_object", "arguments": {}},
+                        {"name": "get_object", "arguments": {"resource": "Jobs"}},
+                    ]
+                },
+            ],
+            "evaluation": {
+                "passed": True,
+                "components": {"goal_completion": True},
+                "checks": {},
+                "diagnostics": {},
+            },
+            "trajectory_diagnostics": {"selected_mutations": ["patch_object"]},
+        }
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "state_01.json").write_text(json.dumps(report), encoding="utf-8")
+            result = analyze_kubernetes_interaction_runs(root)
+
+        self.assertEqual(result["mean_prewrite_query_calls"], 6)
+        self.assertEqual(result["complete_prewrite_investigation_rate"], 1)
+        self.assertTrue(
+            result["reports"][0]["complete_investigation_before_first_mutation"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
