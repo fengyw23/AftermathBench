@@ -561,6 +561,26 @@ class ERPNextManufacturingPrefixBuilder:
         )
         self._trace(trace, "create corrective Job Card", corrective)
 
+        # Build preservation fingerprints from authoritative reads at the
+        # failure boundary.  Frappe submit responses may omit default-valued
+        # fields (for example ``is_corrective_job_card=0`` or child-row
+        # ``is_finished_item=0``) that a later resource read materializes.
+        # Comparing a submit response with a final resource read therefore
+        # creates false over-repair failures even when no business field
+        # changed.
+        protected_documents = {
+            "accepted_manufacture_stock_entry": _payload(
+                self.adapter.get_resource("Stock Entry", str(accepted_entry["name"]))
+            ),
+            "accepted_job_card": _payload(
+                self.adapter.get_resource("Job Card", str(accepted_job["name"]))
+            ),
+            "bom": _payload(self.adapter.get_resource("BOM", str(bom["name"]))),
+            "unrelated_stock_entry": _payload(
+                self.adapter.get_resource("Stock Entry", str(seed["name"]))
+            ),
+        }
+
         return ManufacturingPrefix(
             scenario_id=self.scenario_id,
             company=company,
@@ -584,12 +604,8 @@ class ERPNextManufacturingPrefixBuilder:
             quality_release_webhook=self.QUALITY_RELEASE_WEBHOOK,
             expected_corrective_operation_cost=_money(self.fixture["hour_rate"]),
             protected_fingerprints={
-                "accepted_manufacture_stock_entry": manufacturing_document_fingerprint(
-                    accepted_entry
-                ),
-                "accepted_job_card": manufacturing_document_fingerprint(accepted_job),
-                "bom": manufacturing_document_fingerprint(bom),
-                "unrelated_stock_entry": manufacturing_document_fingerprint(seed),
+                key: manufacturing_document_fingerprint(document)
+                for key, document in protected_documents.items()
             },
             trace=tuple(trace),
         )
