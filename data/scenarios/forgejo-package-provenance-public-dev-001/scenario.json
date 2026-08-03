@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "forgejo-package-provenance-public-dev-001",
+  "domain_id": "forgejo",
+  "instance_id": "dev-001",
+  "instance_spec_sha256": "1c8d54e759f34654793d1a05c4bb6ac7191e7db707ce2578afb2a799ad69146c",
+  "family": "forgejo-package-provenance",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "hard",
+  "evaluation_status": {
+    "hidden_test_eligible": false,
+    "reason": "Public development instance."
+  },
+  "implementation_status": "native package registry replay and strict admission validated",
+  "title": "Recover an interrupted package version, provenance and downstream index chain",
+  "user_instruction": "Complete publication of Orbit Control CLI 2.4.1 as one Forgejo Generic Package version with exactly the approved binary, checksum, Sigstore bundle and SPDX SBOM declared by the approval records on release-2.4. Preserve the linked repository approval, existing 2.3.7 package and release, and unrelated work on work-2.5. Ensure the completed package has exactly one repository index Release and that both package-catalog and supply-attestation-vault receive the corresponding release effect exactly once. Close the package tracking issues and milestone only after their stated file, index and delivery obligations hold. Determine what committed after the connection failure from authoritative package, repository, webhook and receiver state; do not repeat valid effects.",
+  "fixture": {
+    "owner": "meridian-supply",
+    "repository": "orbitctl-distribution",
+    "package_name": "orbitctl",
+    "package_version": "2.4.1",
+    "protected_package_version": "2.3.7",
+    "base_branch": "release-2.4",
+    "package_index_release_tag": "v2.4.1"
+  },
+  "ambiguous_operation": {
+    "operation": "publish the approved Generic Package version and provenance chain",
+    "surface_result": "HTTP connection lost before package publication completion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "package_request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "publish_missing_version"
+    },
+    {
+      "id": "package_binary_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_blob_and_attach_metadata"
+    },
+    {
+      "id": "package_complete_index_missing",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "resume_indexing"
+    },
+    {
+      "id": "package_complete_index_accepted_response_lost",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "verify_complete_package"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "publish_missing_version",
+    "preserve_blob_and_attach_metadata",
+    "resume_indexing",
+    "verify_complete_package"
+  ],
+  "required_public_evidence": [
+    "approval and tracking issues that identify the manifest and obligations",
+    "repository manifest followed by its approved source files",
+    "native package version and attached file contents",
+    "repository index Release and milestone state",
+    "webhook inventory followed by per-hook native delivery histories",
+    "exact receiver records discovered from native delivery UUIDs",
+    "protected prior package, release, Pull Request, issue and branch rule"
+  ],
+  "public_tool_policy": {
+    "ordinary_package_reads": true,
+    "ordinary_repository_reads": true,
+    "native_package_uploads": true,
+    "ordinary_release_and_webhook_reads": true,
+    "ordinary_receiver_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_profile": {
+    "adaptive_recovery": {
+      "minimum_adaptive_query_depth": 3,
+      "minimum_variant_specific_mutations": 2,
+      "minimum_pairwise_mutation_distance": 2
+    }
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}
