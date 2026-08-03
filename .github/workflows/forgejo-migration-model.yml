@@ -1,4 +1,4 @@
-name: forgejo-migration-deployment-model
+name: forgejo-migration-public-development-model
 
 on:
   push:
@@ -34,9 +34,9 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
       AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
-      INSTANCE: data/scenario_blueprints/forgejo-migration-deployment-dev-002/instance.json
-      SCENARIO: data/scenarios/forgejo-migration-deployment-dev-002/scenario.json
-      RUN_ROOT: runtimes/forgejo/.runtime/migration-model
+      INSTANCE: data/instance_specs/forgejo-migration-public-dev-001.json
+      SCENARIO: data/scenarios/forgejo-migration-deployment-public-dev-001/scenario.json
+      RUN_ROOT: runtimes/forgejo/.runtime/migration-public-dev-model
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -77,10 +77,14 @@ jobs:
 
       - name: Build the persistent prefix
         run: |
+          owner="$(
+            python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' \
+              "$INSTANCE"
+          )"
           python scripts/manage_forgejo_stack.py up
           python scripts/manage_forgejo_stack.py setup \
-            --username aftermath \
-            --email aftermath@aftermath.invalid
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
           python scripts/manage_forgejo_stack.py setup-runner
           python scripts/build_forgejo_migration_prefix.py \
             --credentials runtimes/forgejo/.runtime/credentials.json \
@@ -171,12 +175,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forgejo-migration-model-${{ github.run_id }}
+          name: forgejo-migration-public-dev-model-${{ github.run_id }}
           path: |
-            runtimes/forgejo/.runtime/migration-model/model-runs/
-            runtimes/forgejo/.runtime/migration-model/prefix.json
-            runtimes/forgejo/.runtime/migration-model/compose-ps.txt
-            runtimes/forgejo/.runtime/migration-model/source-verification.json
+            runtimes/forgejo/.runtime/migration-public-dev-model/model-runs/
+            runtimes/forgejo/.runtime/migration-public-dev-model/prefix.json
+            runtimes/forgejo/.runtime/migration-public-dev-model/compose-ps.txt
+            runtimes/forgejo/.runtime/migration-public-dev-model/source-verification.json
           if-no-files-found: error
 
       - name: Purge native services

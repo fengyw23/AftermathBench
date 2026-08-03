@@ -20,6 +20,15 @@ class ForgejoMigrationModelWorkflowTest(unittest.TestCase):
         self.assertIn("run-native-model", text)
         self.assertIn("summarize_native_model_runs.py", text)
         self.assertIn("--execution-control", text)
+        self.assertIn(
+            "data/instance_specs/forgejo-migration-public-dev-001.json",
+            text,
+        )
+        self.assertIn(
+            "data/scenarios/forgejo-migration-deployment-public-dev-001/scenario.json",
+            text,
+        )
+        self.assertIn('--username "$owner"', text)
         boundary = text.index("run_forgejo_migration_boundary.py")
         model = text.index("run-native-model", boundary)
         self.assertLess(boundary, model)
