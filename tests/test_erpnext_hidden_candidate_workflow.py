@@ -24,6 +24,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
     def test_private_data_is_secret_backed_and_only_ciphertext_is_uploaded(self) -> None:
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64", self.text)
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V2", self.text)
+        self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V3", self.text)
         self.assertIn("ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64", self.text)
         self.assertIn("HIDDEN_BUNDLE_ENCRYPTION_KEY", self.text)
         self.assertIn("hidden-bundle.tar.gz.enc", self.text)
@@ -58,6 +59,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
     def test_each_family_can_be_frozen_from_a_dedicated_branch(self) -> None:
         self.assertIn("erpnext-hidden-candidate", self.text)
         self.assertIn("erpnext-hidden-manufacturing-v2-candidate", self.text)
+        self.assertIn("erpnext-hidden-manufacturing-v3-candidate", self.text)
         self.assertIn("erpnext-hidden-multiwarehouse-candidate", self.text)
         self.assertIn("SELECTED_FAMILY", self.text)
         self.assertIn("SELECTED_INSTANCE_ID", self.text)
