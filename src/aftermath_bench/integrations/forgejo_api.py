@@ -434,9 +434,24 @@ class ForgejoAPI:
         *,
         active: bool,
     ) -> dict[str, Any]:
+        path = f"/repos/{owner}/{repository}/hooks/{hook_id}"
+        current = self.get(path)
+        if not isinstance(current, dict):
+            raise TypeError("Forgejo returned no webhook document")
+        # Forgejo's EditHookOption is not a sparse patch: an omitted events
+        # list is normalised to ["push"].  Preserve the current subscription
+        # fields so this helper changes activation only.
         result = self.patch(
-            f"/repos/{owner}/{repository}/hooks/{hook_id}",
-            {"active": active},
+            path,
+            {
+                "active": active,
+                "config": current.get("config", {}),
+                "events": current.get("events", []),
+                "branch_filter": current.get("branch_filter", ""),
+                "authorization_header": current.get(
+                    "authorization_header", ""
+                ),
+            },
         )
         if not isinstance(result, dict):
             raise TypeError("Forgejo returned no edited webhook document")

@@ -106,9 +106,23 @@ class ForgejoAPITest(unittest.TestCase):
         self.assertEqual(payload["sha"], "old-blob-sha")
 
     def test_hook_activation_uses_native_patch_endpoint(self) -> None:
+        current = {
+            "id": 12,
+            "active": False,
+            "config": {
+                "url": "http://receiver.invalid/events",
+                "content_type": "json",
+            },
+            "events": ["release"],
+            "branch_filter": "release-*",
+            "authorization_header": "Bearer retained",
+        }
         with patch(
             "urllib.request.urlopen",
-            return_value=_Response({"id": 12, "active": True}),
+            side_effect=(
+                _Response(current),
+                _Response({**current, "active": True}),
+            ),
         ) as opener:
             result = ForgejoAPI(
                 base_url="http://forgejo.invalid/api/v1",
@@ -119,14 +133,24 @@ class ForgejoAPITest(unittest.TestCase):
                 12,
                 active=True,
             )
-        request = opener.call_args.args[0]
+        self.assertEqual(opener.call_count, 2)
+        request = opener.call_args_list[1].args[0]
         self.assertEqual(request.method, "PATCH")
         self.assertEqual(
             request.full_url,
             "http://forgejo.invalid/api/v1/repos/aftermath/"
             "release-control/hooks/12",
         )
-        self.assertEqual(json.loads(request.data), {"active": True})
+        self.assertEqual(
+            json.loads(request.data),
+            {
+                "active": True,
+                "config": current["config"],
+                "events": ["release"],
+                "branch_filter": "release-*",
+                "authorization_header": "Bearer retained",
+            },
+        )
         self.assertTrue(result["active"])
 
     def test_release_attachment_uses_native_raw_upload_endpoint(self) -> None:
