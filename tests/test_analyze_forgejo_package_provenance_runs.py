@@ -20,9 +20,9 @@ _SPEC.loader.exec_module(_MODULE)
 class ForgejoPackageProvenanceAnalysisTest(unittest.TestCase):
     def _report(self, variant: str, *, delete: bool) -> dict:
         query_names = [
-            "list_packages",
+            "get_package_version",
             "list_package_files",
-            "get_pull_request",
+            "get_repository_file",
             "get_repository_file",
             "list_releases",
             "list_hooks",

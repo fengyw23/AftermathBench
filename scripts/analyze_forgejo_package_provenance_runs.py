@@ -45,11 +45,13 @@ def _calls(report: dict[str, Any]) -> list[dict[str, Any]]:
 def _evidence(names: list[str]) -> dict[str, bool]:
     return {
         "package_inventory": (
-            "list_packages" in names and "list_package_files" in names
+            ("list_packages" in names or "get_package_version" in names)
+            and "list_package_files" in names
         ),
-        "approved_pull_and_source": (
-            "get_pull_request" in names and "get_repository_file" in names
-        ),
+        # The approved base branch already contains the merged provenance
+        # manifest. Reading the manifest and a declared source file is an
+        # authoritative route; the historical Pull Request is optional.
+        "repository_manifest_and_source": names.count("get_repository_file") >= 2,
         "release_state": "list_releases" in names,
         "hook_inventory_and_histories": (
             "list_hooks" in names and names.count("get_webhook_history") >= 2

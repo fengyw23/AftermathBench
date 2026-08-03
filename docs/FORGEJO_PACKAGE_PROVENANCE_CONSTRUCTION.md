@@ -275,10 +275,37 @@ The ordinary condition is evaluated separately only after this gate passes.
 Ordinary trajectories are analyzed with
 `scripts/analyze_forgejo_package_provenance_runs.py`. In addition to terminal
 pass/fail, it records whether the Agent inspected package inventory, the
-approved Pull Request and source, Release state, both native delivery
+approved repository manifest and source, Release state, both native delivery
 histories, and the external receiver ledger before its first write. It also
 checks the key nonmonotonic pair directly: the complete valid package must be
 preserved, while the complete package whose binary came from the later
 base-branch change must be deleted and rebuilt. This separates incomplete
 investigation from an incorrect recovery-scope inference even when both lead
 to the same failed terminal check.
+
+## Ordinary dual-model result and saturation decision
+
+GitHub Actions run
+[`30858985560`](https://github.com/fengyw23/AftermathBench/actions/runs/30858985560)
+is the first valid ordinary experiment under the finalized semantic evaluator.
+GLM-5.2 and DeepSeek-V4-Pro each passed all four boundaries with no provider
+or runtime errors, so both task pass rates are `4/4` and both matched groups
+pass. Both models also exhibited the required nonmonotonic scope polarity:
+they preserved the complete valid package but deleted and rebuilt the complete
+package whose binary content was invalid.
+
+This is a valid negative result about task difficulty. The four-boundary
+development family is saturated for these models and must not be made harder
+through tool ambiguity, shorter budgets or hidden fields. It remains useful as
+a replay-valid control family. New hard families must instead add native
+interactions whose correctness depends jointly on approval lineage, multiple
+artifacts, protected downstream consumers and external delivery obligations.
+
+For both models, all five diagnostic evidence groups were eventually observed
+in every trajectory, but only three of four trajectories observed all groups
+before the first write. This does not invalidate their passing terminal states;
+it identifies a design opportunity for future matched states where acting
+before one of those facts is known leads to a different, irreversible scope.
+The run, artifact digest, summaries, trajectory hashes and claim boundary are
+recorded in
+`data/diagnostics/forgejo/package-provenance-dual-model-r2-30858985560.json`.

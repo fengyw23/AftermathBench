@@ -10,7 +10,7 @@ claims.
 | Domain / family | Native failure boundaries | Exact replay + reference | Replay-derived hard admission | Fixed-policy matched-group resistance | Execution control | Ordinary model experiment | Formal release package |
 |---|---:|---|---|---|---|---|---|
 | Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | not yet run on current interface | not yet run on current interface | native evidence archived; release integration pending |
-| Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | run 30858985560 pending | pending ordinary-result freeze |
+| Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | not yet validly run | rerun 30858814166 pending |
 
 ## What is already established
@@ -38,8 +38,13 @@ The execution surface has independent 4/4 controls from GLM-5.2
 and DeepSeek-V4-Pro
 ([30857995305](https://github.com/fengyw23/AftermathBench/actions/runs/30857995305)).
 These controls prove that a model can execute a supplied correct scope; they do
-not measure whether it can infer that scope. Ordinary dual-model run 30858985560
-is the first valid measurement of that question under the finalized evaluator.
+not measure whether it can infer that scope. Ordinary dual-model run
+[30858985560](https://github.com/fengyw23/AftermathBench/actions/runs/30858985560)
+then measured that question under the finalized evaluator. GLM-5.2 and
+DeepSeek-V4-Pro both passed 4/4 with matched-group success, including the
+valid-package-preserve versus corrupt-package-rebuild scope flip. This family
+is therefore scientifically valid but saturated, and is retained as a control
+rather than presented as evidence that current strong models struggle.
 
 ### ERPNext
 
@@ -61,9 +66,9 @@ The repository currently supports the following narrow claim:
 
 It does **not** yet support a top-conference benchmark claim. Missing evidence is:
 
-1. valid ordinary-model results on the finalized Forgejo interface;
-2. a sealed ERPNext formal package and subsequent ordinary-model evaluation;
-3. current-interface Kubernetes execution controls and model experiments;
+1. a sealed ERPNext formal package and subsequent ordinary-model evaluation;
+2. current-interface Kubernetes execution controls and model experiments;
+3. unsaturated ordinary recovery families with interacting native obligations;
 4. more independent families and hidden instances per domain;
 5. a frozen cross-model leaderboard with repeated runs.
 
@@ -79,4 +84,3 @@ It does **not** yet support a top-conference benchmark claim. Missing evidence i
 4. If ERPNext packaging succeeds, import and seal it immediately. If it fails,
    repair the named formal contract offline from the archived input roles before
    any new native rerun.
-
