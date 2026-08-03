@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-manufacturing-rework-dev-001",
+  "domain_id": "erpnext",
+  "instance_id": "dev-001",
+  "family": "erpnext-manufacturing-rework",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "development",
+  "benchmark_tier": "hard",
+  "hidden_test_eligible": false,
+  "implementation_status": "native manufacturing replay, reference controls, fixed baselines and strict hard admission validated",
+  "title": "Recover corrective production without reversing accepted output",
+  "user_instruction": "The production order is for 10 MED-PUMP-CONTROLLER-M7 units. Eight units and their accepted manufacture posting are already valid and must remain untouched. The recorded inspection rejected the remaining two units, and a corrective calibration Job Card was prepared for exactly those two units. Complete that correction, release it exactly once, manufacture and inspect exactly the remaining two units, and close the Work Order with correct stock and accounting postings. Preserve the accepted eight units, the BOM, all valid material consumption, and the unrelated LAB-CALIBRATOR-C2 inventory receipt.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "finished_item": {
+      "item_code": "MED-PUMP-CONTROLLER-M7",
+      "item_name": "Medical Pump Controller M7",
+      "valuation_rate": 695
+    },
+    "raw_items": [
+      {
+        "item_code": "MED-PUMP-PCB-M7",
+        "item_name": "Medical Pump Control Board M7",
+        "valuation_rate": 285,
+        "quantity_per_unit": 1
+      },
+      {
+        "item_code": "MED-PUMP-HOUSING-M7",
+        "item_name": "Medical Pump Sterile Housing M7",
+        "valuation_rate": 145,
+        "quantity_per_unit": 1
+      }
+    ],
+    "unrelated_item": {
+      "item_code": "LAB-CALIBRATOR-C2",
+      "item_name": "Laboratory Calibrator C2",
+      "valuation_rate": 1875,
+      "quantity": 4
+    },
+    "accepted_quantity": 8,
+    "rework_quantity": 2,
+    "workstation_type": "Medical Electronics Assembly",
+    "workstation": "Medical Electronics Cell 1",
+    "assembly_operation": "Pump Controller Final Assembly",
+    "corrective_operation": "Pump Controller Corrective Calibration",
+    "quality_parameter": "Pump Controller Functional Output",
+    "hour_rate": 120
+  },
+  "ambiguous_operation": {
+    "operation": "submit the prepared two-unit corrective Job Card",
+    "surface_result": "HTTP connection lost before the Job Card submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "complete_missing_manufacture_then_rework"
+    },
+    {
+      "id": "database_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_completion_and_repair_quality_branch"
+    },
+    {
+      "id": "after_commit_enqueue_failed",
+      "boundary_class_id": "downstream_effect_missing",
+      "recovery_signature_class": "verify_all_postings"
+    },
+    {
+      "id": "async_job_pending",
+      "boundary_class_id": "downstream_effect_pending_or_accepted",
+      "recovery_signature_class": "resume_existing_rework_job"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "complete_missing_manufacture_then_rework",
+    "preserve_completion_and_repair_quality_branch",
+    "verify_all_postings",
+    "resume_existing_rework_job"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "ledger_and_job_reads": true,
+    "idempotent_external_delivery_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "admission_status": "validated_hard",
+  "admission_artifacts": {
+    "admission": "artifacts/admission.json",
+    "prefix": "artifacts/prefix.json",
+    "reference": "artifacts/reference.json",
+    "observed_graph": "artifacts/observed_graph.json",
+    "baselines": "artifacts/baselines.json",
+    "replay_evidence": "artifacts/replay_evidence.json"
+  }
+}
