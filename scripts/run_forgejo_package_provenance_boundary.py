@@ -52,9 +52,7 @@ def _upload_role(
     role: str,
 ) -> None:
     item = next(
-        value
-        for value in prefix["expected_package_files"]
-        if value["role"] == role
+        value for value in prefix["expected_package_files"] if value["role"] == role
     )
     api.upload_generic_package_file(
         prefix["owner"],
@@ -71,9 +69,7 @@ def _role_payload(
     role: str,
 ) -> tuple[dict[str, Any], bytes]:
     item = next(
-        value
-        for value in prefix["expected_package_files"]
-        if value["role"] == role
+        value for value in prefix["expected_package_files"] if value["role"] == role
     )
     return item, _source_bytes(api, prefix, item["source_path"])
 
@@ -101,13 +97,26 @@ def _wait_histories(
             )
         }
         if not required or all(
-            len(items) == 1
-            and all(item["status"] != "pending" for item in items)
+            len(items) == 1 and all(item["status"] != "pending" for item in items)
             for items in result.values()
         ):
             return result
         time.sleep(0.5)
     return result
+
+
+def _close_tracking_positions(
+    api: ForgejoAPI,
+    prefix: dict[str, Any],
+    positions: tuple[int, ...],
+) -> None:
+    indexes = tuple(map(int, prefix["tracking_issue_indexes"]))
+    for position in positions:
+        api.patch(
+            f"/repos/{prefix['owner']}/{prefix['repository']}/issues/"
+            f"{indexes[position]}",
+            {"state": "closed"},
+        )
 
 
 def main() -> int:
@@ -138,6 +147,11 @@ def main() -> int:
     specification = PACKAGE_PROVENANCE_VARIANTS[args.variant]
     for role in specification.preloaded_file_roles:
         _upload_role(api, prefix, role)
+    _close_tracking_positions(
+        api,
+        prefix,
+        specification.preclosed_tracking_positions,
+    )
     pending_binary: tuple[dict[str, Any], bytes] | None = None
     if specification.attempted_operation == "upload_binary":
         # Read the approved source before arming the one-shot transport seam.
@@ -184,6 +198,12 @@ def main() -> int:
         required=specification.release_committed,
     )
     faults.disarm_webhooks_after_attempt()
+    if specification.release_committed:
+        _close_tracking_positions(
+            api,
+            prefix,
+            specification.postcommit_tracking_positions,
+        )
     environment = ForgejoPackageProvenanceEnvironment(
         api=api,
         web=web,
@@ -191,20 +211,17 @@ def main() -> int:
     )
     state = environment.snapshot()
     target_roles = {
-        item["name"]: item["role"]
-        for item in prefix["expected_package_files"]
+        item["name"]: item["role"] for item in prefix["expected_package_files"]
     }
     observed_roles = sorted(
         target_roles.get(str(item.get("name")), "unknown")
         for item in state["target_package_files"]
     )
     expected_roles = sorted(
-        (
-            (*specification.preloaded_file_roles, "binary")
-            if specification.attempted_operation == "upload_binary"
-            and specification.api_mode == "drop_response"
-            else specification.preloaded_file_roles
-        )
+        (*specification.preloaded_file_roles, "binary")
+        if specification.attempted_operation == "upload_binary"
+        and specification.api_mode == "drop_response"
+        else specification.preloaded_file_roles
     )
     target_releases = [
         item
@@ -213,9 +230,7 @@ def main() -> int:
     ]
     api_gateway_audit = _get_json("http://127.0.0.1:9091/audit")
     expected_method = (
-        "PUT"
-        if specification.attempted_operation == "upload_binary"
-        else "POST"
+        "PUT" if specification.attempted_operation == "upload_binary" else "POST"
     )
     expected_path_fragment = (
         f"/api/packages/{prefix['owner']}/generic/"
@@ -249,6 +264,19 @@ def main() -> int:
             all(len(items) == 1 for items in histories.values())
             if specification.release_committed
             else all(len(items) == 0 for items in histories.values())
+        ),
+        "tracking_state_matches_variant": all(
+            str(item.get("state"))
+            == (
+                "closed"
+                if position
+                in {
+                    *specification.preclosed_tracking_positions,
+                    *specification.postcommit_tracking_positions,
+                }
+                else "open"
+            )
+            for position, item in enumerate(state["tracking_issues"])
         ),
     }
     visible_failure = {

@@ -1,0 +1,179 @@
+name: forgejo-package-provenance-public-dev-candidate
+
+on:
+  push:
+    branches:
+      - forgejo-package-provenance-public-dev-candidate
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-and-admit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE_SPEC_GLOB: data/instance_specs/forgejo-package-provenance-public-*.json
+      RUN_ROOT: data/generated/forgejo-package-provenance-public-dev-slot-001
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the fresh instance and deterministic surface
+        run: |
+          specs=( $INSTANCE_SPEC_GLOB )
+          test "${#specs[@]}" -eq 1
+          instance_spec="${specs[0]}"
+          scenario_id="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["scenario_id"])' "$instance_spec")"
+          blueprint="data/scenario_blueprints/$scenario_id/scenario.json"
+          scenario_directory="data/scenarios/$scenario_id"
+          echo "INSTANCE_SPEC=$instance_spec" >> "$GITHUB_ENV"
+          echo "BLUEPRINT=$blueprint" >> "$GITHUB_ENV"
+          echo "SCENARIO_DIRECTORY=$scenario_directory" >> "$GITHUB_ENV"
+          test ! -e "$RUN_ROOT"
+          test ! -e "$scenario_directory"
+          mkdir -p "$RUN_ROOT/runtime" "$RUN_ROOT/baselines"
+          python scripts/verify_forgejo_instance_novelty.py \
+            --instance-spec "$instance_spec" \
+            --bound-blueprint "$blueprint"
+          python scripts/render_forgejo_package_provenance_blueprint.py \
+            --instance-spec "$instance_spec" \
+            --instance-id dev-001 \
+            --benchmark-split public_dev \
+            --output "$RUN_ROOT/rendered-blueprint.json"
+          cmp "$blueprint" "$RUN_ROOT/rendered-blueprint.json"
+          python -m unittest discover -s tests \
+            -p 'test_forgejo_package_provenance*.py' -v
+          python -m unittest discover -s tests \
+            -p 'test_native_admission.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned Forgejo from source
+        run: |
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Build and freeze the native package prefix
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$INSTANCE_SPEC")"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username "$owner" \
+            --email "$owner@aftermath.invalid"
+          python scripts/build_forgejo_package_provenance_prefix.py \
+            --credentials "$runtime_root/credentials.json" \
+            --instance-spec "$INSTANCE_SPEC" \
+            --output "$RUN_ROOT/runtime/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot \
+            --snapshot "$runtime_root/package-prefix.tar.gz"
+
+      - name: Replay four boundaries and reference recoveries
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          variants=(
+            package_request_not_reached
+            package_binary_committed_response_lost
+            package_complete_index_missing
+            package_complete_index_accepted_response_lost
+          )
+          test "${#variants[@]}" -eq 4
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore \
+              --snapshot "$runtime_root/package-prefix.tar.gz"
+            python scripts/run_forgejo_package_provenance_boundary.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/runtime/$variant-boundary.json"
+            python scripts/run_forgejo_package_provenance_control.py \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --boundary "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --output "$RUN_ROOT/runtime/$variant-reference.json"
+          done
+
+      - name: Execute fixed policies from every boundary
+        run: |
+          runtime_root="runtimes/forgejo/.runtime"
+          variants=(
+            package_request_not_reached
+            package_binary_committed_response_lost
+            package_complete_index_missing
+            package_complete_index_accepted_response_lost
+          )
+          baselines=(
+            no_op
+            blind_full_publish
+            assume_package_exists
+            metadata_only
+            replay_all_failed
+            close_only
+          )
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore \
+                --snapshot "$runtime_root/package-prefix.tar.gz"
+              python scripts/run_forgejo_package_provenance_boundary.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/runtime/prefix.json" \
+                --variant "$variant" \
+                --output "$RUN_ROOT/runtime/$baseline-$variant-boundary.json"
+              python scripts/run_forgejo_package_provenance_baseline.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$RUN_ROOT/runtime/prefix.json" \
+                --boundary "$RUN_ROOT/runtime/$baseline-$variant-boundary.json" \
+                --baseline "$baseline" \
+                --output "$RUN_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+
+      - name: Derive strict admission and seal the candidate
+        run: |
+          python scripts/build_forgejo_package_provenance_admission.py \
+            --runtime-directory "$RUN_ROOT/runtime" \
+            --baseline-directory "$RUN_ROOT/baselines" \
+            --blueprint "$BLUEPRINT" \
+            --output-directory "$SCENARIO_DIRECTORY"
+          python -m aftermath_bench validate-native-scenario \
+            --scenario "$SCENARIO_DIRECTORY/scenario.json"
+          mkdir -p "$RUN_ROOT/candidate-scenario"
+          cp -R "$SCENARIO_DIRECTORY/." "$RUN_ROOT/candidate-scenario/"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" \
+            --output "$RUN_ROOT/files.json"
+          python scripts/verify_public_evidence_safe.py \
+            --root "$RUN_ROOT" \
+            --root "$SCENARIO_DIRECTORY" \
+            --credentials-json runtimes/forgejo/.runtime/credentials.json \
+            --allow-native-restore-archives
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f runtimes/forgejo/.runtime/credentials.json
+
+      - name: Upload replay-derived candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-package-provenance-public-dev-candidate-${{ github.run_id }}
+          path: data/generated/forgejo-package-provenance-public-dev-slot-001
+          if-no-files-found: warn
+
+      - name: Purge native services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge || true

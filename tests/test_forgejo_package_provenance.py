@@ -148,6 +148,13 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
             {item.api_mode for item in PACKAGE_PROVENANCE_VARIANTS.values()},
             {"suppress_request", "drop_response"},
         )
+        complete = PACKAGE_PROVENANCE_VARIANTS[
+            "package_complete_index_accepted_response_lost"
+        ]
+        self.assertEqual(complete.preclosed_tracking_positions, (0,))
+        self.assertEqual(complete.postcommit_tracking_positions, (1,))
+        self.assertEqual(complete.coordinator_mode, "drop_response")
+        self.assertEqual(complete.provenance_mode, "suppress_request")
 
     def test_complete_native_state_passes(self) -> None:
         report = evaluate_forgejo_package_provenance_recovery(
@@ -203,9 +210,9 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
     def test_adaptive_prompt_requires_runtime_id_discovery(self) -> None:
         prefix = {
             **_prefix(),
-            "owner": "meridian-supply",
-            "repository": "orbitctl-distribution",
-            "base_branch": "release/2.4",
+            "owner": "prompt-test-owner",
+            "repository": "prompt-test-repository",
+            "base_branch": "release/prompt-test",
             "pull_request_index": 7,
             "linked_issue_index": 11,
             "milestone_id": 3,
@@ -230,12 +237,12 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
             failure_report={
                 "latest_attempt": {
                     "tool": "upload_package_file_from_repository",
-                    "arguments": {"filename": "orbitctl.tar.gz"},
+                    "arguments": {"filename": "prompt-test.tar.gz"},
                     "result": {"ok": False, "error": "connection lost"},
                 }
             },
         )
-        self.assertIn("orbitctl-distribution", message)
+        self.assertIn("prompt-test-repository", message)
         self.assertIn("create_hook", message)
         self.assertNotIn("coordinator_hook_id", message)
         self.assertNotIn("tracking_issue_indexes", message)

@@ -611,8 +611,10 @@ def reference_forgejo_package_provenance_recovery(
     call("get_pull_request", index=prefix["pull_request_index"])
     call("list_issues")
     call("get_issue", index=prefix["linked_issue_index"])
-    for index in prefix["tracking_issue_indexes"]:
-        call("get_issue", index=index)
+    tracking = {
+        int(index): call("get_issue", index=index)
+        for index in prefix["tracking_issue_indexes"]
+    }
     milestone = call("get_milestone", milestone_id=prefix["milestone_id"])
     call(
         "get_repository_file",
@@ -726,7 +728,8 @@ def reference_forgejo_package_provenance_recovery(
     if milestone.get("state") != "closed":
         call("close_milestone", milestone_id=prefix["milestone_id"])
     for index in prefix["tracking_issue_indexes"]:
-        call("close_issue", index=index)
+        if str(tracking[int(index)].get("state")) != "closed":
+            call("close_issue", index=index)
     call("list_packages", query=prefix["package_name"])
     call(
         "list_package_files",

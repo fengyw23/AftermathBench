@@ -8,35 +8,47 @@ from .forgejo_publication_faults import ForgejoPublicationFaultController
 @dataclass(frozen=True)
 class PackageProvenanceBoundaryVariant:
     preloaded_file_roles: tuple[str, ...]
+    preclosed_tracking_positions: tuple[int, ...]
+    postcommit_tracking_positions: tuple[int, ...]
     attempted_operation: str
     api_mode: str
     release_committed: bool
-    downstream_mode: str
+    coordinator_mode: str
+    provenance_mode: str
 
 
 PACKAGE_PROVENANCE_VARIANTS = {
     "package_request_not_reached": PackageProvenanceBoundaryVariant(
         preloaded_file_roles=(),
+        preclosed_tracking_positions=(),
+        postcommit_tracking_positions=(),
         attempted_operation="upload_binary",
         api_mode="suppress_request",
         release_committed=False,
-        downstream_mode="normal",
+        coordinator_mode="normal",
+        provenance_mode="normal",
     ),
     "package_binary_committed_response_lost": (
         PackageProvenanceBoundaryVariant(
             preloaded_file_roles=(),
+            preclosed_tracking_positions=(),
+            postcommit_tracking_positions=(),
             attempted_operation="upload_binary",
             api_mode="drop_response",
             release_committed=False,
-            downstream_mode="normal",
+            coordinator_mode="normal",
+            provenance_mode="normal",
         )
     ),
     "package_complete_index_missing": PackageProvenanceBoundaryVariant(
         preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
+        preclosed_tracking_positions=(0,),
+        postcommit_tracking_positions=(),
         attempted_operation="create_index_release",
         api_mode="suppress_request",
         release_committed=False,
-        downstream_mode="normal",
+        coordinator_mode="normal",
+        provenance_mode="normal",
     ),
     "package_complete_index_accepted_response_lost": (
         PackageProvenanceBoundaryVariant(
@@ -46,10 +58,13 @@ PACKAGE_PROVENANCE_VARIANTS = {
                 "sbom",
                 "signature",
             ),
+            preclosed_tracking_positions=(0,),
+            postcommit_tracking_positions=(1,),
             attempted_operation="create_index_release",
             api_mode="drop_response",
             release_committed=True,
-            downstream_mode="drop_response",
+            coordinator_mode="drop_response",
+            provenance_mode="suppress_request",
         )
     ),
 }
@@ -57,9 +72,7 @@ PACKAGE_PROVENANCE_VARIANTS = {
 FORGEJO_PACKAGE_PROVENANCE_VARIANTS = tuple(PACKAGE_PROVENANCE_VARIANTS)
 
 
-class ForgejoPackageProvenanceFaultController(
-    ForgejoPublicationFaultController
-):
+class ForgejoPackageProvenanceFaultController(ForgejoPublicationFaultController):
     def arm(self, variant: str) -> PackageProvenanceBoundaryVariant:
         try:
             specification = PACKAGE_PROVENANCE_VARIANTS[variant]
@@ -74,11 +87,11 @@ class ForgejoPackageProvenanceFaultController(
         )
         self.api._set_mode(
             self.coordinator_gateway_control_url,
-            specification.downstream_mode,
+            specification.coordinator_mode,
         )
         self.api._set_mode(
             self.provenance_gateway_control_url,
-            specification.downstream_mode,
+            specification.provenance_mode,
         )
         return specification
 
