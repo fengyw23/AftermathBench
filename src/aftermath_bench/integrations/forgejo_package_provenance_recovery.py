@@ -788,13 +788,13 @@ def reference_forgejo_package_provenance_recovery(
                     hook_id=hook_id,
                     delivery_uuid=created[0]["uuid"],
                 )
-            call(
-                "wait_for_webhook_history_change",
-                hook_id=hook_id,
-                release_tag=prefix["package_index_release_tag"],
-                known_delivery_uuids=known,
-                timeout_seconds=30,
-            )
+                call(
+                    "wait_for_webhook_history_change",
+                    hook_id=hook_id,
+                    release_tag=prefix["package_index_release_tag"],
+                    known_delivery_uuids=known,
+                    timeout_seconds=30,
+                )
     else:
         external_by_key = {
             str(item.get("key")): item
