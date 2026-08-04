@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - forgejo-publication-candidate
+      - forgejo-publication-hidden-test-002
   workflow_dispatch:
     inputs:
       model:
@@ -19,7 +20,7 @@ on:
       instance_id:
         description: Fresh hidden instance slot to freeze or evaluate
         required: true
-        default: candidate-001
+        default: test-001
         type: string
 
 permissions:
@@ -32,6 +33,7 @@ jobs:
     env:
       PYTHONPATH: src
       AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'forgejo-publication-hidden-test-002' && 'test-002' || 'test-001') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,7 +65,7 @@ jobs:
             write_bootstrap_status "secret_decoded"
           else
             python scripts/generate_forgejo_publication_hidden_instance.py \
-              --instance-id "${{ inputs.instance_id || 'candidate-001' }}" \
+              --instance-id "$SELECTED_INSTANCE_ID" \
               --output "$run_root/private/instance.json" \
               > "$run_root/private/logs/instance-generation.log" 2>&1
             write_bootstrap_status "instance_generated"
@@ -74,7 +76,7 @@ jobs:
           python scripts/render_forgejo_publication_blueprint.py \
             --instance-spec "$run_root/private/instance.json" \
             --output "$run_root/private/blueprint.json" \
-            --instance-id "${{ inputs.instance_id || 'candidate-001' }}" \
+            --instance-id "$SELECTED_INSTANCE_ID" \
             --benchmark-split hidden_test
           write_bootstrap_status "blueprint_rendered"
           python -m unittest discover -s tests -v
@@ -371,7 +373,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forgejo-publication-${{ inputs.instance_id || 'candidate-001' }}-${{ github.run_id }}
+          name: forgejo-publication-${{ env.SELECTED_INSTANCE_ID }}-${{ github.run_id }}
           path: ${{ runner.temp }}/forgejo-candidate/public/
           if-no-files-found: error
           retention-days: 90

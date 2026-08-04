@@ -102,6 +102,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
 
     def test_candidate_push_freezes_without_consuming_the_hidden_instance(self) -> None:
         self.assertIn("forgejo-publication-candidate", self.text)
+        self.assertIn("forgejo-publication-hidden-test-002", self.text)
         self.assertIn(
             "github.event_name == 'workflow_dispatch' && inputs.run_execution_control",
             self.text,
@@ -125,7 +126,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertLess(novelty, rendering)
         self.assertIn("instance_id:", self.text)
         self.assertIn(
-            "inputs.instance_id || 'candidate-001'",
+            "SELECTED_INSTANCE_ID",
             self.text,
         )
 
