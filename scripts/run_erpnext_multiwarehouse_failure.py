@@ -272,6 +272,7 @@ def main() -> int:
         "surface_result": (
             "HTTP connection lost before the Stock Entry submission response"
         ),
+        "visible_failure": visible_failure,
         "surface_error": "connection_lost_before_confirmation",
         "latest_attempt": {
             "tool": "submit_document",
