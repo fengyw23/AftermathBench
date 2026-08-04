@@ -5,6 +5,7 @@ from pathlib import Path
 
 from aftermath_bench.erpnext_formal_build_spec import (
     ERPNextFormalBuildSpecError,
+    MULTIWAREHOUSE_FORMAL_PROFILE,
     _evaluator_role,
     _tool_role,
     _validate_boundary_replay_equivalence,
@@ -20,6 +21,23 @@ from aftermath_bench.native_scenario import load_native_scenario
 
 
 class ERPNextFormalBuildSpecTest(unittest.TestCase):
+    def test_multiwarehouse_profile_uses_its_own_native_contract(self) -> None:
+        profile = MULTIWAREHOUSE_FORMAL_PROFILE
+        self.assertEqual(profile.family_id, "erpnext-multiwarehouse-transfer")
+        self.assertEqual(
+            profile.state_evidence_artifact_type,
+            "erpnext_multiwarehouse_state_evidence",
+        )
+        self.assertEqual(
+            profile.failure_boundary_artifact_type,
+            "erpnext_multiwarehouse_failure_boundary",
+        )
+        self.assertEqual(
+            profile.reference_artifact_type,
+            "erpnext_multiwarehouse_reference_recovery",
+        )
+        self.assertEqual(profile.raw_boundary_state_field, "boundary_evidence")
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.root = Path(__file__).resolve().parents[1]
