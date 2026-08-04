@@ -27,6 +27,19 @@ class ForgejoPackageProvenancePublicDevWorkflowTest(unittest.TestCase):
         self.assertIn("build_forgejo_package_provenance_admission.py", self.text)
         self.assertIn("validate-native-scenario", self.text)
 
+    def test_hidden_candidate_uses_nonmonotonic_r2_boundaries(self) -> None:
+        hidden = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "forgejo-publication-candidate.yml"
+        ).read_text(encoding="utf-8")
+        package_block = hidden.split(
+            'if [ "$SELECTED_FAMILY" = package_provenance ]', 1
+        )[1].split("else", 1)[0]
+        self.assertIn("--generation r2", package_block)
+        self.assertIn("build_forgejo_package_provenance_admission.py", hidden)
+
 
 if __name__ == "__main__":
     unittest.main()
