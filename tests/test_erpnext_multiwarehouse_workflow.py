@@ -52,6 +52,11 @@ class ERPNextMultiwarehouseWorkflowTests(unittest.TestCase):
         section = self.text[start:end]
         self.assertIn("${{ failure() }}", section)
         self.assertIn("raw_logs_published", section)
+        self.assertIn('"artifact_presence"', section)
+        self.assertIn('"log_file_names"', section)
+        self.assertIn('"formal_inputs"', section)
+        self.assertIn('"execution_control"', section)
+        self.assertIn('"formal_completion"', section)
         self.assertIn("generated/erpnext-multiwarehouse-formal-diagnostic", section)
         self.assertNotIn('cat "$RUN_ROOT/logs', section)
 
