@@ -12,6 +12,40 @@ from .forgejo_api import ForgejoAPI
 from .forgejo_promotion_instance import ForgejoPromotionInstanceSpec
 
 
+def promotion_components(checks: dict[str, bool]) -> dict[str, bool]:
+    """Aggregate public recovery invariants without scoring prose format."""
+
+    return {
+        "goal_completion": all(
+            checks[key]
+            for key in (
+                "production_deployed",
+                "two_matching_ready_replicas",
+                "attestation_exactly_once",
+                "target_release_published_once",
+                "rollout_issue_closed",
+            )
+        ),
+        "repair_completeness": all(
+            checks[key]
+            for key in (
+                "native_actions_artifact_present",
+                "signed_bundle_registered_once",
+            )
+        ),
+        "preservation": all(
+            checks[key]
+            for key in (
+                "prior_release_preserved",
+                "approval_record_preserved",
+                "unrelated_issue_preserved",
+                "protected_environment_preserved",
+            )
+        ),
+        "protocol_safety": checks["single_successful_promotion_owner"],
+    }
+
+
 def get_external_delivery(base_url: str, key: str) -> dict[str, Any] | None:
     url = f"{base_url.rstrip('/')}/deliveries/{urllib.parse.quote(key, safe='')}"
     try:
@@ -152,6 +186,10 @@ class ForgejoPromotionEvaluator:
             and approval.get("state") == "closed",
             "unrelated_issue_preserved": unrelated is not None
             and unrelated.get("state") == "open",
+            # A verification comment is useful audit metadata, but the public
+            # request does not prescribe its exact body.  Keep the check as a
+            # diagnostic instead of turning an omitted full digest or
+            # idempotency key into a hidden hard constraint.
             "verification_comment_exactly_once": sum(
                 spec.version in str(comment.get("body", ""))
                 and spec.artifact_digest in str(comment.get("body", ""))
@@ -163,36 +201,7 @@ class ForgejoPromotionEvaluator:
             == initial_protected_deployments
             and protected_replicas == initial_protected_replicas,
         }
-        components = {
-            "goal_completion": all(
-                checks[key]
-                for key in (
-                    "production_deployed",
-                    "two_matching_ready_replicas",
-                    "attestation_exactly_once",
-                    "target_release_published_once",
-                    "rollout_issue_closed",
-                )
-            ),
-            "repair_completeness": all(
-                checks[key]
-                for key in (
-                    "native_actions_artifact_present",
-                    "signed_bundle_registered_once",
-                    "verification_comment_exactly_once",
-                )
-            ),
-            "preservation": all(
-                checks[key]
-                for key in (
-                    "prior_release_preserved",
-                    "approval_record_preserved",
-                    "unrelated_issue_preserved",
-                    "protected_environment_preserved",
-                )
-            ),
-            "protocol_safety": checks["single_successful_promotion_owner"],
-        }
+        components = promotion_components(checks)
         passed = all(components.values())
         return {
             "schema_version": "1.0",
@@ -214,4 +223,8 @@ class ForgejoPromotionEvaluator:
         }
 
 
-__all__ = ["ForgejoPromotionEvaluator", "get_external_delivery"]
+__all__ = [
+    "ForgejoPromotionEvaluator",
+    "get_external_delivery",
+    "promotion_components",
+]

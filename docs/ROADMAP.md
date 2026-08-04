@@ -99,6 +99,15 @@ promoted into the final native-runtime benchmark.
 - [ ] Complete the corrected execution-control and ordinary-model gates. The
   first control dispatch is invalid because it stopped before provider access
   on a boundary-report field mismatch and is excluded from results.
+- [x] Audit the second control run (`30895584547`): its apparent 2/6 result was
+  entirely caused by an undisclosed exact verification-comment body. Keep that
+  check as a diagnostic rather than a hard invariant and rerun the control.
+- [x] Add replay-derived scope-decision auditing. It correctly rejects the
+  six-stage promotion family as too shallow (static certificate 3, adaptive
+  depth 2 versus its predeclared 5/4 profile).
+- [ ] Build a non-monotonic Forgejo reconciliation family whose independently
+  missing or inconsistent Actions evidence, artifact registration, deployment,
+  attestation and metadata force all five public evidence surfaces to matter.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

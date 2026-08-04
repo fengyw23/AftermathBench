@@ -11,9 +11,30 @@ from aftermath_bench.integrations.forgejo_promotion_baselines import (
     FORGEJO_PROMOTION_BASELINES,
     run_fixed_forgejo_promotion_baseline,
 )
+from aftermath_bench.integrations.forgejo_promotion_evaluator import (
+    promotion_components,
+)
 
 
 class ForgejoPromotionAgentTest(unittest.TestCase):
+    def test_comment_body_is_diagnostic_not_a_hidden_hard_constraint(self) -> None:
+        checks = {
+            "production_deployed": True,
+            "two_matching_ready_replicas": True,
+            "attestation_exactly_once": True,
+            "target_release_published_once": True,
+            "rollout_issue_closed": True,
+            "native_actions_artifact_present": True,
+            "signed_bundle_registered_once": True,
+            "prior_release_preserved": True,
+            "approval_record_preserved": True,
+            "unrelated_issue_preserved": True,
+            "protected_environment_preserved": True,
+            "single_successful_promotion_owner": True,
+            "verification_comment_exactly_once": False,
+        }
+        self.assertTrue(all(promotion_components(checks).values()))
+
     @staticmethod
     def _environment_with_runs(runs):
         forgejo = Mock()

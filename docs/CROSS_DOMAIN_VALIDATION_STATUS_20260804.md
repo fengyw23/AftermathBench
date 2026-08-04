@@ -183,6 +183,27 @@ the control is rerunning. Construction and fixed-policy resistance are
 established, but the Forgejo saturation risk remains open until valid model
 controls and an ordinary run complete.
 
+The corrected execution-control run `30895584547` completed all six variants
+without provider or runtime errors, but initially scored only 2/6. All four
+failures had already achieved the requested deployment, attestation, release
+and preservation state; they failed only because a free-form verification
+comment did not repeat the complete digest and attestation key. The public task
+did not prescribe that comment format. This is a hidden output-format
+constraint, not recovery difficulty, so the comment-content check is now a
+diagnostic and has been removed from the hard pass aggregate. A fresh control
+run is required before model scores from this family are interpreted.
+
+A replay-derived scope-decision audit now prevents a different false positive:
+many state dimensions do not by themselves imply difficult recovery reasoning.
+For this six-boundary family, the smallest static certificate uses three of four
+grouped public query surfaces and the optimal adaptive decision tree has
+worst-case depth two. That misses the predeclared 5/4 profile even though all
+six scopes are identifiable and no single query surface solves the group. The
+family is therefore a valid native diagnostic but is not hard-admitted. The
+next Forgejo family must use non-monotonic combinations (for example independent
+Actions evidence, artifact registration, deployment, attestation and metadata
+gaps), rather than adding more points to the same linear promotion sequence.
+
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
@@ -217,9 +238,11 @@ are not considered closed by adding more variants to an existing template.
 3. **Forgejo saturation risk (native construction closed; model gate open).**
    The new six-boundary family now crosses approval state, signed build
    artifacts, deployment status, external attestation and prior-release
-   preservation. The remaining closure condition is empirical: fixed strategies
-   must fail the matched group, execution control must pass, and at least one
-   strong ordinary model must fail matched-group inference.
+   preservation, and fixed strategies fail the matched group. However, the
+   replay-derived decision depth is only two, so native construction alone does
+   not close the scientific risk. Closure now requires a non-monotonic family
+   that passes the predeclared scope-decision profile, an execution control, and
+   ordinary strong-model evaluation.
 
 These gates keep effort focused on new recovery reasoning rather than increasing
 case count through surface-level renaming.
