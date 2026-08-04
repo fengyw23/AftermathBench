@@ -114,6 +114,13 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
         self.assertFalse(result["components"]["repair_completeness"])
         self.assertIn("landed_cost_allocations_preserved", result["failures"])
 
+    def test_missing_external_quantity_fails_instead_of_crashing(self) -> None:
+        evidence = copy.deepcopy(self.evidence)
+        del evidence["certificate_deliveries"][0]["quantity"]
+        result = self.evaluate(evidence)
+        self.assertFalse(result["passed"])
+        self.assertIn("certificate_exactly_once", result["failures"])
+
 
 if __name__ == "__main__":
     unittest.main()

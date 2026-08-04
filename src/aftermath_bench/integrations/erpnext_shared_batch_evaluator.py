@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
@@ -8,6 +8,22 @@ def _decimal(value: Any) -> Decimal:
     if isinstance(value, bool):
         raise ValueError("boolean is not a valid ERPNext quantity or amount")
     return Decimal(str(value))
+
+
+def _same_decimal(left: Any, right: Any) -> bool:
+    try:
+        return _decimal(left) == _decimal(right)
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+
+
+def _sum_matches(parts: tuple[Any, ...], total: Any) -> bool:
+    try:
+        return sum((_decimal(value) for value in parts), Decimal("0")) == _decimal(
+            total
+        )
+    except (InvalidOperation, TypeError, ValueError):
+        return False
 
 
 def evaluate_shared_batch_terminal(
@@ -45,61 +61,78 @@ def evaluate_shared_batch_terminal(
 
     checks = {
         "primary_order_quantity_unchanged": (
-            _decimal(primary["ordered_quantity"]) == primary_ordered
+            _same_decimal(primary.get("ordered_quantity"), primary_ordered)
         ),
         "accepted_primary_quantity_preserved": (
-            _decimal(primary["accepted_quantity"]) == accepted_quantity
+            _same_decimal(primary.get("accepted_quantity"), accepted_quantity)
         ),
         "corrective_quantity_completed": (
-            _decimal(primary["corrective_completed_quantity"])
-            == corrective_quantity
+            _same_decimal(
+                primary.get("corrective_completed_quantity"), corrective_quantity
+            )
         ),
         "primary_manufacture_closes_order": (
-            _decimal(primary["manufactured_quantity"]) == primary_ordered
+            _same_decimal(primary.get("manufactured_quantity"), primary_ordered)
         ),
         "corrective_quality_accepted": (
-            _decimal(primary["corrective_accepted_quantity"])
-            == corrective_quantity
+            _same_decimal(
+                primary.get("corrective_accepted_quantity"), corrective_quantity
+            )
         ),
         "secondary_output_preserved": (
-            _decimal(secondary["manufactured_quantity"]) == secondary_ordered
-            and _decimal(secondary["accepted_quantity"]) == secondary_ordered
+            _same_decimal(secondary.get("manufactured_quantity"), secondary_ordered)
+            and _same_decimal(secondary.get("accepted_quantity"), secondary_ordered)
         ),
         "customer_reservation_preserved": (
             str(secondary["reservation_sales_order"])
             == str(fixture["customer_reservation"]["sales_order"])
-            and _decimal(secondary["reserved_quantity"])
-            == _decimal(fixture["customer_reservation"]["quantity"])
+            and _same_decimal(
+                secondary.get("reserved_quantity"),
+                fixture["customer_reservation"]["quantity"],
+            )
         ),
         "shared_supplier_batch_identity_preserved": (
             str(shared["supplier_batch_id"])
             == str(shared_expected["supplier_batch_id"])
         ),
         "shared_batch_consumption_matches_both_orders": (
-            _decimal(shared["primary_consumed_quantity"])
-            == primary_ordered
-            * _decimal(primary_expected["component_quantity_per_unit"])
-            and _decimal(shared["secondary_consumed_quantity"])
-            == secondary_ordered
-            * _decimal(secondary_expected["component_quantity_per_unit"])
+            _same_decimal(
+                shared.get("primary_consumed_quantity"),
+                primary_ordered
+                * _decimal(primary_expected["component_quantity_per_unit"]),
+            )
+            and _same_decimal(
+                shared.get("secondary_consumed_quantity"),
+                secondary_ordered
+                * _decimal(secondary_expected["component_quantity_per_unit"]),
+            )
         ),
         "shared_batch_stock_conserved": (
-            _decimal(shared["remaining_quantity"])
-            + _decimal(shared["primary_consumed_quantity"])
-            + _decimal(shared["secondary_consumed_quantity"])
-            == _decimal(shared_expected["received_quantity"])
+            _sum_matches(
+                (
+                    shared.get("remaining_quantity"),
+                    shared.get("primary_consumed_quantity"),
+                    shared.get("secondary_consumed_quantity"),
+                ),
+                shared_expected["received_quantity"],
+            )
         ),
         "landed_cost_allocations_preserved": (
-            _decimal(landed_cost["total_amount"])
-            == _decimal(cost_expected["amount"])
-            and _decimal(landed_cost["primary_allocation"])
-            == _decimal(cost_expected["primary_allocation"])
-            and _decimal(landed_cost["secondary_allocation"])
-            == _decimal(cost_expected["secondary_allocation"])
+            _same_decimal(landed_cost.get("total_amount"), cost_expected["amount"])
+            and _same_decimal(
+                landed_cost.get("primary_allocation"),
+                cost_expected["primary_allocation"],
+            )
+            and _same_decimal(
+                landed_cost.get("secondary_allocation"),
+                cost_expected["secondary_allocation"],
+            )
         ),
         "general_ledger_balanced": (
-            _decimal(landed_cost["gl_debit_total"])
-            == _decimal(landed_cost["gl_credit_total"])
+            _same_decimal(
+                landed_cost.get("gl_debit_total"),
+                landed_cost.get("gl_credit_total"),
+            )
         ),
         "protected_native_documents_unchanged": (
             actual_fingerprints == protected_fingerprints
@@ -114,8 +147,9 @@ def evaluate_shared_batch_terminal(
             and certificate_deliveries[0].get("idempotency_key")
             == certificate_expected["idempotency_key"]
             and certificate_deliveries[0].get("accepted") is True
-            and _decimal(certificate_deliveries[0].get("quantity"))
-            == corrective_quantity
+            and _same_decimal(
+                certificate_deliveries[0].get("quantity"), corrective_quantity
+            )
             and certificate_deliveries[0].get("attempt_count") == 1
         ),
     }
