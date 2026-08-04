@@ -353,6 +353,68 @@ jobs:
           cp "$run_root/private/public-commitment.json" \
             "$run_root/public/pre-model-commitment.json"
 
+      # A rejected native admission is not a benchmark result, but it is a
+      # construction signal.  Persist only the already-redacted gate summary
+      # so the next iteration can fix a real invariant without exposing a
+      # hidden instance, runtime trace, or model-facing state.
+      - name: Record safe native-admission rejection
+        if: ${{ failure() }}
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          safe_root="data/evidence/admission-diagnostics"
+          mkdir -p "$safe_root"
+          output="$safe_root/forgejo-${SELECTED_FAMILY}-${SELECTED_INSTANCE_ID}-${GITHUB_RUN_ID}.json"
+          if [ -f "$run_root/public/admission-failure.json" ]
+          then
+            cp "$run_root/public/admission-failure.json" "$output"
+          else
+            python - "$output" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          Path(sys.argv[1]).write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "phase": "admission",
+                      "exception_types": [],
+                      "failed_gate_names": [],
+                      "raw_log_published": False,
+                      "diagnostic_status": "admission_output_unavailable",
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          fi
+          python - "$output" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          payload["artifact"] = {
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "workflow": "forgejo-publication-candidate",
+          }
+          path.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$output"
+          git commit -m "diagnostic(forgejo): record rejected ${SELECTED_FAMILY} ${SELECTED_INSTANCE_ID}"
+          git push
+
       - name: Lock and run execution control on frozen state
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_execution_control }}
         env:
