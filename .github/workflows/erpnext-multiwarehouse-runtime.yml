@@ -339,14 +339,18 @@ jobs:
         if: ${{ failure() }}
         run: |
           output="$RUNNER_TEMP/multiwarehouse-formal-diagnostic.json"
-          python - "$RUN_ROOT/logs" "$output" <<'PY'
+          python - "$RUN_ROOT" "$CONTROL_ROOT" "$FORMAL_OUTPUT" "$GENERATED_SCENARIO" "$output" <<'PY'
           import json
           import re
           import sys
           from pathlib import Path
 
-          log_root = Path(sys.argv[1])
-          output = Path(sys.argv[2])
+          run_root = Path(sys.argv[1])
+          control_root = Path(sys.argv[2])
+          formal_output = Path(sys.argv[3])
+          scenario_root = Path(sys.argv[4])
+          output = Path(sys.argv[5])
+          log_root = run_root / "logs"
           text = "\n".join(
               path.read_text(encoding="utf-8", errors="replace")
               for path in sorted(log_root.glob("*.log"))
@@ -359,11 +363,33 @@ jobs:
               text,
               flags=re.I,
           )))
+          artifacts = {
+              "admitted_scenario": (scenario_root / "scenario.json").is_file(),
+              "formal_input_spec": (run_root / "specs" / "formal-inputs.json").is_file(),
+              "formal_input_lock": (formal_output / "formal-input-lock.json").is_file(),
+              "execution_control_summary": (control_root / "model-runs" / "summary.json").is_file(),
+              "formal_completion": (formal_output / "completion" / "declarations.json").is_file(),
+              "formal_release_binding": (run_root / "formal-release-binding.json").is_file(),
+          }
+          if not artifacts["formal_input_lock"]:
+              failed_phase = "formal_inputs"
+          elif not artifacts["execution_control_summary"]:
+              failed_phase = "execution_control"
+          elif not artifacts["formal_completion"]:
+              failed_phase = "formal_completion"
+          elif not artifacts["formal_release_binding"]:
+              failed_phase = "formal_binding"
+          else:
+              failed_phase = "post_binding"
           output.write_text(
               json.dumps(
                   {
                       "schema_version": "1.0",
-                      "phase": "formal_evidence",
+                      "phase": failed_phase,
+                      "artifact_presence": artifacts,
+                      "log_file_names": [
+                          path.name for path in sorted(log_root.glob("*.log"))
+                      ],
                       "exception_types": exception_types,
                       "failed_gate_fragments": gate_names,
                       "raw_logs_published": False,
