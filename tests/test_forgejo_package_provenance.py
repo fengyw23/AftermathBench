@@ -200,6 +200,10 @@ class ForgejoPackageProvenanceTest(unittest.TestCase):
             "r2_package_binary_committed_response_lost"
         ]
         self.assertEqual(partial.preloaded_file_roles, ("checksum", "sbom"))
+        self.assertEqual(
+            partial.disabled_hook_roles,
+            ("coordinator", "provenance"),
+        )
 
     def test_complete_native_state_passes(self) -> None:
         report = evaluate_forgejo_package_provenance_recovery(

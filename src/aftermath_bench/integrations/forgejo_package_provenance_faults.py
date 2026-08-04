@@ -97,7 +97,11 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
     "r2_package_binary_committed_response_lost": PackageProvenanceBoundaryVariant(
         # The publication already attached two independent attestations before
         # the binary write lost its response.  Recovery must preserve all
-        # three durable files and add only the missing signature.
+        # three durable files and add only the missing signature.  The two
+        # release consumers were also paused for the in-flight maintenance
+        # window.  Their active state is an ordinary, queryable Forgejo hook
+        # fact: creating an index while they remain paused cannot complete
+        # the user's explicitly requested downstream effects.
         preloaded_file_roles=("checksum", "sbom"),
         preclosed_tracking_positions=(),
         postcommit_tracking_positions=(),
@@ -106,6 +110,7 @@ PACKAGE_PROVENANCE_R2_VARIANTS = {
         release_committed=False,
         coordinator_mode="normal",
         provenance_mode="normal",
+        disabled_hook_roles=("coordinator", "provenance"),
     ),
     "r2_package_complete_index_missing": PackageProvenanceBoundaryVariant(
         preloaded_file_roles=("binary", "checksum", "sbom", "signature"),
