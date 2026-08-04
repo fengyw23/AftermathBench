@@ -152,6 +152,65 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
         )
         self.assertEqual(report["primary_error"], "execution_failure")
 
+    def test_diagnostics_detect_observed_duplicate_that_final_text_denies(self) -> None:
+        report = diagnose_manufacturing_trajectory(
+            turns=[
+                {
+                    "text": "I will submit and then enqueue the release.",
+                    "tool_calls": [
+                        {"name": "get_document", "arguments": {}},
+                        {"name": "find_background_jobs", "arguments": {}},
+                        {"name": "get_external_delivery", "arguments": {}},
+                        {
+                            "name": "submit_document",
+                            "arguments": {"doctype": "Job Card", "name": "JC-1"},
+                        },
+                        {
+                            "name": "enqueue_document_webhook",
+                            "arguments": {"doctype": "Job Card", "name": "JC-1"},
+                        },
+                    ],
+                    "tool_results": [],
+                },
+                {
+                    "text": "Verified exactly once; no duplicate release occurred.",
+                    "tool_calls": [
+                        {"name": "wait_for_external_delivery", "arguments": {}}
+                    ],
+                    "tool_results": [
+                        {
+                            "name": "wait_for_external_delivery",
+                            "result": {
+                                "ok": True,
+                                "delivery": {
+                                    "attempt_count": 2,
+                                    "attempts": [{"id": 1}, {"id": 2}],
+                                },
+                            },
+                        }
+                    ],
+                },
+            ],
+            evaluation=SimpleNamespace(
+                passed=False,
+                components={
+                    "goal_completion": True,
+                    "repair_completeness": True,
+                    "preservation": True,
+                    "protocol_safety": False,
+                },
+                failures=["quality_release_applied_exactly_once"],
+            ),
+            failure_report={"variant": "request_not_reached"},
+            prefix={"corrective_job_card": "JC-1"},
+        )
+        self.assertEqual(report["primary_error"], "execution_failure")
+        self.assertFalse(report["webhook_contract_inspected"])
+        self.assertTrue(report["manual_webhook_enqueue_after_job_card_submit"])
+        self.assertEqual(report["maximum_observed_quality_release_attempts"], 2)
+        self.assertTrue(report["final_claims_exactly_once"])
+        self.assertTrue(report["verification_missed_observed_violation"])
+
     def test_resubmitting_committed_corrective_card_is_state_inference_failure(
         self,
     ) -> None:

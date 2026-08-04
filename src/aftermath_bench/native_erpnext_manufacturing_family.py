@@ -340,6 +340,60 @@ def diagnose_manufacturing_trajectory(
         for result in turn.get("tool_results", [])
         if not bool(result.get("result", {}).get("ok"))
     ]
+    observed_release_attempt_counts = []
+    for turn in turns:
+        for tool_result in turn.get("tool_results", []):
+            result = tool_result.get("result", {})
+            delivery = result.get("delivery")
+            if not isinstance(delivery, dict):
+                continue
+            attempt_count = delivery.get("attempt_count")
+            if isinstance(attempt_count, int) and not isinstance(attempt_count, bool):
+                observed_release_attempt_counts.append(attempt_count)
+            elif isinstance(delivery.get("attempts"), list):
+                observed_release_attempt_counts.append(len(delivery["attempts"]))
+    maximum_observed_release_attempts = max(
+        observed_release_attempt_counts,
+        default=0,
+    )
+    webhook_contract_inspected = any(
+        call.get("name") == "get_document"
+        and call.get("arguments", {}).get("doctype") == "Webhook"
+        for call in calls
+    )
+    submit_index = next(
+        (
+            index
+            for index, call in enumerate(calls)
+            if call.get("name") == "submit_document"
+            and call.get("arguments", {}).get("doctype") == "Job Card"
+            and call.get("arguments", {}).get("name")
+            == prefix.get("corrective_job_card")
+        ),
+        None,
+    )
+    enqueue_index = next(
+        (
+            index
+            for index, call in enumerate(calls)
+            if call.get("name") == "enqueue_document_webhook"
+        ),
+        None,
+    )
+    manual_enqueue_after_submit = (
+        submit_index is not None
+        and enqueue_index is not None
+        and enqueue_index > submit_index
+    )
+    final_text = str(turns[-1].get("text", "")) if turns else ""
+    normalised_final_text = final_text.lower()
+    final_claims_exactly_once = any(
+        phrase in normalised_final_text
+        for phrase in ("exactly once", "single delivery", "no duplicate")
+    )
+    verification_missed_observed_violation = (
+        maximum_observed_release_attempts > 1 and final_claims_exactly_once
+    )
     return {
         "primary_error": primary_error,
         "evidence_groups": evidence_groups,
@@ -347,6 +401,17 @@ def diagnose_manufacturing_trajectory(
         "unsafe_corrective_resubmit": unsafe_retry,
         "tool_error_count": len(tool_errors),
         "tool_errors": tool_errors,
+        "webhook_contract_inspected": webhook_contract_inspected,
+        "manual_webhook_enqueue_after_job_card_submit": (
+            manual_enqueue_after_submit
+        ),
+        "maximum_observed_quality_release_attempts": (
+            maximum_observed_release_attempts
+        ),
+        "final_claims_exactly_once": final_claims_exactly_once,
+        "verification_missed_observed_violation": (
+            verification_missed_observed_violation
+        ),
     }
 
 
