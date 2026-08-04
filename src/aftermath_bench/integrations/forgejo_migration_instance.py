@@ -95,6 +95,8 @@ def migration_blueprint(
     instance_id: str = "dev-001",
     benchmark_split: str = "development",
 ) -> dict[str, Any]:
+    if benchmark_split not in {"development", "public_dev", "hidden_test"}:
+        raise ValueError(f"unsupported benchmark split: {benchmark_split}")
     variants = (
         (
             "dispatch_request_not_reached",
@@ -157,10 +159,22 @@ def migration_blueprint(
                 "id": variant_id,
                 "boundary_class_id": boundary,
                 "recovery_signature_class": signature,
-                "hidden_state": hidden,
+                **(
+                    {}
+                    if benchmark_split == "hidden_test"
+                    else {"hidden_state": hidden}
+                ),
             }
             for variant_id, boundary, signature, hidden in variants
         ],
+        "evaluation_status": {
+            "hidden_test_eligible": benchmark_split == "hidden_test",
+            "reason": (
+                "Frozen before any ordinary model evaluation."
+                if benchmark_split == "hidden_test"
+                else "Development scenario."
+            ),
+        },
         "required_public_evidence": [
             "repository workflow, migration and artifact manifest contents",
             "native Forgejo Actions runs and jobs",

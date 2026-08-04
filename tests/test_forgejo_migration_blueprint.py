@@ -73,6 +73,19 @@ class ForgejoMigrationBlueprintTest(unittest.TestCase):
             },
         )
 
+    def test_hidden_blueprint_declares_eligibility_without_leaking_states(self) -> None:
+        blueprint = migration_blueprint(
+            DEFAULT_FORGEJO_MIGRATION_INSTANCE,
+            instance_id="test-001",
+            benchmark_split="hidden_test",
+        )
+        self.assertTrue(
+            blueprint["evaluation_status"]["hidden_test_eligible"]
+        )
+        self.assertTrue(
+            all("hidden_state" not in item for item in blueprint["matched_variants"])
+        )
+
     def test_workflow_uses_native_runner_and_five_real_state_transitions(self) -> None:
         workflow = deployment_workflow(DEFAULT_FORGEJO_MIGRATION_INSTANCE)
         self.assertIn("runs-on: aftermath-native", workflow)
