@@ -59,6 +59,14 @@ class BenchmarkStatusTest(unittest.TestCase):
             report["implemented"]["formal_release_matched_case_count"],
         )
         self.assertEqual(
+            report["implemented"]["target_slot_state_counts"],
+            coverage["slot_state_counts"],
+        )
+        self.assertEqual(
+            report["implemented"]["target_matched_case_state_counts"],
+            coverage["matched_case_state_counts"],
+        )
+        self.assertEqual(
             sum(coverage["slot_state_counts"].values()),
             coverage["required_slot_count"],
         )

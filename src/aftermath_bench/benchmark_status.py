@@ -255,6 +255,16 @@ def build_benchmark_status() -> dict[str, Any]:
                 for row in release.bindings
                 if row["formal_slot_id"] is not None and row["passed"]
             ),
+            # These are slot-level progress figures.  Unlike the legacy
+            # release-manifest development counter, they include an admitted
+            # public-development scenario even before its seven-role formal
+            # package is sealed.
+            "target_slot_state_counts": dict(
+                slot_coverage["slot_state_counts"]
+            ),
+            "target_matched_case_state_counts": dict(
+                slot_coverage["matched_case_state_counts"]
+            ),
             "hard_development_candidate_count": release.observed[
                 "hard_development_candidate_count"
             ],
