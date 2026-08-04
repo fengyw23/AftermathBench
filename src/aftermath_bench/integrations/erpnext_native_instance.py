@@ -14,6 +14,7 @@ SUPPORTED_FAMILIES = frozenset(
     {
         "erpnext-manufacturing-rework",
         "erpnext-multiwarehouse-transfer",
+        "erpnext-shared-batch-recovery",
     }
 )
 
@@ -75,6 +76,99 @@ class ERPNextNativeInstanceSpec:
             raise ValueError("ERPNext instance title and instruction are required")
         if not isinstance(self.fixture, dict) or len(self.fixture) < 6:
             raise ValueError("ERPNext instance fixture is not a substantive object")
+        if self.family == "erpnext-shared-batch-recovery":
+            self._validate_shared_batch_fixture()
+
+    def _validate_shared_batch_fixture(self) -> None:
+        required = {
+            "company",
+            "company_abbr",
+            "shared_component",
+            "primary_work_order",
+            "secondary_work_order",
+            "shared_landed_cost",
+            "customer_reservation",
+            "external_certificate",
+            "unrelated_item",
+            "operations",
+        }
+        if set(self.fixture) != required:
+            raise ValueError("shared-batch fixture fields do not match the schema")
+        shared = self.fixture["shared_component"]
+        primary = self.fixture["primary_work_order"]
+        secondary = self.fixture["secondary_work_order"]
+        if not all(isinstance(item, dict) for item in (shared, primary, secondary)):
+            raise ValueError("shared-batch work-order records must be objects")
+        numeric_fields = (
+            (shared, "received_quantity"),
+            (shared, "valuation_rate"),
+            (primary, "ordered_quantity"),
+            (primary, "accepted_quantity"),
+            (primary, "rework_quantity"),
+            (primary, "component_quantity_per_unit"),
+            (secondary, "ordered_quantity"),
+            (secondary, "accepted_quantity"),
+            (secondary, "component_quantity_per_unit"),
+        )
+        if any(
+            isinstance(record.get(field), bool)
+            or not isinstance(record.get(field), (int, float))
+            or record[field] <= 0
+            for record, field in numeric_fields
+        ):
+            raise ValueError("shared-batch quantities and rates must be positive")
+        if (
+            primary["accepted_quantity"] + primary["rework_quantity"]
+            != primary["ordered_quantity"]
+        ):
+            raise ValueError("primary accepted and rework quantities must close the order")
+        if secondary["accepted_quantity"] != secondary["ordered_quantity"]:
+            raise ValueError("secondary work order must be accepted at the boundary")
+        required_component_quantity = (
+            primary["ordered_quantity"] * primary["component_quantity_per_unit"]
+            + secondary["ordered_quantity"]
+            * secondary["component_quantity_per_unit"]
+        )
+        if shared["received_quantity"] < required_component_quantity:
+            raise ValueError("shared supplier batch cannot cover both work orders")
+        landed_cost = self.fixture["shared_landed_cost"]
+        reservation = self.fixture["customer_reservation"]
+        certificate = self.fixture["external_certificate"]
+        if not all(
+            isinstance(item, dict)
+            for item in (landed_cost, reservation, certificate)
+        ):
+            raise ValueError("shared-batch obligations must be objects")
+        allocations = (
+            landed_cost.get("primary_allocation"),
+            landed_cost.get("secondary_allocation"),
+        )
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value <= 0
+            for value in (*allocations, landed_cost.get("amount"))
+        ):
+            raise ValueError("shared landed-cost amounts must be positive")
+        if sum(allocations) != landed_cost["amount"]:
+            raise ValueError("shared landed-cost allocations must sum to the voucher")
+        if (
+            reservation.get("item_code") != secondary.get("item_code")
+            or reservation.get("quantity") != secondary.get("accepted_quantity")
+        ):
+            raise ValueError("customer reservation must protect all secondary output")
+        if certificate.get("required_quantity") != primary.get("rework_quantity"):
+            raise ValueError("certificate quantity must match the corrective branch")
+        if not str(certificate.get("idempotency_key", "")).strip():
+            raise ValueError("external certificate needs an idempotency key")
+        item_codes = {
+            str(shared.get("item_code", "")),
+            str(primary.get("item_code", "")),
+            str(secondary.get("item_code", "")),
+            str(self.fixture["unrelated_item"].get("item_code", "")),
+        }
+        if "" in item_codes or len(item_codes) != 4:
+            raise ValueError("shared-batch native item codes must be nonempty and unique")
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -138,5 +232,13 @@ def render_erpnext_native_blueprint(
             )
         ambiguous["operation"] = (
             f"submit the prepared {rendered_quantity}-unit corrective Job Card"
+        )
+    elif instance.family == "erpnext-shared-batch-recovery":
+        rework_quantity = instance.fixture["primary_work_order"]["rework_quantity"]
+        ambiguous = payload.get("ambiguous_operation")
+        if not isinstance(ambiguous, dict):
+            raise ValueError("shared-batch template lacks ambiguous_operation")
+        ambiguous["operation"] = (
+            f"submit the prepared {rework_quantity}-unit corrective Job Card"
         )
     return payload

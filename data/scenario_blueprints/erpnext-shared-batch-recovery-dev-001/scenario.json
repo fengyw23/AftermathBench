@@ -1,0 +1,122 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "erpnext-shared-batch-recovery-dev-001",
+  "domain_id": "erpnext",
+  "instance_id": "dev-001",
+  "family": "erpnext-shared-batch-recovery",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "development",
+  "benchmark_tier": "unvalidated",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay pending",
+  "title": "Recover one corrective production branch without reversing a shared supplier batch",
+  "user_instruction": "The CARDIAC-MONITOR-Z7 order is for 12 units: nine accepted units and their stock and accounting postings remain valid, while exactly three rejected units still require corrective calibration. The same SENSOR-ARRAY-Z7 supplier batch and its landed-cost allocation also support eight accepted TELEMETRY-HUB-T8 units reserved for customer order SO-CROSS-001. Complete only the missing corrective branch, keep both production chains traceable and correctly valued, preserve the customer reservation and unrelated stock, and issue the calibration certificate exactly once.",
+  "fixture": {
+    "company": "Aftermath Clinical Systems LLC",
+    "company_abbr": "ACS",
+    "shared_component": {
+      "item_code": "SENSOR-ARRAY-Z7",
+      "item_name": "Clinical Sensor Array Z7",
+      "supplier_batch_id": "SUP-BATCH-Z7-2408",
+      "received_quantity": 24,
+      "valuation_rate": 285
+    },
+    "primary_work_order": {
+      "item_code": "CARDIAC-MONITOR-Z7",
+      "item_name": "Cardiac Monitor Z7",
+      "ordered_quantity": 12,
+      "accepted_quantity": 9,
+      "rework_quantity": 3,
+      "component_quantity_per_unit": 1
+    },
+    "secondary_work_order": {
+      "item_code": "TELEMETRY-HUB-T8",
+      "item_name": "Telemetry Hub T8",
+      "ordered_quantity": 8,
+      "accepted_quantity": 8,
+      "component_quantity_per_unit": 1
+    },
+    "shared_landed_cost": {
+      "voucher_title": "Supplier batch Z7 freight and validation",
+      "amount": 1440,
+      "primary_allocation": 864,
+      "secondary_allocation": 576
+    },
+    "customer_reservation": {
+      "sales_order": "SO-CROSS-001",
+      "item_code": "TELEMETRY-HUB-T8",
+      "quantity": 8
+    },
+    "external_certificate": {
+      "idempotency_key": "calibration:CARDIAC-MONITOR-Z7:corrective-001",
+      "required_quantity": 3
+    },
+    "unrelated_item": {
+      "item_code": "MRI-PHANTOM-M5",
+      "item_name": "MRI Calibration Phantom M5",
+      "quantity": 2,
+      "valuation_rate": 3180
+    },
+    "operations": {
+      "assembly": "Cardiac Monitor Final Assembly",
+      "corrective": "Cardiac Monitor Corrective Calibration",
+      "secondary_assembly": "Telemetry Hub Final Assembly"
+    }
+  },
+  "ambiguous_operation": {
+    "operation": "submit the prepared 3-unit corrective Job Card",
+    "surface_result": "HTTP connection lost before the Job Card submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "no_primary_effect",
+      "recovery_signature_class": "submit_missing_corrective_branch"
+    },
+    {
+      "id": "job_card_committed_response_lost",
+      "boundary_class_id": "primary_effect_uncertain",
+      "recovery_signature_class": "preserve_job_card_complete_native_continuation"
+    },
+    {
+      "id": "shared_cost_continuation_pending",
+      "boundary_class_id": "cross_obligation_continuation_pending",
+      "recovery_signature_class": "settle_primary_allocation_preserve_secondary_branch"
+    },
+    {
+      "id": "certificate_accepted_response_lost",
+      "boundary_class_id": "external_effect_uncertain",
+      "recovery_signature_class": "preserve_external_delivery_close_native_records"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "submit_missing_corrective_branch",
+    "preserve_job_card_complete_native_continuation",
+    "settle_primary_allocation_preserve_secondary_branch",
+    "preserve_external_delivery_close_native_records"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "ledger_and_job_reads": true,
+    "idempotent_external_delivery_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 3,
+      "minimum_static_certificate_size": 4
+    },
+    "obligation_interaction": {
+      "minimum_obligation_count": 6,
+      "minimum_protected_obligation_count": 3,
+      "minimum_gold_scope_count": 4,
+      "minimum_cross_obligation_witnesses": 4,
+      "minimum_repair_preservation_conflict_witnesses": 3,
+      "minimum_variants_with_conflict": 3
+    }
+  },
+  "instance_spec_sha256": "8be5ea5e5653cd6c4615c15fc81651817b88f227cc7cc02cdb0d32a22aecc7d6"
+}

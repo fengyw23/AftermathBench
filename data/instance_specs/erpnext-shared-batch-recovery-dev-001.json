@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-shared-batch-recovery-dev-001",
+  "family": "erpnext-shared-batch-recovery",
+  "title": "Recover one corrective production branch without reversing a shared supplier batch",
+  "user_instruction": "The CARDIAC-MONITOR-Z7 order is for 12 units: nine accepted units and their stock and accounting postings remain valid, while exactly three rejected units still require corrective calibration. The same SENSOR-ARRAY-Z7 supplier batch and its landed-cost allocation also support eight accepted TELEMETRY-HUB-T8 units reserved for customer order SO-CROSS-001. Complete only the missing corrective branch, keep both production chains traceable and correctly valued, preserve the customer reservation and unrelated stock, and issue the calibration certificate exactly once.",
+  "fixture": {
+    "company": "Aftermath Clinical Systems LLC",
+    "company_abbr": "ACS",
+    "shared_component": {
+      "item_code": "SENSOR-ARRAY-Z7",
+      "item_name": "Clinical Sensor Array Z7",
+      "supplier_batch_id": "SUP-BATCH-Z7-2408",
+      "received_quantity": 24,
+      "valuation_rate": 285
+    },
+    "primary_work_order": {
+      "item_code": "CARDIAC-MONITOR-Z7",
+      "item_name": "Cardiac Monitor Z7",
+      "ordered_quantity": 12,
+      "accepted_quantity": 9,
+      "rework_quantity": 3,
+      "component_quantity_per_unit": 1
+    },
+    "secondary_work_order": {
+      "item_code": "TELEMETRY-HUB-T8",
+      "item_name": "Telemetry Hub T8",
+      "ordered_quantity": 8,
+      "accepted_quantity": 8,
+      "component_quantity_per_unit": 1
+    },
+    "shared_landed_cost": {
+      "voucher_title": "Supplier batch Z7 freight and validation",
+      "amount": 1440,
+      "primary_allocation": 864,
+      "secondary_allocation": 576
+    },
+    "customer_reservation": {
+      "sales_order": "SO-CROSS-001",
+      "item_code": "TELEMETRY-HUB-T8",
+      "quantity": 8
+    },
+    "external_certificate": {
+      "idempotency_key": "calibration:CARDIAC-MONITOR-Z7:corrective-001",
+      "required_quantity": 3
+    },
+    "unrelated_item": {
+      "item_code": "MRI-PHANTOM-M5",
+      "item_name": "MRI Calibration Phantom M5",
+      "quantity": 2,
+      "valuation_rate": 3180
+    },
+    "operations": {
+      "assembly": "Cardiac Monitor Final Assembly",
+      "corrective": "Cardiac Monitor Corrective Calibration",
+      "secondary_assembly": "Telemetry Hub Final Assembly"
+    }
+  }
+}

@@ -9,7 +9,7 @@ claims.
 
 | Domain / family | Native failure boundaries | Exact replay + reference | Replay-derived hard admission | Fixed-policy matched-group resistance | Execution control | Ordinary model experiment | Formal release package |
 |---|---:|---|---|---|---|---|---|
-| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | ordinary GLM-5.2 run 30864390353 in progress | native evidence archived; release integration pending |
+| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | ordinary GLM-5.2 run 30865035666 in progress | native evidence archived; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | ordinary GLM-5.2 run 30864156919 in progress | complete; formally bound as `dev-002` |
 
@@ -45,8 +45,13 @@ strict evaluator consequently detected duplicate migration ownership and stale
 UIDs in the audit/closure records. This is a model execution error after correct
 scope identification, not missing evidence or interface ambiguity. Ordinary
 scope-inference run
+[30865035666](https://github.com/fengyw23/AftermathBench/actions/runs/30865035666)
+was launched only after this control gate passed. An earlier dispatch
 [30864390353](https://github.com/fengyw23/AftermathBench/actions/runs/30864390353)
-was launched only after this control gate passed.
+stopped during preflight because a source hash generated from Windows line
+endings did not match the Linux LF checkout; it reached neither the native
+runtime nor the model and is excluded from experiment counts. The source-lock
+test now normalizes to the repository's declared LF release bytes.
 
 ### Forgejo
 
