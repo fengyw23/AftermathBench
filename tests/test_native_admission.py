@@ -234,6 +234,7 @@ class NativeAdmissionTest(unittest.TestCase):
                 "minimum_cross_obligation_witnesses": 0,
                 "minimum_repair_preservation_conflict_witnesses": 0,
                 "minimum_variants_with_conflict": 0,
+                "minimum_conflicting_action_count": 1,
             }
             payload["admission_artifacts"]["obligation_interactions"] = (
                 "artifacts/obligation-interactions.json"

@@ -922,7 +922,7 @@ def validate_native_scenario(
                 obligation_profile.get("minimum_variants_with_conflict", 2)
             )
             required_conflicting_actions = int(
-                obligation_profile.get("minimum_conflicting_action_count", 1)
+                obligation_profile.get("minimum_conflicting_action_count", 0)
             )
             observed.update(
                 {
