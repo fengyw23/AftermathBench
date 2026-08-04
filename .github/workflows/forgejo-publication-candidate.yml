@@ -24,7 +24,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   freeze-then-control:
@@ -368,6 +368,86 @@ jobs:
           PY
           test -s "$ciphertext"
           test -s "$run_root/public/sealed-bundle.json"
+
+      - name: Register a safe frozen-hidden receipt
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          run_root="$RUNNER_TEMP/forgejo-candidate"
+          instance_id="$SELECTED_INSTANCE_ID"
+          receipt="data/evidence/hidden-freeze/forgejo-publication-$instance_id.json"
+          test ! -e "$receipt"
+          python - \
+            "$run_root/public/pre-model-commitment.json" \
+            "$run_root/public/sealed-bundle.json" \
+            "$run_root/public/result.json" \
+            "$receipt" \
+            "data/frozen_hidden_candidates.json" \
+            "$instance_id" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id = (
+              Path(item) if index < 5 else item
+              for index, item in enumerate(sys.argv[1:])
+          )
+          commitment = json.loads(commitment_path.read_text(encoding="utf-8"))
+          sealed = json.loads(sealed_path.read_text(encoding="utf-8"))
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          receipt = {
+              "schema_version": "1.0",
+              "artifact": {
+                  "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                  "url": (
+                      "https://github.com/fengyw23/AftermathBench/actions/runs/"
+                      + os.environ["GITHUB_RUN_ID"]
+                  ),
+              },
+              "file_sha256": {
+                  "result": hashlib.sha256(result_path.read_bytes()).hexdigest(),
+                  "pre_model_commitment": hashlib.sha256(
+                      commitment_path.read_bytes()
+                  ).hexdigest(),
+                  "sealed_bundle": hashlib.sha256(sealed_path.read_bytes()).hexdigest(),
+              },
+              "commitment": commitment,
+              "sealed_bundle": sealed,
+              "result": result,
+          }
+          receipt_path.write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          record = {
+              "formal_slot_id": (
+                  "forgejo/forgejo-release-package-publication/" + instance_id
+              ),
+              "scenario_id": commitment["scenario_id"],
+              "domain_id": "forgejo",
+              "family_id": "forgejo-release-package-publication",
+              "instance_id": instance_id,
+              "variant_count": result["reference"]["case_count"],
+              "freeze_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "public_commitment_sha256": commitment["public_commitment_sha256"],
+              "artifact_url": receipt["artifact"]["url"],
+              "evidence_path": receipt_path.as_posix(),
+              "evidence_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+          }
+          registry["records"].append(record)
+          registry_path.write_text(
+              json.dumps(registry, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          python -m unittest discover -s tests -p 'test_frozen_hidden_registry.py' -v
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$receipt" data/frozen_hidden_candidates.json
+          git commit -m "evidence(forgejo): register frozen publication $instance_id"
+          git push
 
       - name: Upload commitment and aggregate only
         if: always()

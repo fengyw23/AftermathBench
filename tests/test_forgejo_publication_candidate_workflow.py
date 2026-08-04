@@ -26,6 +26,14 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             self.text[upload:],
         )
 
+    def test_safe_receipt_is_registered_only_after_hidden_bundle_sealing(self) -> None:
+        seal = self.text.index("Seal an unseen private bundle")
+        register = self.text.index("Register a safe frozen-hidden receipt")
+        self.assertLess(seal, register)
+        self.assertIn("contents: write", self.text)
+        self.assertIn("data/frozen_hidden_candidates.json", self.text)
+        self.assertIn("sealed-bundle.json", self.text)
+
     def test_missing_secret_generates_an_unseen_private_instance(self) -> None:
         self.assertIn(
             "generate_forgejo_publication_hidden_instance.py",

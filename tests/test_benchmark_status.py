@@ -66,16 +66,21 @@ class BenchmarkStatusTest(unittest.TestCase):
             report["implemented"]["target_matched_case_state_counts"],
             coverage["matched_case_state_counts"],
         )
-        self.assertEqual(coverage["slot_state_counts"]["frozen_hidden"], 4)
-        self.assertEqual(
+        self.assertGreaterEqual(
+            coverage["slot_state_counts"]["frozen_hidden"],
+            4,
+        )
+        self.assertGreaterEqual(
             coverage["matched_case_state_counts"]["frozen_hidden"],
             16,
         )
         self.assertEqual(
-            report["implemented"]["frozen_hidden_slot_count"], 4
+            report["implemented"]["frozen_hidden_slot_count"],
+            coverage["slot_state_counts"]["frozen_hidden"],
         )
         self.assertEqual(
-            report["implemented"]["frozen_hidden_matched_case_count"], 16
+            report["implemented"]["frozen_hidden_matched_case_count"],
+            coverage["matched_case_state_counts"]["frozen_hidden"],
         )
         self.assertEqual(
             sum(coverage["slot_state_counts"].values()),
