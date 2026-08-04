@@ -29,6 +29,7 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
       INSTANCE: data/instance_specs/forgejo-approved-artifact-promotion-public-dev-001.json
+      BLUEPRINT: data/scenario_blueprints/forgejo-approved-artifact-promotion-public-dev-001/scenario.json
       RUN_ROOT: runtimes/forgejo/.runtime/promotion
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +116,58 @@ jobs:
             --prefix "$RUN_ROOT/prefix.json" \
             --instance-spec "$INSTANCE" \
             --output "$RUN_ROOT/audit.json"
+
+      - name: Reject fixed promotion policies
+        run: |
+          set -euo pipefail
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            signed_bundle_completed_deployment_missing
+            deployment_completed_attestation_missing
+            attestation_accepted_release_metadata_missing
+            promotion_completed_response_lost
+          )
+          mapfile -t baselines < <(
+            python -c 'from aftermath_bench.integrations.forgejo_promotion_baselines import FORGEJO_PROMOTION_BASELINES; print(*FORGEJO_PROMOTION_BASELINES, sep="\n")'
+          )
+          mkdir -p "$RUN_ROOT/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-promotion-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+              timeout 90s python scripts/run_forgejo_promotion_baseline.py \
+                --credentials runtimes/forgejo/.runtime/credentials.json \
+                --prefix "$RUN_ROOT/prefix.json" \
+                --instance-spec "$INSTANCE" \
+                --variant "$variant" \
+                --baseline "$baseline" \
+                --output "$RUN_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+          python scripts/summarize_native_baselines.py \
+            --run-directory "$RUN_ROOT/baselines" \
+            --scenario "$BLUEPRINT" \
+            --output "$RUN_ROOT/baselines/summary.json"
+          python - "$RUN_ROOT/baselines/summary.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          summary = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          rates = [item["pass_rate"] for item in summary["heuristics"]]
+          matched = [
+              item["name"]
+              for item in summary["heuristics"]
+              if item["matched_group_success"]
+          ]
+          if max(rates, default=1.0) >= 0.5 or matched:
+              raise SystemExit(
+                  f"promotion baseline gate failed: rates={rates}, matched={matched}"
+              )
+          PY
 
       - name: Surface native logs on failure
         if: failure()

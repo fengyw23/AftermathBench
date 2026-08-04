@@ -83,6 +83,17 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
         self.assertIn("resume_stage", workflow)
         self.assertIn("stop_after", workflow)
 
+    def test_runtime_replays_fixed_policies_from_each_boundary_bundle(self) -> None:
+        workflow = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "forgejo-promotion-runtime.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("run_forgejo_promotion_baseline.py", workflow)
+        self.assertIn("$RUN_ROOT/$variant-bundle", workflow)
+        self.assertIn("max(rates, default=1.0) >= 0.5", workflow)
+
     def test_prefix_uses_public_apis_and_preserves_three_records(self) -> None:
         instance = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
         forgejo = MagicMock()
