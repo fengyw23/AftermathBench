@@ -13,8 +13,8 @@ claims.
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
 | ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 2/4; matched group failed) | hard-admitted development evidence; formal integration pending |
-| ERPNext inventory-cost settlement | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | running | pending control gate | native replay archive complete; model evidence pending |
-| Forgejo approved signed-artifact promotion | 6 | complete (6/6) | native cross-system audit complete | running | pending | pending control gate | native replay archive complete; model evidence pending |
+| ERPNext inventory-cost settlement | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | running | first native archive complete; second independent instance running |
+| Forgejo approved signed-artifact promotion | 6 | complete (6/6) | native cross-system audit complete | complete (best fixed policy 2/6; no matched-group solver) | rerunning after pre-provider interface fix | pending control gate | native replay archive complete; model evidence pending |
 
 ## What is already established
 
@@ -156,8 +156,14 @@ four distinct signatures and independently vary the submitted Landed Cost
 Voucher, Stock Ledger effects, GL effects, Repost Item Valuation ownership and
 external attestation. Across 28 native fixed-policy executions, the strongest
 policy passed only 1/4 and no policy solved the matched group. This closes the
-specific ERP state-dimensionality gate. Execution-control and ordinary-model
-results remain pending and are not inferred from the native replay result.
+specific ERP state-dimensionality gate. Its GLM-5.2 execution control then
+passed 4/4 in
+[30892895880](https://github.com/fengyw23/AftermathBench/actions/runs/30892895880)
+with no provider or runtime errors. The ordinary condition is running from the
+same boundary builder. A second independently parameterized instance changes
+all item identities, branch quantities, component ratios and cost allocation;
+its native replay was frozen before execution and is currently running, so no
+independence claim is made yet.
 
 The approved signed-artifact promotion family passed its initial six-boundary
 native audit in run
@@ -165,9 +171,17 @@ native audit in run
 All six reference recoveries passed, their cross-system boundary signatures are
 distinct, and the states vary Actions ownership, uploaded signed artifacts,
 production deployment, external attestation and release metadata while holding
-the protected release and unrelated work fixed. Fixed-policy and model gates
-remain pending, so this result closes construction correctness but not the
-Forgejo saturation risk.
+the protected release and unrelated work fixed. A subsequent fixed-policy gate
+executed 36 native trajectories in
+[30892977924](https://github.com/fengyw23/AftermathBench/actions/runs/30892977924).
+The strongest fixed procedures passed 2/6 and none solved the matched group.
+The first execution-control dispatch, run `30894539768`, is excluded: all six
+attempts terminated before provider access because the generic runner accepted
+`visible_failure` and `latest_attempt.result` but not the boundary builder's
+equivalent `surface_result` field. The normalized interface is now tested and
+the control is rerunning. Construction and fixed-policy resistance are
+established, but the Forgejo saturation risk remains open until valid model
+controls and an ordinary run complete.
 
 ## Claim boundary
 

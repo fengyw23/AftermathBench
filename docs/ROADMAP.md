@@ -66,7 +66,10 @@ promoted into the final native-runtime benchmark.
   real Stock Ledger, GL, Repost Item Valuation, and external-attestation state;
   Job Card/certificate-only variants cannot satisfy this item. Four references
   and 28 fixed-policy native executions passed run `30889742165`; model control
-  and ordinary-condition experiments remain in progress.
+  passed 4/4 in run `30892895880`, and the ordinary condition is in progress.
+- [ ] Complete native replay of the independent inventory-cost `public-dev-002`
+  instance, which uses disjoint items and 2:3 component ratios instead of the
+  first instance's 1:1 topology.
 - [ ] Construct and freeze two unconsumed hidden instances without model
   access.
 
@@ -91,7 +94,11 @@ promoted into the final native-runtime benchmark.
 - [x] Implement and replay the approved-artifact-promotion native prefix,
   six failure boundaries and deterministic evaluator. Run `30891327568` passed
   all references and cross-system boundary checks.
-- [ ] Complete its fixed-policy, execution-control and ordinary-model gates.
+- [x] Reject fixed promotion policies with 36 native executions; the strongest
+  procedures pass 2/6 and no procedure solves the matched group.
+- [ ] Complete the corrected execution-control and ordinary-model gates. The
+  first control dispatch is invalid because it stopped before provider access
+  on a boundary-report field mismatch and is excluded from results.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

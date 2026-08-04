@@ -11,7 +11,6 @@ from .erpnext_shared_batch_evaluator import shared_batch_document_fingerprint
 from .erpnext_stack import ERPNextStack
 from .frappe import FrappeHTTPAdapter
 
-
 INVENTORY_COST_VARIANTS = (
     "request_not_reached",
     "voucher_committed_repost_queued_attested_response_lost",
@@ -26,6 +25,41 @@ def _canonical_sha256(value: Any) -> str:
             value, sort_keys=True, separators=(",", ":"), default=str
         ).encode("utf-8")
     ).hexdigest()
+
+
+_STOCK_LEDGER_SEMANTIC_FIELDS = (
+    "voucher_type",
+    "voucher_no",
+    "actual_qty",
+    "qty_after_transaction",
+    "valuation_rate",
+    "stock_value",
+    "stock_value_difference",
+    "is_cancelled",
+    "item_code",
+    "warehouse",
+)
+_GENERAL_LEDGER_SEMANTIC_FIELDS = (
+    "voucher_type",
+    "voucher_no",
+    "debit",
+    "credit",
+    "is_cancelled",
+    "account",
+    "against",
+)
+
+
+def _semantic_rows(
+    rows: list[dict[str, Any]], fields: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """Remove runtime identities and timestamps from a ledger projection."""
+
+    projected = [{field: row.get(field) for field in fields} for row in rows]
+    return sorted(
+        projected,
+        key=lambda row: json.dumps(row, sort_keys=True, default=str),
+    )
 
 
 def _active(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -69,8 +103,12 @@ def project_inventory_cost_dimensions(evidence: dict[str, Any]) -> dict[str, str
         "landed_cost_voucher": (
             "submitted" if int(lcv.get("docstatus", 0)) == 1 else "draft"
         ),
-        "stock_ledger": _canonical_sha256(stock_rows),
-        "gl_entries": _canonical_sha256(gl_rows),
+        "stock_ledger": _canonical_sha256(
+            _semantic_rows(stock_rows, _STOCK_LEDGER_SEMANTIC_FIELDS)
+        ),
+        "gl_entries": _canonical_sha256(
+            _semantic_rows(gl_rows, _GENERAL_LEDGER_SEMANTIC_FIELDS)
+        ),
         "reposting_owner": _repost_state(evidence),
         "external_attestation": attestation,
     }
