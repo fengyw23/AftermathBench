@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,21 @@ class ERPNextSharedBatchPrefixTest(unittest.TestCase):
             cost["primary_allocation"] / cost["secondary_allocation"],
             primary["ordered_quantity"] / secondary["ordered_quantity"],
         )
+
+    def test_actual_time_logs_start_after_all_native_scheduled_slots(self) -> None:
+        start = ERPNextSharedBatchPrefixBuilder._execution_start_after_schedule(
+            [
+                {
+                    "scheduled_time_logs": [
+                        {"to_time": "2026-08-04 10:00:00"},
+                        {"to_time": "2026-08-04 12:30:00"},
+                    ]
+                },
+                {"scheduled_time_logs": [{"to_time": "2026-08-04 11:00:00"}]},
+            ],
+            fallback=datetime(2026, 8, 4, 8, tzinfo=UTC),
+        )
+        self.assertEqual(start, datetime(2026, 8, 4, 13, 30, tzinfo=UTC))
 
 
 if __name__ == "__main__":

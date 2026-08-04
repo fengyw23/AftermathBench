@@ -19,6 +19,21 @@ def _money(value: Any) -> float:
     return float(Decimal(str(value)))
 
 
+def _as_utc_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 @dataclass(frozen=True)
 class SharedBatchPrefix:
     scenario_id: str
@@ -430,6 +445,18 @@ class ERPNextSharedBatchPrefixBuilder:
             for row in summaries
         ]
 
+    @staticmethod
+    def _execution_start_after_schedule(
+        cards: list[dict[str, Any]], *, fallback: datetime
+    ) -> datetime:
+        scheduled_ends = [
+            parsed
+            for card in cards
+            for row in card.get("scheduled_time_logs", [])
+            if (parsed := _as_utc_datetime(row.get("to_time"))) is not None
+        ]
+        return max([fallback, *scheduled_ends]) + timedelta(hours=1)
+
     def build(self) -> SharedBatchPrefix:
         warehouses = self.prepare_public_fixture()
         now = datetime.now(UTC).replace(microsecond=0)
@@ -641,6 +668,10 @@ class ERPNextSharedBatchPrefixBuilder:
         self._trace(trace, "submit secondary material transfer", secondary_transfer)
 
         primary_cards = self._job_cards(str(primary_wo["name"]))
+        secondary_cards = self._job_cards(str(secondary_wo["name"]))
+        execution_start = self._execution_start_after_schedule(
+            [*primary_cards, *secondary_cards], fallback=now
+        )
         accepted_quantity = float(primary["accepted_quantity"])
         rework_quantity = float(primary["rework_quantity"])
         accepted_cards = [
@@ -658,16 +689,17 @@ class ERPNextSharedBatchPrefixBuilder:
                 "primary Work Order did not create the 9/3 Job Card split"
             )
         accepted_job = helper._complete_job_card(
-            accepted_cards[0], start=now + timedelta(hours=2), trace=trace
+            accepted_cards[0], start=execution_start, trace=trace
         )
         rejected_job = helper._complete_job_card(
-            rejected_cards[0], start=now + timedelta(hours=4), trace=trace
+            rejected_cards[0], start=execution_start + timedelta(hours=2), trace=trace
         )
-        secondary_cards = self._job_cards(str(secondary_wo["name"]))
         if len(secondary_cards) != 1:
             raise RuntimeError("secondary Work Order must create exactly one Job Card")
         secondary_job = helper._complete_job_card(
-            secondary_cards[0], start=now + timedelta(hours=6), trace=trace
+            secondary_cards[0],
+            start=execution_start + timedelta(hours=4),
+            trace=trace,
         )
 
         rejected_qi = helper._create_inspection(
@@ -777,8 +809,8 @@ class ERPNextSharedBatchPrefixBuilder:
         corrective_template["hour_rate"] = self.HOUR_RATE
         corrective_template["time_logs"] = [
             {
-                "from_time": _frappe_datetime(now + timedelta(hours=8)),
-                "to_time": _frappe_datetime(now + timedelta(hours=9)),
+                "from_time": _frappe_datetime(execution_start + timedelta(hours=6)),
+                "to_time": _frappe_datetime(execution_start + timedelta(hours=7)),
                 "time_in_mins": 60,
                 "completed_qty": rework_quantity,
             }
