@@ -174,6 +174,16 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         model_call = self.text.index("run-native-model")
         self.assertLess(verification, model_call)
 
+    def test_package_provenance_hidden_slots_reuse_the_safe_lifecycle(self) -> None:
+        for token in (
+            "forgejo-package-provenance-hidden-test-001",
+            "forgejo-package-provenance-hidden-test-002",
+            "build_forgejo_package_provenance_prefix.py",
+            "build_forgejo_package_provenance_admission.py",
+            "run_forgejo_package_provenance_boundary.py",
+        ):
+            self.assertIn(token, self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,8 @@ on:
     branches:
       - forgejo-publication-candidate
       - forgejo-publication-hidden-test-002
+      - forgejo-package-provenance-hidden-test-001
+      - forgejo-package-provenance-hidden-test-002
   workflow_dispatch:
     inputs:
       model:
@@ -33,7 +35,8 @@ jobs:
     env:
       PYTHONPATH: src
       AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'forgejo-publication-hidden-test-002' && 'test-002' || 'test-001') }}
+      SELECTED_FAMILY: ${{ (github.ref_name == 'forgejo-package-provenance-hidden-test-001' || github.ref_name == 'forgejo-package-provenance-hidden-test-002') && 'package_provenance' || 'publication' }}
+      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || ((github.ref_name == 'forgejo-publication-hidden-test-002' || github.ref_name == 'forgejo-package-provenance-hidden-test-002') && 'test-002' || 'test-001') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,11 +76,21 @@ jobs:
           python scripts/verify_forgejo_instance_novelty.py \
             --instance-spec "$run_root/private/instance.json"
           write_bootstrap_status "novelty_verified"
-          python scripts/render_forgejo_publication_blueprint.py \
-            --instance-spec "$run_root/private/instance.json" \
-            --output "$run_root/private/blueprint.json" \
-            --instance-id "$SELECTED_INSTANCE_ID" \
-            --benchmark-split hidden_test
+          if [ "$SELECTED_FAMILY" = package_provenance ]
+          then
+            python scripts/render_forgejo_package_provenance_blueprint.py \
+              --instance-spec "$run_root/private/instance.json" \
+              --output "$run_root/private/blueprint.json" \
+              --instance-id "$SELECTED_INSTANCE_ID" \
+              --benchmark-split hidden_test \
+              --hidden-test-eligible
+          else
+            python scripts/render_forgejo_publication_blueprint.py \
+              --instance-spec "$run_root/private/instance.json" \
+              --output "$run_root/private/blueprint.json" \
+              --instance-id "$SELECTED_INSTANCE_ID" \
+              --benchmark-split hidden_test
+          fi
           write_bootstrap_status "blueprint_rendered"
           python -m unittest discover -s tests -v
           write_bootstrap_status "tests_passed"
@@ -104,7 +117,13 @@ jobs:
           python scripts/manage_forgejo_stack.py setup \
             --username "$owner" \
             --email "$owner@aftermath.invalid"
-          python scripts/build_forgejo_publication_prefix.py \
+          if [ "$SELECTED_FAMILY" = package_provenance ]
+          then
+            prefix_script=scripts/build_forgejo_package_provenance_prefix.py
+          else
+            prefix_script=scripts/build_forgejo_publication_prefix.py
+          fi
+          python "$prefix_script" \
             --credentials "$runtime_root/credentials.json" \
             --instance-spec "$run_root/private/instance.json" \
             --output "$run_root/private/runtime/prefix.json" \
@@ -155,9 +174,15 @@ jobs:
           do
             python scripts/manage_forgejo_stack.py restore \
               --snapshot "$run_root/private/prefix.tar.gz"
+            if [ "$SELECTED_FAMILY" = package_provenance ]
+            then
+              boundary_script=scripts/run_forgejo_package_provenance_boundary.py
+            else
+              boundary_script=scripts/run_forgejo_publication_boundary.py
+            fi
             run_private "boundary:$variant" \
               "$run_root/private/logs/$variant-boundary.log" \
-              python scripts/run_forgejo_publication_boundary.py \
+              python "$boundary_script" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$run_root/private/runtime/prefix.json" \
               --variant "$variant" \
@@ -166,13 +191,24 @@ jobs:
               --snapshot "$run_root/private/snapshots/$variant"
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$run_root/private/snapshots/$variant"
-            run_private "reference:$variant" \
-              "$run_root/private/logs/$variant-reference.log" \
-              python scripts/run_forgejo_publication_control.py \
-              --credentials "$runtime_root/credentials.json" \
-              --prefix "$run_root/private/runtime/prefix.json" \
-              --variant "$variant" \
-              --output "$run_root/private/runtime/$variant-reference.json"
+            if [ "$SELECTED_FAMILY" = package_provenance ]
+            then
+              run_private "reference:$variant" \
+                "$run_root/private/logs/$variant-reference.log" \
+                python scripts/run_forgejo_package_provenance_control.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/private/runtime/prefix.json" \
+                --boundary "$run_root/private/runtime/$variant-boundary.json" \
+                --output "$run_root/private/runtime/$variant-reference.json"
+            else
+              run_private "reference:$variant" \
+                "$run_root/private/logs/$variant-reference.log" \
+                python scripts/run_forgejo_publication_control.py \
+                --credentials "$runtime_root/credentials.json" \
+                --prefix "$run_root/private/runtime/prefix.json" \
+                --variant "$variant" \
+                --output "$run_root/private/runtime/$variant-reference.json"
+            fi
           done
 
       - name: Execute fixed policies from the same state bundles
@@ -183,34 +219,49 @@ jobs:
             python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$run_root/private/blueprint.json"
           )
-          baselines=(
-            no_op
-            blind_publish
-            assume_release_exists
-            repair_assets_only
-            replay_all_failed
-            compact_release_tree
-          )
+          if [ "$SELECTED_FAMILY" = package_provenance ]
+          then
+            baselines=(no_op blind_full_publish assume_package_exists metadata_only replay_all_failed close_only inventory_diff_completion)
+          else
+            baselines=(no_op blind_publish assume_release_exists repair_assets_only replay_all_failed compact_release_tree)
+          fi
           for baseline in "${baselines[@]}"
           do
             for variant in "${variants[@]}"
             do
               python scripts/manage_forgejo_stack.py restore-bundle \
                 --snapshot "$run_root/private/snapshots/$variant"
-              python scripts/run_forgejo_publication_baseline.py \
-                --credentials "$runtime_root/credentials.json" \
-                --prefix "$run_root/private/runtime/prefix.json" \
-                --baseline "$baseline" \
-                --variant "$variant" \
-                --output "$run_root/private/baselines/$baseline-$variant.json" \
-                > "$run_root/private/logs/$baseline-$variant.log" 2>&1
+              if [ "$SELECTED_FAMILY" = package_provenance ]
+              then
+                python scripts/run_forgejo_package_provenance_baseline.py \
+                  --credentials "$runtime_root/credentials.json" \
+                  --prefix "$run_root/private/runtime/prefix.json" \
+                  --boundary "$run_root/private/runtime/$variant-boundary.json" \
+                  --baseline "$baseline" \
+                  --output "$run_root/private/baselines/$baseline-$variant.json" \
+                  > "$run_root/private/logs/$baseline-$variant.log" 2>&1
+              else
+                python scripts/run_forgejo_publication_baseline.py \
+                  --credentials "$runtime_root/credentials.json" \
+                  --prefix "$run_root/private/runtime/prefix.json" \
+                  --baseline "$baseline" \
+                  --variant "$variant" \
+                  --output "$run_root/private/baselines/$baseline-$variant.json" \
+                  > "$run_root/private/logs/$baseline-$variant.log" 2>&1
+              fi
             done
           done
 
       - name: Admit and freeze before any provider request
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
-          python scripts/build_forgejo_publication_admission.py \
+          if [ "$SELECTED_FAMILY" = package_provenance ]
+          then
+            admission_script=scripts/build_forgejo_package_provenance_admission.py
+          else
+            admission_script=scripts/build_forgejo_publication_admission.py
+          fi
+          python "$admission_script" \
             --runtime-directory "$run_root/private/runtime" \
             --baseline-directory "$run_root/private/baselines" \
             --blueprint "$run_root/private/blueprint.json" \
@@ -407,7 +458,14 @@ jobs:
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
           instance_id="$SELECTED_INSTANCE_ID"
-          receipt="data/evidence/hidden-freeze/forgejo-publication-$instance_id.json"
+          if [ "$SELECTED_FAMILY" = package_provenance ]
+          then
+            family_id=forgejo-package-provenance
+            receipt="data/evidence/hidden-freeze/forgejo-package-provenance-$instance_id.json"
+          else
+            family_id=forgejo-release-package-publication
+            receipt="data/evidence/hidden-freeze/forgejo-publication-$instance_id.json"
+          fi
           test ! -e "$receipt"
           python - \
             "$run_root/public/pre-model-commitment.json" \
@@ -415,14 +473,15 @@ jobs:
             "$run_root/public/result.json" \
             "$receipt" \
             "data/frozen_hidden_candidates.json" \
-            "$instance_id" <<'PY'
+            "$instance_id" \
+            "$family_id" <<'PY'
           import hashlib
           import json
           import os
           import sys
           from pathlib import Path
 
-          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id = (
+          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id, family_id = (
               Path(item) if index < 5 else item
               for index, item in enumerate(sys.argv[1:])
           )
@@ -456,11 +515,11 @@ jobs:
           registry = json.loads(registry_path.read_text(encoding="utf-8"))
           record = {
               "formal_slot_id": (
-                  "forgejo/forgejo-release-package-publication/" + instance_id
+                  "forgejo/" + family_id + "/" + instance_id
               ),
               "scenario_id": commitment["scenario_id"],
               "domain_id": "forgejo",
-              "family_id": "forgejo-release-package-publication",
+              "family_id": family_id,
               "instance_id": instance_id,
               "variant_count": result["reference"]["case_count"],
               "freeze_run_id": int(os.environ["GITHUB_RUN_ID"]),
@@ -479,7 +538,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$receipt" data/frozen_hidden_candidates.json
-          git commit -m "evidence(forgejo): register frozen publication $instance_id"
+          git commit -m "evidence(forgejo): register frozen $family_id $instance_id"
           git push
 
       - name: Upload commitment and aggregate only
