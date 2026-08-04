@@ -12,6 +12,7 @@ claims.
 | Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | complete (GLM-5.2 2/13; 15.38%; 0 provider errors) | complete raw coverage archive; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
+| ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | active | hard-admitted development evidence; formal integration pending |
 
 ## What is already established
 
@@ -111,6 +112,20 @@ receiver returned two attempts, but the model still declared the release
 exactly-once. The Webhook name was supplied in the initial context and was
 queryable through generic `get_document`; therefore this is a cross-system
 side-effect reasoning and verification error, not a hidden constraint.
+
+The independent shared-batch development family passed its strict native gate in
+[30879081393](https://github.com/fengyw23/AftermathBench/actions/runs/30879081393).
+Its replay-derived admission records 42 successful prefix writes, 27 relevant
+entities, 25 replayed semantic relations, dependency depth 7, five evidence
+groups, four distinct recovery signatures, and no single-surface scope solver.
+All four references pass. Twelve replay-bound destructive probes cover three
+different native cancellation actions and produce twelve repair/preservation
+conflicts across all four boundaries. Seven fixed strategies were run against
+every boundary; the strongest solves only 1/4 and none solves the matched group.
+The exact same public tool surface already passed a 4/4 GLM-5.2 execution control
+in [30873838931](https://github.com/fengyw23/AftermathBench/actions/runs/30873838931).
+The ordinary no-supplied-scope condition is now active as
+[30881911583](https://github.com/fengyw23/AftermathBench/actions/runs/30881911583).
 
 ## Claim boundary
 
