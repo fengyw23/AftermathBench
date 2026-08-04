@@ -36,7 +36,7 @@ def promotion_workflow(instance: ForgejoPromotionInstanceSpec) -> str:
         {
             "version": instance.version,
             "digest": instance.artifact_digest,
-            "source_commit": instance.approved_commit,
+            "source_commit": "${{ inputs.source_commit }}",
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -72,6 +72,9 @@ def promotion_workflow(instance: ForgejoPromotionInstanceSpec) -> str:
         "      stop_after:\n"
         "        required: false\n"
         "        default: none\n"
+        "      source_commit:\n"
+        "        required: false\n"
+        f"        default: {instance.approved_commit}\n"
         "jobs:\n"
         "  promote:\n"
         "    runs-on: aftermath-native\n"

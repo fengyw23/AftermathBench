@@ -37,6 +37,10 @@ def _dispatch_and_wait(
     trace: list[dict[str, Any]],
     inputs: dict[str, str],
 ) -> None:
+    inputs = {
+        **inputs,
+        "source_commit": str(environment.prefix["repository_head"]),
+    }
     before = {
         int(row["id"])
         for row in _runs(_call(environment, trace, "list_action_runs"))

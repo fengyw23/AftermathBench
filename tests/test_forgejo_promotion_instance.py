@@ -129,6 +129,8 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
         self.assertIn("stop_after", workflow)
         self.assertIn("stop_after == 'artifact'", workflow)
         self.assertIn("resume_stage == 'after_artifact'", workflow)
+        self.assertIn("inputs.source_commit", workflow)
+        self.assertIn(f"default: {instance.approved_commit}", workflow)
         self.assertIn(
             f"{instance.repository} {instance.version}", workflow
         )

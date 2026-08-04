@@ -43,6 +43,7 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             "rollout_issue_index": 2,
             "approval_issue_index": 1,
             "unrelated_issue_index": 3,
+            "repository_head": "approved",
             "protected_state": {
                 "deployments": [protected_deployment],
                 "replicas": protected_replicas,

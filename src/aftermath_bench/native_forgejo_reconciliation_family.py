@@ -57,6 +57,7 @@ def reconciliation_initial_message(
             "workflow_path",
             "release_tag",
             "protected_release_tag",
+            "repository_head",
         )
     }
     compact_trace = [

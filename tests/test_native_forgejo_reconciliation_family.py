@@ -79,6 +79,7 @@ class NativeForgejoReconciliationFamilyTest(unittest.TestCase):
             "workflow_path": ".forgejo/workflows/promote.yml",
             "release_tag": "v1.2.3",
             "protected_release_tag": "v1.2.2",
+            "repository_head": "native-head",
             "trace": [],
         }
         report = {

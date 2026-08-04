@@ -171,13 +171,13 @@ def main() -> int:
             api=api,
             instance=instance,
             faults=faults,
-            inputs={},
+            inputs={"source_commit": str(prefix["repository_head"])},
             mode="suppress_request",
         )
         deployment.register_artifact(
             version=instance.version,
             digest=instance.artifact_digest,
-            source_commit=instance.approved_commit,
+            source_commit=str(prefix["repository_head"]),
         )
         deployment.request_artifact_deployment(
             environment=instance.production_environment,
@@ -188,7 +188,7 @@ def main() -> int:
         _post_attestation(args.external_url, instance)
         _finalize_metadata(api, instance, prefix)
     else:
-        inputs = {
+        stage_inputs = {
             "artifact_registry_missing": {
                 "resume_stage": "start",
                 "stop_after": "artifact",
@@ -210,6 +210,10 @@ def main() -> int:
                 "stop_after": "none",
             },
         }[variant]
+        inputs = {
+            "source_commit": str(prefix["repository_head"]),
+            **stage_inputs,
+        }
         observed_exception, run = _dispatch_ambiguously(
             api=api,
             instance=instance,
@@ -220,7 +224,7 @@ def main() -> int:
             deployment.register_artifact(
                 version=instance.version,
                 digest=instance.artifact_digest,
-                source_commit=instance.approved_commit,
+                source_commit=str(prefix["repository_head"]),
             )
             deployment.request_artifact_deployment(
                 environment=instance.production_environment,

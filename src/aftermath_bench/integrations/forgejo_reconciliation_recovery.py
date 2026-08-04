@@ -133,7 +133,7 @@ def project_reconciliation_obligations(
     registry_valid = (
         len(target_artifacts) == 1
         and target_artifacts[0]["digest"] == instance.artifact_digest
-        and target_artifacts[0]["source_commit"] == instance.approved_commit
+        and target_artifacts[0]["source_commit"] == prefix["repository_head"]
         and int(target_artifacts[0]["attempt_count"]) == 1
     )
     production_valid = (
@@ -278,7 +278,7 @@ def reference_reconciliation_recovery(
             "dispatch_workflow",
             workflow=spec.workflow_path,
             ref="main",
-            inputs=inputs,
+            inputs={**inputs, "source_commit": str(prefix["repository_head"])},
         )
         created: list[dict[str, Any]] = []
         for attempt in range(40):

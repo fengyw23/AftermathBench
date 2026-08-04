@@ -19,7 +19,10 @@ class FakeEnvironment:
             artifact_digest="sha256:approved",
             attestation_key="attestation:key",
         )
-        self.prefix = {"rollout_issue_index": 7}
+        self.prefix = {
+            "rollout_issue_index": 7,
+            "repository_head": "native-head",
+        }
         self.calls: list[tuple[str, dict]] = []
         self.dispatched = False
 
@@ -69,6 +72,9 @@ class ForgejoReconciliationBaselinesTest(unittest.TestCase):
                         dispatch["inputs"]["stop_after"],
                     ),
                     pair,
+                )
+                self.assertEqual(
+                    dispatch["inputs"]["source_commit"], "native-head"
                 )
 
     def test_metadata_policy_binds_digest_and_attestation(self) -> None:
