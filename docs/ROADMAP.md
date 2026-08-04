@@ -56,6 +56,14 @@ promoted into the final native-runtime benchmark.
 - [x] Freeze and consume one independent manufacturing hidden instance with a
   locked usage ledger; GLM-5.2 completed 4/4 runs, passed 3/4 tasks and failed
   the matched group without provider/runtime errors.
+- [x] Parameterize the shared-batch family and start native replay of a second
+  business instance with disjoint products, a different rework quantity, and a
+  two-components-per-unit BOM; the independent instance is not counted until
+  reference, conflict-probe, fixed-policy, and admission checks all pass.
+- [ ] Implement the inventory-cost-settlement family now frozen as a validated
+  instance contract. Its ambiguous Landed Cost Voucher submission must vary
+  real Stock Ledger, GL, Repost Item Valuation, and external-attestation state;
+  Job Card/certificate-only variants cannot satisfy this item.
 - [ ] Construct and freeze two unconsumed hidden instances without model
   access.
 
@@ -91,7 +99,7 @@ promoted into the final native-runtime benchmark.
   12/13 (92.31%) with zero infrastructure and interface failures.
 - [x] Launch the ordinary condition from the exact same source commit only
   after that gate passed.
-- [x] Audit, archive, and compare the completed ordinary condition: 1/13
+- [x] Audit, archive, and compare the completed ordinary condition: 2/13
   ordinary versus 12/13 explicit-scope control, with identical task-state
   projections and zero scored infrastructure failures.
 
@@ -116,7 +124,8 @@ evidence for production realism.
 - Expand only through source-admitted runtimes.
 - Add ERPNext manufacturing-rework and multi-warehouse-transfer families.
 - Add an independent hidden Forgejo instance and a second native family
-  outside release publication.
+  outside release publication, crossing approval, signed artifacts, deployment,
+  external attestation, and prior-release preservation.
 - Freeze generic evidence, runtime, model-run, and archive schemas before
   generating release instances.
 

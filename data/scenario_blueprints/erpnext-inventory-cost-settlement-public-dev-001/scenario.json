@@ -1,0 +1,123 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "erpnext-inventory-cost-settlement-public-dev-001",
+  "domain_id": "erpnext",
+  "instance_id": "public-dev-001",
+  "family": "erpnext-inventory-cost-settlement",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "unvalidated",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay pending",
+  "title": "Recover a retroactive freight-cost settlement across two consumed inventory branches",
+  "user_instruction": "A single SENSOR-MODULE-R8 supplier batch has already been received and completely consumed by two valid production branches: 12 CARDIAC-MONITOR-R8 units and 8 WARD-GATEWAY-R8 units. The gateway stock is reserved for SO-WARD-003 and both branches must remain valid. A USD 1,200 freight and import-cost voucher was prepared after production, but its submission returned a connection error. Determine whether the voucher, its stock revaluation, accounting entries, and settlement attestation actually completed. Finish exactly the missing effects, preserve both production branches, the gateway reservation, and unrelated calibration stock, and do not duplicate any voucher, reposting job, GL effect, or external attestation.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "shared_component": {
+      "item_code": "SENSOR-MODULE-R8",
+      "item_name": "Clinical Sensor Module R8",
+      "supplier_batch_id": "SUP-BATCH-R8-2608",
+      "received_quantity": 20,
+      "valuation_rate": 540
+    },
+    "primary_branch": {
+      "item_code": "CARDIAC-MONITOR-R8",
+      "item_name": "Cardiac Monitor R8",
+      "output_quantity": 12,
+      "component_quantity_per_unit": 1
+    },
+    "secondary_branch": {
+      "item_code": "WARD-GATEWAY-R8",
+      "item_name": "Ward Gateway R8",
+      "output_quantity": 8,
+      "component_quantity_per_unit": 1
+    },
+    "landed_cost": {
+      "voucher_title": "R8 freight and import settlement",
+      "amount": 1200,
+      "primary_allocation": 720,
+      "secondary_allocation": 480
+    },
+    "customer_reservation": {
+      "sales_order": "SO-WARD-003",
+      "item_code": "WARD-GATEWAY-R8",
+      "quantity": 8
+    },
+    "external_attestation": {
+      "idempotency_key": "landed-cost:SENSOR-MODULE-R8:SUP-BATCH-R8-2608",
+      "landed_cost_amount": 1200
+    },
+    "unrelated_item": {
+      "item_code": "CALIBRATION-RIG-R8",
+      "item_name": "Calibration Rig R8",
+      "quantity": 2,
+      "valuation_rate": 6900
+    }
+  },
+  "ambiguous_operation": {
+    "operation": "submit the prepared USD 1,200.00 Landed Cost Voucher",
+    "surface_result": "HTTP connection lost before the Landed Cost Voucher submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "voucher_draft_no_valuation_effect",
+      "recovery_signature_class": "submit_voucher_and_settle_revaluation"
+    },
+    {
+      "id": "voucher_committed_revaluation_completed_response_lost",
+      "boundary_class_id": "voucher_and_ledger_effects_committed",
+      "recovery_signature_class": "preserve_voucher_and_reconciled_ledgers"
+    },
+    {
+      "id": "voucher_committed_reposting_job_missing",
+      "boundary_class_id": "voucher_committed_revaluation_incomplete",
+      "recovery_signature_class": "create_missing_reposting_owner"
+    },
+    {
+      "id": "voucher_committed_reposting_job_pending",
+      "boundary_class_id": "voucher_committed_revaluation_pending",
+      "recovery_signature_class": "resume_existing_reposting_owner"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "submit_voucher_and_settle_revaluation",
+    "preserve_voucher_and_reconciled_ledgers",
+    "create_missing_reposting_owner",
+    "resume_existing_reposting_owner"
+  ],
+  "state_dimensions_that_must_vary": [
+    "Landed Cost Voucher docstatus",
+    "Stock Ledger valuation effects for both consumed branches",
+    "GL Entry effects for both consumed branches",
+    "Repost Item Valuation owner state",
+    "external settlement attestation"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "stock_and_gl_ledger_reads": true,
+    "background_job_reads": true,
+    "idempotent_external_delivery_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 3,
+      "minimum_static_certificate_size": 4
+    },
+    "obligation_interaction": {
+      "minimum_obligation_count": 8,
+      "minimum_protected_obligation_count": 4,
+      "minimum_gold_scope_count": 4,
+      "minimum_cross_obligation_witnesses": 6,
+      "minimum_repair_preservation_conflict_witnesses": 4,
+      "minimum_variants_with_conflict": 4,
+      "minimum_conflicting_action_count": 4
+    }
+  },
+  "instance_spec_sha256": "651c7f8b50f2c2183831d713e40ebc91f000f0997ff1c166efb184a414f39658"
+}

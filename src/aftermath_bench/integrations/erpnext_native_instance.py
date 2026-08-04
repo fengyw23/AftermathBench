@@ -15,6 +15,7 @@ SUPPORTED_FAMILIES = frozenset(
         "erpnext-manufacturing-rework",
         "erpnext-multiwarehouse-transfer",
         "erpnext-shared-batch-recovery",
+        "erpnext-inventory-cost-settlement",
     }
 )
 
@@ -78,6 +79,8 @@ class ERPNextNativeInstanceSpec:
             raise ValueError("ERPNext instance fixture is not a substantive object")
         if self.family == "erpnext-shared-batch-recovery":
             self._validate_shared_batch_fixture()
+        elif self.family == "erpnext-inventory-cost-settlement":
+            self._validate_inventory_cost_fixture()
 
     def _validate_shared_batch_fixture(self) -> None:
         required = {
@@ -190,6 +193,96 @@ class ERPNextNativeInstanceSpec:
                 "shared-batch native item codes must be nonempty and unique"
             )
 
+    def _validate_inventory_cost_fixture(self) -> None:
+        required = {
+            "company",
+            "company_abbr",
+            "shared_component",
+            "primary_branch",
+            "secondary_branch",
+            "landed_cost",
+            "customer_reservation",
+            "external_attestation",
+            "unrelated_item",
+        }
+        if set(self.fixture) != required:
+            raise ValueError("inventory-cost fixture fields do not match the schema")
+        shared = self.fixture["shared_component"]
+        primary = self.fixture["primary_branch"]
+        secondary = self.fixture["secondary_branch"]
+        landed_cost = self.fixture["landed_cost"]
+        reservation = self.fixture["customer_reservation"]
+        attestation = self.fixture["external_attestation"]
+        records = (shared, primary, secondary, landed_cost, reservation, attestation)
+        if not all(isinstance(record, dict) for record in records):
+            raise ValueError("inventory-cost native records must be objects")
+        numeric_fields = (
+            (shared, "received_quantity"),
+            (shared, "valuation_rate"),
+            (primary, "output_quantity"),
+            (primary, "component_quantity_per_unit"),
+            (secondary, "output_quantity"),
+            (secondary, "component_quantity_per_unit"),
+            (landed_cost, "amount"),
+            (landed_cost, "primary_allocation"),
+            (landed_cost, "secondary_allocation"),
+        )
+        if any(
+            isinstance(record.get(field), bool)
+            or not isinstance(record.get(field), (int, float))
+            or record[field] <= 0
+            for record, field in numeric_fields
+        ):
+            raise ValueError("inventory-cost quantities and amounts must be positive")
+        primary_consumption = (
+            primary["output_quantity"] * primary["component_quantity_per_unit"]
+        )
+        secondary_consumption = (
+            secondary["output_quantity"] * secondary["component_quantity_per_unit"]
+        )
+        total_consumption = primary_consumption + secondary_consumption
+        if shared["received_quantity"] != total_consumption:
+            raise ValueError(
+                "inventory-cost receipt must exactly cover both production branches"
+            )
+        allocations = (
+            landed_cost["primary_allocation"],
+            landed_cost["secondary_allocation"],
+        )
+        if sum(allocations) != landed_cost["amount"]:
+            raise ValueError("inventory-cost allocations must sum to the voucher")
+        if (
+            allocations[0] * total_consumption
+            != landed_cost["amount"] * primary_consumption
+            or allocations[1] * total_consumption
+            != landed_cost["amount"] * secondary_consumption
+        ):
+            raise ValueError(
+                "inventory-cost allocations must follow native amount-based distribution"
+            )
+        if reservation.get("item_code") != secondary.get(
+            "item_code"
+        ) or reservation.get("quantity") != secondary.get("output_quantity"):
+            raise ValueError(
+                "inventory-cost reservation must protect the secondary output"
+            )
+        if not str(attestation.get("idempotency_key", "")).strip():
+            raise ValueError("inventory-cost settlement needs an idempotency key")
+        if attestation.get("landed_cost_amount") != landed_cost.get("amount"):
+            raise ValueError(
+                "inventory-cost attestation must bind the full landed-cost amount"
+            )
+        item_codes = {
+            str(shared.get("item_code", "")),
+            str(primary.get("item_code", "")),
+            str(secondary.get("item_code", "")),
+            str(self.fixture["unrelated_item"].get("item_code", "")),
+        }
+        if "" in item_codes or len(item_codes) != 4:
+            raise ValueError(
+                "inventory-cost native item codes must be nonempty and unique"
+            )
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -256,5 +349,13 @@ def render_erpnext_native_blueprint(
             raise ValueError("shared-batch template lacks ambiguous_operation")
         ambiguous["operation"] = (
             f"submit the prepared {rework_quantity}-unit corrective Job Card"
+        )
+    elif instance.family == "erpnext-inventory-cost-settlement":
+        ambiguous = payload.get("ambiguous_operation")
+        if not isinstance(ambiguous, dict):
+            raise ValueError("inventory-cost template lacks ambiguous_operation")
+        amount = instance.fixture["landed_cost"]["amount"]
+        ambiguous["operation"] = (
+            f"submit the prepared USD {amount:,.2f} Landed Cost Voucher"
         )
     return payload

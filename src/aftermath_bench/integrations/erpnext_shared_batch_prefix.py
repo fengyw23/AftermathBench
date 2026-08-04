@@ -120,6 +120,18 @@ class ERPNextSharedBatchPrefixBuilder:
             work_order["component_quantity_per_unit"]
         )
 
+    @staticmethod
+    def _naming_series_for_first_document(expected_name: str) -> str:
+        prefix, separator, ordinal = expected_name.rpartition("-")
+        if not prefix or separator != "-" or not ordinal.isdigit():
+            raise ValueError("expected document name must end in a numeric series")
+        if int(ordinal) != 1:
+            raise ValueError(
+                "an isolated native instance must use the first value in its "
+                "document naming series"
+            )
+        return f"{prefix}-.{'#' * len(ordinal)}"
+
     def _exists(self, doctype: str, name: str) -> bool:
         return bool(
             self.adapter.list_resources(
@@ -762,11 +774,14 @@ class ERPNextSharedBatchPrefixBuilder:
         self._trace(trace, "submit secondary manufacture", secondary_entry)
 
         reservation = self.fixture["customer_reservation"]
+        expected_sales_order = str(reservation["sales_order"])
         sales_order = _payload(
             self.adapter.create_resource(
                 "Sales Order",
                 {
-                    "naming_series": "SO-CROSS-.###",
+                    "naming_series": self._naming_series_for_first_document(
+                        expected_sales_order
+                    ),
                     "company": self.fixture["company"],
                     "customer": self.CUSTOMER,
                     "transaction_date": now.date().isoformat(),

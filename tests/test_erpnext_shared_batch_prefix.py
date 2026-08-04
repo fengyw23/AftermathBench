@@ -124,6 +124,18 @@ class ERPNextSharedBatchPrefixTest(unittest.TestCase):
             12.0,
         )
 
+    def test_native_document_series_is_derived_from_the_instance(self) -> None:
+        self.assertEqual(
+            ERPNextSharedBatchPrefixBuilder._naming_series_for_first_document(
+                "SO-WARD-001"
+            ),
+            "SO-WARD-.###",
+        )
+        with self.assertRaisesRegex(ValueError, "first value"):
+            ERPNextSharedBatchPrefixBuilder._naming_series_for_first_document(
+                "SO-WARD-002"
+            )
+
     def test_actual_time_logs_start_after_all_native_scheduled_slots(self) -> None:
         start = ERPNextSharedBatchPrefixBuilder._execution_start_after_schedule(
             [

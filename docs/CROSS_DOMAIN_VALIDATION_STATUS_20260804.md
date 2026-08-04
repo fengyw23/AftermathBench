@@ -9,7 +9,7 @@ claims.
 
 | Domain / family | Native failure boundaries | Exact replay + reference | Replay-derived hard admission | Fixed-policy matched-group resistance | Execution control | Ordinary model experiment | Formal release package |
 |---|---:|---|---|---|---|---|---|
-| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | provisional: 2/11 completed states; 2 provider-missing states excluded and retrying | native evidence archived; release integration pending |
+| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | complete (GLM-5.2 2/13; 15.38%; 0 provider errors) | complete raw coverage archive; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
 
@@ -46,16 +46,18 @@ UIDs in the audit/closure records. This is a model execution error after correct
 scope identification, not missing evidence or interface ambiguity. Ordinary
 scope-inference run
 [30865035666](https://github.com/fengyw23/AftermathBench/actions/runs/30865035666)
-completed scored trajectories for 11 of 13 states. GLM-5.2 passed 2/11
-(18.18%); matched-group success was false. Goal completion remained 72.73%
-and the model collected all six evidence groups before its first write in all
-11 scored trajectories, but repair completeness was only 18.18%. Nine failures
-were classified as scope failures, most often leaving the wrong transition or
-publication owner active after otherwise broad investigation. This is evidence
-of recovery-scope composition difficulty rather than missing tools. States 01
-and 02 produced no trajectory after provider retries and are excluded, not
-scored as failures. A streamed retry with a longer provider timeout is run
-[30872359883](https://github.com/fengyw23/AftermathBench/actions/runs/30872359883).
+completed scored trajectories for 11 states; a non-replacing provider retry
+[30872359883](https://github.com/fengyw23/AftermathBench/actions/runs/30872359883)
+filled only the two missing states. The deterministic union therefore contains
+all 13 states without replacing any scored primary trajectory. GLM-5.2 passed
+2/13 (15.38%); matched-group success was false, Goal Completion was 8/13
+(61.54%), Preservation was 12/13 (92.31%), Protocol Safety was 8/13 (61.54%),
+and Repair Completeness was 2/13 (15.38%). All eleven failures are classified as
+scope failures. The complete raw union, source run IDs, source and target hashes,
+summary, and analysis are frozen under
+`data/evidence/kubernetes-interaction-ordinary-glm52-20260804/`. This closes the
+provider-coverage gap and supports recovery-scope composition difficulty rather
+than missing tools or provider instability.
 
 An earlier dispatch
 [30864390353](https://github.com/fengyw23/AftermathBench/actions/runs/30864390353)
@@ -120,10 +122,35 @@ The repository currently supports the following narrow claim:
 
 It does **not** yet support a top-conference benchmark claim. Missing evidence is:
 
-1. complete ordinary-model Kubernetes coverage for the two provider-missing states;
-2. unsaturated ordinary recovery families with interacting native obligations;
-3. more independent families and hidden instances per domain;
-4. a frozen cross-model leaderboard with repeated runs.
+1. unsaturated ordinary recovery families with interacting native obligations;
+2. more independent families and hidden instances per domain;
+3. a frozen cross-model leaderboard with repeated runs.
+
+## Active directional risks and closure gates
+
+The next development cycle is intentionally constrained by three risks. They
+are not considered closed by adding more variants to an existing template.
+
+1. **ERP state-dimensionality risk.** The current shared-batch family varies a
+   Job Card and its certificate delivery. A second native ERP family must place
+   the ambiguous failure at an inventory/accounting boundary and produce
+   objectively different Stock Ledger, GL, shared-cost, and asynchronous repost
+   states. Merely adding more protected documents does not close this risk.
+2. **Instance-independence risk.** A family needs at least two independently
+   parameterized business instances whose item identities are disjoint and whose
+   quantities or dependency topology differ. Both must pass the same replay,
+   reference, fixed-policy, and admission pipeline. The second shared-batch
+   instance is currently under native replay and is not counted until that run
+   passes.
+3. **Forgejo saturation risk.** Package provenance remains an executable control,
+   but its 4/4 ordinary-model result cannot support a hardness claim. The next
+   Forgejo difficulty family must cross approval state, signed build artifacts,
+   deployment status, external publication/attestation, and preservation of a
+   prior release; it must pass execution control while failing matched-group
+   inference for at least one strong model.
+
+These gates keep effort focused on new recovery reasoning rather than increasing
+case count through surface-level renaming.
 
 ## Immediate decision rule
 
