@@ -203,6 +203,9 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("${{ failure() }}", self.text[diagnostic:model])
         self.assertIn("data/evidence/admission-diagnostics", self.text[diagnostic:model])
         self.assertIn("raw_log_published", self.text[diagnostic:model])
+        self.assertIn("failure_phase=freeze_native_bundle", section)
+        self.assertIn("failure_phase=verify_hidden_test_eligibility", section)
+        self.assertIn("diagnostic_status", section)
         self.assertNotIn("private/logs/admission.log\" \"$output", self.text)
 
 

@@ -264,14 +264,22 @@ jobs:
       - name: Admit and freeze before any provider request
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
+          failure_phase=admission
+          failure_log="$run_root/private/logs/admission.log"
           write_safe_admission_failure() {
-            python - "$run_root/private/logs/admission.log" "$run_root/public/admission-failure.json" <<'PY'
+            python - "$failure_log" "$run_root/public/admission-failure.json" "$failure_phase" <<'PY'
           import json
           import re
           import sys
           from pathlib import Path
 
-          text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          log_path = Path(sys.argv[1])
+          text = (
+              log_path.read_text(encoding="utf-8", errors="replace")
+              if log_path.is_file()
+              else ""
+          )
+          phase = sys.argv[3]
           exception_types = sorted(set(re.findall(
               r"\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b", text
           )))
@@ -286,6 +294,7 @@ jobs:
                       "exception_types": exception_types,
                       "failed_gate_names": sorted(set(gates)),
                       "raw_log_published": False,
+                      "diagnostic_status": "failed_" + phase,
                   },
                   indent=2,
                   sort_keys=True,
@@ -294,6 +303,7 @@ jobs:
           )
           PY
           }
+          trap 'failure_status=$?; write_safe_admission_failure; exit "$failure_status"' ERR
           if [ "$SELECTED_FAMILY" = package_provenance ]
           then
             admission_script=scripts/build_forgejo_package_provenance_admission.py
@@ -330,12 +340,24 @@ jobs:
             echo "::error title=Native admission failed::$summary"
             exit "$admission_status"
           fi
+          failure_phase=validate_native_scenario
+          failure_log="$run_root/private/logs/scenario-validation.log"
           python -m aftermath_bench validate-native-scenario \
             --scenario "$run_root/private/scenario/scenario.json" \
             > "$run_root/private/logs/scenario-validation.log" 2>&1
-          runtime_revision="$(
+          failure_phase=read_runtime_revision
+          failure_log="$run_root/private/logs/runtime-revision.log"
+          if runtime_revision="$(
             python -c 'import json; print(json.load(open("runtimes/forgejo/runtime.lock.json"))["source"]["revision"])'
           )"
+          then
+            printf '%s\n' "$runtime_revision" > "$failure_log"
+          else
+            write_safe_admission_failure
+            exit 1
+          fi
+          failure_phase=freeze_native_bundle
+          failure_log="$run_root/private/logs/freeze.log"
           python scripts/freeze_native_bundle.py \
             --bundle-root "$run_root/private" \
             --scenario "$run_root/private/scenario/scenario.json" \
@@ -344,7 +366,10 @@ jobs:
             --runtime-revision "$runtime_revision" \
             --private-attestation "$run_root/private/freeze.json" \
             --public-commitment "$run_root/private/public-commitment.json" \
-            --usage-ledger "$run_root/private/usage-ledger.json"
+            --usage-ledger "$run_root/private/usage-ledger.json" \
+            > "$failure_log" 2>&1
+          failure_phase=verify_hidden_test_eligibility
+          failure_log="$RUNNER_TEMP/forgejo-hidden-eligibility.log"
           python scripts/verify_hidden_test_eligibility.py \
             --scenario "$run_root/private/scenario/scenario.json" \
             --freeze "$run_root/private/freeze.json" \
