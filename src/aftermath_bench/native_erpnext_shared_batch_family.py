@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from dataclasses import dataclass
 from typing import Any
 
 from .integrations.erpnext_faults import default_worker_control
@@ -81,6 +82,15 @@ ERP_NEXT_SHARED_BATCH_TOOLS = tuple(
 )
 
 
+@dataclass(frozen=True)
+class SharedBatchFamilyEvaluation:
+    passed: bool
+    components: dict[str, bool]
+    checks: dict[str, bool]
+    diagnostics: dict[str, Any]
+    failures: tuple[str, ...]
+
+
 def shared_batch_initial_message(
     *,
     scenario: NativeScenario,
@@ -135,7 +145,9 @@ def shared_batch_initial_message(
     return message
 
 
-def _evaluate(final_state: dict[str, Any], prefix: dict[str, Any]) -> dict[str, Any]:
+def _evaluate(
+    final_state: dict[str, Any], prefix: dict[str, Any]
+) -> SharedBatchFamilyEvaluation:
     fixture = prefix["evaluation_fixture"]
     projected = project_shared_batch_terminal(
         final_state, prefix=prefix, fixture=fixture
@@ -145,13 +157,19 @@ def _evaluate(final_state: dict[str, Any], prefix: dict[str, Any]) -> dict[str, 
         fixture=fixture,
         protected_fingerprints=prefix["protected_fingerprints"],
     )
-    return {**result, "projected_evidence": projected}
+    return SharedBatchFamilyEvaluation(
+        passed=bool(result["passed"]),
+        components=dict(result["components"]),
+        checks=dict(result["checks"]),
+        diagnostics={"projected_evidence": projected},
+        failures=tuple(result["failures"]),
+    )
 
 
 def diagnose_shared_batch_trajectory(
     *,
     turns: list[dict[str, Any]],
-    evaluation: dict[str, Any],
+    evaluation: SharedBatchFamilyEvaluation,
     failure_report: dict[str, Any],
     prefix: dict[str, Any],
 ) -> dict[str, Any]:
@@ -168,7 +186,7 @@ def diagnose_shared_batch_trajectory(
         "stock_ledger": "get_stock_ledger" in queried,
         "general_ledger": "get_general_ledger" in queried,
     }
-    failures = set(evaluation.get("failures", []))
+    failures = set(evaluation.failures)
     protected_failures = {
         "accepted_primary_quantity_preserved",
         "secondary_output_preserved",
@@ -185,7 +203,7 @@ def diagnose_shared_batch_trajectory(
         and call.get("arguments", {}).get("name") == prefix.get("corrective_job_card")
         for call in calls
     )
-    if evaluation.get("passed"):
+    if evaluation.passed:
         primary_error = None
     elif unsafe_resubmit:
         primary_error = "state_inference_failure"
@@ -197,9 +215,9 @@ def diagnose_shared_batch_trajectory(
         primary_error = "investigation_failure"
     elif failures & protected_failures:
         primary_error = "scope_failure"
-    elif not evaluation.get("components", {}).get("goal_completion", False):
+    elif not evaluation.components.get("goal_completion", False):
         primary_error = "execution_failure"
-    elif not evaluation.get("components", {}).get("protocol_safety", False):
+    elif not evaluation.components.get("protocol_safety", False):
         primary_error = "execution_failure"
     else:
         primary_error = "verification_failure"
