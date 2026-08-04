@@ -296,6 +296,7 @@ class NativeAdmissionTest(unittest.TestCase):
             self.assertFalse(
                 report.checks["obligation_interaction_probes_replay_bound"]
             )
+            self.assertFalse(report.checks["conflicting_actions_meet_profile"])
             self.assertIn("obligation_interactions", report.artifact_sha256)
 
     def test_derived_admission_report_is_not_a_recursive_input(self) -> None:
