@@ -4,10 +4,15 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from aftermath_bench.integrations.forgejo_promotion_instance import (
     ForgejoPromotionInstanceSpec,
     promotion_blueprint,
+)
+from aftermath_bench.integrations.forgejo_promotion_prefix import (
+    ForgejoPromotionPrefixBuilder,
+    promotion_workflow,
 )
 from aftermath_bench.schema import repository_root
 
@@ -63,6 +68,55 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "release tags must differ"):
                 ForgejoPromotionInstanceSpec.from_path(path)
+
+    def test_native_workflow_materializes_all_recovery_systems(self) -> None:
+        instance = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
+        workflow = promotion_workflow(instance)
+        self.assertIn("runs-on: aftermath-native", workflow)
+        self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn("/artifacts", workflow)
+        self.assertIn("/artifact-deployments", workflow)
+        self.assertIn("/workers/run", workflow)
+        self.assertIn("/webhooks/events", workflow)
+        self.assertIn("resume_stage", workflow)
+        self.assertIn("stop_after", workflow)
+
+    def test_prefix_uses_public_apis_and_preserves_three_records(self) -> None:
+        instance = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
+        forgejo = MagicMock()
+        forgejo.create_repository.return_value = {
+            "id": 1,
+            "owner": {"login": instance.owner},
+        }
+        forgejo.edit_repository.return_value = {"has_releases": True}
+        forgejo.create_issue.side_effect = [
+            {"number": 1},
+            {"number": 2},
+            {"number": 3},
+        ]
+        forgejo.edit_issue.return_value = {"number": 1, "state": "closed"}
+        forgejo.create_file.side_effect = [
+            {"commit": {"sha": f"commit-{index}"}} for index in range(1, 7)
+        ]
+        forgejo.create_release.return_value = {
+            "tag_name": instance.protected_release_tag
+        }
+        deployment = MagicMock()
+        deployment.register_artifact.return_value = {"first_registration": True}
+        deployment.request_artifact_deployment.return_value = {"created": True}
+        deployment.run_workers.return_value = {"completed_job_ids": [1]}
+        deployment.state.return_value = {"deployments": []}
+        prefix = ForgejoPromotionPrefixBuilder(
+            forgejo, deployment, instance
+        ).build()
+        self.assertEqual(prefix.repository_head, "commit-6")
+        self.assertEqual(prefix.approval_issue_index, 1)
+        self.assertEqual(prefix.rollout_issue_index, 2)
+        self.assertEqual(prefix.unrelated_issue_index, 3)
+        self.assertEqual(
+            {event["system"] for event in prefix.trace},
+            {"forgejo", "deployment-target"},
+        )
 
 
 if __name__ == "__main__":

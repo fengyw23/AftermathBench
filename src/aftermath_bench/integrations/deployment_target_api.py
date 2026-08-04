@@ -47,6 +47,9 @@ class DeploymentTargetAPI:
     def request_deployment(self, **payload: str) -> dict[str, Any]:
         return self._request("POST", "/deployments", payload)
 
+    def request_artifact_deployment(self, **payload: str) -> dict[str, Any]:
+        return self._request("POST", "/artifact-deployments", payload)
+
     def run_workers(self) -> dict[str, Any]:
         return self._request("POST", "/workers/run", {})
 

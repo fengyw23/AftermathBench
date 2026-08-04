@@ -1,0 +1,138 @@
+name: forgejo-approved-artifact-promotion-runtime
+
+on:
+  push:
+    paths:
+      - '.github/workflows/forgejo-promotion-runtime.yml'
+      - 'data/instance_specs/forgejo-approved-artifact-promotion-*.json'
+      - 'data/scenario_blueprints/forgejo-approved-artifact-promotion-*/**'
+      - 'runtimes/forgejo/**'
+      - 'scripts/*forgejo_promotion*'
+      - 'scripts/manage_forgejo_stack.py'
+      - 'src/aftermath_bench/forgejo_promotion_boundary_audit.py'
+      - 'src/aftermath_bench/integrations/deployment_target_api.py'
+      - 'src/aftermath_bench/integrations/forgejo_promotion_*.py'
+      - 'src/aftermath_bench/integrations/forgejo_stack.py'
+      - 'src/aftermath_bench/runtime_services/deployment_target.py'
+      - 'tests/test_deployment_target.py'
+      - 'tests/test_forgejo_promotion_*.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE: data/instance_specs/forgejo-approved-artifact-promotion-public-dev-001.json
+      RUN_ROOT: runtimes/forgejo/.runtime/promotion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate promotion contracts
+        run: |
+          python -m unittest discover -s tests -p 'test_deployment_target.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_promotion_*.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_stack.py' -v
+          python -m unittest discover -s tests -p 'test_forgejo_compose_spec.py' -v
+
+      - name: Build pinned Forgejo from audited source
+        run: |
+          mkdir -p "$RUN_ROOT"
+          python scripts/build_forgejo_runtime.py \
+            --source-directory "$RUNNER_TEMP/forgejo" \
+            --checkout \
+            --build \
+            --report "$RUN_ROOT/source-verification.json"
+
+      - name: Start source-built server and pinned runner
+        run: |
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup \
+            --username aftermath \
+            --email aftermath@aftermath.invalid
+          python scripts/manage_forgejo_stack.py setup-runner
+
+      - name: Build and freeze the successful prefix
+        run: |
+          python scripts/build_forgejo_promotion_prefix.py \
+            --credentials runtimes/forgejo/.runtime/credentials.json \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot-promotion-bundle \
+            --snapshot "$RUN_ROOT/prefix-bundle"
+
+      - name: Replay six source-grounded promotion boundaries
+        run: |
+          variants=(
+            dispatch_request_not_reached
+            workflow_queued_runner_unavailable
+            signed_bundle_completed_deployment_missing
+            deployment_completed_attestation_missing
+            attestation_accepted_release_metadata_missing
+            promotion_completed_response_lost
+          )
+          for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore-promotion-bundle \
+              --snapshot "$RUN_ROOT/prefix-bundle"
+            python scripts/run_forgejo_promotion_boundary.py \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --instance-spec "$INSTANCE" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-boundary.json"
+            if [ "$variant" = workflow_queued_runner_unavailable ]
+            then
+              python scripts/manage_forgejo_stack.py snapshot-promotion-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle" \
+                --runner-disabled
+            else
+              python scripts/manage_forgejo_stack.py snapshot-promotion-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+            fi
+            python scripts/manage_forgejo_stack.py restore-promotion-bundle \
+              --snapshot "$RUN_ROOT/$variant-bundle"
+            python scripts/run_forgejo_promotion_reference.py \
+              --credentials runtimes/forgejo/.runtime/credentials.json \
+              --prefix "$RUN_ROOT/prefix.json" \
+              --instance-spec "$INSTANCE" \
+              --variant "$variant" \
+              --output "$RUN_ROOT/$variant-reference.json"
+          done
+
+      - name: Audit cross-system boundary variation and reference recovery
+        run: |
+          python scripts/audit_forgejo_promotion_runtime.py \
+            --run-root "$RUN_ROOT" \
+            --prefix "$RUN_ROOT/prefix.json" \
+            --instance-spec "$INSTANCE" \
+            --output "$RUN_ROOT/audit.json"
+
+      - name: Surface native logs on failure
+        if: failure()
+        run: |
+          docker compose \
+            --project-name aftermath-forgejo \
+            --file runtimes/forgejo/compose.yaml \
+            logs --no-color --tail 350 \
+            forgejo runner-daemon deployment-target deployment-fault-gateway \
+            webhook-sink webhook-fault-gateway
+
+      - name: Upload native replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-approved-artifact-promotion-runtime
+          path: runtimes/forgejo/.runtime/promotion
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_forgejo_stack.py purge

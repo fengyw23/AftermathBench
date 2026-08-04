@@ -206,7 +206,7 @@ def main() -> int:
         "scenario_id": scenario.scenario_id,
         "variant": args.variant,
         "surface_error": surface_error,
-        "gateway_events": _request_json("http://127.0.0.1:9091/events"),
+        "gateway_events": _request_json("http://127.0.0.1:9091/audit"),
         "boundary_checks": boundary_checks,
         "dimension_projection": projection,
         "boundary_evidence": boundary_evidence,

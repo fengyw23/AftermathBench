@@ -29,6 +29,15 @@ MIGRATION_BUNDLE_SERVICES = (
     "deployment-fault-gateway",
     "deployment-target",
 )
+PROMOTION_BUNDLE_SERVICES = (
+    "api-fault-gateway",
+    "forgejo",
+    "runner-daemon",
+    "deployment-fault-gateway",
+    "deployment-target",
+    "webhook-fault-gateway",
+    "webhook-sink",
+)
 QUIESCE_TIMEOUT_SECONDS = "2"
 
 
@@ -481,6 +490,130 @@ class ForgejoStack:
             self.wait_ready()
         for url in (
             "http://127.0.0.1:9091/admin/reset",
+            "http://127.0.0.1:9096/admin/reset",
+        ):
+            self.reset_service(url)
+
+    def snapshot_promotion_bundle(
+        self,
+        destination: str | Path,
+        *,
+        runner_enabled: bool,
+    ) -> dict[str, Any]:
+        """Capture Forgejo, deployment and external-attestation state together."""
+
+        directory = Path(destination).resolve()
+        directory.mkdir(parents=True, exist_ok=True)
+        archives = {
+            "forgejo": directory / "forgejo-data.tar.gz",
+            "deployment-target": directory / "deployment-target-data.tar.gz",
+            "webhook-sink": directory / "webhook-sink-data.tar.gz",
+        }
+        self.run(
+            "stop",
+            "--timeout",
+            QUIESCE_TIMEOUT_SECONDS,
+            *PROMOTION_BUNDLE_SERVICES,
+        )
+        try:
+            for service, archive in archives.items():
+                command = self.compose_command(
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "--entrypoint",
+                    "tar",
+                    service,
+                    "-C",
+                    "/data",
+                    "-czf",
+                    "-",
+                    ".",
+                )
+                with archive.open("wb") as handle:
+                    self.runner(command, check=True, stdout=handle)
+        finally:
+            services = [
+                service
+                for service in PROMOTION_BUNDLE_SERVICES
+                if service != "runner-daemon" or runner_enabled
+            ]
+            self.run("start", *services)
+            self.wait_ready()
+        result: dict[str, Any] = {
+            "schema_version": "1.0",
+            "capture_mode": (
+                "simultaneous_actions_deployment_and_attestation_quiescence"
+            ),
+            "runner_enabled": runner_enabled,
+        }
+        for service, archive in archives.items():
+            key = service.replace("-", "_") + "_sha256"
+            result[key] = hashlib.sha256(archive.read_bytes()).hexdigest()
+        (directory / "bundle.json").write_text(
+            json.dumps(result, indent=2) + "\n", encoding="utf-8"
+        )
+        return result
+
+    def restore_promotion_bundle(self, source: str | Path) -> None:
+        directory = Path(source).resolve()
+        manifest = json.loads(
+            (directory / "bundle.json").read_text(encoding="utf-8")
+        )
+        archives = {
+            "forgejo": directory / "forgejo-data.tar.gz",
+            "deployment-target": directory / "deployment-target-data.tar.gz",
+            "webhook-sink": directory / "webhook-sink-data.tar.gz",
+        }
+        observed: dict[str, Any] = {
+            "schema_version": "1.0",
+            "capture_mode": (
+                "simultaneous_actions_deployment_and_attestation_quiescence"
+            ),
+            "runner_enabled": bool(manifest.get("runner_enabled")),
+        }
+        for service, archive in archives.items():
+            key = service.replace("-", "_") + "_sha256"
+            observed[key] = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if observed != manifest:
+            raise RuntimeError(
+                "Forgejo promotion state bundle hash mismatch: "
+                f"expected={manifest}, observed={observed}"
+            )
+        self.run(
+            "stop",
+            "--timeout",
+            QUIESCE_TIMEOUT_SECONDS,
+            *PROMOTION_BUNDLE_SERVICES,
+        )
+        try:
+            for service, archive in archives.items():
+                command = self.compose_command(
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "--entrypoint",
+                    "sh",
+                    service,
+                    "-c",
+                    (
+                        "find /data -mindepth 1 -maxdepth 1 "
+                        "-exec rm -rf -- {} +; tar -C /data -xzf -"
+                    ),
+                )
+                with archive.open("rb") as handle:
+                    self.runner(command, check=True, stdin=handle)
+        finally:
+            services = [
+                service
+                for service in PROMOTION_BUNDLE_SERVICES
+                if service != "runner-daemon" or manifest["runner_enabled"]
+            ]
+            self.run("start", *services)
+            self.wait_ready()
+        for url in (
+            "http://127.0.0.1:9091/admin/reset",
+            "http://127.0.0.1:9093/admin/reset",
             "http://127.0.0.1:9096/admin/reset",
         ):
             self.reset_service(url)

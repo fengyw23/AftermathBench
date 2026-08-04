@@ -208,6 +208,68 @@ class DeploymentStore:
             ).fetchone()
         return {**dict(job), "created": True}
 
+    def request_artifact_deployment(
+        self, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Queue a deployment whose only prerequisite is an approved artifact.
+
+        Migration deployments deliberately require a schema migration. Signed
+        artifact promotions are a separate recovery family and must not invent
+        one merely to reuse that endpoint.
+        """
+
+        environment = str(payload["environment"])
+        version = str(payload["version"])
+        digest = str(payload["artifact_digest"])
+        with self._connection() as connection:
+            artifact = connection.execute(
+                "SELECT * FROM artifacts WHERE version = ?", (version,)
+            ).fetchone()
+            if artifact is None or artifact["digest"] != digest:
+                raise ValueError("approved artifact prerequisite is incomplete")
+            active = connection.execute(
+                "SELECT * FROM rollout_jobs WHERE environment = ? AND version = ? "
+                "AND status IN ('queued', 'running') ORDER BY id DESC LIMIT 1",
+                (environment, version),
+            ).fetchone()
+            deployment = connection.execute(
+                "SELECT * FROM deployments WHERE environment = ?", (environment,)
+            ).fetchone()
+            if active is not None:
+                return {**dict(active), "created": False}
+            if (
+                deployment is not None
+                and deployment["desired_version"] == version
+                and deployment["artifact_digest"] == digest
+                and deployment["status"] == "deployed"
+            ):
+                completed = connection.execute(
+                    "SELECT * FROM rollout_jobs WHERE environment = ? AND version = ? "
+                    "AND status = 'completed' ORDER BY id DESC LIMIT 1",
+                    (environment, version),
+                ).fetchone()
+                if completed is None:
+                    raise ValueError("deployed state has no completed rollout job")
+                return {**dict(completed), "created": False}
+            generation = 1 if deployment is None else int(deployment["generation"]) + 1
+            connection.execute(
+                "INSERT INTO deployments VALUES (?, ?, ?, 'pending', ?, ?) "
+                "ON CONFLICT(environment) DO UPDATE SET "
+                "desired_version=excluded.desired_version, "
+                "artifact_digest=excluded.artifact_digest, status='pending', "
+                "generation=excluded.generation, updated_at=excluded.updated_at",
+                (environment, version, digest, generation, _now()),
+            )
+            cursor = connection.execute(
+                "INSERT INTO rollout_jobs(environment, version, artifact_digest, "
+                "status, created_at) VALUES (?, ?, ?, 'queued', ?)",
+                (environment, version, digest, _now()),
+            )
+            job = connection.execute(
+                "SELECT * FROM rollout_jobs WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
+        return {**dict(job), "created": True}
+
     def run_workers(self) -> dict[str, Any]:
         completed: list[int] = []
         with self._connection() as connection:
@@ -338,6 +400,7 @@ def make_handler(store: DeploymentStore) -> type[BaseHTTPRequestHandler]:
                     "/migrations": store.apply_migration,
                     "/artifacts": store.register_artifact,
                     "/deployments": store.request_deployment,
+                    "/artifact-deployments": store.request_artifact_deployment,
                     "/workers/run": lambda _payload: store.run_workers(),
                     "/audit-events": store.record_audit,
                 }

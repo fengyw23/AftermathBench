@@ -53,6 +53,41 @@ class DeploymentTargetTest(unittest.TestCase):
         self.assertEqual(repeated["attempt_count"], 2)
         self.assertEqual(len(self.store.state()["audit_events"]), 1)
 
+    def test_signed_artifact_promotion_requires_matching_digest_not_migration(self) -> None:
+        self.store.register_artifact(
+            {
+                "version": "6.2.0",
+                "digest": "sha256:approved",
+                "source_commit": "approved-commit",
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "approved artifact"):
+            self.store.request_artifact_deployment(
+                {
+                    "environment": "clinical-production",
+                    "version": "6.2.0",
+                    "artifact_digest": "sha256:unapproved",
+                }
+            )
+        job = self.store.request_artifact_deployment(
+            {
+                "environment": "clinical-production",
+                "version": "6.2.0",
+                "artifact_digest": "sha256:approved",
+            }
+        )
+        self.assertTrue(job["created"])
+        self.store.run_workers()
+        retried = self.store.request_artifact_deployment(
+            {
+                "environment": "clinical-production",
+                "version": "6.2.0",
+                "artifact_digest": "sha256:approved",
+            }
+        )
+        self.assertFalse(retried["created"])
+        self.assertEqual(len(self.store.state()["rollout_jobs"]), 1)
+
     def test_conflicting_reuse_of_stable_identity_is_rejected(self) -> None:
         self.store.apply_migration(
             {"migration_id": "m-2", "version": "2.0.0", "schema_hash": "sha256:one"}

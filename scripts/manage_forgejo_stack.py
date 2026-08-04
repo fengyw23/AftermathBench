@@ -31,6 +31,8 @@ def main() -> int:
             "restore-bundle",
             "snapshot-migration-bundle",
             "restore-migration-bundle",
+            "snapshot-promotion-bundle",
+            "restore-promotion-bundle",
             "down",
             "purge",
         ),
@@ -114,6 +116,21 @@ def main() -> int:
         if not args.snapshot:
             parser.error("--snapshot is required")
         stack.restore_migration_bundle(args.snapshot)
+    elif args.action == "snapshot-promotion-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        print(
+            json.dumps(
+                stack.snapshot_promotion_bundle(
+                    args.snapshot,
+                    runner_enabled=not args.runner_disabled,
+                )
+            )
+        )
+    elif args.action == "restore-promotion-bundle":
+        if not args.snapshot:
+            parser.error("--snapshot is required")
+        stack.restore_promotion_bundle(args.snapshot)
     elif args.action == "down":
         stack.down()
     else:
