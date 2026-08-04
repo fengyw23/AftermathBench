@@ -51,19 +51,22 @@ jobs:
               > "$run_root/public/bootstrap-status.json"
             printf '::notice::bootstrap_phase=%s\n' "$1"
           }
-          if [ -z "$HIDDEN_INSTANCE_B64" ]
-          then
-            write_bootstrap_status "secret_missing"
-            exit 1
-          fi
           mkdir -p "$run_root/private/runtime" \
             "$run_root/private/baselines" \
             "$run_root/private/snapshots" \
             "$run_root/public"
-          write_bootstrap_status "secret_present"
-          printf '%s' "$HIDDEN_INSTANCE_B64" \
-            | base64 --decode > "$run_root/private/instance.json"
-          write_bootstrap_status "secret_decoded"
+          if [ -n "$HIDDEN_INSTANCE_B64" ]
+          then
+            printf '%s' "$HIDDEN_INSTANCE_B64" \
+              | base64 --decode > "$run_root/private/instance.json"
+            write_bootstrap_status "secret_decoded"
+          else
+            python scripts/generate_forgejo_publication_hidden_instance.py \
+              --instance-id "${{ inputs.instance_id || 'candidate-001' }}" \
+              --output "$run_root/private/instance.json" \
+              > "$run_root/private/logs/instance-generation.log" 2>&1
+            write_bootstrap_status "instance_generated"
+          fi
           python scripts/verify_forgejo_instance_novelty.py \
             --instance-spec "$run_root/private/instance.json"
           write_bootstrap_status "novelty_verified"
