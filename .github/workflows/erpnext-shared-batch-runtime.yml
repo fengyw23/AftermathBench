@@ -120,20 +120,27 @@ jobs:
             python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$SCENARIO"
           )
+          mapfile -t probes < <(
+            python -c 'from aftermath_bench.integrations.erpnext_shared_batch_probes import SHARED_BATCH_INTERACTION_PROBES; print(*SHARED_BATCH_INTERACTION_PROBES, sep="\n")'
+          )
           mkdir -p "$RUNTIME_OUTPUT/probes"
-          for variant in "${variants[@]}"
+          for probe in "${probes[@]}"
           do
-            echo "running shared-batch interaction probe: $variant"
-            python scripts/manage_erpnext_stack.py restore-bundle \
-              --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant" \
-              > "$RUNTIME_OUTPUT/logs/probe-$variant-restore.log" 2>&1
-            timeout 300s python scripts/run_erpnext_shared_batch_probe.py \
-              --variant "$variant" \
-              --credentials runtimes/erpnext/.runtime/credentials.json \
-              --prefix "$RUNTIME_OUTPUT/prefix.json" \
-              --failure-report "$RUNTIME_OUTPUT/boundaries/$variant.json" \
-              --output "$RUNTIME_OUTPUT/probes/$variant.json" \
-              > "$RUNTIME_OUTPUT/logs/probe-$variant.log" 2>&1
+            for variant in "${variants[@]}"
+            do
+              echo "running shared-batch interaction probe: $probe / $variant"
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant" \
+                > "$RUNTIME_OUTPUT/logs/probe-$probe-$variant-restore.log" 2>&1
+              timeout 300s python scripts/run_erpnext_shared_batch_probe.py \
+                --probe "$probe" \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix "$RUNTIME_OUTPUT/prefix.json" \
+                --failure-report "$RUNTIME_OUTPUT/boundaries/$variant.json" \
+                --output "$RUNTIME_OUTPUT/probes/$probe-$variant.json" \
+                > "$RUNTIME_OUTPUT/logs/probe-$probe-$variant.log" 2>&1
+            done
           done
           python scripts/build_erpnext_shared_batch_obligations.py \
             --boundary-directory "$RUNTIME_OUTPUT/boundaries" \

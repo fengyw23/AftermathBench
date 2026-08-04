@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -18,6 +17,7 @@ class ObligationInteractionAudit:
     probe_count: int
     cross_obligation_witness_count: int
     repair_preservation_conflict_count: int
+    conflicting_action_count: int
     variants_with_cross_obligation_witness: int
     variants_with_repair_preservation_conflict: int
     minimum_gold_action_count: int
@@ -84,6 +84,7 @@ def analyze_obligation_interactions(
     conflict_count = 0
     variants_with_cross: set[str] = set()
     variants_with_conflict: set[str] = set()
+    conflicting_actions: set[str] = set()
     gold_action_counts: list[int] = []
     replay_bound = True
 
@@ -153,9 +154,7 @@ def analyze_obligation_interactions(
             repaired = {
                 key for key in obligation_set if not boundary[key] and after[key]
             }
-            broken = {
-                key for key in obligation_set if boundary[key] and not after[key]
-            }
+            broken = {key for key in obligation_set if boundary[key] and not after[key]}
             changed = repaired | broken
             probe_count += 1
             if len(changed) >= 2:
@@ -164,6 +163,7 @@ def analyze_obligation_interactions(
             if repaired and broken and bool(broken & protected):
                 conflict_count += 1
                 variants_with_conflict.add(variant)
+                conflicting_actions.add(action_id)
 
     return ObligationInteractionAudit(
         variant_count=len(variants),
@@ -174,6 +174,7 @@ def analyze_obligation_interactions(
         probe_count=probe_count,
         cross_obligation_witness_count=cross_count,
         repair_preservation_conflict_count=conflict_count,
+        conflicting_action_count=len(conflicting_actions),
         variants_with_cross_obligation_witness=len(variants_with_cross),
         variants_with_repair_preservation_conflict=len(variants_with_conflict),
         minimum_gold_action_count=min(gold_action_counts, default=0),

@@ -7,7 +7,7 @@ from ..obligation_interaction_audit import (
     analyze_obligation_interactions,
 )
 from .erpnext_shared_batch_evaluator import evaluate_shared_batch_terminal
-from .erpnext_shared_batch_probes import SHARED_BATCH_INTERACTION_PROBE
+from .erpnext_shared_batch_probes import SHARED_BATCH_INTERACTION_PROBES
 from .erpnext_shared_batch_projection import project_shared_batch_terminal
 from .erpnext_shared_batch_scope import SHARED_BATCH_RECOVERY_SIGNATURES
 
@@ -27,7 +27,7 @@ SHARED_BATCH_ACTIONS = (
     "enqueue_missing_certificate",
     "resume_pending_certificate_job",
     "complete_corrective_manufacture",
-    SHARED_BATCH_INTERACTION_PROBE,
+    *SHARED_BATCH_INTERACTION_PROBES,
 )
 
 SHARED_BATCH_GOLD_ACTIONS = {
@@ -74,7 +74,7 @@ def build_shared_batch_obligation_interactions(
     scenario_id: str,
     prefix: dict[str, Any],
     failures: dict[str, dict[str, Any]],
-    probes: dict[str, dict[str, Any]],
+    probes: dict[str, list[dict[str, Any]]],
 ) -> tuple[dict[str, Any], ObligationInteractionAudit]:
     expected = set(SHARED_BATCH_RECOVERY_SIGNATURES)
     if set(failures) != expected or set(probes) != expected:
@@ -91,32 +91,41 @@ def build_shared_batch_obligation_interactions(
     rows = []
     for variant in SHARED_BATCH_RECOVERY_SIGNATURES:
         failure = failures[variant]
-        probe = probes[variant]
         boundary = _boundary_checks(failure, prefix)
-        result_evaluation = probe.get("result_evaluation", {}).get("checks")
-        if not isinstance(result_evaluation, dict):
-            raise TypeError(f"probe {variant} has no deterministic result checks")
-        if set(result_evaluation) != set(boundary):
-            raise ValueError(f"probe {variant} evaluates different obligations")
-        if str(probe.get("action_id")) != SHARED_BATCH_INTERACTION_PROBE:
-            raise ValueError(f"probe {variant} has an unexpected action")
+        variant_probes = []
+        observed_actions = set()
+        for probe in probes[variant]:
+            result_evaluation = probe.get("result_evaluation", {}).get("checks")
+            if not isinstance(result_evaluation, dict):
+                raise TypeError(f"probe {variant} has no deterministic result checks")
+            if set(result_evaluation) != set(boundary):
+                raise ValueError(f"probe {variant} evaluates different obligations")
+            action_id = str(probe.get("action_id"))
+            if action_id not in SHARED_BATCH_INTERACTION_PROBES:
+                raise ValueError(f"probe {variant} has an unexpected action")
+            if action_id in observed_actions:
+                raise ValueError(f"probe {variant} duplicates action {action_id}")
+            observed_actions.add(action_id)
+            variant_probes.append(
+                {
+                    "action_id": action_id,
+                    "tool_events": probe["tool_events"],
+                    "result_state_sha256": probe["result_state_sha256"],
+                    "result_evaluation": {
+                        str(key): bool(value)
+                        for key, value in result_evaluation.items()
+                    },
+                }
+            )
+        if observed_actions != set(SHARED_BATCH_INTERACTION_PROBES):
+            raise ValueError(f"probe {variant} does not cover every conflict action")
         rows.append(
             {
                 "variant": variant,
                 "recovery_signature": SHARED_BATCH_RECOVERY_SIGNATURES[variant],
                 "boundary_evaluation": boundary,
                 "gold_action_ids": list(SHARED_BATCH_GOLD_ACTIONS[variant]),
-                "probes": [
-                    {
-                        "action_id": SHARED_BATCH_INTERACTION_PROBE,
-                        "tool_events": probe["tool_events"],
-                        "result_state_sha256": probe["result_state_sha256"],
-                        "result_evaluation": {
-                            str(key): bool(value)
-                            for key, value in result_evaluation.items()
-                        },
-                    }
-                ],
+                "probes": variant_probes,
             }
         )
     payload = {

@@ -74,6 +74,7 @@ class ObligationInteractionAuditTest(unittest.TestCase):
         self.assertEqual(audit.protected_obligation_count, 3)
         self.assertEqual(audit.cross_obligation_witness_count, 2)
         self.assertEqual(audit.repair_preservation_conflict_count, 2)
+        self.assertEqual(audit.conflicting_action_count, 1)
         self.assertEqual(audit.variants_with_repair_preservation_conflict, 2)
         self.assertTrue(audit.replay_bound)
 

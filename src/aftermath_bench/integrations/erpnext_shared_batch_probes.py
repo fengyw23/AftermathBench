@@ -7,28 +7,49 @@ from .erpnext_shared_batch_agent import (
     reference_shared_batch_recovery,
 )
 
-SHARED_BATCH_INTERACTION_PROBE = "repair_then_cancel_customer_reservation"
+SHARED_BATCH_INTERACTION_PROBES = (
+    "repair_then_cancel_customer_reservation",
+    "repair_then_cancel_accepted_quality_inspection",
+    "repair_then_cancel_unrelated_receipt",
+)
+SHARED_BATCH_INTERACTION_PROBE = SHARED_BATCH_INTERACTION_PROBES[0]
 
 
 def run_shared_batch_interaction_probe(
     environment: ERPNextSharedBatchEnvironment,
     *,
     prefix: dict[str, Any],
+    probe: str = SHARED_BATCH_INTERACTION_PROBE,
 ) -> tuple[dict[str, Any], ...]:
     """Replay a plausible over-repair that violates a shared obligation.
 
     The probe first performs the ordinary reference recovery and then cancels
-    the already-valid stock reservation supporting the secondary production
-    branch.  It is intentionally wrong, but every event uses a model-visible
-    public tool.  Admission uses its native before/after evaluations as a
-    witness that repairing the failed branch can conflict with preservation.
+    one already-valid native ERPNext document.  The three supported probes
+    target independent protected effects: a customer reservation, an accepted
+    quality inspection, and an unrelated receipt.  Each action is intentionally
+    wrong, but uses a model-visible public tool.  Admission derives conflicts
+    from deterministic native before/after evaluations rather than labels.
     """
 
     trace = list(reference_shared_batch_recovery(environment))
-    arguments = {
-        "doctype": "Stock Reservation Entry",
-        "name": prefix["stock_reservation_entry"],
+    targets = {
+        "repair_then_cancel_customer_reservation": (
+            "Stock Reservation Entry",
+            "stock_reservation_entry",
+        ),
+        "repair_then_cancel_accepted_quality_inspection": (
+            "Quality Inspection",
+            "accepted_primary_quality_inspection",
+        ),
+        "repair_then_cancel_unrelated_receipt": (
+            "Stock Entry",
+            "unrelated_receipt",
+        ),
     }
+    if probe not in targets:
+        raise ValueError(f"unknown shared-batch interaction probe: {probe}")
+    doctype, prefix_key = targets[probe]
+    arguments = {"doctype": doctype, "name": prefix[prefix_key]}
     result = environment.invoke("cancel_document", **arguments)
     trace.append(
         {
@@ -39,7 +60,7 @@ def run_shared_batch_interaction_probe(
     )
     if not result.get("ok"):
         raise RuntimeError(
-            "native interaction probe could not cancel the protected reservation: "
+            f"native interaction probe {probe} could not cancel its protected target: "
             f"{result}"
         )
     return tuple(trace)
@@ -47,5 +68,6 @@ def run_shared_batch_interaction_probe(
 
 __all__ = [
     "SHARED_BATCH_INTERACTION_PROBE",
+    "SHARED_BATCH_INTERACTION_PROBES",
     "run_shared_batch_interaction_probe",
 ]

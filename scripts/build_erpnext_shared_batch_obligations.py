@@ -7,6 +7,9 @@ from pathlib import Path
 from aftermath_bench.integrations.erpnext_shared_batch_obligations import (
     build_shared_batch_obligation_interactions,
 )
+from aftermath_bench.integrations.erpnext_shared_batch_probes import (
+    SHARED_BATCH_INTERACTION_PROBES,
+)
 from aftermath_bench.integrations.erpnext_shared_batch_scope import (
     SHARED_BATCH_RECOVERY_SIGNATURES,
 )
@@ -32,7 +35,10 @@ def main() -> int:
         for variant in SHARED_BATCH_RECOVERY_SIGNATURES
     }
     probes = {
-        variant: _read(args.probe_directory / f"{variant}.json")
+        variant: [
+            _read(args.probe_directory / f"{probe}-{variant}.json")
+            for probe in SHARED_BATCH_INTERACTION_PROBES
+        ]
         for variant in SHARED_BATCH_RECOVERY_SIGNATURES
     }
     payload, audit = build_shared_batch_obligation_interactions(
@@ -47,6 +53,7 @@ def main() -> int:
         or audit.cross_obligation_witness_count < 4
         or audit.repair_preservation_conflict_count < 4
         or audit.variants_with_repair_preservation_conflict != 4
+        or audit.conflicting_action_count < 3
     ):
         raise RuntimeError(f"shared-batch obligation admission failed: {audit}")
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -909,9 +909,7 @@ def validate_native_scenario(
             required_protected = int(
                 obligation_profile.get("minimum_protected_obligation_count", 3)
             )
-            required_scopes = int(
-                obligation_profile.get("minimum_gold_scope_count", 3)
-            )
+            required_scopes = int(obligation_profile.get("minimum_gold_scope_count", 3))
             required_cross = int(
                 obligation_profile.get("minimum_cross_obligation_witnesses", 3)
             )
@@ -922,6 +920,9 @@ def validate_native_scenario(
             )
             required_conflict_variants = int(
                 obligation_profile.get("minimum_variants_with_conflict", 2)
+            )
+            required_conflicting_actions = int(
+                obligation_profile.get("minimum_conflicting_action_count", 1)
             )
             observed.update(
                 {
@@ -937,6 +938,9 @@ def validate_native_scenario(
                     ),
                     "repair_preservation_conflict_count": (
                         interaction_audit.repair_preservation_conflict_count
+                    ),
+                    "conflicting_action_count": (
+                        interaction_audit.conflicting_action_count
                     ),
                     "variants_with_cross_obligation_witness": (
                         interaction_audit.variants_with_cross_obligation_witness
@@ -979,6 +983,10 @@ def validate_native_scenario(
                     "conflict_variants_meet_profile": (
                         interaction_audit.variants_with_repair_preservation_conflict
                         >= required_conflict_variants
+                    ),
+                    "conflicting_actions_meet_profile": (
+                        interaction_audit.conflicting_action_count
+                        >= required_conflicting_actions
                     ),
                 }
             )

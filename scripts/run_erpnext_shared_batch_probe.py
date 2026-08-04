@@ -18,7 +18,7 @@ from aftermath_bench.integrations.erpnext_shared_batch_evidence import (
     ERPNextSharedBatchEvidenceCollector,
 )
 from aftermath_bench.integrations.erpnext_shared_batch_probes import (
-    SHARED_BATCH_INTERACTION_PROBE,
+    SHARED_BATCH_INTERACTION_PROBES,
     run_shared_batch_interaction_probe,
 )
 from aftermath_bench.integrations.erpnext_shared_batch_projection import (
@@ -56,6 +56,9 @@ def main() -> int:
         description="Replay a native repair/preservation conflict probe."
     )
     parser.add_argument("--variant", required=True)
+    parser.add_argument(
+        "--probe", choices=SHARED_BATCH_INTERACTION_PROBES, required=True
+    )
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--failure-report", type=Path, required=True)
     parser.add_argument("--credentials", type=Path, required=True)
@@ -95,7 +98,9 @@ def main() -> int:
         worker_control=default_worker_control(root, container_cli=args.container_cli),
         collector=collector,
     )
-    trace = run_shared_batch_interaction_probe(environment, prefix=prefix)
+    trace = run_shared_batch_interaction_probe(
+        environment, prefix=prefix, probe=args.probe
+    )
     final_raw = environment.snapshot()
     final_evaluation = _evaluate(final_raw, prefix)
     repaired = sorted(
@@ -113,7 +118,7 @@ def main() -> int:
         "artifact_type": "erpnext_shared_batch_obligation_probe",
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
-        "action_id": SHARED_BATCH_INTERACTION_PROBE,
+        "action_id": args.probe,
         "source": "public-tool replay from the native failure boundary",
         "tool_events": list(trace),
         "source_boundary_sha256": hashlib.sha256(
@@ -130,12 +135,21 @@ def main() -> int:
         json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
-    expected_conflict = bool(repaired) and ("customer_reservation_preserved" in broken)
+    expected_broken = {
+        "repair_then_cancel_customer_reservation": {"customer_reservation_preserved"},
+        "repair_then_cancel_accepted_quality_inspection": {
+            "protected_native_documents_unchanged"
+        },
+        "repair_then_cancel_unrelated_receipt": {
+            "protected_native_documents_unchanged"
+        },
+    }[args.probe]
+    expected_conflict = bool(repaired) and bool(expected_broken & set(broken))
     print(
         json.dumps(
             {
                 "variant": args.variant,
-                "action_id": SHARED_BATCH_INTERACTION_PROBE,
+                "action_id": args.probe,
                 "repaired_checks": repaired,
                 "broken_checks": broken,
                 "expected_conflict": expected_conflict,
