@@ -1,0 +1,205 @@
+name: kubernetes-interaction-hidden-candidate
+
+on:
+  push:
+    branches:
+      - kubernetes-interaction-hidden-test-001
+      - kubernetes-interaction-hidden-test-002
+  workflow_dispatch:
+    inputs:
+      instance_id:
+        description: Fresh hidden instance slot
+        required: true
+        default: test-001
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  freeze-native-hidden-instance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      PYTHONPATH: src
+      INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'kubernetes-interaction-hidden-test-002' && 'test-002' || 'test-001') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.6"
+
+      - name: Materialize a private, novel hidden instance
+        run: |
+          run_root="$RUNNER_TEMP/kubernetes-hidden"
+          mkdir -p "$run_root/private" "$run_root/public"
+          python scripts/generate_kubernetes_interaction_hidden_instance.py \
+            --instance-id "$INSTANCE_ID" \
+            --output "$run_root/private/instance.json"
+          python scripts/verify_kubernetes_interaction_instance_novelty.py \
+            --instance-spec "$run_root/private/instance.json"
+          python scripts/render_kubernetes_interaction_blueprint.py \
+            --instance-spec "$run_root/private/instance.json" \
+            --output "$run_root/private/blueprint.json" \
+            --instance-id "$INSTANCE_ID" \
+            --benchmark-split hidden_test
+          echo "AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC=$run_root/private/instance.json" >> "$GITHUB_ENV"
+          echo "RUN_ROOT=$run_root" >> "$GITHUB_ENV"
+          echo "NATIVE_ROOT=$run_root/private/native" >> "$GITHUB_ENV"
+          echo "SENSITIVE_ROOT=$run_root/private/sensitive" >> "$GITHUB_ENV"
+          echo "REGISTRY_ROOT=$run_root/private/registry" >> "$GITHUB_ENV"
+
+      - name: Verify public tool contracts before native replay
+        run: |
+          python -m unittest discover -s tests -p 'test_generate_kubernetes_interaction_hidden_instance.py' -v
+          python -m unittest discover -s tests -p 'test_kubernetes_interaction*.py' -v
+          python -m unittest discover -s tests -p 'test_native_bundle_freeze.py' -v
+
+      - name: Build pinned kind and Kubernetes client tools
+        run: |
+          git clone --no-checkout https://github.com/kubernetes-sigs/kind.git "$RUNNER_TEMP/kind"
+          git -C "$RUNNER_TEMP/kind" fetch --depth 1 origin 9a205e8c8540557602240f8766d3c95c51c23c4c
+          git -C "$RUNNER_TEMP/kind" checkout --detach FETCH_HEAD
+          python scripts/verify_kubernetes_sources.py \
+            --kind-source "$RUNNER_TEMP/kind" \
+            --output "$RUN_ROOT/private/kubernetes-source-verification.json"
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd "$RUNNER_TEMP/kind" && go build -trimpath -o "$RUNNER_TEMP/bin/kind" .)
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          curl --fail --location --silent --show-error --output "$RUNNER_TEMP/bin/kubectl" https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl
+          curl --fail --location --silent --show-error --output "$RUNNER_TEMP/kubectl.sha256" https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256
+          echo "$(cat "$RUNNER_TEMP/kubectl.sha256")  $RUNNER_TEMP/bin/kubectl" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kubectl"
+          archive="$RUNNER_TEMP/etcd-v3.6.4-linux-amd64.tar.gz"
+          curl --fail --location --silent --show-error --output "$archive" https://github.com/etcd-io/etcd/releases/download/v3.6.4/etcd-v3.6.4-linux-amd64.tar.gz
+          echo "4d5f3101daa534e45ccaf3eec8d21c19b7222db377bcfd5e5a9144155238c105  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/etcd-v3.6.4-linux-amd64/etcdutl" "$RUNNER_TEMP/bin/etcdutl"
+
+      - name: Start native Kubernetes and durable external registry
+        run: |
+          python scripts/manage_kubernetes_stack.py up
+          docker build --file runtimes/forgejo/control/Containerfile --tag aftermathbench/kubernetes-control:local .
+          kind load docker-image --name aftermath-kubernetes aftermathbench/kubernetes-control:local
+          mkdir -p "$REGISTRY_ROOT"
+          docker run --detach --name aftermath-interaction-registry \
+            --user "$(id -u):$(id -g)" --publish 127.0.0.1:9092:8080 \
+            --mount "type=bind,src=$REGISTRY_ROOT,dst=/data" \
+            aftermathbench/kubernetes-control:local python -m runtime_services.webhook_sink
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9092/health && exit 0
+            sleep 1
+          done
+          docker logs aftermath-interaction-registry
+          exit 1
+
+      - name: Replay all hidden boundaries, exact resets and references
+        run: |
+          python scripts/manage_kubernetes_stack.py prepare-snapshot-runtime
+          mkdir -p "$NATIVE_ROOT/runtime/state-evidence" "$NATIVE_ROOT/runtime/bundle-manifests" "$NATIVE_ROOT/bundles" "$SENSITIVE_ROOT"
+          registry_database="$REGISTRY_ROOT/webhook-sink.sqlite3"
+          python scripts/run_kubernetes_interaction_boundary.py --variant state_01 --prepare-only --prefix-output "$NATIVE_ROOT/runtime/prefix.json"
+          python scripts/capture_kubernetes_interaction_state_evidence.py --variant state_01 --output "$NATIVE_ROOT/runtime/state-evidence/reset-pre-snapshot.json"
+          python scripts/manage_kubernetes_stack.py snapshot-bundle --snapshot "$SENSITIVE_ROOT/prefix" --registry-database "$registry_database"
+          cp "$SENSITIVE_ROOT/prefix/bundle.json" "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json"
+          variants=(state_01 state_02 state_03 state_04 state_05 state_06 state_07 state_08 state_09 state_10 state_11 state_12 state_13)
+          for variant in "${variants[@]}"; do
+            python scripts/manage_kubernetes_stack.py restore-bundle --snapshot "$SENSITIVE_ROOT/prefix" --registry-database "$registry_database"
+            reset="$NATIVE_ROOT/runtime/state-evidence/$variant-reset.json"
+            python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --phase reset --prefix "$NATIVE_ROOT/runtime/prefix.json" --bundle-manifest "$NATIVE_ROOT/runtime/bundle-manifests/prefix.json" --pre-snapshot-state "$NATIVE_ROOT/runtime/state-evidence/reset-pre-snapshot.json" --wait-seconds 180 --output "$reset"
+            python scripts/run_kubernetes_interaction_boundary.py --variant "$variant" --trigger-only --prefix-input "$NATIVE_ROOT/runtime/prefix.json" --output "$NATIVE_ROOT/runtime/$variant-boundary.json"
+            pre="$NATIVE_ROOT/runtime/state-evidence/$variant-pre-snapshot.json"
+            boundary="$NATIVE_ROOT/runtime/state-evidence/$variant-boundary.json"
+            bundle="$SENSITIVE_ROOT/boundary-$variant"
+            python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --output "$pre"
+            python scripts/manage_kubernetes_stack.py snapshot-bundle --snapshot "$bundle" --registry-database "$registry_database"
+            cp "$bundle/bundle.json" "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json"
+            python scripts/manage_kubernetes_stack.py restore-bundle --snapshot "$bundle" --registry-database "$registry_database"
+            python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --phase boundary --prefix "$NATIVE_ROOT/runtime/prefix.json" --bundle-manifest "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" --reset-evidence "$reset" --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" --pre-snapshot-state "$pre" --wait-seconds 180 --output "$boundary"
+            python scripts/manage_kubernetes_stack.py restore-bundle --snapshot "$bundle" --registry-database "$registry_database"
+            python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --phase boundary --prefix "$NATIVE_ROOT/runtime/prefix.json" --bundle-manifest "$NATIVE_ROOT/runtime/bundle-manifests/$variant.json" --reset-evidence "$reset" --failure-report "$NATIVE_ROOT/runtime/$variant-boundary.json" --pre-snapshot-state "$pre" --expected "$boundary" --wait-seconds 180 --output "$NATIVE_ROOT/runtime/state-evidence/$variant-reference-start.json"
+            python scripts/run_kubernetes_interaction_control.py --variant "$variant" --output "$NATIVE_ROOT/runtime/$variant-reference.json"
+          done
+          python scripts/summarize_kubernetes_interaction_runtime.py --run-directory "$NATIVE_ROOT/runtime" --output "$NATIVE_ROOT/runtime-summary.json" --projection-output "$NATIVE_ROOT/projection-witnesses.json"
+
+      - name: Replay fixed policies from the same hidden boundaries
+        run: |
+          mkdir -p "$NATIVE_ROOT/baselines/pre-state" "$NATIVE_ROOT/baselines/boundary-reports"
+          variants=(state_01 state_02 state_03 state_04 state_05 state_06 state_07 state_08 state_09 state_10 state_11 state_12 state_13)
+          baselines=(no_op blind_retry always_abort always_compensate_abort always_defer_new_owner always_forward_new_owners always_publish_new_owner close_only compact_epoch_external_tree)
+          for baseline in "${baselines[@]}"; do
+            for variant in "${variants[@]}"; do
+              report="$NATIVE_ROOT/baselines/boundary-reports/$baseline-$variant.json"
+              pre="$NATIVE_ROOT/baselines/pre-state/$baseline-$variant.json"
+              python scripts/run_kubernetes_interaction_boundary.py --variant "$variant" --prefix-output "$NATIVE_ROOT/baselines/prefix.json" --output "$report"
+              python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --output "$NATIVE_ROOT/baselines/pre-state/$baseline-$variant-boundary.json"
+              python scripts/capture_kubernetes_interaction_state_evidence.py --variant "$variant" --expected "$NATIVE_ROOT/baselines/pre-state/$baseline-$variant-boundary.json" --wait-seconds 30 --output "$pre"
+              python scripts/run_kubernetes_interaction_baseline.py --baseline "$baseline" --variant "$variant" --output "$NATIVE_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+          python scripts/summarize_native_baselines.py --run-directory "$NATIVE_ROOT/baselines" --scenario "$RUN_ROOT/private/blueprint.json" --output "$NATIVE_ROOT/baselines/summary.json"
+
+      - name: Admit, freeze and summarize before any model access
+        run: |
+          python scripts/build_kubernetes_interaction_admission.py --run-directory "$NATIVE_ROOT" --blueprint "$RUN_ROOT/private/blueprint.json" --output-directory "$RUN_ROOT/private/scenario"
+          python -m aftermath_bench validate-native-scenario --scenario "$RUN_ROOT/private/scenario/scenario.json"
+          python scripts/freeze_native_bundle.py --bundle-root "$RUN_ROOT/private" --scenario "$RUN_ROOT/private/scenario/scenario.json" --instance-spec "$RUN_ROOT/private/instance.json" --source-commit "$GITHUB_SHA" --runtime-revision f28b4c9efbca5c5c0af716d9f2d5702667ee8a45 --private-attestation "$RUN_ROOT/private/freeze.json" --public-commitment "$RUN_ROOT/private/public-commitment.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
+          python scripts/verify_hidden_test_eligibility.py --scenario "$RUN_ROOT/private/scenario/scenario.json" --freeze "$RUN_ROOT/private/freeze.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
+          cp "$RUN_ROOT/private/public-commitment.json" "$RUN_ROOT/public/pre-model-commitment.json"
+          python scripts/summarize_frozen_candidate.py --commitment "$RUN_ROOT/private/public-commitment.json" --admission "$RUN_ROOT/private/scenario/artifacts/admission.json" --reference "$RUN_ROOT/private/scenario/artifacts/reference.json" --baselines "$RUN_ROOT/private/scenario/artifacts/baselines.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json" --output "$RUN_ROOT/public/result.json"
+
+      - name: Seal hidden state and register frozen receipt
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          archive="$RUNNER_TEMP/kubernetes-hidden-private.tar.gz"
+          ciphertext="$RUN_ROOT/public/hidden-bundle.tar.gz.enc"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -czf "$archive" -C "$RUN_ROOT" private
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY -in "$archive" -out "$ciphertext"
+          rm -f "$archive"
+          python - "$RUN_ROOT/private/public-commitment.json" "$ciphertext" "$RUN_ROOT/public/sealed-bundle.json" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          commitment = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          ciphertext = Path(sys.argv[2])
+          Path(sys.argv[3]).write_text(json.dumps({"schema_version":"1.0","lifecycle_status":"frozen_unseen","source_commit":os.environ["GITHUB_SHA"],"source_run_id":int(os.environ["GITHUB_RUN_ID"]),"source_run_attempt":int(os.environ["GITHUB_RUN_ATTEMPT"]),"public_commitment_sha256":commitment["public_commitment_sha256"],"cipher":"aes-256-cbc-pbkdf2-sha256","pbkdf2_iterations":200000,"ciphertext_file":ciphertext.name,"ciphertext_sha256":hashlib.sha256(ciphertext.read_bytes()).hexdigest()}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+          PY
+          receipt="data/evidence/hidden-freeze/kubernetes-interaction-$INSTANCE_ID.json"
+          python - "$RUN_ROOT/public/pre-model-commitment.json" "$RUN_ROOT/public/sealed-bundle.json" "$RUN_ROOT/public/result.json" "$receipt" data/frozen_hidden_candidates.json "$INSTANCE_ID" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id = (Path(item) if index < 5 else item for index, item in enumerate(sys.argv[1:]))
+          commitment=json.loads(commitment_path.read_text(encoding="utf-8")); sealed=json.loads(sealed_path.read_text(encoding="utf-8")); result=json.loads(result_path.read_text(encoding="utf-8"))
+          receipt={"schema_version":"1.0","artifact":{"run_id":int(os.environ["GITHUB_RUN_ID"]),"url":"https://github.com/fengyw23/AftermathBench/actions/runs/"+os.environ["GITHUB_RUN_ID"]},"file_sha256":{"result":hashlib.sha256(result_path.read_bytes()).hexdigest(),"pre_model_commitment":hashlib.sha256(commitment_path.read_bytes()).hexdigest(),"sealed_bundle":hashlib.sha256(sealed_path.read_bytes()).hexdigest()},"commitment":commitment,"sealed_bundle":sealed,"result":result}
+          receipt_path.parent.mkdir(parents=True, exist_ok=True); receipt_path.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          registry=json.loads(registry_path.read_text(encoding="utf-8")); registry["records"].append({"formal_slot_id":"kubernetes/k8s-constraint-interaction-recovery/"+instance_id,"scenario_id":commitment["scenario_id"],"domain_id":"kubernetes","family_id":"k8s-constraint-interaction-recovery","instance_id":instance_id,"variant_count":result["reference"]["case_count"],"freeze_run_id":int(os.environ["GITHUB_RUN_ID"]),"public_commitment_sha256":commitment["public_commitment_sha256"],"artifact_url":receipt["artifact"]["url"],"evidence_path":receipt_path.as_posix(),"evidence_sha256":hashlib.sha256(receipt_path.read_bytes()).hexdigest()})
+          registry_path.write_text(json.dumps(registry,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
+          PY
+          python -m unittest discover -s tests -p 'test_frozen_hidden_registry.py' -v
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$receipt" data/frozen_hidden_candidates.json
+          git commit -m "evidence(kubernetes): register frozen interaction $INSTANCE_ID"
+          git push
+
+      - name: Upload safe aggregate evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-hidden-${{ env.INSTANCE_ID }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/kubernetes-hidden/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge plaintext hidden state and native services
+        if: always()
+        run: |
+          docker rm --force aftermath-interaction-registry || true
+          python scripts/manage_kubernetes_stack.py down || true
+          rm -rf "$RUNNER_TEMP/kubernetes-hidden"
