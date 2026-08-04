@@ -33,6 +33,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         )
         self.assertIn('write_bootstrap_status "instance_generated"', self.text)
         self.assertNotIn('write_bootstrap_status "secret_missing"', self.text)
+        self.assertIn('"$run_root/private/logs"', self.text)
 
     def test_checkout_keeps_history_needed_by_novelty_proofs(self) -> None:
         checkout = self.text.index("uses: actions/checkout@v4")
