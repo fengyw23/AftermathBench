@@ -1,0 +1,142 @@
+name: erpnext-inventory-cost-native-runtime
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - .github/workflows/erpnext-inventory-cost-runtime.yml
+      - data/instance_specs/erpnext-inventory-cost-settlement-*.json
+      - data/scenario_blueprints/erpnext-inventory-cost-settlement-*/scenario.json
+      - scripts/*erpnext_inventory_cost*.py
+      - src/aftermath_bench/inventory_cost_boundary_audit.py
+      - src/aftermath_bench/integrations/erpnext_inventory_cost_*.py
+      - tests/test_erpnext_inventory_cost_*.py
+      - tests/test_inventory_cost_boundary_audit.py
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Checked inventory-cost scenario blueprint
+        required: true
+        default: data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      SCENARIO: ${{ inputs.scenario || 'data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json' }}
+      RUNTIME_OUTPUT: data/generated/erpnext-inventory-cost-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate inventory-cost code and immutable runtime
+        run: |
+          python -m unittest discover -s tests -p 'test_erpnext_inventory_cost_*.py' -v
+          python -m unittest discover -s tests -p 'test_inventory_cost_boundary_audit.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUNTIME_OUTPUT/source-verification.json"
+
+      - name: Start native services and initialize company
+        run: |
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+
+      - name: Build retroactive inventory-cost prefix
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT/logs" "$RUNTIME_OUTPUT/evidence"
+          if ! python scripts/build_erpnext_inventory_cost_prefix.py \
+              --scenario "$SCENARIO" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --output "$RUNTIME_OUTPUT/prefix.json" \
+              > "$RUNTIME_OUTPUT/logs/prefix.log" 2>&1
+          then
+            cat "$RUNTIME_OUTPUT/logs/prefix.log"
+            exit 1
+          fi
+          python scripts/collect_erpnext_inventory_cost_evidence.py \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --prefix "$RUNTIME_OUTPUT/prefix.json" \
+            --output "$RUNTIME_OUTPUT/evidence/prefix-state.json"
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUNTIME_OUTPUT/prefix-bundle" \
+            > "$RUNTIME_OUTPUT/prefix-bundle.json"
+
+      - name: Replay four source-grounded boundaries and references
+        run: |
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          test "${#variants[@]}" -eq 4
+          mkdir -p "$RUNTIME_OUTPUT/boundaries"
+          for variant in "${variants[@]}"
+          do
+            echo "replaying inventory-cost boundary: $variant"
+            timeout 600s python scripts/run_erpnext_inventory_cost_boundary.py \
+              --scenario "$SCENARIO" \
+              --prefix "$RUNTIME_OUTPUT/prefix.json" \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --snapshot-bundle "$RUNTIME_OUTPUT/prefix-bundle" \
+              --run-reference \
+              --output "$RUNTIME_OUTPUT/boundaries/$variant.json" \
+              > "$RUNTIME_OUTPUT/logs/$variant.log" 2>&1 || {
+                cat "$RUNTIME_OUTPUT/logs/$variant.log"
+                exit 1
+              }
+          done
+          python scripts/audit_erpnext_inventory_cost_boundaries.py \
+            --directory "$RUNTIME_OUTPUT/boundaries" \
+            --output "$RUNTIME_OUTPUT/boundary-audit.json"
+          rm -rf "$RUNTIME_OUTPUT/prefix-bundle"
+
+      - name: Capture native diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT/logs"
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all \
+            > "$RUNTIME_OUTPUT/logs/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color \
+            > "$RUNTIME_OUTPUT/logs/compose.log" 2>&1 || true
+
+      - name: Remove ephemeral credentials
+        if: always()
+        run: rm -f runtimes/erpnext/.runtime/credentials.json
+
+      - name: Upload inventory-cost replay evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-inventory-cost-${{ github.run_id }}
+          include-hidden-files: true
+          path: ${{ env.RUNTIME_OUTPUT }}
+          compression-level: 9
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge

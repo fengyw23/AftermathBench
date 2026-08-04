@@ -122,6 +122,22 @@ class ERPNextStackTest(unittest.TestCase):
         self.assertEqual(kwargs["customer"], "Acme")
         self.assertTrue(result["reconciled"])
 
+    def test_inventory_repost_uses_the_pinned_native_scheduler_function(self) -> None:
+        runner = Mock(return_value=subprocess.CompletedProcess([], 0, stdout=""))
+        stack = ERPNextStack(
+            compose_file=Path("runtime/compose.yaml"),
+            runner=runner,
+        )
+
+        stack.process_repost_item_valuation_queue()
+
+        command = runner.call_args.args[0]
+        self.assertIn(
+            "erpnext.stock.doctype.repost_item_valuation."
+            "repost_item_valuation.repost_entries",
+            command,
+        )
+
     def test_snapshot_writes_exact_dump_and_returns_digest(self) -> None:
         def runner(command, **kwargs):
             kwargs["stdout"].write(b"SQL-DUMP")

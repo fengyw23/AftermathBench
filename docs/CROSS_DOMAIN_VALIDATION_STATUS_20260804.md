@@ -12,7 +12,7 @@ claims.
 | Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | complete (GLM-5.2 2/13; 15.38%; 0 provider errors) | complete raw coverage archive; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
-| ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | active | hard-admitted development evidence; formal integration pending |
+| ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 2/4; matched group failed) | hard-admitted development evidence; formal integration pending |
 
 ## What is already established
 
@@ -124,8 +124,17 @@ conflicts across all four boundaries. Seven fixed strategies were run against
 every boundary; the strongest solves only 1/4 and none solves the matched group.
 The exact same public tool surface already passed a 4/4 GLM-5.2 execution control
 in [30873838931](https://github.com/fengyw23/AftermathBench/actions/runs/30873838931).
-The ordinary no-supplied-scope condition is now active as
-[30881911583](https://github.com/fengyw23/AftermathBench/actions/runs/30881911583).
+The ordinary no-supplied-scope condition
+[30881911583](https://github.com/fengyw23/AftermathBench/actions/runs/30881911583)
+completed all four boundaries without provider errors. GLM-5.2 passed 2/4 and
+failed the matched group. Goal completion and preservation were 4/4; repair
+completeness and protocol safety were 2/4. In both failures, the model repaired
+the manufacturing state but enqueued a second certificate delivery while an
+existing asynchronous owner was pending. The receiver retained one logical
+certificate but audited two attempts, and the model then incorrectly described
+those two attempts as "exactly once". Full trajectories and a hash manifest are
+frozen under
+`data/evidence/erpnext-shared-batch-ordinary-glm52-20260804/`.
 
 ## Claim boundary
 

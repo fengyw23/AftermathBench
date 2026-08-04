@@ -10,7 +10,7 @@
   "hidden_test_eligible": false,
   "implementation_status": "native replay pending",
   "title": "Recover a retroactive freight-cost settlement across two consumed inventory branches",
-  "user_instruction": "A single SENSOR-MODULE-R8 supplier batch has already been received and completely consumed by two valid production branches: 12 CARDIAC-MONITOR-R8 units and 8 WARD-GATEWAY-R8 units. The gateway stock is reserved for SO-WARD-003 and both branches must remain valid. A USD 1,200 freight and import-cost voucher was prepared after production, but its submission returned a connection error. Determine whether the voucher, its stock revaluation, accounting entries, and settlement attestation actually completed. Finish exactly the missing effects, preserve both production branches, the gateway reservation, and unrelated calibration stock, and do not duplicate any voucher, reposting job, GL effect, or external attestation.",
+  "user_instruction": "A single SENSOR-MODULE-R8 supplier batch has already been received and completely consumed by two valid production branches: 12 CARDIAC-MONITOR-R8 units and 8 WARD-GATEWAY-R8 units. The gateway stock is reserved for SO-WARD-001 and both branches must remain valid. A USD 1,200 freight and import-cost voucher was prepared after production, but its submission returned a connection error. Determine whether the voucher, its stock revaluation, accounting entries, and settlement attestation actually completed. Finish exactly the missing effects, preserve both production branches, the gateway reservation, and unrelated calibration stock, and do not duplicate any voucher, reposting job, GL effect, or external attestation.",
   "fixture": {
     "company": "Aftermath Laboratories LLC",
     "company_abbr": "AL",
@@ -40,7 +40,7 @@
       "secondary_allocation": 480
     },
     "customer_reservation": {
-      "sales_order": "SO-WARD-003",
+      "sales_order": "SO-WARD-001",
       "item_code": "WARD-GATEWAY-R8",
       "quantity": 8
     },
@@ -66,26 +66,26 @@
       "recovery_signature_class": "submit_voucher_and_settle_revaluation"
     },
     {
-      "id": "voucher_committed_revaluation_completed_response_lost",
-      "boundary_class_id": "voucher_and_ledger_effects_committed",
-      "recovery_signature_class": "preserve_voucher_and_reconciled_ledgers"
+      "id": "voucher_committed_repost_completed_attested_response_lost",
+      "boundary_class_id": "voucher_repost_and_attestation_completed",
+      "recovery_signature_class": "preserve_completed_settlement"
     },
     {
-      "id": "voucher_committed_reposting_job_missing",
-      "boundary_class_id": "voucher_committed_revaluation_incomplete",
-      "recovery_signature_class": "create_missing_reposting_owner"
+      "id": "voucher_committed_repost_queued_attestation_pending",
+      "boundary_class_id": "voucher_committed_repost_and_attestation_queued",
+      "recovery_signature_class": "settle_existing_repost_and_attestation"
     },
     {
-      "id": "voucher_committed_reposting_job_pending",
-      "boundary_class_id": "voucher_committed_revaluation_pending",
-      "recovery_signature_class": "resume_existing_reposting_owner"
+      "id": "voucher_committed_repost_completed_attestation_pending",
+      "boundary_class_id": "voucher_repost_completed_attestation_queued",
+      "recovery_signature_class": "deliver_existing_attestation_only"
     }
   ],
   "required_semantic_recovery_directions": [
     "submit_voucher_and_settle_revaluation",
-    "preserve_voucher_and_reconciled_ledgers",
-    "create_missing_reposting_owner",
-    "resume_existing_reposting_owner"
+    "preserve_completed_settlement",
+    "settle_existing_repost_and_attestation",
+    "deliver_existing_attestation_only"
   ],
   "state_dimensions_that_must_vary": [
     "Landed Cost Voucher docstatus",
@@ -119,5 +119,5 @@
       "minimum_conflicting_action_count": 4
     }
   },
-  "instance_spec_sha256": "651c7f8b50f2c2183831d713e40ebc91f000f0997ff1c166efb184a414f39658"
+  "instance_spec_sha256": "265efafb394950f7173b096ca469fc5406ebb9dc4503a464b1101619e354c6ee"
 }

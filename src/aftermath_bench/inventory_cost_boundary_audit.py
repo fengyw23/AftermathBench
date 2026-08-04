@@ -7,9 +7,9 @@ from typing import Any, Mapping
 REQUIRED_VARIANTS = frozenset(
     {
         "request_not_reached",
-        "voucher_committed_revaluation_completed_response_lost",
-        "voucher_committed_reposting_job_missing",
-        "voucher_committed_reposting_job_pending",
+        "voucher_committed_repost_completed_attested_response_lost",
+        "voucher_committed_repost_queued_attestation_pending",
+        "voucher_committed_repost_completed_attestation_pending",
     }
 )
 REQUIRED_DIMENSIONS = (

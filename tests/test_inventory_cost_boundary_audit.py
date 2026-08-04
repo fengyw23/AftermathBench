@@ -12,25 +12,25 @@ from aftermath_bench.inventory_cost_boundary_audit import (
 def _reports() -> dict[str, dict[str, object]]:
     projections = {
         "request_not_reached": ("draft", "old", "old", "absent", "absent"),
-        "voucher_committed_revaluation_completed_response_lost": (
+        "voucher_committed_repost_completed_attested_response_lost": (
             "submitted",
             "settled",
             "settled",
             "completed",
             "delivered",
         ),
-        "voucher_committed_reposting_job_missing": (
+        "voucher_committed_repost_queued_attestation_pending": (
             "submitted",
-            "pending",
-            "pending",
-            "absent",
-            "absent",
-        ),
-        "voucher_committed_reposting_job_pending": (
-            "submitted",
-            "pending",
-            "pending",
+            "receipt_updated_downstream_pending",
+            "receipt_updated_downstream_pending",
             "queued",
+            "queued",
+        ),
+        "voucher_committed_repost_completed_attestation_pending": (
+            "submitted",
+            "settled",
+            "settled",
+            "completed",
             "queued",
         ),
     }
@@ -69,7 +69,7 @@ class InventoryCostBoundaryAuditTest(unittest.TestCase):
     def test_rejects_unbound_or_failed_reference_evidence(self) -> None:
         reports = copy.deepcopy(_reports())
         reports["request_not_reached"]["replay_bound"] = False
-        reports["voucher_committed_reposting_job_pending"][
+        reports["voucher_committed_repost_completed_attestation_pending"][
             "reference_passed"
         ] = False
         result = audit_inventory_cost_boundaries(reports)

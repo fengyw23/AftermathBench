@@ -253,6 +253,23 @@ class ERPNextStack:
         )
         return _parse_mapping_output(result.stdout)
 
+    def process_repost_item_valuation_queue(self) -> None:
+        """Run ERPNext's pinned native repost scheduler function immediately."""
+
+        self.run(
+            "exec",
+            "-T",
+            "backend",
+            "bench",
+            "--site",
+            "aftermath.localhost",
+            "execute",
+            (
+                "erpnext.stock.doctype.repost_item_valuation."
+                "repost_item_valuation.repost_entries"
+            ),
+        )
+
     def reconcile_supplier_documents(
         self,
         *,
