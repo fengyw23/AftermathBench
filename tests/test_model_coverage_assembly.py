@@ -57,6 +57,12 @@ class ModelCoverageAssemblyTest(unittest.TestCase):
                 row["variant"]: row["source_run_id"] for row in manifest["trajectories"]
             }
             self.assertEqual(sources, {"state_01": "run-1", "state_02": "run-2"})
+            self.assertTrue(
+                all(
+                    not Path(row["source_path"]).is_absolute()
+                    for row in manifest["trajectories"]
+                )
+            )
 
     def test_retry_cannot_replace_scored_primary_trajectory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

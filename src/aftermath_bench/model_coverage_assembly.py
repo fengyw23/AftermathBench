@@ -98,7 +98,7 @@ def assemble_model_coverage(
         key: {
             "source_role": primary.role,
             "source_run_id": primary.run_id,
-            "source_path": str(path),
+            "source_path": str(path.relative_to(primary.root)),
             "source_sha256": _sha256(path),
         }
         for key, (path, _payload) in primary_reports.items()
@@ -140,7 +140,7 @@ def assemble_model_coverage(
             provenance[key] = {
                 "source_role": retry.role,
                 "source_run_id": retry.run_id,
-                "source_path": str(path),
+                "source_path": str(path.relative_to(retry.root)),
                 "source_sha256": _sha256(path),
             }
             still_missing.remove(key)
