@@ -265,6 +265,13 @@ def main() -> int:
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,
         "phase": "boundary",
+        # Keep the user-visible transport failure as a first-class field in
+        # the versioned boundary contract.  The formal evidence builder binds
+        # this exact value to the scenario declaration, while the nested
+        # `latest_attempt.result` remains the machine-readable tool result.
+        "surface_result": (
+            "HTTP connection lost before the Stock Entry submission response"
+        ),
         "surface_error": "connection_lost_before_confirmation",
         "latest_attempt": {
             "tool": "submit_document",
