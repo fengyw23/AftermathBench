@@ -168,7 +168,13 @@ def build_state_evidence(
     state: dict[str, Any],
     failure_report_path: str | Path | None = None,
     reset_evidence_path: str | Path | None = None,
+    artifact_type: str = "erpnext_sales_return_state_evidence",
+    failure_artifact_type: str = "erpnext_sales_return_failure_boundary",
 ) -> dict[str, Any]:
+    if not artifact_type or not failure_artifact_type:
+        raise ERPNextSalesReturnStateEvidenceError(
+            "state and failure artifact types must be non-empty"
+        )
     if phase not in {"reset", "boundary"}:
         raise ERPNextSalesReturnStateEvidenceError(
             "state evidence phase must be reset or boundary"
@@ -214,8 +220,7 @@ def build_state_evidence(
         if (
             not isinstance(failure_report, dict)
             or failure_report.get("schema_version") != "1.0"
-            or failure_report.get("artifact_type")
-            != "erpnext_sales_return_failure_boundary"
+            or failure_report.get("artifact_type") != failure_artifact_type
             or failure_report.get("scenario_id") != scenario_id
             or failure_report.get("variant") != variant_id
             or failure_report.get("phase") != "boundary"
@@ -235,8 +240,7 @@ def build_state_evidence(
             )
         if (
             not isinstance(reset_evidence, dict)
-            or reset_evidence.get("artifact_type")
-            != "erpnext_sales_return_state_evidence"
+            or reset_evidence.get("artifact_type") != artifact_type
             or reset_evidence.get("scenario_id") != scenario_id
             or reset_evidence.get("instance_id") != instance_id
             or reset_evidence.get("variant_id") != variant_id
@@ -249,7 +253,7 @@ def build_state_evidence(
     state_fingerprint = canonical_state_fingerprint(state)
     payload: dict[str, Any] = {
         "schema_version": "1.0",
-        "artifact_type": "erpnext_sales_return_state_evidence",
+        "artifact_type": artifact_type,
         "scenario_id": scenario_id,
         "instance_id": instance_id,
         "variant_id": variant_id,

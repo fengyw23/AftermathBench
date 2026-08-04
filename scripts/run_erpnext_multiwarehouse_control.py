@@ -29,6 +29,11 @@ def main() -> int:
     parser.add_argument("--variant", required=True)
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--formal-contract",
+        action="store_true",
+        help="Emit the versioned reference contract required for formal release.",
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument(
         "--container-cli", choices=("docker", "podman"), default="docker"
@@ -74,7 +79,7 @@ def main() -> int:
         if step["tool"] in ERPNextMultiwarehouseEnvironment.MUTATION_TOOLS
     ]
     report = {
-        "schema_version": "0.1",
+        "schema_version": "1.0" if args.formal_contract else "0.1",
         "artifact_type": "erpnext_multiwarehouse_reference_recovery",
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,

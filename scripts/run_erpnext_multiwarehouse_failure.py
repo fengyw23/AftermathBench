@@ -185,6 +185,11 @@ def main() -> int:
     snapshot.add_argument("--snapshot-bundle", type=Path)
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--formal-contract",
+        action="store_true",
+        help="Emit the versioned boundary contract required for formal release.",
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument(
         "--container-cli", choices=("docker", "podman"), default="docker"
@@ -255,7 +260,7 @@ def main() -> int:
         args.variant, evidence, prefix, gateway_events
     )
     report = {
-        "schema_version": "0.1",
+        "schema_version": "1.0" if args.formal_contract else "0.1",
         "artifact_type": "erpnext_multiwarehouse_failure_boundary",
         "scenario_id": prefix["scenario_id"],
         "variant": args.variant,

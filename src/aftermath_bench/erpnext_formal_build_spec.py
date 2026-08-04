@@ -19,6 +19,12 @@ from .integrations.erpnext_sales_return_agent import (
 from .integrations.erpnext_sales_return_evaluator import (
     evaluate_sales_return_recovery,
 )
+from .integrations.erpnext_multiwarehouse_agent import (
+    ERPNextMultiwarehouseEnvironment,
+)
+from .integrations.erpnext_multiwarehouse_evaluator import (
+    evaluate_multiwarehouse_recovery,
+)
 from .native_admission import validate_native_scenario
 from .native_formal_sources import (
     ExactFileManifest,
@@ -51,6 +57,9 @@ from .native_formal_spec import (
     empty_completion_roles,
 )
 from .native_sales_family import SALES_RETURN_TOOL_DEFINITIONS
+from .native_erpnext_multiwarehouse_family import (
+    ERP_NEXT_MULTIWAREHOUSE_TOOLS,
+)
 from .native_scenario import (
     NativeScenario,
     load_native_scenario,
@@ -190,6 +199,65 @@ _SALES_RETURN_PROFILE = ERPNextFormalBuildProfile(
     evaluator_role_path="sources/erpnext_sales_return_evaluator.py",
     evaluator_symbol="evaluate_sales_return_recovery",
     evaluator=evaluate_sales_return_recovery,
+    boundary_state_projection=_identity_state_projection,
+)
+
+MULTIWAREHOUSE_FORMAL_PROFILE = ERPNextFormalBuildProfile(
+    family_id="erpnext-multiwarehouse-transfer",
+    variants=_VARIANTS,
+    state_evidence_artifact_type="erpnext_multiwarehouse_state_evidence",
+    failure_boundary_artifact_type="erpnext_multiwarehouse_failure_boundary",
+    reference_artifact_type="erpnext_multiwarehouse_reference_recovery",
+    raw_boundary_state_field="boundary_evidence",
+    raw_surface_failure_path=("latest_attempt", "result"),
+    accepted_failure_schema_versions=frozenset({"1.0"}),
+    accepted_reference_schema_versions=frozenset({"1.0"}),
+    tool_definition_source="src/aftermath_bench/native_erpnext_multiwarehouse_family.py",
+    tool_implementation_source="src/aftermath_bench/integrations/erpnext_multiwarehouse_agent.py",
+    tool_implementation_dependencies=(
+        "src/aftermath_bench/integrations/erpnext_multiwarehouse_evidence.py",
+        "src/aftermath_bench/integrations/erpnext_multiwarehouse_prefix.py",
+        "src/aftermath_bench/integrations/erpnext_faults.py",
+        "src/aftermath_bench/integrations/erpnext_stack.py",
+        "src/aftermath_bench/integrations/frappe.py",
+    ),
+    native_runtime_contract_sources=(
+        "runtimes/erpnext/runtime.lock.json",
+        "runtimes/erpnext/compose.yaml",
+        "runtimes/erpnext/control/Containerfile",
+        "runtimes/erpnext/bridge/aftermath_frappe_bridge.py",
+        "scripts/build_erpnext_runtime.py",
+        "scripts/manage_erpnext_stack.py",
+        "scripts/run_erpnext_multiwarehouse_failure.py",
+        "scripts/run_erpnext_multiwarehouse_control.py",
+        "scripts/capture_erpnext_multiwarehouse_state_evidence.py",
+        "src/aftermath_bench/erpnext_multiwarehouse_state_evidence.py",
+        "src/aftermath_bench/integrations/erpnext_runtime.py",
+        "src/aftermath_bench/runtime_services/gateway.py",
+    ),
+    boundary_contract_sources=(
+        "scripts/run_erpnext_multiwarehouse_failure.py",
+        "scripts/capture_erpnext_multiwarehouse_state_evidence.py",
+        "src/aftermath_bench/erpnext_multiwarehouse_state_evidence.py",
+        "src/aftermath_bench/integrations/erpnext_multiwarehouse_evidence.py",
+    ),
+    evaluator_source="src/aftermath_bench/integrations/erpnext_multiwarehouse_evaluator.py",
+    scored_state_fields=(
+        "stock_seed", "material_request", "outgoing_stock_entry",
+        "clinic_sales_order", "protected_sales_order", "protected_pick_list",
+        "protected_reservation", "second_leg_stock_entries",
+        "stock_reservation_entries", "clinic_pick_lists", "stock_ledger_entries",
+        "bins", "batch", "serial_and_batch_bundles", "rq_jobs",
+        "arrival_deliveries",
+    ),
+    tool_definitions=tuple(ERP_NEXT_MULTIWAREHOUSE_TOOLS),
+    environment_tool_names=tuple(ERPNextMultiwarehouseEnvironment.TOOL_NAMES),
+    tool_definition_role_path="sources/native_erpnext_multiwarehouse_family.py",
+    tool_implementation_role_path="sources/erpnext_multiwarehouse_agent.py",
+    tool_implementation_symbol="ERPNextMultiwarehouseEnvironment.invoke",
+    evaluator_role_path="sources/erpnext_multiwarehouse_evaluator.py",
+    evaluator_symbol="evaluate_multiwarehouse_recovery",
+    evaluator=evaluate_multiwarehouse_recovery,
     boundary_state_projection=_identity_state_projection,
 )
 
@@ -1681,6 +1749,7 @@ __all__ = [
     "ERPNextFormalBuildProfile",
     "ERPNextFormalBuildSpecError",
     "ERPNextFormalBuildSpecResult",
+    "MULTIWAREHOUSE_FORMAL_PROFILE",
     "discover_active_erpnext_public_dev_scenario",
     "generate_erpnext_formal_build_spec",
     "write_erpnext_formal_build_spec",

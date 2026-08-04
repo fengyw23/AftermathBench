@@ -24,6 +24,9 @@ from .integrations.erpnext_manufacturing_evaluator import (
 from .integrations.erpnext_sales_return_evaluator import (
     evaluate_sales_return_recovery,
 )
+from .integrations.erpnext_multiwarehouse_evaluator import (
+    evaluate_multiwarehouse_recovery,
+)
 from .integrations.forgejo_publication_recovery import (
     evaluate_forgejo_publication_recovery,
 )
@@ -91,6 +94,7 @@ TRUSTED_FORMAL_EVALUATORS: dict[
     "erpnext-sales-return-exchange-reconciliation": (
         evaluate_sales_return_recovery
     ),
+    "erpnext-multiwarehouse-transfer": evaluate_multiwarehouse_recovery,
     "erpnext-manufacturing-rework": (
         evaluate_manufacturing_rework_recovery
     ),
