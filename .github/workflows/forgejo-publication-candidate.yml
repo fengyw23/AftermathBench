@@ -44,22 +44,36 @@ jobs:
         env:
           HIDDEN_INSTANCE_B64: ${{ secrets.FORGEJO_PUBLICATION_HIDDEN_INSTANCE_B64 }}
         run: |
-          test -n "$HIDDEN_INSTANCE_B64"
           run_root="$RUNNER_TEMP/forgejo-candidate"
+          mkdir -p "$run_root/public"
+          write_bootstrap_status() {
+            printf '{"schema_version":"1.0","phase":"%s"}\n' "$1" \
+              > "$run_root/public/bootstrap-status.json"
+          }
+          if [ -z "$HIDDEN_INSTANCE_B64" ]
+          then
+            write_bootstrap_status "secret_missing"
+            exit 1
+          fi
           mkdir -p "$run_root/private/runtime" \
             "$run_root/private/baselines" \
             "$run_root/private/snapshots" \
             "$run_root/public"
+          write_bootstrap_status "secret_present"
           printf '%s' "$HIDDEN_INSTANCE_B64" \
             | base64 --decode > "$run_root/private/instance.json"
+          write_bootstrap_status "secret_decoded"
           python scripts/verify_forgejo_instance_novelty.py \
             --instance-spec "$run_root/private/instance.json"
+          write_bootstrap_status "novelty_verified"
           python scripts/render_forgejo_publication_blueprint.py \
             --instance-spec "$run_root/private/instance.json" \
             --output "$run_root/private/blueprint.json" \
             --instance-id "${{ inputs.instance_id || 'candidate-001' }}" \
             --benchmark-split hidden_test
+          write_bootstrap_status "blueprint_rendered"
           python -m unittest discover -s tests -v
+          write_bootstrap_status "tests_passed"
 
       - name: Build pinned Forgejo from source
         run: |
