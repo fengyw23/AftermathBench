@@ -151,6 +151,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
     def test_private_reports_and_model_diagnostics_are_not_logged(self) -> None:
         for fragment in (
             'private/logs/prefix.log" 2>&1',
+            'private/logs/unit-tests.log" 2>&1',
             'private/logs/$variant-boundary.log',
             'private/logs/$variant-reference.log',
             'private/logs/$baseline-$variant.log" 2>&1',
@@ -206,6 +207,8 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("failure_phase=freeze_native_bundle", section)
         self.assertIn("failure_phase=verify_hidden_test_eligibility", section)
         self.assertIn("diagnostic_status", section)
+        self.assertIn("bootstrap-failure.json", self.text[diagnostic:model])
+        self.assertIn("failed_tests", self.text)
         self.assertNotIn("private/logs/admission.log\" \"$output", self.text)
 
 

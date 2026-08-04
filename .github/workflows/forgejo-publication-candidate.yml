@@ -101,8 +101,43 @@ jobs:
               --benchmark-split hidden_test
           fi
           write_bootstrap_status "blueprint_rendered"
-          python -m unittest discover -s tests -v
-          write_bootstrap_status "tests_passed"
+          if python -m unittest discover -s tests -v \
+            > "$run_root/private/logs/unit-tests.log" 2>&1
+          then
+            write_bootstrap_status "tests_passed"
+          else
+            python - \
+              "$run_root/private/logs/unit-tests.log" \
+              "$run_root/public/bootstrap-failure.json" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          failed_tests = sorted(set(re.findall(
+              r"^(?:FAIL|ERROR): ([^(]+)", text, flags=re.M
+          )))
+          exception_types = sorted(set(re.findall(
+              r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", text
+          )))
+          Path(sys.argv[2]).write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "phase": "repository_tests",
+                      "failed_tests": failed_tests,
+                      "exception_types": exception_types,
+                      "raw_log_published": False,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+            exit 1
+          fi
 
       - name: Build pinned Forgejo from source
         run: |
@@ -389,7 +424,10 @@ jobs:
           safe_root="data/evidence/admission-diagnostics"
           mkdir -p "$safe_root"
           output="$safe_root/forgejo-${SELECTED_FAMILY}-${SELECTED_INSTANCE_ID}-${GITHUB_RUN_ID}.json"
-          if [ -f "$run_root/public/admission-failure.json" ]
+          if [ -f "$run_root/public/bootstrap-failure.json" ]
+          then
+            cp "$run_root/public/bootstrap-failure.json" "$output"
+          elif [ -f "$run_root/public/admission-failure.json" ]
           then
             cp "$run_root/public/admission-failure.json" "$output"
           else
