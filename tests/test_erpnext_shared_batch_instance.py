@@ -29,6 +29,19 @@ class ERPNextSharedBatchInstanceTest(unittest.TestCase):
             / "erpnext-shared-batch-recovery-dev-001"
             / "scenario.json"
         )
+        self.second_spec_path = (
+            self.root
+            / "data"
+            / "instance_specs"
+            / "erpnext-shared-batch-recovery-public-dev-002.json"
+        )
+        self.second_blueprint_path = (
+            self.root
+            / "data"
+            / "scenario_blueprints"
+            / "erpnext-shared-batch-recovery-public-dev-002"
+            / "scenario.json"
+        )
 
     def test_checked_blueprint_is_exactly_rendered_from_instance(self) -> None:
         instance = ERPNextNativeInstanceSpec.from_path(self.spec_path)
@@ -61,6 +74,54 @@ class ERPNextSharedBatchInstanceTest(unittest.TestCase):
             + fixture["shared_landed_cost"]["secondary_allocation"],
             fixture["shared_landed_cost"]["amount"],
         )
+
+    def test_second_instance_is_exactly_rendered_and_structurally_distinct(
+        self,
+    ) -> None:
+        first = ERPNextNativeInstanceSpec.from_path(self.spec_path)
+        second = ERPNextNativeInstanceSpec.from_path(self.second_spec_path)
+        checked = json.loads(self.second_blueprint_path.read_text(encoding="utf-8"))
+        rendered = render_erpnext_native_blueprint(
+            second,
+            template=checked,
+            instance_id="public-dev-002",
+            benchmark_split="public_dev",
+        )
+        self.assertEqual(rendered, checked)
+        self.assertEqual(checked["instance_spec_sha256"], second.sha256)
+        self.assertEqual(
+            checked["ambiguous_operation"]["operation"],
+            "submit the prepared 4-unit corrective Job Card",
+        )
+        first_fixture = first.fixture
+        second_fixture = second.fixture
+        self.assertNotEqual(
+            first_fixture["primary_work_order"]["component_quantity_per_unit"],
+            second_fixture["primary_work_order"]["component_quantity_per_unit"],
+        )
+        self.assertNotEqual(
+            first_fixture["primary_work_order"]["rework_quantity"],
+            second_fixture["primary_work_order"]["rework_quantity"],
+        )
+        first_codes = {
+            first_fixture[key]["item_code"]
+            for key in (
+                "shared_component",
+                "primary_work_order",
+                "secondary_work_order",
+                "unrelated_item",
+            )
+        }
+        second_codes = {
+            second_fixture[key]["item_code"]
+            for key in (
+                "shared_component",
+                "primary_work_order",
+                "secondary_work_order",
+                "unrelated_item",
+            )
+        }
+        self.assertTrue(first_codes.isdisjoint(second_codes))
 
     def test_rejects_a_batch_that_cannot_cover_both_orders(self) -> None:
         payload = json.loads(self.spec_path.read_text(encoding="utf-8"))

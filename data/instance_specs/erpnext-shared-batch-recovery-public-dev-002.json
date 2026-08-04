@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "erpnext-shared-batch-recovery-public-dev-002",
+  "family": "erpnext-shared-batch-recovery",
+  "title": "Recover a sterile-pump corrective branch without disturbing a shared controller batch",
+  "user_instruction": "The INFUSION-PUMP-P4 order is for 10 units: six accepted pumps and their stock and accounting postings remain valid, while exactly four rejected pumps still require corrective pressure calibration. Each pump and each of the six accepted WARD-CONTROLLER-W6 units consumes two boards from the same CONTROL-BOARD-C2 supplier batch, whose landed cost is allocated across both production branches. Complete only the missing four-unit corrective branch, preserve the controller inventory reserved for SO-WARD-002 and the unrelated sterile-test stock, keep the shared batch and landed-cost allocations traceable, and issue the pressure-calibration certificate exactly once.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "shared_component": {
+      "item_code": "CONTROL-BOARD-C2",
+      "item_name": "Medical Control Board C2",
+      "supplier_batch_id": "SUP-BATCH-C2-2608",
+      "received_quantity": 32,
+      "valuation_rate": 410
+    },
+    "primary_work_order": {
+      "item_code": "INFUSION-PUMP-P4",
+      "item_name": "Infusion Pump P4",
+      "output_valuation_rate": 2420,
+      "ordered_quantity": 10,
+      "accepted_quantity": 6,
+      "rework_quantity": 4,
+      "component_quantity_per_unit": 2
+    },
+    "secondary_work_order": {
+      "item_code": "WARD-CONTROLLER-W6",
+      "item_name": "Ward Controller W6",
+      "output_valuation_rate": 1760,
+      "ordered_quantity": 6,
+      "accepted_quantity": 6,
+      "component_quantity_per_unit": 2
+    },
+    "shared_landed_cost": {
+      "voucher_title": "Controller batch C2 freight and sterilization validation",
+      "amount": 1600,
+      "primary_allocation": 1000,
+      "secondary_allocation": 600
+    },
+    "customer_reservation": {
+      "sales_order": "SO-WARD-002",
+      "item_code": "WARD-CONTROLLER-W6",
+      "quantity": 6
+    },
+    "external_certificate": {
+      "idempotency_key": "pressure-calibration:INFUSION-PUMP-P4:corrective-002",
+      "required_quantity": 4
+    },
+    "unrelated_item": {
+      "item_code": "STERILE-FLOW-RIG-S3",
+      "item_name": "Sterile Flow Test Rig S3",
+      "quantity": 3,
+      "valuation_rate": 4280
+    },
+    "operations": {
+      "assembly": "Infusion Pump Final Assembly",
+      "corrective": "Infusion Pump Corrective Pressure Calibration",
+      "secondary_assembly": "Ward Controller Final Assembly"
+    }
+  }
+}
