@@ -30,6 +30,9 @@ class ForgejoComposeSpecTest(unittest.TestCase):
         self.assertIn("runtime_services.webhook_sink", self.compose)
         self.assertIn("AFTERMATH_GATEWAY_UPSTREAM: http://forgejo:3000", self.compose)
         self.assertIn(
+            "FORGEJO__server__ROOT_URL: http://forgejo:3000/", self.compose
+        )
+        self.assertIn(
             "AFTERMATH_GATEWAY_UPSTREAM: http://webhook-sink:8080",
             self.compose,
         )
