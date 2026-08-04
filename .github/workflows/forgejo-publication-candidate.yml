@@ -116,6 +116,36 @@ jobs:
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
           runtime_root="runtimes/forgejo/.runtime"
+          run_private() {
+            label="$1"
+            log_path="$2"
+            shift 2
+            if "$@" > "$log_path" 2>&1
+            then
+              return 0
+            fi
+            python - "$label" "$log_path" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          label, path = sys.argv[1:]
+          text = Path(path).read_text(encoding="utf-8", errors="replace")
+          exception_types = sorted(set(re.findall(
+              r"\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b", text
+          )))
+          check_names = sorted(set(re.findall(
+              r"(?:failed_checks|failures)[=:]\\s*([a-z_,-]+)", text
+          )))
+          print(
+              "::error title=Forgejo hidden replay failed::"
+              f"label={label};"
+              f"exception_types={','.join(exception_types[-4:]) or 'none'};"
+              f"check_names={','.join(check_names[-4:]) or 'none'}"
+          )
+          PY
+            return 1
+          }
           mapfile -t variants < <(
             python -c 'import json,sys; print(*[x["id"] for x in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
               "$run_root/private/blueprint.json"
@@ -124,22 +154,24 @@ jobs:
           do
             python scripts/manage_forgejo_stack.py restore \
               --snapshot "$run_root/private/prefix.tar.gz"
-            python scripts/run_forgejo_publication_boundary.py \
+            run_private "boundary:$variant" \
+              "$run_root/private/logs/$variant-boundary.log" \
+              python scripts/run_forgejo_publication_boundary.py \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$run_root/private/runtime/prefix.json" \
               --variant "$variant" \
-              --output "$run_root/private/runtime/$variant-boundary.json" \
-              > "$run_root/private/logs/$variant-boundary.log" 2>&1
+              --output "$run_root/private/runtime/$variant-boundary.json"
             python scripts/manage_forgejo_stack.py snapshot-bundle \
               --snapshot "$run_root/private/snapshots/$variant"
             python scripts/manage_forgejo_stack.py restore-bundle \
               --snapshot "$run_root/private/snapshots/$variant"
-            python scripts/run_forgejo_publication_control.py \
+            run_private "reference:$variant" \
+              "$run_root/private/logs/$variant-reference.log" \
+              python scripts/run_forgejo_publication_control.py \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$run_root/private/runtime/prefix.json" \
               --variant "$variant" \
-              --output "$run_root/private/runtime/$variant-reference.json" \
-              > "$run_root/private/logs/$variant-reference.log" 2>&1
+              --output "$run_root/private/runtime/$variant-reference.json"
           done
 
       - name: Execute fixed policies from the same state bundles

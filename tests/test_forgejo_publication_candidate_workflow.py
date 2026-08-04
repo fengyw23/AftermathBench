@@ -147,8 +147,8 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
     def test_private_reports_and_model_diagnostics_are_not_logged(self) -> None:
         for fragment in (
             'private/logs/prefix.log" 2>&1',
-            'private/logs/$variant-boundary.log" 2>&1',
-            'private/logs/$variant-reference.log" 2>&1',
+            'private/logs/$variant-boundary.log',
+            'private/logs/$variant-reference.log',
             'private/logs/$baseline-$variant.log" 2>&1',
             'private/logs/admission.log" 2>&1',
             'RUNNER_TEMP/forgejo-hidden-eligibility.log" 2>&1',
@@ -158,6 +158,11 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             'private/control/gate.log" 2>&1',
         ):
             self.assertIn(fragment, self.text)
+
+    def test_native_replay_failure_has_a_redacted_diagnostic(self) -> None:
+        self.assertIn("Forgejo hidden replay failed", self.text)
+        self.assertIn("exception_types=", self.text)
+        self.assertNotIn('cat "$log_path"', self.text)
 
     def test_execution_control_has_an_explicit_acceptance_gate(self) -> None:
         self.assertIn("validate_native_control_summary.py", self.text)
