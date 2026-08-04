@@ -42,6 +42,7 @@ class ERPNextMultiwarehouseWorkflowTests(unittest.TestCase):
             "run-native-model",
             "validate_native_control_summary.py",
             "completion/declarations.json",
+            "generate_formal_release_binding.py",
         ):
             self.assertIn(token, self.text)
 
