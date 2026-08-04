@@ -24,7 +24,6 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
       INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'forgejo-migration-hidden-test-002' && 'test-002' || 'test-001') }}
-      RUN_ROOT: ${{ runner.temp }}/forgejo-migration-hidden
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,6 +34,7 @@ jobs:
 
       - name: Generate and validate a private instance before model access
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           mkdir -p "$RUN_ROOT/private/state-evidence" "$RUN_ROOT/private/baselines" "$RUN_ROOT/private/logs" "$RUN_ROOT/public"
           python scripts/generate_forgejo_migration_hidden_instance.py --instance-id "$INSTANCE_ID" --output "$RUN_ROOT/private/instance.json"
           python scripts/render_forgejo_migration_blueprint.py --instance "$RUN_ROOT/private/instance.json" --instance-id "$INSTANCE_ID" --benchmark-split hidden_test --output "$RUN_ROOT/private/blueprint.json"
@@ -43,10 +43,12 @@ jobs:
 
       - name: Build the pinned Forgejo runtime from source
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           python scripts/build_forgejo_runtime.py --source-directory "$RUNNER_TEMP/forgejo" --checkout --build --report "$RUN_ROOT/private/source-verification.json"
 
       - name: Create and snapshot the native prefix
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           runtime_root=runtimes/forgejo/.runtime
           owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$RUN_ROOT/private/instance.json")"
           python scripts/manage_forgejo_stack.py up
@@ -57,6 +59,7 @@ jobs:
 
       - name: Freeze four matched boundaries and replay references
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           runtime_root=runtimes/forgejo/.runtime
           variants=(dispatch_request_not_reached workflow_queued_runner_unavailable migration_applied_workflow_failed workflow_completed_dispatch_response_lost)
           for variant in "${variants[@]}"
@@ -76,6 +79,7 @@ jobs:
 
       - name: Replay fixed policies from every exact boundary
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           runtime_root=runtimes/forgejo/.runtime
           variants=(dispatch_request_not_reached workflow_queued_runner_unavailable migration_applied_workflow_failed workflow_completed_dispatch_response_lost)
           baselines=(no_op assume_effect_complete blind_redispatch always_skip_migration always_restart_runner close_tracking_only)
@@ -87,6 +91,7 @@ jobs:
 
       - name: Admit and freeze before any provider request
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           python scripts/build_forgejo_migration_admission.py --runtime-directory "$RUN_ROOT/private" --baseline-directory "$RUN_ROOT/private/baselines" --blueprint "$RUN_ROOT/private/blueprint.json" --output-directory "$RUN_ROOT/private/scenario"
           python -m aftermath_bench validate-native-scenario --scenario "$RUN_ROOT/private/scenario/scenario.json"
           revision="$(python -c 'import json; print(json.load(open("runtimes/forgejo/runtime.lock.json"))["source"]["revision"])')"
@@ -99,6 +104,7 @@ jobs:
         env:
           HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
           archive="$RUNNER_TEMP/forgejo-migration-private.tar.gz"
           cipher="$RUN_ROOT/public/hidden-bundle.tar.gz.enc"
@@ -115,6 +121,7 @@ jobs:
 
       - name: Register the frozen-hidden receipt
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           receipt="data/evidence/hidden-freeze/forgejo-migration-$INSTANCE_ID.json"
           test ! -e "$receipt"
           python - "$RUN_ROOT/public/pre-model-commitment.json" "$RUN_ROOT/public/sealed-bundle.json" "$RUN_ROOT/public/result.json" "$receipt" data/frozen_hidden_candidates.json "$INSTANCE_ID" <<'PY'
@@ -145,6 +152,7 @@ jobs:
       - name: Purge plaintext runtime
         if: always()
         run: |
+          RUN_ROOT="$RUNNER_TEMP/forgejo-migration-hidden"
           rm -f runtimes/forgejo/.runtime/credentials.json
           python scripts/manage_forgejo_stack.py purge || true
           rm -rf "$RUN_ROOT/private"
