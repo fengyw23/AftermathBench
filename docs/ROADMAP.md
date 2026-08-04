@@ -61,10 +61,12 @@ promoted into the final native-runtime benchmark.
   two-components-per-unit BOM. Reference, conflict-probe, fixed-policy, and
   admission checks all pass in run `30881600867`; the strongest fixed strategy
   solves only 1/4 boundaries and none solves the matched group.
-- [ ] Implement the inventory-cost-settlement family now frozen as a validated
+- [x] Implement the inventory-cost-settlement family now frozen as a validated
   instance contract. Its ambiguous Landed Cost Voucher submission must vary
   real Stock Ledger, GL, Repost Item Valuation, and external-attestation state;
-  Job Card/certificate-only variants cannot satisfy this item.
+  Job Card/certificate-only variants cannot satisfy this item. Four references
+  and 28 fixed-policy native executions passed run `30889742165`; model control
+  and ordinary-condition experiments remain in progress.
 - [ ] Construct and freeze two unconsumed hidden instances without model
   access.
 
@@ -86,8 +88,10 @@ promoted into the final native-runtime benchmark.
   a separate six-boundary approved-artifact-promotion instance contract that
   crosses approval, signed artifacts, deployment, external attestation and
   prior-release preservation.
-- [ ] Implement and replay the approved-artifact-promotion native prefix,
-  failure boundaries, evaluator, controls and ordinary-model condition.
+- [x] Implement and replay the approved-artifact-promotion native prefix,
+  six failure boundaries and deterministic evaluator. Run `30891327568` passed
+  all references and cross-system boundary checks.
+- [ ] Complete its fixed-policy, execution-control and ordinary-model gates.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

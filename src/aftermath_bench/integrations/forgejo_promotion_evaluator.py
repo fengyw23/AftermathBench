@@ -34,7 +34,9 @@ class ForgejoPromotionEvaluator:
     prefix: dict[str, Any]
     external_url: str = "http://127.0.0.1:9092"
 
-    def evaluate(self, *, variant: str) -> dict[str, Any]:
+    def evaluate(
+        self, *, variant: str, expected_run_count: int | None = None
+    ) -> dict[str, Any]:
         spec = self.instance
         state = self.deployment.state()
         releases = self.forgejo.list_releases(spec.owner, spec.repository)
@@ -99,15 +101,19 @@ class ForgejoPromotionEvaluator:
             for row in self.prefix["protected_state"]["replicas"]
             if row["environment"] == spec.protected_environment
         ]
-        expected_run_count = (
-            2
-            if variant
-            in {
-                "signed_bundle_completed_deployment_missing",
-                "deployment_completed_attestation_missing",
-            }
-            else 1
-        )
+        # Reference replay remains backward compatible with its frozen variant
+        # labels. Live model scoring supplies a value derived from the actual
+        # boundary Actions records, so gold does not depend on a hidden label.
+        if expected_run_count is None:
+            expected_run_count = (
+                2
+                if variant
+                in {
+                    "signed_bundle_completed_deployment_missing",
+                    "deployment_completed_attestation_missing",
+                }
+                else 1
+            )
         checks = {
             "native_actions_artifact_present": len(action_artifacts) == 1,
             "signed_bundle_registered_once": len(target_artifacts) == 1

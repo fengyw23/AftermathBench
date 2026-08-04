@@ -39,6 +39,9 @@ class ForgejoPromotionEnvironment:
         {
             "dispatch_workflow",
             "start_action_runner",
+            # Waiting is state advancing: an active runner can complete the
+            # deployment and external publication while this call blocks.
+            "wait_for_action_run",
             "create_release",
             "create_issue_comment",
             "edit_issue",
@@ -64,6 +67,22 @@ class ForgejoPromotionEnvironment:
         self.variant = variant
         self.external_url = external_url
         self._events: list[dict[str, Any]] = []
+        boundary_runs = self.forgejo.list_action_runs(
+            self.instance.owner, self.instance.repository
+        )
+        terminal_failures = {"failure", "cancelled", "skipped"}
+        # No owner means one must be created. A pending or successful owner is
+        # preserved. If every existing owner terminated unsuccessfully, exactly
+        # one resume owner is required. This is derived from the authoritative
+        # boundary rather than from the hidden fault-variant label.
+        if not boundary_runs:
+            self.expected_action_run_count = 1
+        elif all(
+            str(run.get("status")) in terminal_failures for run in boundary_runs
+        ):
+            self.expected_action_run_count = len(boundary_runs) + 1
+        else:
+            self.expected_action_run_count = len(boundary_runs)
 
     def _record(
         self,
@@ -180,7 +199,10 @@ class ForgejoPromotionEnvironment:
             instance=self.instance,
             prefix=self.prefix,
             external_url=self.external_url,
-        ).evaluate(variant=self.variant)
+        ).evaluate(
+            variant=self.variant,
+            expected_run_count=self.expected_action_run_count,
+        )
         return {"evaluation": evaluation, **evaluation["final_evidence"]}
 
     def event_log(self) -> list[dict[str, Any]]:

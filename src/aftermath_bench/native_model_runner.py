@@ -37,8 +37,8 @@ from .model_runner import (
     _without_private_reasoning,
 )
 from .native_boundary_equivalence import native_boundaries_equivalent
-from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
 from .native_erpnext_inventory_cost_family import ERP_NEXT_INVENTORY_COST_FAMILY
+from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
 from .native_erpnext_multiwarehouse_family import ERP_NEXT_MULTIWAREHOUSE_FAMILY
 from .native_erpnext_shared_batch_family import ERP_NEXT_SHARED_BATCH_FAMILY
 from .native_family import (
@@ -51,6 +51,7 @@ from .native_forgejo_migration_family import FORGEJO_MIGRATION_FAMILY
 from .native_forgejo_package_provenance_family import (
     FORGEJO_PACKAGE_PROVENANCE_FAMILY,
 )
+from .native_forgejo_promotion_family import FORGEJO_PROMOTION_FAMILY
 from .native_forgejo_publication_family import FORGEJO_PUBLICATION_FAMILY
 from .native_kubernetes_constraint_family import KUBERNETES_CONSTRAINT_FAMILY
 from .native_kubernetes_family import KUBERNETES_ROLLOUT_FAMILY
@@ -793,6 +794,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         FORGEJO_MIGRATION_FAMILY,
         FORGEJO_PUBLICATION_FAMILY,
         FORGEJO_PACKAGE_PROVENANCE_FAMILY,
+        FORGEJO_PROMOTION_FAMILY,
         KUBERNETES_ROLLOUT_FAMILY,
         KUBERNETES_SETTLEMENT_FAMILY,
         KUBERNETES_SETTLEMENT_V2_FAMILY,

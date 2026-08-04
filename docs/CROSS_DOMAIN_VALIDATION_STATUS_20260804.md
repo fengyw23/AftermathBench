@@ -13,6 +13,8 @@ claims.
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
 | ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 2/4; matched group failed) | hard-admitted development evidence; formal integration pending |
+| ERPNext inventory-cost settlement | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | running | pending control gate | native replay archive complete; model evidence pending |
+| Forgejo approved signed-artifact promotion | 6 | complete (6/6) | native cross-system audit complete | running | pending | pending control gate | native replay archive complete; model evidence pending |
 
 ## What is already established
 
@@ -146,6 +148,27 @@ policy again solved only 1/4 boundaries and no policy solved the matched group.
 This closes the current instance-independence gate for the shared-batch family;
 it does not substitute for adding independent instances to every future family.
 
+The inventory-cost-settlement family then moved the ambiguous boundary out of
+the manufacturing certificate path and into native inventory/accounting state.
+Run [30889742165](https://github.com/fengyw23/AftermathBench/actions/runs/30889742165)
+passed all four boundary and reference replays. The four failure states have
+four distinct signatures and independently vary the submitted Landed Cost
+Voucher, Stock Ledger effects, GL effects, Repost Item Valuation ownership and
+external attestation. Across 28 native fixed-policy executions, the strongest
+policy passed only 1/4 and no policy solved the matched group. This closes the
+specific ERP state-dimensionality gate. Execution-control and ordinary-model
+results remain pending and are not inferred from the native replay result.
+
+The approved signed-artifact promotion family passed its initial six-boundary
+native audit in run
+[30891327568](https://github.com/fengyw23/AftermathBench/actions/runs/30891327568).
+All six reference recoveries passed, their cross-system boundary signatures are
+distinct, and the states vary Actions ownership, uploaded signed artifacts,
+production deployment, external attestation and release metadata while holding
+the protected release and unrelated work fixed. Fixed-policy and model gates
+remain pending, so this result closes construction correctness but not the
+Forgejo saturation risk.
+
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
@@ -165,23 +188,24 @@ It does **not** yet support a top-conference benchmark claim. Missing evidence i
 The next development cycle is intentionally constrained by three risks. They
 are not considered closed by adding more variants to an existing template.
 
-1. **ERP state-dimensionality risk.** The current shared-batch family varies a
-   Job Card and its certificate delivery. A second native ERP family must place
-   the ambiguous failure at an inventory/accounting boundary and produce
-   objectively different Stock Ledger, GL, shared-cost, and asynchronous repost
-   states. Merely adding more protected documents does not close this risk.
+1. **ERP state-dimensionality risk (native gate closed).** The
+   inventory-cost-settlement family now places the ambiguous failure at a real
+   Landed Cost Voucher boundary and varies Stock Ledger, GL, Repost Item
+   Valuation and external-attestation state. Run `30889742165` passed four
+   references and rejected all matched-group fixed strategies. Model controls
+   are still required before the family can support a model-performance claim.
 2. **Instance-independence risk (closed for shared batch).** A family needs at least two independently
    parameterized business instances whose item identities are disjoint and whose
    quantities or dependency topology differ. Both must pass the same replay,
    reference, fixed-policy, and admission pipeline. The second shared-batch
    instance now passes this gate in run `30881600867`; the requirement remains
    active for newly added families.
-3. **Forgejo saturation risk.** Package provenance remains an executable control,
-   but its 4/4 ordinary-model result cannot support a hardness claim. The next
-   Forgejo difficulty family must cross approval state, signed build artifacts,
-   deployment status, external publication/attestation, and preservation of a
-   prior release; it must pass execution control while failing matched-group
-   inference for at least one strong model.
+3. **Forgejo saturation risk (native construction closed; model gate open).**
+   The new six-boundary family now crosses approval state, signed build
+   artifacts, deployment status, external attestation and prior-release
+   preservation. The remaining closure condition is empirical: fixed strategies
+   must fail the matched group, execution control must pass, and at least one
+   strong ordinary model must fail matched-group inference.
 
 These gates keep effort focused on new recovery reasoning rather than increasing
 case count through surface-level renaming.
