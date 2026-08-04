@@ -87,7 +87,10 @@ def promotion_workflow(instance: ForgejoPromotionInstanceSpec) -> str:
         f"          printf '%s' '{instance.artifact_digest.removeprefix('sha256:')}  binary.tar.gz' | sha256sum -c -\n"
         "      - name: Upload native Actions evidence bundle\n"
         "        if: ${{ inputs.resume_stage == 'start' }}\n"
-        "        uses: actions/upload-artifact@v4\n"
+        # Forgejo 9.1 implements the v3 artifact service.  Use the Forgejo-hosted
+        # mirror explicitly so the generated workflow does not resolve the GHES-
+        # only v4 protocol through DEFAULT_ACTIONS_URL.
+        "        uses: https://data.forgejo.org/actions/upload-artifact@v3\n"
         "        with:\n"
         f"          name: approved-{instance.version}\n"
         "          path: |\n"

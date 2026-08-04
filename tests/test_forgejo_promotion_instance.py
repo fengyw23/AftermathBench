@@ -73,7 +73,9 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
         instance = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
         workflow = promotion_workflow(instance)
         self.assertIn("runs-on: aftermath-native", workflow)
-        self.assertIn("actions/upload-artifact@v4", workflow)
+        self.assertIn(
+            "https://data.forgejo.org/actions/upload-artifact@v3", workflow
+        )
         self.assertIn("/artifacts", workflow)
         self.assertIn("/artifact-deployments", workflow)
         self.assertIn("/workers/run", workflow)

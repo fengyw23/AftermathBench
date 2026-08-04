@@ -160,16 +160,16 @@ def main() -> int:
                 boundary_evidence["landed_cost_voucher"].get("docstatus", 0)
             )
             == 1,
-            "repost_owner_queued": statuses == {"queued"},
+            "repost_owner_completed": statuses == {"completed"},
             "attestation_pending": delivery is None and bool(unfinished_jobs),
         }
-    else:
+    else:  # committed, native repost still queued, attestation already delivered
         variant_checks = {
             "voucher_submitted": int(
                 boundary_evidence["landed_cost_voucher"].get("docstatus", 0)
             )
             == 1,
-            "repost_owner_completed": statuses == {"completed"},
+            "repost_owner_queued": statuses == {"queued"},
             "attestation_delivered_once": (
                 isinstance(delivery, dict)
                 and int(delivery.get("attempt_count", 0)) == 1
