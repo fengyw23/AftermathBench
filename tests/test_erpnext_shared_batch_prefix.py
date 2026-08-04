@@ -103,6 +103,27 @@ class ERPNextSharedBatchPrefixTest(unittest.TestCase):
             primary["ordered_quantity"] / secondary["ordered_quantity"],
         )
 
+    def test_native_receipt_quantity_includes_components_per_finished_unit(self) -> None:
+        path = (
+            repository_root()
+            / "data"
+            / "instance_specs"
+            / "erpnext-shared-batch-recovery-public-dev-002.json"
+        )
+        fixture = json.loads(path.read_text(encoding="utf-8"))["fixture"]
+        self.assertEqual(
+            ERPNextSharedBatchPrefixBuilder._required_component_quantity(
+                fixture["primary_work_order"]
+            ),
+            20.0,
+        )
+        self.assertEqual(
+            ERPNextSharedBatchPrefixBuilder._required_component_quantity(
+                fixture["secondary_work_order"]
+            ),
+            12.0,
+        )
+
     def test_actual_time_logs_start_after_all_native_scheduled_slots(self) -> None:
         start = ERPNextSharedBatchPrefixBuilder._execution_start_after_schedule(
             [

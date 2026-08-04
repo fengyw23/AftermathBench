@@ -112,6 +112,14 @@ class ERPNextSharedBatchPrefixBuilder:
         self.scenario_id = scenario_id
         self.fixture = fixture
 
+    @staticmethod
+    def _required_component_quantity(work_order: dict[str, Any]) -> float:
+        """Return the native stock quantity required by a production branch."""
+
+        return float(work_order["ordered_quantity"]) * float(
+            work_order["component_quantity_per_unit"]
+        )
+
     def _exists(self, doctype: str, name: str) -> bool:
         return bool(
             self.adapter.list_resources(
@@ -466,6 +474,8 @@ class ERPNextSharedBatchPrefixBuilder:
         secondary = self.fixture["secondary_work_order"]
         unrelated = self.fixture["unrelated_item"]
         batch_id = str(shared["supplier_batch_id"])
+        primary_component_quantity = self._required_component_quantity(primary)
+        secondary_component_quantity = self._required_component_quantity(secondary)
 
         if not self._exists("Batch", batch_id):
             batch = _payload(
@@ -487,8 +497,8 @@ class ERPNextSharedBatchPrefixBuilder:
                     "items": [
                         {
                             "item_code": shared["item_code"],
-                            "received_qty": primary["ordered_quantity"],
-                            "qty": primary["ordered_quantity"],
+                            "received_qty": primary_component_quantity,
+                            "qty": primary_component_quantity,
                             "rate": shared["valuation_rate"],
                             "warehouse": self.STORES_WAREHOUSE,
                             "use_serial_batch_fields": 1,
@@ -496,8 +506,8 @@ class ERPNextSharedBatchPrefixBuilder:
                         },
                         {
                             "item_code": shared["item_code"],
-                            "received_qty": secondary["ordered_quantity"],
-                            "qty": secondary["ordered_quantity"],
+                            "received_qty": secondary_component_quantity,
+                            "qty": secondary_component_quantity,
                             "rate": shared["valuation_rate"],
                             "warehouse": self.STORES_WAREHOUSE,
                             "use_serial_batch_fields": 1,
@@ -515,17 +525,18 @@ class ERPNextSharedBatchPrefixBuilder:
         receipt_rows = receipt.get("items", [])
         if len(receipt_rows) != 2:
             raise RuntimeError("shared Purchase Receipt must retain two native rows")
-        rows_by_quantity = {
-            float(row["qty"]): row
-            for row in receipt_rows
-            if row.get("item_code") == shared["item_code"]
-        }
-        primary_receipt_item = rows_by_quantity.get(float(primary["ordered_quantity"]))
-        secondary_receipt_item = rows_by_quantity.get(
-            float(secondary["ordered_quantity"])
+        primary_receipt_item, secondary_receipt_item = receipt_rows
+        expected_branch_quantities = (
+            primary_component_quantity,
+            secondary_component_quantity,
         )
-        if primary_receipt_item is None or secondary_receipt_item is None:
-            raise RuntimeError("shared Purchase Receipt lost its 12/8 branch identity")
+        actual_branch_quantities = tuple(float(row["qty"]) for row in receipt_rows)
+        if any(row.get("item_code") != shared["item_code"] for row in receipt_rows):
+            raise RuntimeError("shared Purchase Receipt contains an unexpected item")
+        if actual_branch_quantities != expected_branch_quantities:
+            raise RuntimeError(
+                "shared Purchase Receipt lost its component-quantity branch identity"
+            )
 
         expense_account = (
             f"Expenses Included In Valuation - {self.fixture['company_abbr']}"
@@ -639,7 +650,7 @@ class ERPNextSharedBatchPrefixBuilder:
             reference_type="Stock Entry",
             reference_name=str(primary_transfer["name"]),
             item_code=str(shared["item_code"]),
-            quantity=float(primary["ordered_quantity"]),
+            quantity=primary_component_quantity,
             accepted=True,
             trace=trace,
         )
@@ -658,7 +669,7 @@ class ERPNextSharedBatchPrefixBuilder:
             reference_type="Stock Entry",
             reference_name=str(secondary_transfer["name"]),
             item_code=str(shared["item_code"]),
-            quantity=float(secondary["ordered_quantity"]),
+            quantity=secondary_component_quantity,
             accepted=True,
             trace=trace,
         )
