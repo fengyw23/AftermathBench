@@ -46,7 +46,7 @@ PREFIX = {
     "shared_landed_cost_voucher": "LCV-1",
     "shared_purchase_receipt": "PR-1",
     "rejected_primary_job_card": "JC-REJECTED",
-    "corrective_operation": "CORRECTIVE-CALIBRATION",
+    "evaluation_fixture": {"operations": {"corrective": "CORRECTIVE-CALIBRATION"}},
     "rework_quantity": 3,
 }
 

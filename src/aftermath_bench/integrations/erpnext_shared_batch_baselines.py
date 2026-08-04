@@ -5,7 +5,6 @@ from typing import Any
 from .erpnext_return_agent import UNFINISHED_JOB_STATUSES
 from .erpnext_shared_batch_agent import ERPNextSharedBatchEnvironment
 
-
 SHARED_BATCH_BASELINE_NAMES = (
     "no_op",
     "blind_retry",
@@ -127,6 +126,19 @@ def _repair_failed_record_only(
     )
 
 
+def _corrective_operation(prefix: dict[str, Any]) -> str:
+    fixture = prefix.get("evaluation_fixture")
+    if not isinstance(fixture, dict):
+        raise TypeError("shared-batch prefix has no evaluation_fixture")
+    operations = fixture.get("operations")
+    if not isinstance(operations, dict):
+        raise TypeError("shared-batch fixture has no operations")
+    operation = str(operations.get("corrective", "")).strip()
+    if not operation:
+        raise ValueError("shared-batch fixture has no corrective operation")
+    return operation
+
+
 def run_fixed_shared_batch_baseline(
     name: str,
     *,
@@ -180,7 +192,7 @@ def run_fixed_shared_batch_baseline(
             trace,
             "create_corrective_job_card",
             source_job_card=prefix["rejected_primary_job_card"],
-            operation=prefix["corrective_operation"],
+            operation=_corrective_operation(prefix),
         )
     return tuple(trace)
 
