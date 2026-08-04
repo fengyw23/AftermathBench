@@ -170,8 +170,9 @@ def build_state_evidence(
     reset_evidence_path: str | Path | None = None,
     artifact_type: str = "erpnext_sales_return_state_evidence",
     failure_artifact_type: str = "erpnext_sales_return_failure_boundary",
+    failure_state_field: str = "failure_boundary_evidence",
 ) -> dict[str, Any]:
-    if not artifact_type or not failure_artifact_type:
+    if not artifact_type or not failure_artifact_type or not failure_state_field:
         raise ERPNextSalesReturnStateEvidenceError(
             "state and failure artifact types must be non-empty"
         )
@@ -230,7 +231,7 @@ def build_state_evidence(
             raise ERPNextSalesReturnStateEvidenceError(
                 "failure report does not prove the captured boundary state"
             )
-        reported_state = failure_report.get("failure_boundary_evidence")
+        reported_state = failure_report.get(failure_state_field)
         if reported_state != state:
             differences = json_difference_paths(reported_state, state)
             detail = ", ".join(differences) or "<unknown>"

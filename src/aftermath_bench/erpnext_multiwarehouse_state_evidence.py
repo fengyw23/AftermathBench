@@ -41,6 +41,7 @@ def build_multiwarehouse_state_evidence(
         reset_evidence_path=reset_evidence_path,
         artifact_type=STATE_ARTIFACT_TYPE,
         failure_artifact_type=FAILURE_ARTIFACT_TYPE,
+        failure_state_field="boundary_evidence",
     )
 
 
