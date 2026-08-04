@@ -481,9 +481,18 @@ jobs:
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The candidate branch can advance while a long native replay is
+          # running.  Rebase the redacted diagnostic on its current tip and
+          # push an explicit ref: detached checkout state must never hide the
+          # construction signal that explains an admission rejection.
+          git fetch origin "$GITHUB_REF_NAME"
+          git rebase "origin/$GITHUB_REF_NAME"
           git add "$output"
-          git commit -m "diagnostic(forgejo): record rejected ${SELECTED_FAMILY} ${SELECTED_INSTANCE_ID}"
-          git push
+          if ! git diff --cached --quiet
+          then
+            git commit -m "diagnostic(forgejo): record rejected ${SELECTED_FAMILY} ${SELECTED_INSTANCE_ID}"
+          fi
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
 
       - name: Lock and run execution control on frozen state
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_execution_control }}

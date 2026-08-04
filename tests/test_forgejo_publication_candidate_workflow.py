@@ -214,6 +214,14 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("failed_tests", self.text)
         self.assertNotIn("private/logs/admission.log\" \"$output", self.text)
 
+    def test_admission_diagnostic_is_pushed_against_the_trigger_branch(self) -> None:
+        start = self.text.index("Record safe native-admission rejection")
+        end = self.text.index("Lock and run execution control on frozen state")
+        section = self.text[start:end]
+        self.assertIn('git fetch origin "$GITHUB_REF_NAME"', section)
+        self.assertIn('git rebase "origin/$GITHUB_REF_NAME"', section)
+        self.assertIn('HEAD:refs/heads/$GITHUB_REF_NAME', section)
+
 
 if __name__ == "__main__":
     unittest.main()
