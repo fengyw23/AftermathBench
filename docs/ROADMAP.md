@@ -81,6 +81,12 @@ promoted into the final native-runtime benchmark.
   family-wide fixed decision tree.
 - [x] Complete and archive its task-specific model execution control and
   ordinary model condition.
+- [x] Retain the 4/4 package-provenance result as a saturated control and freeze
+  a separate six-boundary approved-artifact-promotion instance contract that
+  crosses approval, signed artifacts, deployment, external attestation and
+  prior-release preservation.
+- [ ] Implement and replay the approved-artifact-promotion native prefix,
+  failure boundaries, evaluator, controls and ordinary-model condition.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 
