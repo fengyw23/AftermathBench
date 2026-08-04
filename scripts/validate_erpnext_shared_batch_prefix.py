@@ -9,6 +9,9 @@ from typing import Any
 from aftermath_bench.integrations.erpnext_shared_batch_evaluator import (
     shared_batch_document_fingerprint,
 )
+from aftermath_bench.integrations.erpnext_shared_batch_prefix import (
+    required_component_quantity,
+)
 from aftermath_bench.native_scenario import load_native_scenario
 
 
@@ -113,9 +116,9 @@ def validate_prefix(
                 for row in receipt_items
             )
             and _decimal(primary_receipt_item.get("qty"))
-            == _decimal(primary["ordered_quantity"])
+            == _decimal(required_component_quantity(primary))
             and _decimal(secondary_receipt_item.get("qty"))
-            == _decimal(secondary["ordered_quantity"])
+            == _decimal(required_component_quantity(secondary))
         ),
         "landed_cost_submitted_and_native": (
             _submitted(lcv)

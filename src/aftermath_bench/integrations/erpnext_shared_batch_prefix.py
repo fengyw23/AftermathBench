@@ -19,6 +19,14 @@ def _money(value: Any) -> float:
     return float(Decimal(str(value)))
 
 
+def required_component_quantity(work_order: dict[str, Any]) -> float:
+    """Return the native stock quantity required by a production branch."""
+
+    return float(work_order["ordered_quantity"]) * float(
+        work_order["component_quantity_per_unit"]
+    )
+
+
 def _as_utc_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         parsed = value
@@ -114,11 +122,7 @@ class ERPNextSharedBatchPrefixBuilder:
 
     @staticmethod
     def _required_component_quantity(work_order: dict[str, Any]) -> float:
-        """Return the native stock quantity required by a production branch."""
-
-        return float(work_order["ordered_quantity"]) * float(
-            work_order["component_quantity_per_unit"]
-        )
+        return required_component_quantity(work_order)
 
     @staticmethod
     def _naming_series_for_first_document(expected_name: str) -> str:
@@ -965,4 +969,8 @@ class ERPNextSharedBatchPrefixBuilder:
         )
 
 
-__all__ = ["ERPNextSharedBatchPrefixBuilder", "SharedBatchPrefix"]
+__all__ = [
+    "ERPNextSharedBatchPrefixBuilder",
+    "SharedBatchPrefix",
+    "required_component_quantity",
+]
