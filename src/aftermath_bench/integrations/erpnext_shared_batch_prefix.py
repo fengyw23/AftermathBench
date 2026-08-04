@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -36,6 +37,8 @@ class SharedBatchPrefix:
     secondary_work_order: str
     primary_transfer: str
     secondary_transfer: str
+    primary_material_quality_inspection: str
+    secondary_material_quality_inspection: str
     accepted_primary_job_card: str
     rejected_primary_job_card: str
     secondary_job_card: str
@@ -56,6 +59,7 @@ class SharedBatchPrefix:
     secondary_quantity: float
     expected_corrective_operation_cost: float
     protected_fingerprints: dict[str, str]
+    evaluation_fixture: dict[str, Any]
     trace: tuple[dict[str, Any], ...]
 
     def as_dict(self) -> dict[str, Any]:
@@ -588,11 +592,28 @@ class ERPNextSharedBatchPrefixBuilder:
             trace=trace,
         )
 
+        helper_fixture = {
+            "quality_parameter": self.QUALITY_PARAMETER,
+            "corrective_operation": self.fixture["operations"]["corrective"],
+            "hour_rate": self.HOUR_RATE,
+        }
+        helper = ERPNextManufacturingPrefixBuilder(
+            self.adapter, scenario_id=self.scenario_id, fixture=helper_fixture
+        )
+
         primary_transfer = self._make_stock_entry(
             work_order=str(primary_wo["name"]),
             purpose="Material Transfer for Manufacture",
             quantity=float(primary["ordered_quantity"]),
             batch_id=batch_id,
+            trace=trace,
+        )
+        primary_material_qi = helper._create_inspection(
+            reference_type="Stock Entry",
+            reference_name=str(primary_transfer["name"]),
+            item_code=str(shared["item_code"]),
+            quantity=float(primary["ordered_quantity"]),
+            accepted=True,
             trace=trace,
         )
         primary_transfer = _payload(
@@ -606,19 +627,19 @@ class ERPNextSharedBatchPrefixBuilder:
             batch_id=batch_id,
             trace=trace,
         )
+        secondary_material_qi = helper._create_inspection(
+            reference_type="Stock Entry",
+            reference_name=str(secondary_transfer["name"]),
+            item_code=str(shared["item_code"]),
+            quantity=float(secondary["ordered_quantity"]),
+            accepted=True,
+            trace=trace,
+        )
         secondary_transfer = _payload(
             self.adapter.submit_document("Stock Entry", str(secondary_transfer["name"]))
         )
         self._trace(trace, "submit secondary material transfer", secondary_transfer)
 
-        helper_fixture = {
-            "quality_parameter": self.QUALITY_PARAMETER,
-            "corrective_operation": self.fixture["operations"]["corrective"],
-            "hour_rate": self.HOUR_RATE,
-        }
-        helper = ERPNextManufacturingPrefixBuilder(
-            self.adapter, scenario_id=self.scenario_id, fixture=helper_fixture
-        )
         primary_cards = self._job_cards(str(primary_wo["name"]))
         accepted_quantity = float(primary["accepted_quantity"])
         rework_quantity = float(primary["rework_quantity"])
@@ -803,6 +824,8 @@ class ERPNextSharedBatchPrefixBuilder:
             secondary_work_order=str(secondary_wo["name"]),
             primary_transfer=str(primary_transfer["name"]),
             secondary_transfer=str(secondary_transfer["name"]),
+            primary_material_quality_inspection=str(primary_material_qi["name"]),
+            secondary_material_quality_inspection=str(secondary_material_qi["name"]),
             accepted_primary_job_card=str(accepted_job["name"]),
             rejected_primary_job_card=str(rejected_job["name"]),
             secondary_job_card=str(secondary_job["name"]),
@@ -828,6 +851,7 @@ class ERPNextSharedBatchPrefixBuilder:
                 key: shared_batch_document_fingerprint(document)
                 for key, document in protected_documents.items()
             },
+            evaluation_fixture=copy.deepcopy(self.fixture),
             trace=tuple(trace),
         )
 

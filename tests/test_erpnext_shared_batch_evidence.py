@@ -89,6 +89,8 @@ class ERPNextSharedBatchEvidenceTest(unittest.TestCase):
                 "secondary_work_order": "WO-SECONDARY",
                 "primary_transfer": "STE-PRIMARY-TRANSFER",
                 "secondary_transfer": "STE-SECONDARY-TRANSFER",
+                "primary_material_quality_inspection": "QI-PRIMARY-MATERIAL",
+                "secondary_material_quality_inspection": "QI-SECONDARY-MATERIAL",
                 "accepted_primary_job_card": "JC-PRIMARY-ACCEPTED",
                 "rejected_primary_job_card": "JC-PRIMARY-REJECTED",
                 "secondary_job_card": "JC-SECONDARY",

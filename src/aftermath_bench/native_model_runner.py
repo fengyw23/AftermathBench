@@ -38,6 +38,7 @@ from .model_runner import (
 from .native_boundary_equivalence import native_boundaries_equivalent
 from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
 from .native_erpnext_multiwarehouse_family import ERP_NEXT_MULTIWAREHOUSE_FAMILY
+from .native_erpnext_shared_batch_family import ERP_NEXT_SHARED_BATCH_FAMILY
 from .native_family import (
     NativeFamilyDefinition,
     NativeFamilyRegistry,
@@ -418,8 +419,7 @@ def _surface_failure(failure_report: dict[str, Any]) -> dict[str, Any]:
         if isinstance(result, dict):
             return dict(result)
     raise ValueError(
-        "native failure report must contain visible_failure or "
-        "latest_attempt.result"
+        "native failure report must contain visible_failure or " "latest_attempt.result"
     )
 
 
@@ -587,12 +587,9 @@ def run_native_family_agent(
         if (
             hidden_evaluation_session.provider != str(client.provider)
             or hidden_evaluation_session.model != str(client.model)
-            or hidden_evaluation_session.execution_control
-            is not execution_control
+            or hidden_evaluation_session.execution_control is not execution_control
         ):
-            raise RuntimeError(
-                "hidden evaluation lock does not match this model run"
-            )
+            raise RuntimeError("hidden evaluation lock does not match this model run")
         validate_hidden_evaluation_session(
             scenario_path=scenario.path,
             freeze_path=Path(hidden_freeze_path),
@@ -693,19 +690,13 @@ def run_native_family_agent(
     if isinstance(instance_spec_sha256, str) and instance_spec_sha256:
         report["instance_spec_sha256"] = instance_spec_sha256
     if formal_input_lock_verification is not None:
-        report["formal_input_lock"] = dict(
-            formal_input_lock_verification
-        )
+        report["formal_input_lock"] = dict(formal_input_lock_verification)
     if pre_model_boundary_evidence is not None:
-        report["pre_model_boundary_evidence"] = dict(
-            pre_model_boundary_evidence
-        )
+        report["pre_model_boundary_evidence"] = dict(pre_model_boundary_evidence)
     if hidden_evaluation_session is not None:
         report["hidden_evaluation"] = {
             "evaluation_id": hidden_evaluation_session.evaluation_id,
-            "lock_event_sha256": (
-                hidden_evaluation_session.lock_event_sha256
-            ),
+            "lock_event_sha256": (hidden_evaluation_session.lock_event_sha256),
             "consumed_event_sha256": None,
         }
     if output_path is not None:
@@ -772,6 +763,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         SALES_RETURN_FAMILY,
         ERP_NEXT_MANUFACTURING_FAMILY,
         ERP_NEXT_MULTIWAREHOUSE_FAMILY,
+        ERP_NEXT_SHARED_BATCH_FAMILY,
         FORGEJO_RELEASE_FAMILY,
         FORGEJO_MIGRATION_FAMILY,
         FORGEJO_PUBLICATION_FAMILY,
@@ -880,13 +872,8 @@ def run_live_native_agent(
     # Normalize every family-specific boundary layout before a hidden-test
     # lifecycle is locked and, crucially, before any provider can see it.
     _surface_failure(failure_report)
-    if (
-        pre_model_boundary_evidence_path is not None
-        and formal_input_lock_path is None
-    ):
-        raise ValueError(
-            "pre-model boundary evidence requires --formal-input-lock"
-        )
+    if pre_model_boundary_evidence_path is not None and formal_input_lock_path is None:
+        raise ValueError("pre-model boundary evidence requires --formal-input-lock")
     formal_input_lock_verification: dict[str, Any] | None = None
     pre_model_boundary_evidence: dict[str, str] | None = None
     if formal_input_lock_path is not None:
@@ -904,14 +891,11 @@ def run_live_native_agent(
         formal_input_lock_verification = verified_input_lock.as_dict()
         if pre_model_boundary_evidence_path is None:
             raise ValueError(
-                "formal input lock requires "
-                "--pre-model-boundary-evidence"
+                "formal input lock requires " "--pre-model-boundary-evidence"
             )
         evidence_path = Path(pre_model_boundary_evidence_path)
         if not evidence_path.is_file() or evidence_path.is_symlink():
-            raise ValueError(
-                "pre-model boundary evidence must be a regular file"
-            )
+            raise ValueError("pre-model boundary evidence must be a regular file")
         digest = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
         if not _pre_model_boundary_matches_lock(
             root=root,
@@ -967,14 +951,17 @@ def run_live_native_agent(
             model=str(client.model),
             execution_control=execution_control,
         )
-    elif any(
-        value is not None
-        for value in (
-            hidden_freeze_path,
-            hidden_usage_ledger_path,
-            hidden_evaluation_id,
+    elif (
+        any(
+            value is not None
+            for value in (
+                hidden_freeze_path,
+                hidden_usage_ledger_path,
+                hidden_evaluation_id,
+            )
         )
-    ) or hidden_finalize:
+        or hidden_finalize
+    ):
         raise ValueError(
             "hidden evaluation options are valid only for hidden_test scenarios"
         )
@@ -999,9 +986,7 @@ def run_live_native_agent(
             freeze_path=Path(hidden_freeze_path),
             session=hidden_session,
         )
-        report["hidden_evaluation"]["consumed_event_sha256"] = consumed[
-            "event_sha256"
-        ]
+        report["hidden_evaluation"]["consumed_event_sha256"] = consumed["event_sha256"]
         if output_path is not None:
             destination = Path(output_path)
             destination.write_text(
@@ -1043,15 +1028,12 @@ def validate_native_run_bindings(
         "forgejo-release-package-publication",
         "forgejo-migration-deployment",
     }
-    if (
-        family_id in instance_bound_families
-        and any(
-            value is None
-            for value in (
-                scenario.raw.get("instance_spec_sha256"),
-                prefix.get("instance_spec_sha256"),
-                failure_report.get("instance_spec_sha256"),
-            )
+    if family_id in instance_bound_families and any(
+        value is None
+        for value in (
+            scenario.raw.get("instance_spec_sha256"),
+            prefix.get("instance_spec_sha256"),
+            failure_report.get("instance_spec_sha256"),
         )
     ):
         raise ValueError(

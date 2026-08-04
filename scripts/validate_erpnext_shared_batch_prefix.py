@@ -114,6 +114,15 @@ def validate_prefix(
         "landed_cost_gl_balanced": (
             len(relevant_lcv_gl) >= 2 and gl_debit > 0 and gl_debit == gl_credit
         ),
+        "both_material_branches_inspected_before_transfer": all(
+            _submitted(evidence[key])
+            and str(evidence[key].get("status")) == "Accepted"
+            and str(evidence[key].get("reference_name")) == str(prefix[transfer_key])
+            for key, transfer_key in (
+                ("primary_material_quality_inspection", "primary_transfer"),
+                ("secondary_material_quality_inspection", "secondary_transfer"),
+            )
+        ),
         "primary_boundary_quantity": (
             _submitted(primary_wo)
             and _decimal(primary_wo.get("qty")) == _decimal(primary["ordered_quantity"])

@@ -28,6 +28,8 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             "secondary_work_order": "Work Order",
             "primary_transfer": "Stock Entry",
             "secondary_transfer": "Stock Entry",
+            "primary_material_quality_inspection": "Quality Inspection",
+            "secondary_material_quality_inspection": "Quality Inspection",
             "accepted_primary_job_card": "Job Card",
             "rejected_primary_job_card": "Job Card",
             "secondary_job_card": "Job Card",
