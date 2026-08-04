@@ -15,7 +15,7 @@ claims.
 | ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 2/4; matched group failed) | hard-admitted development evidence; formal integration pending |
 | ERPNext inventory-cost settlement | 4 per instance | complete (8/8 across two instances) | rejected by retrospective depth gate (static/adaptive 2/2) | complete on both instances (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | two independent native archives complete; retain as diagnostic |
 | Forgejo approved signed-artifact promotion | 6 | complete (6/6) | rejected by retrospective depth gate (static/adaptive 3/2) | complete (best fixed policy 2/6; no matched-group solver) | complete (GLM-5.2 6/6) | not run after depth rejection | native replay archive complete; retain as diagnostic |
-| Forgejo cross-system reconciliation | 6 per instance | complete on first instance (6/6) | complete on first instance (static/adaptive 6/6) | pending | pending | pending | second independent native instance prepared |
+| Forgejo cross-system reconciliation | 6 per instance | complete (12/12 across two instances) | complete on both instances (static/adaptive 6/6) | complete (84 trajectories; strongest fixed policy 2/6) | running (GLM-5.2) | pending control gate | two independent native archives complete |
 
 ## What is already established
 
@@ -238,7 +238,14 @@ certificate six, adaptive worst-case depth six, and no single-surface solver.
 Actions evidence is checked by downloading and hashing ZIP entries against
 repository source. Release metadata must semantically bind the production
 digest and attestation key without fixed prose. Fixed baselines and model gates
-remain open, so this is a native construction result only.
+remain open in that run, so it is a native construction result only. The
+two-instance gate
+[30902308186](https://github.com/fengyw23/AftermathBench/actions/runs/30902308186)
+then replayed two disjoint repositories and all 84 fixed-policy trajectories.
+Both instances reproduce 6/6 static/adaptive depth. The strongest fixed policy
+passes only 2/6, no policy solves the matched group, and full replay passes 0/6.
+This closes native construction, fixed-policy resistance and instance
+independence; the GLM-5.2 execution control is now running.
 
 ## Claim boundary
 
@@ -270,13 +277,14 @@ are not considered closed by adding more variants to an existing template.
    quantities or dependency topology differ. Both must pass the same replay,
    reference, fixed-policy, and admission pipeline. The second shared-batch
    instance now passes this gate in run `30881600867`; inventory-cost instances
-   pass it in `30896418025`. The requirement remains active for new families;
-   the second Forgejo reconciliation instance is prepared but not replayed yet.
+   pass it in `30896418025`; both Forgejo reconciliation instances pass in
+   `30902308186`. The requirement remains active for new families.
 3. **Forgejo saturation risk (new native construction passes; model gate open).**
    The earlier linear promotion family remains shallow, but the independent-gap
    reconciliation family passes the predeclared 6/6 decision-depth profile in
-   native replay. Closure still requires a second native instance, fixed-policy
-   resistance, execution control, and ordinary strong-model evaluation.
+   native replay on both independent instances, and its strongest fixed policy
+   reaches only 2/6. Closure still requires execution control and ordinary
+   strong-model evaluation.
 
 These gates keep effort focused on new recovery reasoning rather than increasing
 case count through surface-level renaming.

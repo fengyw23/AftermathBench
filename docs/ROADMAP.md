@@ -121,8 +121,11 @@ promoted into the final native-runtime benchmark.
   matrix from replay instead of accepting the design declaration. Run
   `30899866459` passes all boundaries/references and reconstructs static and
   adaptive depth 6/6 on the first instance.
-- [ ] Replay the disjoint `radiology-routing-service` instance, then add fixed
-  baselines and task-specific model execution control before any ordinary run.
+- [x] Replay the disjoint `radiology-routing-service` instance and execute 84
+  fixed-policy trajectories across both instances. Run `30902308186` passes all
+  native gates; the strongest fixed strategy reaches 2/6 and no strategy solves
+  either matched group.
+- [ ] Pass the task-specific GLM-5.2 execution control before any ordinary run.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 
