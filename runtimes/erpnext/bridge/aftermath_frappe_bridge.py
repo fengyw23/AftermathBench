@@ -68,6 +68,7 @@ def enqueue_document_webhook(
         doc=document,
         webhook=webhook,
         queue=webhook.background_jobs_queue or "default",
+        track_job=True,
     )
     return {
         "job_id": str(job.id),

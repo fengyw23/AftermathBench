@@ -86,17 +86,22 @@ jobs:
               "$SCENARIO"
           )
           test "${#variants[@]}" -eq 4
-          mkdir -p "$RUNTIME_OUTPUT/boundaries" "$RUNTIME_OUTPUT/references"
+          mkdir -p "$RUNTIME_OUTPUT/boundaries" "$RUNTIME_OUTPUT/references" \
+            "$RUNTIME_OUTPUT/boundary-bundles"
           for variant in "${variants[@]}"
           do
-            python scripts/run_erpnext_shared_batch_failure.py \
+            echo "building shared-batch boundary: $variant"
+            timeout 300s python scripts/run_erpnext_shared_batch_failure.py \
               --variant "$variant" \
               --credentials runtimes/erpnext/.runtime/credentials.json \
               --prefix "$RUNTIME_OUTPUT/prefix.json" \
               --snapshot-bundle "$RUNTIME_OUTPUT/prefix-bundle" \
               --output "$RUNTIME_OUTPUT/boundaries/$variant.json" \
               > "$RUNTIME_OUTPUT/logs/$variant-boundary.log" 2>&1
-            python scripts/run_erpnext_shared_batch_control.py \
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant"
+            echo "running shared-batch reference: $variant"
+            timeout 300s python scripts/run_erpnext_shared_batch_control.py \
               --variant "$variant" \
               --scenario "$SCENARIO" \
               --credentials runtimes/erpnext/.runtime/credentials.json \
@@ -104,6 +109,39 @@ jobs:
               --output "$RUNTIME_OUTPUT/references/$variant.json" \
               > "$RUNTIME_OUTPUT/logs/$variant-reference.log" 2>&1
           done
+
+      - name: Execute fixed-strategy controls from every boundary
+        run: |
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          mapfile -t baselines < <(
+            python -c 'from aftermath_bench.integrations.erpnext_shared_batch_baselines import SHARED_BATCH_BASELINE_NAMES; print(*SHARED_BATCH_BASELINE_NAMES, sep="\n")'
+          )
+          mkdir -p "$RUNTIME_OUTPUT/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              echo "running fixed baseline: $baseline / $variant"
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant" \
+                > "$RUNTIME_OUTPUT/logs/$baseline-$variant-restore.log" 2>&1
+              timeout 180s python scripts/run_erpnext_shared_batch_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --prefix "$RUNTIME_OUTPUT/prefix.json" \
+                --output "$RUNTIME_OUTPUT/baselines/$baseline-$variant.json" \
+                > "$RUNTIME_OUTPUT/logs/$baseline-$variant.log" 2>&1
+            done
+          done
+          python scripts/summarize_erpnext_shared_batch_baselines.py \
+            --directory "$RUNTIME_OUTPUT/baselines" \
+            --scenario "$SCENARIO" \
+            --output "$RUNTIME_OUTPUT/baseline-summary.json"
+          rm -rf "$RUNTIME_OUTPUT/boundary-bundles"
 
       - name: Capture native diagnostics
         if: always()
@@ -132,6 +170,7 @@ jobs:
           include-hidden-files: true
           path: |
             data/generated/erpnext-shared-batch-recovery-dev-001/native-prefix
+          compression-level: 9
           if-no-files-found: warn
 
       - name: Tear down services

@@ -1,6 +1,10 @@
 name: erpnext-shared-batch-model
 
 on:
+  push:
+    branches:
+      - erpnext-shared-batch-model
+      - erpnext-shared-batch-control
   workflow_dispatch:
     inputs:
       model:
@@ -32,9 +36,9 @@ jobs:
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
       AFTERMATH_API_KEY: ${{ secrets.ZHIPU_CODING_API_KEY }}
       AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
-      MODEL_ID: ${{ inputs.model }}
-      REPETITIONS: ${{ inputs.repetitions }}
-      EXECUTION_CONTROL: ${{ inputs.execution_control }}
+      MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
+      REPETITIONS: ${{ inputs.repetitions || '1' }}
+      EXECUTION_CONTROL: ${{ inputs.execution_control || 'false' }}
       SCENARIO: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
       RUN_ROOT: data/generated/erpnext-shared-batch-recovery-dev-001/model
     steps:
@@ -50,6 +54,9 @@ jobs:
           case "$REPETITIONS" in
             ''|*[!0-9]*|0) echo "repetitions must be a positive integer" >&2; exit 2 ;;
           esac
+          if [ "$GITHUB_REF_NAME" = "erpnext-shared-batch-control" ]; then
+            echo "EXECUTION_CONTROL=true" >> "$GITHUB_ENV"
+          fi
           python -m aftermath_bench validate-native-scenario --scenario "$SCENARIO"
           python -m unittest discover -s tests -p 'test_erpnext_shared_batch_*.py' -v
           python -m unittest discover -s tests -p 'test_native_erpnext_shared_batch_family.py' -v
@@ -78,7 +85,8 @@ jobs:
           )
           for variant in "${variants[@]}"
           do
-            python scripts/run_erpnext_shared_batch_failure.py \
+            echo "building shared-batch boundary: $variant"
+            timeout 300s python scripts/run_erpnext_shared_batch_failure.py \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
@@ -103,6 +111,7 @@ jobs:
             mkdir -p "$run_dir"
             for variant in "${variants[@]}"
             do
+              echo "running model: repetition $repetition / $variant"
               output="$run_dir/$variant.json"
               control_flag=()
               if [ "$EXECUTION_CONTROL" = "true" ]; then

@@ -8,6 +8,7 @@ from aftermath_bench.integrations.erpnext_native_instance import (
 )
 from aftermath_bench.integrations.erpnext_shared_batch_evaluator import (
     evaluate_shared_batch_terminal,
+    shared_batch_document_fingerprint,
 )
 from aftermath_bench.schema import repository_root
 
@@ -118,6 +119,30 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
         result = self.evaluate(evidence)
         self.assertFalse(result["passed"])
         self.assertIn("certificate_exactly_once", result["failures"])
+
+    def test_protected_fingerprint_covers_native_inspection_readings(self) -> None:
+        inspection = {
+            "doctype": "Quality Inspection",
+            "name": "QI-PRIMARY-ACCEPTED",
+            "docstatus": 1,
+            "status": "Accepted",
+            "reference_type": "Job Card",
+            "reference_name": "JC-PRIMARY-ACCEPTED",
+            "readings": [
+                {
+                    "specification": "Calibration deviation",
+                    "min_value": 0,
+                    "max_value": 1,
+                    "reading_1": 0.4,
+                }
+            ],
+        }
+        changed = copy.deepcopy(inspection)
+        changed["readings"][0]["reading_1"] = 0.9
+        self.assertNotEqual(
+            shared_batch_document_fingerprint(inspection),
+            shared_batch_document_fingerprint(changed),
+        )
 
 
 if __name__ == "__main__":
