@@ -155,8 +155,13 @@ def project_reconciliation_obligations(
         and attestation.get("payload", {}).get("artifact_digest")
         == instance.artifact_digest
     )
+    target_release = target_releases[0] if len(target_releases) == 1 else {}
+    release_body = str(target_release.get("body", ""))
     metadata_valid = (
         len(target_releases) == 1
+        and instance.artifact_digest in release_body
+        and instance.attestation_key in release_body
+        and not bool(target_release.get("draft", False))
         and rollout is not None
         and rollout.get("state") == "closed"
     )

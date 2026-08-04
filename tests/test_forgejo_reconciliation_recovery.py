@@ -16,6 +16,7 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             version="6.2.0",
             approved_commit="approved",
             artifact_digest="sha256:approved",
+            attestation_key="transparency:service:v6.2.0",
             production_environment="production",
             protected_environment="canary",
             release_tag="v6.2.0",
@@ -97,7 +98,14 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             },
             "releases": [
                 {"tag_name": "v6.1.4"},
-                {"tag_name": "v6.2.0"},
+                {
+                    "tag_name": "v6.2.0",
+                    "body": (
+                        "Approved sha256:approved and "
+                        "transparency:service:v6.2.0 are live."
+                    ),
+                    "draft": False,
+                },
             ],
             "issues": [{"number": 2, "state": "closed"}],
             "comments": [],
@@ -143,6 +151,32 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
                     [name for name, valid in projection.items() if not valid],
                     [expected],
                 )
+
+    def test_release_metadata_is_semantic_not_presence_only(self) -> None:
+        for body in (
+            "release complete",
+            "sha256:approved deployed",
+            "transparency:service:v6.2.0 accepted",
+        ):
+            with self.subTest(body=body):
+                state = copy.deepcopy(self.state)
+                state["releases"][1]["body"] = body
+                projection = project_reconciliation_obligations(
+                    state, instance=self.instance, prefix=self.prefix
+                )
+                self.assertFalse(
+                    projection["release_metadata_matches_all_effects"]
+                )
+
+        state = copy.deepcopy(self.state)
+        state["releases"][1]["body"] = (
+            "transparency:service:v6.2.0 accepted; production is "
+            "sha256:approved."
+        )
+        projection = project_reconciliation_obligations(
+            state, instance=self.instance, prefix=self.prefix
+        )
+        self.assertTrue(projection["release_metadata_matches_all_effects"])
 
 
 if __name__ == "__main__":
