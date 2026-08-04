@@ -67,9 +67,32 @@ def analyze_scope_decision_matrix(payload: dict[str, Any]) -> ScopeDecisionAudit
             )
         )
 
-    surfaces = tuple(sorted(expected_surfaces or ()))
-    if not surfaces:
+    observations = tuple(sorted(expected_surfaces or ()))
+    if not observations:
         raise ValueError("scope decision matrix has no observable surfaces")
+    raw_requirements = payload.get("surface_requirements")
+    if raw_requirements is None:
+        requirements = {surface: (surface,) for surface in observations}
+    else:
+        if not isinstance(raw_requirements, dict) or set(raw_requirements) != set(
+            observations
+        ):
+            raise ValueError(
+                "surface_requirements must cover every observation exactly once"
+            )
+        requirements: dict[str, tuple[str, ...]] = {}
+        for observation in observations:
+            raw = raw_requirements[observation]
+            if not isinstance(raw, list) or not raw or any(
+                not isinstance(item, str) or not item.strip() for item in raw
+            ):
+                raise ValueError(
+                    f"invalid query-surface requirements for {observation!r}"
+                )
+            requirements[observation] = tuple(sorted(set(raw)))
+    query_surfaces = tuple(
+        sorted({surface for values in requirements.values() for surface in values})
+    )
     signatures = tuple(row[1] for row in rows)
     if len(set(signatures)) < 2:
         raise ValueError("scope decision matrix requires multiple recovery signatures")
@@ -80,18 +103,32 @@ def analyze_scope_decision_matrix(payload: dict[str, Any]) -> ScopeDecisionAudit
         if signatures[left] == signatures[right]:
             continue
         different_scope_pairs.append((left, right))
-        if all(rows[left][2][surface] == rows[right][2][surface] for surface in surfaces):
+        if all(
+            rows[left][2][observation] == rows[right][2][observation]
+            for observation in observations
+        ):
             indistinguishable.append((rows[left][0], rows[right][0]))
+
+    def unlocked(selected: frozenset[str]) -> tuple[str, ...]:
+        return tuple(
+            observation
+            for observation in observations
+            if set(requirements[observation]).issubset(selected)
+        )
+
+    def fingerprint(index: int, selected: frozenset[str]) -> tuple[str, ...]:
+        return tuple(rows[index][2][item] for item in unlocked(selected))
 
     minimum_certificate: int | None = None
     if not indistinguishable:
-        for size in range(1, len(surfaces) + 1):
+        for size in range(1, len(query_surfaces) + 1):
             if any(
                 all(
-                    any(rows[left][2][surface] != rows[right][2][surface] for surface in selected)
+                    fingerprint(left, frozenset(selected))
+                    != fingerprint(right, frozenset(selected))
                     for left, right in different_scope_pairs
                 )
-                for selected in combinations(surfaces, size)
+                for selected in combinations(query_surfaces, size)
             ):
                 minimum_certificate = size
                 break
@@ -100,19 +137,23 @@ def analyze_scope_decision_matrix(payload: dict[str, Any]) -> ScopeDecisionAudit
         return len({signatures[index] for index in indices}) <= 1
 
     @cache
-    def decision_depth(indices: tuple[int, ...], remaining: tuple[str, ...]) -> int | None:
+    def decision_depth(
+        indices: tuple[int, ...],
+        selected: frozenset[str],
+        remaining: tuple[str, ...],
+    ) -> int | None:
         if homogeneous(indices):
             return 0
         best: int | None = None
         for surface in remaining:
             partitions: dict[str, list[int]] = {}
+            next_selected = selected | {surface}
             for index in indices:
-                partitions.setdefault(rows[index][2][surface], []).append(index)
-            if len(partitions) <= 1:
-                continue
+                key = _canonical(fingerprint(index, next_selected))
+                partitions.setdefault(key, []).append(index)
             next_remaining = tuple(item for item in remaining if item != surface)
             child_depths = [
-                decision_depth(tuple(group), next_remaining)
+                decision_depth(tuple(group), next_selected, next_remaining)
                 for group in partitions.values()
             ]
             if any(depth is None for depth in child_depths):
@@ -122,19 +163,21 @@ def analyze_scope_decision_matrix(payload: dict[str, Any]) -> ScopeDecisionAudit
         return best
 
     all_indices = tuple(range(len(rows)))
-    adaptive_depth = decision_depth(all_indices, surfaces)
+    adaptive_depth = decision_depth(all_indices, frozenset(), query_surfaces)
     single_surface_solvers = tuple(
         surface
-        for surface in surfaces
+        for surface in query_surfaces
         if all(
             homogeneous(tuple(group))
-            for group in _partitions(rows, all_indices, surface).values()
+            for group in _partitions_by_fingerprint(
+                rows, all_indices, frozenset({surface}), fingerprint
+            ).values()
         )
     )
     return ScopeDecisionAudit(
         variant_count=len(rows),
         recovery_signature_count=len(set(signatures)),
-        observable_surface_count=len(surfaces),
+        observable_surface_count=len(query_surfaces),
         minimum_static_certificate_size=minimum_certificate,
         optimal_adaptive_worst_case_depth=adaptive_depth,
         single_surface_solvers=single_surface_solvers,
@@ -150,4 +193,16 @@ def _partitions(
     result: dict[str, list[int]] = {}
     for index in indices:
         result.setdefault(rows[index][2][surface], []).append(index)
+    return result
+
+
+def _partitions_by_fingerprint(
+    rows: list[tuple[str, str, dict[str, str]]],
+    indices: tuple[int, ...],
+    selected: frozenset[str],
+    fingerprint,
+) -> dict[str, list[int]]:
+    result: dict[str, list[int]] = {}
+    for index in indices:
+        result.setdefault(_canonical(fingerprint(index, selected)), []).append(index)
     return result

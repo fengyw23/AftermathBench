@@ -3,9 +3,44 @@ from __future__ import annotations
 import unittest
 
 from aftermath_bench.replay_scope_decision import audit_replayed_scope_decisions
+from aftermath_bench.scope_decision_audit import analyze_scope_decision_matrix
 
 
 class ReplayScopeDecisionTest(unittest.TestCase):
+    def test_joined_observation_charges_both_public_query_surfaces(self) -> None:
+        payload = {
+            "rows": [
+                {
+                    "variant": "valid",
+                    "recovery_signature": "preserve",
+                    "observations": {
+                        "package_inventory": ["binary"],
+                        "content_matches_approval": True,
+                    },
+                },
+                {
+                    "variant": "corrupt",
+                    "recovery_signature": "replace",
+                    "observations": {
+                        "package_inventory": ["binary"],
+                        "content_matches_approval": False,
+                    },
+                },
+            ],
+            "surface_requirements": {
+                "package_inventory": ["package_registry"],
+                "content_matches_approval": [
+                    "package_registry",
+                    "approval_sources",
+                ],
+            },
+        }
+        audit = analyze_scope_decision_matrix(payload)
+        self.assertEqual(audit.observable_surface_count, 2)
+        self.assertEqual(audit.minimum_static_certificate_size, 2)
+        self.assertEqual(audit.optimal_adaptive_worst_case_depth, 2)
+        self.assertEqual(audit.single_surface_solvers, ())
+
     def test_linear_forgejo_stage_family_is_identifiable_but_too_shallow(self) -> None:
         stages = {
             "s1": ("absent", "absent", "absent", "absent", "absent"),

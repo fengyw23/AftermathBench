@@ -108,6 +108,13 @@ promoted into the final native-runtime benchmark.
 - [ ] Build a non-monotonic Forgejo reconciliation family whose independently
   missing or inconsistent Actions evidence, artifact registration, deployment,
   attestation and metadata force all five public evidence surfaces to matter.
+- [x] Add a design-time independent-gap gate with joined-evidence accounting.
+  Both the Forgejo and ERPNext target designs currently require six public
+  surfaces in the worst case; native replay must reproduce this before hard
+  admission.
+- [ ] Materialize the six Forgejo design boundaries in native Actions,
+  deployment, attestation and release services, then rebuild the decision
+  matrix from replay instead of accepting the design declaration.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

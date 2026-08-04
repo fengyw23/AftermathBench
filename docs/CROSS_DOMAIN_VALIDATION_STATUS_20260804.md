@@ -204,6 +204,21 @@ next Forgejo family must use non-monotonic combinations (for example independent
 Actions evidence, artifact registration, deployment, attestation and metadata
 gaps), rather than adding more points to the same linear promotion sequence.
 
+The existing non-monotonic package-provenance development family is also not a
+solution to saturation: native run `30853698178` passed reference replay and
+defeated all seven fixed policies, but ordinary model run `30858985560` was 4/4
+for both GLM-5.2 and DeepSeek-V4-Pro. Its four variants still collapse to a
+small package-state comparison. This is evidence that fixed-policy resistance
+is necessary but insufficient.
+
+The next-family design gate now models five independently repairable
+cross-system obligations and explicitly charges joined evidence to every base
+query surface. The proposed Forgejo and ERPNext designs each have six recovery
+signatures (all-valid plus five one-gap counterfactuals), require all six public
+query surfaces as a static certificate, and have optimal adaptive worst-case
+depth six. These are design-time lower bounds only; no family is promoted until
+the same matrix is reconstructed from native replay.
+
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
