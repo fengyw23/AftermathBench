@@ -1,6 +1,12 @@
 name: erpnext-inventory-cost-model
 
 on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - .github/workflows/erpnext-inventory-cost-model.yml
+      - tests/test_inventory_cost_model_workflow.py
   workflow_dispatch:
     inputs:
       model:
@@ -39,7 +45,10 @@ jobs:
       AFTERMATH_MODEL_BASE_URL: https://open.bigmodel.cn/api/coding/paas/v4
       MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
       REPETITIONS: ${{ inputs.repetitions || '1' }}
-      EXECUTION_CONTROL: ${{ inputs.execution_control || 'false' }}
+      # Branch-only development workflows cannot be manually dispatched until
+      # present on the default branch. A push therefore runs the execution
+      # control first; workflow_dispatch retains the caller-selected value.
+      EXECUTION_CONTROL: ${{ github.event_name == 'push' && 'true' || inputs.execution_control || 'false' }}
       SCENARIO: ${{ inputs.scenario || 'data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json' }}
       RUN_ROOT: data/generated/erpnext-inventory-cost-model
     steps:

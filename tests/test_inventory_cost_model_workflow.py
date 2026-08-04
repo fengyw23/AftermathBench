@@ -19,6 +19,7 @@ class ERPNextInventoryCostModelWorkflowTest(unittest.TestCase):
         self.assertIn("--expected-execution-control", workflow)
         self.assertIn("ZHIPU_CODING_API_KEY", workflow)
         self.assertNotIn("gold_scope", workflow)
+        self.assertIn("github.event_name == 'push' && 'true'", workflow)
 
 
 if __name__ == "__main__":
