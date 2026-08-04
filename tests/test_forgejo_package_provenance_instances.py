@@ -85,6 +85,23 @@ class ForgejoPackageProvenanceInstanceTest(unittest.TestCase):
         variants = {item["id"]: item for item in blueprint["matched_variants"]}
         self.assertIn("r2_package_complete_index_missing", variants)
         self.assertIn("r2_package_corrupt_binary_index_missing", variants)
+        # The two same-inventory variants differ in the required repair,
+        # not in the durable-effect taxonomy.  Keeping them in the shared
+        # taxonomy makes hidden/package results comparable to other domains.
+        self.assertEqual(
+            variants["r2_package_complete_index_missing"]["boundary_class_id"],
+            "downstream_effect_missing",
+        )
+        self.assertEqual(
+            variants["r2_package_corrupt_binary_index_missing"]["boundary_class_id"],
+            "downstream_effect_missing",
+        )
+        self.assertEqual(
+            variants["r2_package_corrupt_binary_index_missing"][
+                "recovery_signature_class"
+            ],
+            "replace_invalid_package_and_create_index",
+        )
         profile = blueprint["admission_profile"]["adaptive_recovery"]
         self.assertTrue(profile["requires_same_inventory_opposite_scope_pair"])
         self.assertTrue(profile["requires_non_monotonic_repair"])

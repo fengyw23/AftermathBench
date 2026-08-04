@@ -52,21 +52,21 @@ def package_provenance_blueprint(
         (
             "r2_package_request_not_reached",
             "no_primary_effect",
-            "create_missing_package_chain",
+            "publish_missing_version",
         ),
         (
             "r2_package_binary_committed_response_lost",
             "primary_effect_uncertain",
-            "preserve_valid_partial_package",
+            "preserve_blob_and_attach_metadata",
         ),
         (
             "r2_package_complete_index_missing",
-            "same_inventory_valid_content",
-            "preserve_complete_package_and_create_index",
+            "downstream_effect_missing",
+            "resume_indexing",
         ),
         (
             "r2_package_corrupt_binary_index_missing",
-            "same_inventory_invalid_content",
+            "downstream_effect_missing",
             "replace_invalid_package_and_create_index",
         ),
     )
