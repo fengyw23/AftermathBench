@@ -65,6 +65,7 @@ class ERPNextSharedBatchProjectionTest(unittest.TestCase):
                 "total_completed_qty": 3,
             },
             "stock_reservation_entry": {
+                "docstatus": 1,
                 "voucher_no": "SO-CROSS-001",
                 "reserved_qty": 8,
             },
@@ -145,6 +146,7 @@ class ERPNextSharedBatchProjectionTest(unittest.TestCase):
         projected = project_shared_batch_terminal(raw, prefix=prefix, fixture=fixture)
         self.assertEqual(projected["shared_batch"]["primary_consumed_quantity"], 12)
         self.assertEqual(projected["shared_batch"]["secondary_consumed_quantity"], 8)
+        self.assertTrue(projected["secondary_work_order"]["reservation_active"])
         self.assertEqual(projected["shared_landed_cost"]["primary_allocation"], 864)
         self.assertEqual(projected["shared_landed_cost"]["secondary_allocation"], 576)
         self.assertEqual(projected["owner_counts"]["corrective_manufacture_entry"], 1)

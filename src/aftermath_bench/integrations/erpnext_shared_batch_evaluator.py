@@ -172,7 +172,8 @@ def evaluate_shared_batch_terminal(
             and _same_decimal(secondary.get("accepted_quantity"), secondary_ordered)
         ),
         "customer_reservation_preserved": (
-            str(secondary["reservation_sales_order"])
+            secondary.get("reservation_active") is True
+            and str(secondary["reservation_sales_order"])
             == str(fixture["customer_reservation"]["sales_order"])
             and _same_decimal(
                 secondary.get("reserved_quantity"),

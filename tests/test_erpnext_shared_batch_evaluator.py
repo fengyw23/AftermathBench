@@ -41,6 +41,7 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
                 "accepted_quantity": 8,
                 "reservation_sales_order": "SO-CROSS-001",
                 "reserved_quantity": 8,
+                "reservation_active": True,
             },
             "shared_batch": {
                 "supplier_batch_id": "SUP-BATCH-Z7-2408",
@@ -92,6 +93,13 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
         self.assertTrue(result["components"]["goal_completion"])
         self.assertFalse(result["components"]["preservation"])
         self.assertIn("secondary_output_preserved", result["failures"])
+
+    def test_rejects_a_cancelled_customer_reservation(self) -> None:
+        evidence = copy.deepcopy(self.evidence)
+        evidence["secondary_work_order"]["reservation_active"] = False
+        result = self.evaluate(evidence)
+        self.assertFalse(result["passed"])
+        self.assertIn("customer_reservation_preserved", result["failures"])
 
     def test_rejects_duplicate_corrective_owner_and_certificate(self) -> None:
         evidence = copy.deepcopy(self.evidence)

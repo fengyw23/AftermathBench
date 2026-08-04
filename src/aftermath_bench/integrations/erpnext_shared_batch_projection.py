@@ -184,6 +184,7 @@ def project_shared_batch_terminal(
             ),
             "reservation_sales_order": reservation.get("voucher_no"),
             "reserved_quantity": reservation.get("reserved_qty"),
+            "reservation_active": _submitted(reservation),
         },
         "shared_batch": {
             "supplier_batch_id": raw["supplier_batch"].get("batch_id")

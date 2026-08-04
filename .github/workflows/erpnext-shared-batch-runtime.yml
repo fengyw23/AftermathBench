@@ -114,6 +114,28 @@ jobs:
             --scenario-id erpnext-shared-batch-recovery-dev-001 \
             --output "$RUNTIME_OUTPUT/scope-decision-matrix.json"
 
+      - name: Replay native repair-preservation conflict probes
+        run: |
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          mkdir -p "$RUNTIME_OUTPUT/probes"
+          for variant in "${variants[@]}"
+          do
+            echo "running shared-batch interaction probe: $variant"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant" \
+              > "$RUNTIME_OUTPUT/logs/probe-$variant-restore.log" 2>&1
+            timeout 300s python scripts/run_erpnext_shared_batch_probe.py \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix "$RUNTIME_OUTPUT/prefix.json" \
+              --failure-report "$RUNTIME_OUTPUT/boundaries/$variant.json" \
+              --output "$RUNTIME_OUTPUT/probes/$variant.json" \
+              > "$RUNTIME_OUTPUT/logs/probe-$variant.log" 2>&1
+          done
+
       - name: Execute fixed-strategy controls from every boundary
         run: |
           mapfile -t variants < <(
