@@ -41,6 +41,41 @@ class ForgejoAPITest(unittest.TestCase):
         self.assertEqual(request.headers["Authorization"], "token secret-token")
         self.assertEqual(result["name"], "demo")
 
+    def test_attachment_download_rewrites_only_the_compose_internal_origin(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://127.0.0.1:8080/api/v1",
+                token="secret-token",
+            ).download(
+                "http://forgejo:3000/owner/repository/releases/7/assets/9"
+                "?download=1"
+            )
+
+        request = opener.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "http://127.0.0.1:8080/owner/repository/releases/7/assets/9"
+            "?download=1",
+        )
+
+    def test_attachment_download_keeps_external_origins_unchanged(self) -> None:
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response({}),
+        ) as opener:
+            ForgejoAPI(
+                base_url="http://127.0.0.1:8080/api/v1",
+                token="secret-token",
+            ).download("https://downloads.example.invalid/bundle.tgz")
+
+        self.assertEqual(
+            opener.call_args.args[0].full_url,
+            "https://downloads.example.invalid/bundle.tgz",
+        )
+
     def test_reset_validation_requires_the_mutation_to_disappear(self) -> None:
         client = Mock()
         client.list_issues.return_value = [{"title": BASELINE_ISSUE}]

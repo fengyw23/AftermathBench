@@ -130,6 +130,23 @@ class ForgejoAPI:
             ) from error
 
     def download(self, url: str) -> bytes:
+        parsed = urllib.parse.urlsplit(url)
+        # Forgejo emits attachment links from its configured ROOT_URL.  Our
+        # native Compose stack deliberately uses ``forgejo:3000`` internally,
+        # while benchmark tools run on the host through the fault gateway.
+        # Preserve the original path/query but route that one internal origin
+        # through the same reachable server origin as the API client.
+        if parsed.hostname == "forgejo":
+            server = urllib.parse.urlsplit(self.server_url)
+            url = urllib.parse.urlunsplit(
+                (
+                    server.scheme,
+                    server.netloc,
+                    parsed.path,
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
         request = urllib.request.Request(
             url,
             headers={
