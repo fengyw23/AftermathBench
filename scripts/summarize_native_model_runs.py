@@ -6,7 +6,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_VARIANTS = {
     "request_not_reached",
     "database_committed_response_lost",
@@ -23,16 +22,15 @@ def _load_reports(
     reports = []
     errors = []
     repetition_directories = sorted(
-        path
-        for path in root.rglob("repetition-*")
-        if path.is_dir()
+        path for path in root.rglob("repetition-*") if path.is_dir()
     )
     for run_directory in repetition_directories:
         for variant in sorted(expected_variants):
             path = run_directory / f"{variant}.json"
             if not path.is_file() or path.stat().st_size == 0:
                 errors.append(
-                    f"{path}: missing trajectory after provider retry"
+                    f"{path.relative_to(root).as_posix()}: "
+                    "missing trajectory after provider retry"
                 )
     for path in sorted(root.rglob("*.json")):
         if path.name.endswith("-failure.json") or path.name in {
@@ -48,7 +46,7 @@ def _load_reports(
             continue
         if "evaluation" not in payload or "variant" not in payload:
             continue
-        payload["_path"] = str(path)
+        payload["_path"] = path.relative_to(root).as_posix()
         reports.append(payload)
     return reports, errors
 
@@ -86,31 +84,21 @@ def summarize(
         passed += int(success)
         for component, value in evaluation.get("components", {}).items():
             component_totals[component] += int(bool(value))
-        error_type = report.get("trajectory_diagnostics", {}).get(
-            "primary_error"
-        )
+        error_type = report.get("trajectory_diagnostics", {}).get("primary_error")
         if error_type:
             failure_types[str(error_type)] += 1
         path = Path(report["_path"])
         repetition = next(
-            (
-                part
-                for part in path.parts
-                if part.startswith("repetition-")
-            ),
+            (part for part in path.parts if part.startswith("repetition-")),
             "repetition-unknown",
         )
-        by_group[(str(report["scenario_id"]), repetition)][
-            str(report["variant"])
-        ] = success
+        by_group[(str(report["scenario_id"]), repetition)][str(report["variant"])] = (
+            success
+        )
     matched_groups = [
-        variants
-        for variants in by_group.values()
-        if set(variants) == expected_variants
+        variants for variants in by_group.values() if set(variants) == expected_variants
     ]
-    matched_successes = sum(
-        int(all(group.values())) for group in matched_groups
-    )
+    matched_successes = sum(int(all(group.values())) for group in matched_groups)
     total = len(reports)
     return {
         "schema_version": "0.5",
@@ -119,18 +107,14 @@ def summarize(
         "task_pass_rate": passed / total if total else 0,
         "matched_group_count": len(matched_groups),
         "matched_group_success_rate": (
-            matched_successes / len(matched_groups)
-            if matched_groups
-            else 0
+            matched_successes / len(matched_groups) if matched_groups else 0
         ),
         "component_pass_rates": {
             component: count / total if total else 0
             for component, count in sorted(component_totals.items())
         },
         "failure_type_counts": dict(sorted(failure_types.items())),
-        "execution_control_counts": dict(
-            sorted(execution_control_counts.items())
-        ),
+        "execution_control_counts": dict(sorted(execution_control_counts.items())),
         "reports": [
             {
                 "scenario_id": report["scenario_id"],
@@ -177,9 +161,7 @@ def main() -> int:
         parser.error("--scenario and --expected-variant cannot be combined")
     if args.scenario is not None:
         scenario = json.loads(args.scenario.read_text(encoding="utf-8"))
-        expected_variants = {
-            str(item["id"]) for item in scenario["matched_variants"]
-        }
+        expected_variants = {str(item["id"]) for item in scenario["matched_variants"]}
     summary = summarize(
         args.run_directory,
         expected_execution_control=expected_execution_control,

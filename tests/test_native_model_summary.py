@@ -27,15 +27,11 @@ class NativeModelSummaryTest(unittest.TestCase):
                             "execution_control": False,
                             "evaluation": {
                                 "passed": index != 0,
-                                "components": {
-                                    "goal_completion": index != 0
-                                },
+                                "components": {"goal_completion": index != 0},
                             },
                             "trajectory_diagnostics": {
                                 "primary_error": (
-                                    "investigation_failure"
-                                    if index == 0
-                                    else None
+                                    "investigation_failure" if index == 0 else None
                                 )
                             },
                         }
@@ -150,6 +146,12 @@ class NativeModelSummaryTest(unittest.TestCase):
         self.assertEqual(summary["completed_runs"], 3)
         self.assertEqual(summary["matched_group_success_rate"], 1)
         self.assertEqual(summary["run_errors"], [])
+        self.assertTrue(
+            all(
+                report["path"].startswith("repetition-01/")
+                for report in summary["reports"]
+            )
+        )
 
 
 if __name__ == "__main__":
