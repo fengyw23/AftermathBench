@@ -206,6 +206,17 @@ def main() -> int:
         "scenario_id": scenario.scenario_id,
         "variant": args.variant,
         "surface_error": surface_error,
+        "latest_attempt": {
+            "tool": "submit_document",
+            "arguments": {
+                "doctype": "Landed Cost Voucher",
+                "name": prefix["landed_cost_voucher"],
+            },
+            "result": {
+                "ok": False,
+                "error": scenario.raw["ambiguous_operation"]["surface_result"],
+            },
+        },
         "gateway_events": _request_json("http://127.0.0.1:9091/audit"),
         "boundary_checks": boundary_checks,
         "dimension_projection": projection,

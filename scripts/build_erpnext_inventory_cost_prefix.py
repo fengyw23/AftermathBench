@@ -39,6 +39,7 @@ def main() -> int:
     instance_sha = scenario.raw.get("instance_spec_sha256")
     if isinstance(instance_sha, str) and instance_sha:
         payload["instance_spec_sha256"] = instance_sha
+    payload["evaluation_fixture"] = scenario.raw["fixture"]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

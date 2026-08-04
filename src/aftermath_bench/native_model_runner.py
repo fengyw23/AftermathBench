@@ -38,6 +38,7 @@ from .model_runner import (
 )
 from .native_boundary_equivalence import native_boundaries_equivalent
 from .native_erpnext_manufacturing_family import ERP_NEXT_MANUFACTURING_FAMILY
+from .native_erpnext_inventory_cost_family import ERP_NEXT_INVENTORY_COST_FAMILY
 from .native_erpnext_multiwarehouse_family import ERP_NEXT_MULTIWAREHOUSE_FAMILY
 from .native_erpnext_shared_batch_family import ERP_NEXT_SHARED_BATCH_FAMILY
 from .native_family import (
@@ -785,6 +786,7 @@ NATIVE_FAMILY_REGISTRY = NativeFamilyRegistry(
         PARTIAL_RETURN_FAMILY,
         SALES_RETURN_FAMILY,
         ERP_NEXT_MANUFACTURING_FAMILY,
+        ERP_NEXT_INVENTORY_COST_FAMILY,
         ERP_NEXT_MULTIWAREHOUSE_FAMILY,
         ERP_NEXT_SHARED_BATCH_FAMILY,
         FORGEJO_RELEASE_FAMILY,

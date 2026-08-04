@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+import unittest
+from unittest.mock import MagicMock
+
+from aftermath_bench.integrations.erpnext_inventory_cost_agent import (
+    ERPNextInventoryCostEnvironment,
+)
+
+
+class ERPNextInventoryCostAgentTest(unittest.TestCase):
+    def test_public_surface_has_generic_reads_and_only_five_mutations(self) -> None:
+        self.assertIn("get_document", ERPNextInventoryCostEnvironment.TOOL_NAMES)
+        self.assertIn("list_documents", ERPNextInventoryCostEnvironment.TOOL_NAMES)
+        self.assertIn(
+            "run_stock_reposting_scheduler",
+            ERPNextInventoryCostEnvironment.TOOL_NAMES,
+        )
+        self.assertNotIn("inspect_inventory_cost_state", ERPNextInventoryCostEnvironment.TOOL_NAMES)
+        self.assertNotIn("repair_inventory_cost", ERPNextInventoryCostEnvironment.TOOL_NAMES)
+        self.assertEqual(len(ERPNextInventoryCostEnvironment.MUTATION_TOOLS), 5)
+
+    def test_scheduler_tool_executes_pinned_native_reposting_function(self) -> None:
+        environment = object.__new__(ERPNextInventoryCostEnvironment)
+        environment.stack = MagicMock()
+        environment.stack.process_repost_item_valuation_queue.return_value = {
+            "processed": True,
+            "source_function": (
+                "erpnext.stock.doctype.repost_item_valuation."
+                "repost_item_valuation.repost_entries"
+            ),
+        }
+        result = environment._run_reposting_scheduler()
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["processed"])
+        environment.stack.process_repost_item_valuation_queue.assert_called_once_with()
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -334,6 +334,21 @@ class ForgejoAPITest(unittest.TestCase):
             "ref=refs%2Fheads%2Fmain", opener.call_args_list[0].args[0].full_url
         )
 
+    def test_action_job_log_read_uses_native_plaintext_endpoint(self) -> None:
+        client = ForgejoAPI(
+            base_url="http://forgejo.invalid/api/v1",
+            token="secret-token",
+        )
+        with patch.object(
+            ForgejoAPI, "download", return_value=b"step failed\n"
+        ) as download:
+            result = client.get_action_job_logs("after math", "release/control", 19)
+        self.assertEqual(result, "step failed\n")
+        download.assert_called_once_with(
+            "http://forgejo.invalid/api/v1/repos/after%20math/"
+            "release%2Fcontrol/actions/jobs/19/logs"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

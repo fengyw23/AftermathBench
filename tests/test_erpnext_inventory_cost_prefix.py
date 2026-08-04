@@ -78,6 +78,11 @@ class ERPNextInventoryCostPrefixTest(unittest.TestCase):
             self.fixture["customer_reservation"]["sales_order"], "SO-WARD-001"
         )
 
+    def test_shared_batch_uses_fifo_to_exercise_native_reposting_queue(self) -> None:
+        self.assertEqual(
+            self.fixture["shared_component"]["valuation_method"], "FIFO"
+        )
+
     def test_source_receipt_precedes_the_draft_landed_cost_boundary(self) -> None:
         source = (
             repository_root()
@@ -91,6 +96,16 @@ class ERPNextInventoryCostPrefixTest(unittest.TestCase):
         landed = source.index('"create draft Landed Cost Voucher"')
         self.assertLess(receipt, manufacture)
         self.assertLess(manufacture, landed)
+
+    def test_build_script_exposes_the_same_fixture_to_deterministic_scoring(self) -> None:
+        source = (
+            repository_root()
+            / "scripts"
+            / "build_erpnext_inventory_cost_prefix.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'payload["evaluation_fixture"] = scenario.raw["fixture"]', source
+        )
 
 
 if __name__ == "__main__":

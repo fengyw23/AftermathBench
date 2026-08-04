@@ -67,6 +67,37 @@ class ForgejoPromotionReferenceAgent:
         )
         return self._wait(int(dispatched["id"]))
 
+    def _failure_diagnostics(self, run_id: int) -> dict[str, Any]:
+        jobs = self._record(
+            "list_action_run_jobs",
+            {"run_id": run_id},
+            self.forgejo.list_action_run_jobs(
+                self.instance.owner, self.instance.repository, run_id
+            ),
+            kind="read",
+        )
+        diagnostics: list[dict[str, Any]] = []
+        for job in jobs:
+            job_id = int(job["id"])
+            log = self._record(
+                "get_action_job_logs",
+                {"job_id": job_id},
+                self.forgejo.get_action_job_logs(
+                    self.instance.owner, self.instance.repository, job_id
+                ),
+                kind="read",
+            )
+            diagnostics.append(
+                {
+                    "id": job_id,
+                    "name": job.get("name"),
+                    "status": job.get("status"),
+                    "steps": job.get("steps", []),
+                    "log_tail": "\n".join(log.splitlines()[-80:]),
+                }
+            )
+        return {"run_id": run_id, "jobs": diagnostics}
+
     def recover(self) -> tuple[dict[str, Any], ...]:
         spec = self.instance
         self._record(
@@ -143,7 +174,11 @@ class ForgejoPromotionReferenceAgent:
             elif run.get("status") != "success":
                 raise RuntimeError(f"unsupported Actions state: {run}")
         if run.get("status") != "success":
-            raise RuntimeError(f"promotion recovery run did not succeed: {run}")
+            diagnostics = self._failure_diagnostics(int(run["id"]))
+            raise RuntimeError(
+                "promotion recovery run did not succeed: "
+                f"status={run.get('status')}; diagnostics={diagnostics}"
+            )
         verified = self._record(
             "get_deployment_state", {}, self.deployment.state(), kind="read"
         )

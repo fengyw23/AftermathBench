@@ -135,7 +135,15 @@ class ERPNextInventoryCostPrefixBuilder:
             "standard_rate": valuation_rate,
         }
         if batch_tracked:
-            payload.update({"has_batch_no": 1, "create_new_batch": 0})
+            payload.update(
+                {
+                    "has_batch_no": 1,
+                    "create_new_batch": 0,
+                    "valuation_method": str(
+                        item.get("valuation_method", "Moving Average")
+                    ),
+                }
+            )
         self.adapter.create_resource("Item", payload)
 
     def prepare_public_fixture(self) -> dict[str, str]:
@@ -561,18 +569,37 @@ class ERPNextInventoryCostPrefixBuilder:
         if int(landed_cost.get("docstatus", -1)) != 0:
             raise RuntimeError("failure prefix must retain a draft Landed Cost Voucher")
 
+        # Re-read protected records after every prefix mutation. Creation and
+        # submission responses precede legitimate controller updates such as
+        # Work Order completion and Sales Order reserved quantities; hashing
+        # those stale responses would turn native derived state into false
+        # preservation failures.
         protected = {
-            "primary_bom": primary_bom,
-            "secondary_bom": secondary_bom,
-            "primary_work_order": primary_wo,
-            "secondary_work_order": secondary_wo,
-            "customer_reservation": sales_order,
+            "primary_bom": _payload(
+                self.adapter.get_resource("BOM", str(primary_bom["name"]))
+            ),
+            "secondary_bom": _payload(
+                self.adapter.get_resource("BOM", str(secondary_bom["name"]))
+            ),
+            "primary_work_order": _payload(
+                self.adapter.get_resource("Work Order", str(primary_wo["name"]))
+            ),
+            "secondary_work_order": _payload(
+                self.adapter.get_resource("Work Order", str(secondary_wo["name"]))
+            ),
+            "customer_reservation": _payload(
+                self.adapter.get_resource("Sales Order", str(sales_order["name"]))
+            ),
             "stock_reservation": _payload(
                 self.adapter.get_resource(
                     "Stock Reservation Entry", str(reservations[0]["name"])
                 )
             ),
-            "unrelated_receipt": unrelated_receipt,
+            "unrelated_receipt": _payload(
+                self.adapter.get_resource(
+                    "Stock Entry", str(unrelated_receipt["name"])
+                )
+            ),
         }
         return InventoryCostPrefix(
             scenario_id=self.scenario_id,

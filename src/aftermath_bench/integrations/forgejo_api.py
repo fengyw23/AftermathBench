@@ -873,6 +873,17 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no workflow-artifact list")
         return [artifact for artifact in result if isinstance(artifact, dict)]
 
+    def get_action_job_logs(
+        self, owner: str, repository: str, job_id: int
+    ) -> str:
+        """Download the native plaintext log for one Forgejo Actions job."""
+
+        url = (
+            f"{self.base_url.rstrip('/')}/repos/{urllib.parse.quote(owner, safe='')}"
+            f"/{urllib.parse.quote(repository, safe='')}/actions/jobs/{int(job_id)}/logs"
+        )
+        return self.download(url).decode("utf-8", errors="replace")
+
     def cancel_action_run(self, owner: str, repository: str, run_id: int) -> Any:
         return self.post(
             f"/repos/{owner}/{repository}/actions/runs/{int(run_id)}/cancel",
