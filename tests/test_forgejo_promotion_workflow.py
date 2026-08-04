@@ -25,7 +25,10 @@ class ForgejoPromotionWorkflowTest(unittest.TestCase):
         )
         positions = [text.index(value) for value in ordered]
         self.assertEqual(positions, sorted(positions))
-        self.assertEqual(text.count("_missing\n"), 3)
+        replay_block = text.split(
+            "- name: Replay six source-grounded promotion boundaries", 1
+        )[1].split("- name: Audit cross-system boundary variation", 1)[0]
+        self.assertEqual(replay_block.count("_missing\n"), 3)
         self.assertIn("promotion_completed_response_lost", text)
         self.assertIn("--runner-disabled", text)
         self.assertNotIn("AFTERMATH_MODEL_API_KEY", text)
