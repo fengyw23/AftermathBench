@@ -84,7 +84,6 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
                     "is_cancelled",
                     "item_code",
                     "warehouse",
-                    "batch_no",
                     "serial_and_batch_bundle",
                 ],
                 limit=4000,
