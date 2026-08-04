@@ -134,9 +134,10 @@ jobs:
           exception_types = sorted(set(re.findall(
               r"\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b", text
           )))
-          check_names = sorted(set(re.findall(
-              r"(?:failed_checks|failures)[=:]\\s*([a-z_,-]+)", text
-          )))
+          check_names = []
+          for match in re.findall(r'"failures"\\s*:\\s*\\[(.*?)\\]', text, re.S):
+              check_names.extend(re.findall(r'"([a-z_]+)"', match))
+          check_names = sorted(set(check_names))
           print(
               "::error title=Forgejo hidden replay failed::"
               f"label={label};"

@@ -159,6 +159,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
     def test_native_replay_failure_has_a_redacted_diagnostic(self) -> None:
         self.assertIn("Forgejo hidden replay failed", self.text)
         self.assertIn("exception_types=", self.text)
+        self.assertIn("r'\"failures\"", self.text)
         self.assertNotIn('cat "$log_path"', self.text)
 
     def test_execution_control_has_an_explicit_acceptance_gate(self) -> None:
