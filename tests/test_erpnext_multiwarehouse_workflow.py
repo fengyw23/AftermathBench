@@ -32,6 +32,16 @@ class ERPNextMultiwarehouseWorkflowTests(unittest.TestCase):
         )
         self.assertIn("permissions:\n  contents: write", self.text)
 
+    def test_workflow_freezes_formal_inputs_from_native_boundaries(self) -> None:
+        for token in (
+            "capture_erpnext_multiwarehouse_state_evidence.py",
+            "--formal-contract",
+            "generate_erpnext_multiwarehouse_formal_build_spec.py",
+            "build_formal_evidence.py",
+            "formal-input-lock.json",
+        ):
+            self.assertIn(token, self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

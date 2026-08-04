@@ -20,6 +20,8 @@ jobs:
       RUN_ROOT: runtimes/erpnext/.runtime/multiwarehouse
       BLUEPRINT: data/scenario_blueprints/erpnext-multiwarehouse-transfer-dev-001/scenario.json
       GENERATED_SCENARIO: data/scenarios/erpnext-multiwarehouse-transfer-dev-001
+      FORMAL_OUTPUT: data/evidence/formal/aftermathbench-2026.08-r1/erpnext/erpnext-multiwarehouse-transfer/dev-001
+      BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -64,6 +66,7 @@ jobs:
           fi
           python scripts/manage_erpnext_stack.py snapshot-bundle \
             --snapshot "$RUN_ROOT/bundles/prefix"
+          mkdir -p "$RUN_ROOT/runtime/state-evidence" "$RUN_ROOT/specs"
 
       - name: Replay four ambiguous boundaries and references
         run: |
@@ -92,6 +95,18 @@ jobs:
           for variant in "${variants[@]}"
           do
             echo "::group::$variant"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/prefix"
+            run_checked "Multiwarehouse reset capture failed: $variant" \
+              "$RUN_ROOT/logs/$variant-reset.log" \
+              python scripts/capture_erpnext_multiwarehouse_state_evidence.py \
+              --phase reset \
+              --scenario "$GENERATED_SCENARIO/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/bundles/prefix/bundle.json" \
+              --output "$RUN_ROOT/runtime/state-evidence/$variant-reset.json"
             run_checked "Multiwarehouse boundary failed: $variant" \
               "$RUN_ROOT/logs/$variant-boundary.log" \
               python scripts/run_erpnext_multiwarehouse_failure.py \
@@ -99,17 +114,45 @@ jobs:
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
               --snapshot-bundle "$RUN_ROOT/bundles/prefix" \
+              --formal-contract \
               --output "$RUN_ROOT/runtime/$variant.json"
+            cp "$RUN_ROOT/runtime/$variant.json" \
+              "$RUN_ROOT/runtime/$variant-boundary.json"
             python scripts/manage_erpnext_stack.py snapshot-bundle \
               --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            run_checked "Multiwarehouse boundary capture failed: $variant" \
+              "$RUN_ROOT/logs/$variant-boundary-capture.log" \
+              python scripts/capture_erpnext_multiwarehouse_state_evidence.py \
+              --phase boundary \
+              --scenario "$GENERATED_SCENARIO/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              --reset-evidence "$RUN_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --output "$RUN_ROOT/runtime/state-evidence/$variant-boundary.json"
             python scripts/manage_erpnext_stack.py restore-bundle \
               --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            run_checked "Multiwarehouse reference-start capture failed: $variant" \
+              "$RUN_ROOT/logs/$variant-reference-start.log" \
+              python scripts/capture_erpnext_multiwarehouse_state_evidence.py \
+              --phase boundary \
+              --scenario "$GENERATED_SCENARIO/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              --reset-evidence "$RUN_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --output "$RUN_ROOT/runtime/state-evidence/$variant-reference-start.json"
             run_checked "Multiwarehouse reference failed: $variant" \
               "$RUN_ROOT/logs/$variant-reference.log" \
               python scripts/run_erpnext_multiwarehouse_control.py \
               --variant "$variant" \
               --credentials "$runtime_root/credentials.json" \
               --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --formal-contract \
               --output "$RUN_ROOT/runtime/$variant-reference.json"
             baselines=(
               no_op
@@ -153,11 +196,44 @@ jobs:
           fi
           cat "$RUN_ROOT/logs/admission.log"
 
+      - name: Freeze the five formal input roles from this native replay
+        run: |
+          cp "$RUN_ROOT/source-verification.json" \
+            "$RUN_ROOT/runtime/source-verification.json"
+          cp -R "$GENERATED_SCENARIO" "$RUN_ROOT/scenario"
+          python scripts/build_evidence_file_manifest.py \
+            --root "$RUN_ROOT" \
+            --output "$RUN_ROOT/files.json"
+          capture_args=(
+            --capture-bundle-manifest "$RUN_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in request_not_reached database_committed_response_lost after_commit_enqueue_failed async_job_pending
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_erpnext_multiwarehouse_formal_build_spec.py \
+            --phase inputs \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$GENERATED_SCENARIO/scenario.json" \
+            --runtime-manifest "$RUN_ROOT/files.json" \
+            --capture-directory "$RUN_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root .
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-inputs.json" \
+            --root . \
+            --phase inputs
+          test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+
       - name: Publish admitted scenario to evidence branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --force "$GENERATED_SCENARIO"
+          git add --force "$GENERATED_SCENARIO" "$FORMAL_OUTPUT"
           git commit -m "data(erpnext): generate multiwarehouse evidence"
           git push --force origin \
             HEAD:refs/heads/generated/erpnext-multiwarehouse-transfer-dev-001
