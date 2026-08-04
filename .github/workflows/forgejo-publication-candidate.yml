@@ -302,7 +302,8 @@ jobs:
           failure_phase=admission
           failure_log="$run_root/private/logs/admission.log"
           write_safe_admission_failure() {
-            python - "$failure_log" "$run_root/public/admission-failure.json" "$failure_phase" <<'PY'
+            python - "$failure_log" "$run_root/public/admission-failure.json" "$failure_phase" "$1" <<'PY'
+          import hashlib
           import json
           import re
           import sys
@@ -315,17 +316,23 @@ jobs:
               else ""
           )
           phase = sys.argv[3]
+          exit_code = int(sys.argv[4])
           exception_types = sorted(set(re.findall(
-              r"\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b", text
+              r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", text
           )))
           gates = []
-          for match in re.findall(r"(?:failed|failures)[:=]\\s*\\[([^\\]]*)\\]", text, re.I):
+          for match in re.findall(r"(?:failed|failures)[:=]\s*\[([^\]]*)\]", text, re.I):
               gates.extend(re.findall(r"[a-z][a-z0-9_]+", match))
           Path(sys.argv[2]).write_text(
               json.dumps(
                   {
                       "schema_version": "1.0",
-                      "phase": "admission",
+                      "phase": phase,
+                      "exit_code": exit_code,
+                      "log_present": log_path.is_file(),
+                      "log_sha256": hashlib.sha256(
+                          text.encode("utf-8")
+                      ).hexdigest(),
                       "exception_types": exception_types,
                       "failed_gate_names": sorted(set(gates)),
                       "raw_log_published": False,
@@ -338,7 +345,7 @@ jobs:
           )
           PY
           }
-          trap 'failure_status=$?; write_safe_admission_failure; exit "$failure_status"' ERR
+          trap 'failure_status=$?; write_safe_admission_failure "$failure_status"; exit "$failure_status"' ERR
           if [ "$SELECTED_FAMILY" = package_provenance ]
           then
             admission_script=scripts/build_forgejo_package_provenance_admission.py
@@ -361,7 +368,7 @@ jobs:
           fi
           if [ "$admission_status" -ne 0 ]
           then
-            write_safe_admission_failure
+            write_safe_admission_failure "$admission_status"
             summary="$(python - "$run_root/public/admission-failure.json" <<'PY'
           import json
           import sys
@@ -388,7 +395,7 @@ jobs:
           then
             printf '%s\n' "$runtime_revision" > "$failure_log"
           else
-            write_safe_admission_failure
+            write_safe_admission_failure 1
             exit 1
           fi
           failure_phase=freeze_native_bundle
@@ -551,7 +558,10 @@ jobs:
           exit "$run_status"
 
       - name: Build non-sensitive result
-        if: always()
+        # A rejected pre-model admission has no scenario artifacts to
+        # summarize.  The redacted diagnostic above is the only permitted
+        # publication in that case.
+        if: ${{ success() }}
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
           control_args=()
