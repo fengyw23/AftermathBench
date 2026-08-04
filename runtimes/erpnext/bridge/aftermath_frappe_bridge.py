@@ -90,6 +90,7 @@ def find_background_jobs(reference: str) -> dict[str, object]:
             "start": 0,
             "page_length": 500,
             "order_by": "creation desc",
+            "filters": [],
         }
     )
     matched = [

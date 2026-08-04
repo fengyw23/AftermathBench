@@ -75,6 +75,7 @@ class ERPNextComposeSpecTest(unittest.TestCase):
         self.assertNotIn("track_job=True", bridge)
         self.assertIn("def find_background_jobs", bridge)
         self.assertIn("RQJob.get_list", bridge)
+        self.assertIn('"filters": []', bridge)
 
     def test_site_creation_is_one_atomic_shell_command(self) -> None:
         command = next(
