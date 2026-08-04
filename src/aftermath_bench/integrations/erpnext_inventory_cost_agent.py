@@ -143,10 +143,7 @@ def reference_inventory_cost_tool_recovery(
     reposts = call(
         "list_documents",
         doctype="Repost Item Valuation",
-        filters={
-            "voucher_type": "Purchase Receipt",
-            "voucher_no": prefix["shared_purchase_receipt"],
-        },
+        filters={"via_landed_cost_voucher": 1},
     )["documents"]
     if any(
         str(owner.get("status", "")).lower() in {"queued", "in progress"}

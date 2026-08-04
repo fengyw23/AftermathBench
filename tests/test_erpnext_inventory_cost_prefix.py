@@ -83,6 +83,16 @@ class ERPNextInventoryCostPrefixTest(unittest.TestCase):
             self.fixture["shared_component"]["valuation_method"], "FIFO"
         )
 
+    def test_evidence_reads_item_based_landed_cost_repost_owners(self) -> None:
+        source = (
+            repository_root()
+            / "src"
+            / "aftermath_bench"
+            / "integrations"
+            / "erpnext_inventory_cost_evidence.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('filters={"via_landed_cost_voucher": 1}', source)
+
     def test_source_receipt_precedes_the_draft_landed_cost_boundary(self) -> None:
         source = (
             repository_root()

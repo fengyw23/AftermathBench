@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from aftermath_bench.integrations.erpnext_inventory_cost_agent import (
     ERPNextInventoryCostEnvironment,
 )
+from aftermath_bench.schema import repository_root
 
 
 class ERPNextInventoryCostAgentTest(unittest.TestCase):
@@ -34,6 +35,16 @@ class ERPNextInventoryCostAgentTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["processed"])
         environment.stack.process_repost_item_valuation_queue.assert_called_once_with()
+
+    def test_reference_queries_item_based_landed_cost_repost_owners(self) -> None:
+        source = (
+            repository_root()
+            / "src"
+            / "aftermath_bench"
+            / "integrations"
+            / "erpnext_inventory_cost_agent.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('filters={"via_landed_cost_voucher": 1}', source)
 
 
 if __name__ == "__main__":

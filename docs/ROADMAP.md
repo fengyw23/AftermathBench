@@ -56,10 +56,11 @@ promoted into the final native-runtime benchmark.
 - [x] Freeze and consume one independent manufacturing hidden instance with a
   locked usage ledger; GLM-5.2 completed 4/4 runs, passed 3/4 tasks and failed
   the matched group without provider/runtime errors.
-- [x] Parameterize the shared-batch family and start native replay of a second
-  business instance with disjoint products, a different rework quantity, and a
-  two-components-per-unit BOM; the independent instance is not counted until
-  reference, conflict-probe, fixed-policy, and admission checks all pass.
+- [x] Parameterize and natively validate a second shared-batch business instance
+  with disjoint products, a different rework quantity, and a
+  two-components-per-unit BOM. Reference, conflict-probe, fixed-policy, and
+  admission checks all pass in run `30881600867`; the strongest fixed strategy
+  solves only 1/4 boundaries and none solves the matched group.
 - [ ] Implement the inventory-cost-settlement family now frozen as a validated
   instance contract. Its ambiguous Landed Cost Voucher submission must vary
   real Stock Ledger, GL, Repost Item Valuation, and external-attestation state;

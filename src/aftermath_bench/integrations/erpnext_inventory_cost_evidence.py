@@ -98,9 +98,14 @@ class ERPNextInventoryCostEvidenceCollector(ERPNextPartialReturnEvidenceCollecto
             )
             if str(row.get("voucher_no")) in voucher_names
         ]
+        # ERPNext's default item-based reposting mode creates one native owner
+        # per affected item/warehouse and intentionally leaves voucher_type and
+        # voucher_no empty. The controller marks those owners with
+        # via_landed_cost_voucher instead; collecting only transaction-based
+        # owners silently erases the real asynchronous state.
         reposting = self.full_documents(
             "Repost Item Valuation",
-            filters={"voucher_type": "Purchase Receipt", "voucher_no": receipt},
+            filters={"via_landed_cost_voucher": 1},
             limit=100,
         )
         lcv_name = str(prefix["landed_cost_voucher"])

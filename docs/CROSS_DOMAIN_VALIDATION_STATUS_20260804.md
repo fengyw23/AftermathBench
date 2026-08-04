@@ -136,6 +136,16 @@ those two attempts as "exactly once". Full trajectories and a hash manifest are
 frozen under
 `data/evidence/erpnext-shared-batch-ordinary-glm52-20260804/`.
 
+Instance independence was then checked with a separately parameterized
+shared-batch business instance in
+[30881600867](https://github.com/fengyw23/AftermathBench/actions/runs/30881600867).
+It uses disjoint products, different quantities and a two-components-per-unit
+BOM topology. All four native boundaries and references passed the same replay,
+probe and admission pipeline. Across 28 fixed-policy executions, the strongest
+policy again solved only 1/4 boundaries and no policy solved the matched group.
+This closes the current instance-independence gate for the shared-batch family;
+it does not substitute for adding independent instances to every future family.
+
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
@@ -160,12 +170,12 @@ are not considered closed by adding more variants to an existing template.
    the ambiguous failure at an inventory/accounting boundary and produce
    objectively different Stock Ledger, GL, shared-cost, and asynchronous repost
    states. Merely adding more protected documents does not close this risk.
-2. **Instance-independence risk.** A family needs at least two independently
+2. **Instance-independence risk (closed for shared batch).** A family needs at least two independently
    parameterized business instances whose item identities are disjoint and whose
    quantities or dependency topology differ. Both must pass the same replay,
    reference, fixed-policy, and admission pipeline. The second shared-batch
-   instance is currently under native replay and is not counted until that run
-   passes.
+   instance now passes this gate in run `30881600867`; the requirement remains
+   active for newly added families.
 3. **Forgejo saturation risk.** Package provenance remains an executable control,
    but its 4/4 ordinary-model result cannot support a hardness claim. The next
    Forgejo difficulty family must cross approval state, signed build artifacts,

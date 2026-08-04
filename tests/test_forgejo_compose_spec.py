@@ -66,7 +66,17 @@ class ForgejoComposeSpecTest(unittest.TestCase):
             f'{runner["image"]["reference"]}@'
             f'{runner["image"]["digest"]}'
         )
-        self.assertIn(pinned, self.compose)
+        runner_containerfile = (
+            runtime / "runner" / "Containerfile"
+        ).read_text(encoding="utf-8")
+        self.assertIn(pinned, runner_containerfile)
+        self.assertIn(
+            f'nodejs={runner["runtime_dependencies"]["nodejs"]["version"]}',
+            runner_containerfile,
+        )
+        self.assertIn(
+            "dockerfile: runtimes/forgejo/runner/Containerfile", self.compose
+        )
         self.assertNotIn("/var/run/docker.sock", self.compose)
         self.assertFalse(runner["docker_socket_mounted"])
 
