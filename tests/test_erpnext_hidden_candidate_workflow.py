@@ -46,8 +46,8 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("${{ runner.temp }}/erpnext-hidden/public/", self.text)
         self.assertNotIn("include-hidden-files: true", self.text)
 
-    def test_both_families_use_native_replay_and_strict_admission(self) -> None:
-        for name in ("manufacturing", "multiwarehouse"):
+    def test_all_families_use_native_replay_and_strict_admission(self) -> None:
+        for name in ("manufacturing", "multiwarehouse", "sales_return"):
             self.assertIn(name, self.text)
         for token in (
             "snapshot-bundle",
@@ -67,8 +67,18 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("erpnext-hidden-manufacturing-v3-candidate", self.text)
         self.assertIn("erpnext-hidden-multiwarehouse-candidate", self.text)
         self.assertIn("erpnext-hidden-multiwarehouse-v2-candidate", self.text)
+        self.assertIn("erpnext-hidden-sales-return-test-001", self.text)
+        self.assertIn("erpnext-hidden-sales-return-test-002", self.text)
         self.assertIn("SELECTED_FAMILY", self.text)
         self.assertIn("SELECTED_INSTANCE_ID", self.text)
+
+    def test_sales_return_receipts_are_registered_only_after_sealing(self) -> None:
+        self.assertIn("Register a safe sales-return frozen-hidden receipt", self.text)
+        self.assertIn("erpnext-sales-return-exchange-reconciliation", self.text)
+        self.assertGreater(
+            self.text.index("Register a safe sales-return frozen-hidden receipt"),
+            self.text.index("Seal unseen private state"),
+        )
 
 
 if __name__ == "__main__":

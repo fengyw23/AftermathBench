@@ -8,6 +8,8 @@ on:
       - erpnext-hidden-manufacturing-v3-candidate
       - erpnext-hidden-multiwarehouse-candidate
       - erpnext-hidden-multiwarehouse-v2-candidate
+      - erpnext-hidden-sales-return-test-001
+      - erpnext-hidden-sales-return-test-002
   workflow_dispatch:
     inputs:
       family:
@@ -17,6 +19,7 @@ on:
         options:
           - manufacturing
           - multiwarehouse
+          - sales_return
       instance_id:
         description: Formal hidden slot
         required: true
@@ -28,7 +31,7 @@ on:
           - test-003
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   replay-admit-and-freeze:
@@ -38,8 +41,8 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
-      SELECTED_FAMILY: ${{ inputs.family || ((github.ref_name == 'erpnext-hidden-multiwarehouse-candidate' || github.ref_name == 'erpnext-hidden-multiwarehouse-v2-candidate') && 'multiwarehouse' || 'manufacturing') }}
-      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'erpnext-hidden-multiwarehouse-v2-candidate' && 'test-002' || github.ref_name == 'erpnext-hidden-manufacturing-v3-candidate' && 'test-003' || github.ref_name == 'erpnext-hidden-manufacturing-v2-candidate' && 'test-002' || 'test-001') }}
+      SELECTED_FAMILY: ${{ inputs.family || ((github.ref_name == 'erpnext-hidden-multiwarehouse-candidate' || github.ref_name == 'erpnext-hidden-multiwarehouse-v2-candidate') && 'multiwarehouse' || (github.ref_name == 'erpnext-hidden-sales-return-test-001' || github.ref_name == 'erpnext-hidden-sales-return-test-002') && 'sales_return' || 'manufacturing') }}
+      SELECTED_INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'erpnext-hidden-sales-return-test-002' && 'test-002' || github.ref_name == 'erpnext-hidden-multiwarehouse-v2-candidate' && 'test-002' || github.ref_name == 'erpnext-hidden-manufacturing-v3-candidate' && 'test-003' || github.ref_name == 'erpnext-hidden-manufacturing-v2-candidate' && 'test-002' || 'test-001') }}
       # Each slot has an independent, freshly generated secret.  Select the
       # slot-specific value first: falling through to an older test-001 secret
       # silently reused consumed instances and made the replay result invalid.
@@ -73,30 +76,55 @@ jobs:
               echo "ADMISSION_SCRIPT=scripts/build_erpnext_multiwarehouse_admission.py" >> "$GITHUB_ENV"
               echo "BASELINES=no_op blind_retry assume_committed repair_failed_record_only all_rollback duplicate_second_leg cancel_protected_reservation" >> "$GITHUB_ENV"
               ;;
+            sales_return)
+              echo "PREFIX_SCRIPT=scripts/build_erpnext_sales_return_prefix.py" >> "$GITHUB_ENV"
+              echo "FAILURE_SCRIPT=scripts/run_erpnext_sales_return_failure.py" >> "$GITHUB_ENV"
+              echo "CONTROL_SCRIPT=scripts/run_erpnext_sales_return_control.py" >> "$GITHUB_ENV"
+              echo "BASELINE_SCRIPT=scripts/run_erpnext_sales_return_baseline.py" >> "$GITHUB_ENV"
+              echo "ADMISSION_SCRIPT=scripts/build_native_sales_return_admission.py" >> "$GITHUB_ENV"
+              echo "BASELINES=no_op blind_retry assume_committed repair_failed_record_only all_rollback cancel_shared_payment compact_boundary_tree" >> "$GITHUB_ENV"
+              ;;
             *) exit 2 ;;
           esac
           echo "RUN_ROOT=$RUNNER_TEMP/erpnext-hidden" >> "$GITHUB_ENV"
 
       - name: Materialize and validate the private instance without model credentials
         run: |
-          test -n "$HIDDEN_INSTANCE_B64"
           mkdir -p "$RUN_ROOT/private/runtime" \
             "$RUN_ROOT/private/baselines" \
             "$RUN_ROOT/private/bundles" \
             "$RUN_ROOT/private/logs" \
             "$RUN_ROOT/public"
-          printf '%s' "$HIDDEN_INSTANCE_B64" \
-            | base64 --decode > "$RUN_ROOT/private/instance.json"
-          python scripts/verify_erpnext_instance_novelty.py \
-            --instance-spec "$RUN_ROOT/private/instance.json" \
-            > "$RUN_ROOT/private/logs/novelty.log" 2>&1
-          python scripts/render_erpnext_native_blueprint.py \
-            --instance-spec "$RUN_ROOT/private/instance.json" \
-            --template "$TEMPLATE" \
-            --output "$RUN_ROOT/private/blueprint.json" \
-            --instance-id "$SELECTED_INSTANCE_ID" \
-            --benchmark-split hidden_test \
-            > "$RUN_ROOT/private/logs/render.log" 2>&1
+          if [ "$SELECTED_FAMILY" = sales_return ]
+          then
+            python scripts/generate_erpnext_sales_return_hidden_instance.py \
+              --instance-id "$SELECTED_INSTANCE_ID" \
+              --output "$RUN_ROOT/private/instance.json" \
+              > "$RUN_ROOT/private/logs/instance-generation.log" 2>&1
+            python scripts/verify_erpnext_sales_return_instance_novelty.py \
+              --instance-spec "$RUN_ROOT/private/instance.json" \
+              > "$RUN_ROOT/private/logs/novelty.log" 2>&1
+            python scripts/render_erpnext_sales_return_blueprint.py \
+              --instance-spec "$RUN_ROOT/private/instance.json" \
+              --output "$RUN_ROOT/private/blueprint.json" \
+              --instance-id "$SELECTED_INSTANCE_ID" \
+              --benchmark-split hidden_test \
+              > "$RUN_ROOT/private/logs/render.log" 2>&1
+          else
+            test -n "$HIDDEN_INSTANCE_B64"
+            printf '%s' "$HIDDEN_INSTANCE_B64" \
+              | base64 --decode > "$RUN_ROOT/private/instance.json"
+            python scripts/verify_erpnext_instance_novelty.py \
+              --instance-spec "$RUN_ROOT/private/instance.json" \
+              > "$RUN_ROOT/private/logs/novelty.log" 2>&1
+            python scripts/render_erpnext_native_blueprint.py \
+              --instance-spec "$RUN_ROOT/private/instance.json" \
+              --template "$TEMPLATE" \
+              --output "$RUN_ROOT/private/blueprint.json" \
+              --instance-id "$SELECTED_INSTANCE_ID" \
+              --benchmark-split hidden_test \
+              > "$RUN_ROOT/private/logs/render.log" 2>&1
+          fi
           python scripts/verify_hidden_evaluation_novelty.py \
             --scenario "$RUN_ROOT/private/blueprint.json" \
             --registry-root data/diagnostics \
@@ -234,12 +262,23 @@ jobs:
               return 1
             fi
           }
-          run_private "admission-build" \
-            "$RUN_ROOT/private/logs/admission.log" \
-            python "$ADMISSION_SCRIPT" \
-            --runtime-directory "$RUN_ROOT/private/runtime" \
-            --blueprint "$RUN_ROOT/private/blueprint.json" \
-            --output-directory "$RUN_ROOT/private/scenario"
+          if [ "$SELECTED_FAMILY" = sales_return ]
+          then
+            run_private "admission-build" \
+              "$RUN_ROOT/private/logs/admission.log" \
+              python "$ADMISSION_SCRIPT" \
+              --prefix "$RUN_ROOT/private/runtime/prefix.json" \
+              --control-directory "$RUN_ROOT/private/runtime" \
+              --blueprint "$RUN_ROOT/private/blueprint.json" \
+              --output-directory "$RUN_ROOT/private/scenario"
+          else
+            run_private "admission-build" \
+              "$RUN_ROOT/private/logs/admission.log" \
+              python "$ADMISSION_SCRIPT" \
+              --runtime-directory "$RUN_ROOT/private/runtime" \
+              --blueprint "$RUN_ROOT/private/blueprint.json" \
+              --output-directory "$RUN_ROOT/private/scenario"
+          fi
           run_private "scenario-validation" \
             "$RUN_ROOT/private/logs/scenario-validation.log" \
             python -m aftermath_bench validate-native-scenario \
@@ -328,6 +367,70 @@ jobs:
           path: ${{ runner.temp }}/erpnext-hidden/public/
           if-no-files-found: error
           retention-days: 90
+
+      - name: Register a safe sales-return frozen-hidden receipt
+        if: ${{ github.event_name == 'push' && env.SELECTED_FAMILY == 'sales_return' }}
+        run: |
+          receipt="data/evidence/hidden-freeze/erpnext-sales-return-$SELECTED_INSTANCE_ID.json"
+          test ! -e "$receipt"
+          python - \
+            "$RUN_ROOT/public/pre-model-commitment.json" \
+            "$RUN_ROOT/public/sealed-bundle.json" \
+            "$RUN_ROOT/public/result.json" \
+            "$receipt" \
+            data/frozen_hidden_candidates.json \
+            "$SELECTED_INSTANCE_ID" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id = (
+              Path(item) if index < 5 else item
+              for index, item in enumerate(sys.argv[1:])
+          )
+          commitment = json.loads(commitment_path.read_text(encoding="utf-8"))
+          sealed = json.loads(sealed_path.read_text(encoding="utf-8"))
+          result = json.loads(result_path.read_text(encoding="utf-8"))
+          receipt = {
+              "schema_version": "1.0",
+              "artifact": {
+                  "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                  "url": "https://github.com/fengyw23/AftermathBench/actions/runs/" + os.environ["GITHUB_RUN_ID"],
+              },
+              "file_sha256": {
+                  "result": hashlib.sha256(result_path.read_bytes()).hexdigest(),
+                  "pre_model_commitment": hashlib.sha256(commitment_path.read_bytes()).hexdigest(),
+                  "sealed_bundle": hashlib.sha256(sealed_path.read_bytes()).hexdigest(),
+              },
+              "commitment": commitment,
+              "sealed_bundle": sealed,
+              "result": result,
+          }
+          receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          registry["records"].append({
+              "formal_slot_id": "erpnext/erpnext-sales-return-exchange-reconciliation/" + instance_id,
+              "scenario_id": commitment["scenario_id"],
+              "domain_id": "erpnext",
+              "family_id": "erpnext-sales-return-exchange-reconciliation",
+              "instance_id": instance_id,
+              "variant_count": result["reference"]["case_count"],
+              "freeze_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "public_commitment_sha256": commitment["public_commitment_sha256"],
+              "artifact_url": receipt["artifact"]["url"],
+              "evidence_path": receipt_path.as_posix(),
+              "evidence_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+          })
+          registry_path.write_text(json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          PY
+          python -m unittest discover -s tests -p 'test_frozen_hidden_registry.py' -v
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$receipt" data/frozen_hidden_candidates.json
+          git commit -m "evidence(erpnext): register frozen sales-return $SELECTED_INSTANCE_ID"
+          git push
 
       - name: Purge plaintext hidden state and runtime
         if: always()
