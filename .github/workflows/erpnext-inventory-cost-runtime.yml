@@ -86,10 +86,23 @@ jobs:
               "$SCENARIO"
           )
           test "${#variants[@]}" -eq 4
-          mkdir -p "$RUNTIME_OUTPUT/boundaries"
+          mkdir -p "$RUNTIME_OUTPUT/boundaries" "$RUNTIME_OUTPUT/boundary-bundles"
           for variant in "${variants[@]}"
           do
             echo "replaying inventory-cost boundary: $variant"
+            timeout 600s python scripts/run_erpnext_inventory_cost_boundary.py \
+              --scenario "$SCENARIO" \
+              --prefix "$RUNTIME_OUTPUT/prefix.json" \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --snapshot-bundle "$RUNTIME_OUTPUT/prefix-bundle" \
+              --output "$RUNTIME_OUTPUT/boundaries/$variant-boundary-only.json" \
+              > "$RUNTIME_OUTPUT/logs/$variant-boundary-only.log" 2>&1 || {
+                cat "$RUNTIME_OUTPUT/logs/$variant-boundary-only.log"
+                exit 1
+              }
+            python scripts/manage_erpnext_stack.py snapshot-bundle \
+              --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant"
             timeout 600s python scripts/run_erpnext_inventory_cost_boundary.py \
               --scenario "$SCENARIO" \
               --prefix "$RUNTIME_OUTPUT/prefix.json" \
@@ -106,7 +119,42 @@ jobs:
           python scripts/audit_erpnext_inventory_cost_boundaries.py \
             --directory "$RUNTIME_OUTPUT/boundaries" \
             --output "$RUNTIME_OUTPUT/boundary-audit.json"
-          rm -rf "$RUNTIME_OUTPUT/prefix-bundle"
+
+      - name: Execute fixed strategies from every native boundary
+        run: |
+          set -euo pipefail
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          mapfile -t baselines < <(
+            python -c 'from aftermath_bench.integrations.erpnext_inventory_cost_baselines import INVENTORY_COST_BASELINE_NAMES; print(*INVENTORY_COST_BASELINE_NAMES, sep="\n")'
+          )
+          mkdir -p "$RUNTIME_OUTPUT/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_erpnext_stack.py restore-bundle \
+                --snapshot "$RUNTIME_OUTPUT/boundary-bundles/$variant" \
+                > "$RUNTIME_OUTPUT/logs/$baseline-$variant-restore.log" 2>&1
+              timeout 180s python scripts/run_erpnext_inventory_cost_baseline.py \
+                --baseline "$baseline" \
+                --variant "$variant" \
+                --prefix "$RUNTIME_OUTPUT/prefix.json" \
+                --credentials runtimes/erpnext/.runtime/credentials.json \
+                --output "$RUNTIME_OUTPUT/baselines/$baseline-$variant.json" \
+                > "$RUNTIME_OUTPUT/logs/$baseline-$variant.log" 2>&1 || {
+                  cat "$RUNTIME_OUTPUT/logs/$baseline-$variant.log"
+                  exit 1
+                }
+            done
+          done
+          python scripts/summarize_erpnext_inventory_cost_baselines.py \
+            --directory "$RUNTIME_OUTPUT/baselines" \
+            --scenario "$SCENARIO" \
+            --output "$RUNTIME_OUTPUT/baseline-summary.json"
+          rm -rf "$RUNTIME_OUTPUT/prefix-bundle" "$RUNTIME_OUTPUT/boundary-bundles"
 
       - name: Capture native diagnostics
         if: always()

@@ -106,11 +106,10 @@ def main() -> int:
         raise RuntimeError("faulted Landed Cost Voucher submission returned normally")
 
     if args.variant in {
-        "voucher_committed_repost_completed_attested_response_lost",
         "voucher_committed_repost_completed_attestation_pending",
     }:
         stack.process_repost_item_valuation_queue()
-    if args.variant == "voucher_committed_repost_completed_attested_response_lost":
+    if args.variant == "voucher_committed_repost_queued_attested_response_lost":
         workers.start()
         if wait_for_attestation(collector, prefix) is None:
             raise RuntimeError("native settlement attestation was not delivered")
@@ -161,7 +160,7 @@ def main() -> int:
                 boundary_evidence["landed_cost_voucher"].get("docstatus", 0)
             )
             == 1,
-            "repost_owner_completed": statuses == {"completed"},
+            "repost_owner_queued": statuses == {"queued"},
             "attestation_pending": delivery is None and bool(unfinished_jobs),
         }
     else:

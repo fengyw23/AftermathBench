@@ -17,6 +17,9 @@ class ERPNextInventoryCostWorkflowTest(unittest.TestCase):
         self.assertIn("run_erpnext_inventory_cost_boundary.py", workflow)
         self.assertIn("--run-reference", workflow)
         self.assertIn("audit_erpnext_inventory_cost_boundaries.py", workflow)
+        self.assertIn("run_erpnext_inventory_cost_baseline.py", workflow)
+        self.assertIn("summarize_erpnext_inventory_cost_baselines.py", workflow)
+        self.assertIn("boundary-bundles", workflow)
         self.assertNotIn("create_missing_reposting_owner", workflow)
         boundary_runner = (
             repository_root()

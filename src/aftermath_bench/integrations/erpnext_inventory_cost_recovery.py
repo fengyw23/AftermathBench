@@ -14,7 +14,7 @@ from .frappe import FrappeHTTPAdapter
 
 INVENTORY_COST_VARIANTS = (
     "request_not_reached",
-    "voucher_committed_repost_completed_attested_response_lost",
+    "voucher_committed_repost_queued_attested_response_lost",
     "voucher_committed_repost_queued_attestation_pending",
     "voucher_committed_repost_completed_attestation_pending",
 )

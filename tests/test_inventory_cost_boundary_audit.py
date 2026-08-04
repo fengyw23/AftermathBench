@@ -12,11 +12,11 @@ from aftermath_bench.inventory_cost_boundary_audit import (
 def _reports() -> dict[str, dict[str, object]]:
     projections = {
         "request_not_reached": ("draft", "old", "old", "absent", "absent"),
-        "voucher_committed_repost_completed_attested_response_lost": (
+        "voucher_committed_repost_queued_attested_response_lost": (
             "submitted",
-            "settled",
-            "settled",
-            "completed",
+            "receipt_updated_downstream_pending",
+            "receipt_updated_downstream_pending",
+            "queued",
             "delivered",
         ),
         "voucher_committed_repost_queued_attestation_pending": (
