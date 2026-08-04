@@ -50,6 +50,13 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         )
         self.assertIn("fetch-depth: 0", self.text[checkout:materialize])
 
+    def test_same_slot_reruns_cancel_stale_freezes(self) -> None:
+        self.assertIn(
+            "group: forgejo-publication-candidate-${{ github.ref }}",
+            self.text,
+        )
+        self.assertIn("cancel-in-progress: true", self.text)
+
     def test_manual_freeze_can_seal_an_unseen_bundle_without_a_model(self) -> None:
         seal = self.text.index(
             "Seal an unseen private bundle for later evaluation"
