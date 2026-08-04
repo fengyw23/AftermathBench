@@ -231,6 +231,15 @@ repairs, overlapping mutation effects, context-sensitive operators and
 plausible unsafe shortcuts. These declarations are only a design gate: native
 replay must later verify every operator effect before admission.
 
+The first successor design is implemented in
+`aftermath_bench.integrations.forgejo_interacting_recovery_design`. Its actions
+are the existing native promotion workflow's actual `resume_stage` and
+`stop_after` combinations, plus ordinary release metadata publication. Across
+nine proposed states, eight require composed repairs, the longest minimal safe
+plan has three mutations, and the audit finds 30 overlapping action pairs and
+39 tempting unsafe choices. These numbers are not yet benchmark evidence; the
+next gate is to materialize every state and replay the declared effects.
+
 ## Snapshot discipline
 
 The database, Redis cache, Redis queue, fault-gateway audit state, and external

@@ -130,9 +130,13 @@ promoted into the final native-runtime benchmark.
 - [x] Run ordinary GLM-5.2 on the same commit and snapshots. Run `30908258071`
   also passes 6/6, proving the one-gap/one-local-repair family is saturated even
   though its replayed evidence depth is 6/6 and fixed policies fail.
-- [ ] Build an interacting-gap successor whose mutation operators have
-  overlapping effects and preservation conflicts; add an intervention-plan
-  complexity gate distinct from evidence-query depth.
+- [x] Add an intervention-plan complexity gate distinct from evidence-query
+  depth and pass a design using the real Forgejo workflow's resume/stop
+  operators: 9 states, 8 composed-repair states, maximum safe plan length 3,
+  30 overlapping action pairs and 39 tempting unsafe choices.
+- [ ] Materialize those interacting gaps in native Forgejo snapshots, replay
+  every declared action effect, and reject the design if native behavior does
+  not reproduce the intervention audit.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

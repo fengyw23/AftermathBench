@@ -164,8 +164,7 @@ def audit_intervention_design(
         for action in normalized_actions
         if action.name in used_actions
         and any(
-            action.sets_true & (obligation_set - frozenset(row))
-            and action.unsafe_if_true & frozenset(row)
+            action.unsafe_if_true & frozenset(row)
             for row in normalized_variants.values()
         )
     )
