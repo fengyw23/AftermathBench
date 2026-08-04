@@ -56,6 +56,10 @@ jobs:
 
       - name: Verify public tool contracts before native replay
         run: |
+          # The historical unit suite intentionally validates the checked
+          # public fixture.  It must not inherit this fresh hidden instance;
+          # later native-replay steps still receive the path via GITHUB_ENV.
+          unset AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC
           python -m unittest discover -s tests -p 'test_generate_kubernetes_interaction_hidden_instance.py' -v
           python -m unittest discover -s tests -p 'test_kubernetes_interaction*.py' -v
           python -m unittest discover -s tests -p 'test_native_bundle_freeze.py' -v

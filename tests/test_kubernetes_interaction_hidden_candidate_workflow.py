@@ -15,6 +15,9 @@ class KubernetesInteractionHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("generate_kubernetes_interaction_hidden_instance.py", self.text)
         self.assertIn("$RUNNER_TEMP/kubernetes-hidden", self.text)
         self.assertIn("--benchmark-split hidden_test", self.text)
+        self.assertIn(
+            "unset AFTERMATH_KUBERNETES_INTERACTION_INSTANCE_SPEC", self.text
+        )
         self.assertLess(
             self.text.index("build_kubernetes_interaction_admission.py"),
             self.text.index("freeze_native_bundle.py"),
