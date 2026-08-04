@@ -222,6 +222,32 @@ class ForgejoStackTest(unittest.TestCase):
             },
         )
 
+    def test_promotion_restore_recreates_empty_actions_artifact_root(self) -> None:
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append(tuple(command))
+            output = kwargs.get("stdout")
+            if output is not None:
+                output.write(b"archive")
+            return subprocess.CompletedProcess(command, 0)
+
+        stack = ForgejoStack(compose_file=Path("compose.yaml"), runner=runner)
+        stack.wait_ready = Mock()  # type: ignore[method-assign]
+        stack.reset_service = Mock()  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "promotion"
+            stack.snapshot_promotion_bundle(bundle, runner_enabled=True)
+            stack.restore_promotion_bundle(bundle)
+
+        artifact_root_calls = [
+            call for call in calls if "/data/gitea/actions_artifacts" in call
+        ]
+        self.assertEqual(len(artifact_root_calls), 1)
+        self.assertIn("mkdir", artifact_root_calls[0])
+        self.assertIn("-u", artifact_root_calls[0])
+        self.assertIn("git", artifact_root_calls[0])
+
 
 if __name__ == "__main__":
     unittest.main()

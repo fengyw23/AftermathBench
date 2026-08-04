@@ -188,6 +188,25 @@ class ForgejoStack:
     def start_action_runner(self) -> None:
         self.run("start", "runner-daemon")
 
+    def ensure_actions_artifact_storage(self) -> None:
+        """Recreate Forgejo's runtime artifact root after a snapshot restore.
+
+        Empty directories are intentionally absent from the tar snapshots.  Forgejo
+        9.1's v3 artifact finalizer expects this root to exist before it merges the
+        uploaded chunks, so restoring a pre-artifact prefix must recreate it.
+        """
+
+        self.run(
+            "exec",
+            "-T",
+            "-u",
+            "git",
+            "forgejo",
+            "mkdir",
+            "-p",
+            "/data/gitea/actions_artifacts",
+        )
+
     def snapshot(self, destination: str | Path) -> str:
         path = Path(destination).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -611,6 +630,7 @@ class ForgejoStack:
             ]
             self.run("start", *services)
             self.wait_ready()
+        self.ensure_actions_artifact_storage()
         for url in (
             "http://127.0.0.1:9091/admin/reset",
             "http://127.0.0.1:9093/admin/reset",
