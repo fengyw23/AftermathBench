@@ -1,6 +1,8 @@
 import hashlib
 import json
 import unittest
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -14,6 +16,7 @@ from aftermath_bench.native_model_runner import (
     NATIVE_FAMILY_REGISTRY,
     NATIVE_RETURN_TOOL_DEFINITIONS,
     _diagnose,
+    _native_report_json,
     _pre_model_boundary_matches_lock,
     native_initial_message,
     run_live_native_agent,
@@ -69,8 +72,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             live_hash = hashlib.sha256(live_path.read_bytes()).hexdigest()
 
             with patch(
-                "aftermath_bench.native_model_runner."
-                "native_boundaries_equivalent",
+                "aftermath_bench.native_model_runner.native_boundaries_equivalent",
                 return_value=True,
             ) as equivalent:
                 self.assertTrue(
@@ -126,6 +128,24 @@ class NativeModelRunnerTest(unittest.TestCase):
             family.tool_definitions,
             NATIVE_RETURN_TOOL_DEFINITIONS,
         )
+
+    def test_native_report_serializes_exact_erpnext_scalar_types(self) -> None:
+        payload = json.loads(
+            _native_report_json(
+                {
+                    "quantity": Decimal("3.000"),
+                    "posting_date": date(2026, 8, 4),
+                    "observed_at": datetime(2026, 8, 4, 3, 2, tzinfo=UTC),
+                }
+            )
+        )
+        self.assertEqual(payload["quantity"], "3.000")
+        self.assertEqual(payload["posting_date"], "2026-08-04")
+        self.assertEqual(payload["observed_at"], "2026-08-04T03:02:00+00:00")
+
+    def test_native_report_rejects_unknown_runtime_objects(self) -> None:
+        with self.assertRaisesRegex(TypeError, "not JSON serializable"):
+            _native_report_json({"unsupported": object()})
         with self.assertRaisesRegex(ValueError, "unsupported native family"):
             NATIVE_FAMILY_REGISTRY.get("nonexistent-family")
 
@@ -308,8 +328,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                     return_value=family,
                 ),
                 patch(
-                    "aftermath_bench.native_model_runner."
-                    "verify_formal_input_lock",
+                    "aftermath_bench.native_model_runner.verify_formal_input_lock",
                     side_effect=ValueError("formal evidence drift"),
                 ) as verifier,
                 self.assertRaisesRegex(
@@ -399,8 +418,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                     return_value=family,
                 ),
                 patch(
-                    "aftermath_bench.native_model_runner."
-                    "verify_formal_input_lock",
+                    "aftermath_bench.native_model_runner.verify_formal_input_lock",
                     return_value=verification,
                 ),
             ):
@@ -433,9 +451,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                 {
                     "variant_id": "state-1",
                     "source_basename": "state-1-boundary.json",
-                    "sha256": hashlib.sha256(
-                        pre_model.read_bytes()
-                    ).hexdigest(),
+                    "sha256": hashlib.sha256(pre_model.read_bytes()).hexdigest(),
                 },
             )
 
@@ -501,8 +517,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                     return_value=family,
                 ),
                 patch(
-                    "aftermath_bench.native_model_runner."
-                    "verify_formal_input_lock",
+                    "aftermath_bench.native_model_runner.verify_formal_input_lock",
                     return_value=verification,
                 ),
                 self.assertRaisesRegex(
@@ -540,8 +555,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                     return_value=family,
                 ),
                 patch(
-                    "aftermath_bench.native_model_runner."
-                    "verify_formal_input_lock",
+                    "aftermath_bench.native_model_runner.verify_formal_input_lock",
                     return_value=verification,
                 ),
                 self.assertRaisesRegex(
@@ -831,9 +845,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                 },
             ),
             failure_report={
-                "failure_boundary_evidence": {
-                    "purchase_return": {"docstatus": 0}
-                }
+                "failure_boundary_evidence": {"purchase_return": {"docstatus": 0}}
             },
             prefix={"purchase_return": "PR-RET-1"},
         )
@@ -861,9 +873,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                     "tool_calls": [
                         {
                             "name": "create_purchase_invoice_from_receipt",
-                            "arguments": {
-                                "purchase_receipt": "PR-REPLACEMENT"
-                            },
+                            "arguments": {"purchase_receipt": "PR-REPLACEMENT"},
                         }
                     ],
                     "tool_results": [],
@@ -873,9 +883,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             failure_report={
                 "failure_boundary_evidence": {
                     "purchase_return": {"docstatus": 1},
-                    "replacement_invoices": [
-                        {"name": "PINV-EXISTING", "docstatus": 0}
-                    ],
+                    "replacement_invoices": [{"name": "PINV-EXISTING", "docstatus": 0}],
                 }
             },
             prefix={
@@ -888,9 +896,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             "investigation_failure",
         )
         self.assertTrue(
-            diagnostics[
-                "created_invoice_without_linked_invoice_investigation"
-            ]
+            diagnostics["created_invoice_without_linked_invoice_investigation"]
         )
 
     def test_duplicate_after_query_is_scope_failure(self) -> None:
@@ -915,9 +921,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                         },
                         {
                             "name": "create_purchase_invoice_from_receipt",
-                            "arguments": {
-                                "purchase_receipt": "PR-REPLACEMENT"
-                            },
+                            "arguments": {"purchase_receipt": "PR-REPLACEMENT"},
                         },
                     ],
                     "tool_results": [],
@@ -927,9 +931,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             failure_report={
                 "failure_boundary_evidence": {
                     "purchase_return": {"docstatus": 1},
-                    "replacement_invoices": [
-                        {"name": "PINV-EXISTING", "docstatus": 0}
-                    ],
+                    "replacement_invoices": [{"name": "PINV-EXISTING", "docstatus": 0}],
                 }
             },
             prefix={
@@ -962,9 +964,7 @@ class NativeModelRunnerTest(unittest.TestCase):
                         },
                         {
                             "name": "create_purchase_invoice_from_receipt",
-                            "arguments": {
-                                "purchase_receipt": "PR-REPLACEMENT"
-                            },
+                            "arguments": {"purchase_receipt": "PR-REPLACEMENT"},
                         },
                     ],
                     "tool_results": [],
@@ -974,9 +974,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             failure_report={
                 "failure_boundary_evidence": {
                     "purchase_return": {"docstatus": 1},
-                    "replacement_invoices": [
-                        {"name": "PINV-EXISTING", "docstatus": 0}
-                    ],
+                    "replacement_invoices": [{"name": "PINV-EXISTING", "docstatus": 0}],
                 }
             },
             prefix={
@@ -985,9 +983,7 @@ class NativeModelRunnerTest(unittest.TestCase):
             },
         )
         self.assertFalse(
-            diagnostics[
-                "created_invoice_without_linked_invoice_investigation"
-            ]
+            diagnostics["created_invoice_without_linked_invoice_investigation"]
         )
         self.assertEqual(diagnostics["primary_error"], "scope_failure")
 

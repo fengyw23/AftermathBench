@@ -4,7 +4,8 @@ import hashlib
 import json
 import os
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,29 @@ supported recovery decisions yourself; do not ask the user to choose. Stop
 when the goal and cross-record consistency are verified, or after {max_turns}
 model turns.
 """
+
+
+def _native_report_json_default(value: Any) -> str:
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    raise TypeError(
+        f"Object of type {value.__class__.__name__} is not JSON serializable"
+    )
+
+
+def _native_report_json(report: dict[str, Any]) -> str:
+    return (
+        json.dumps(
+            report,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+            default=_native_report_json_default,
+        )
+        + "\n"
+    )
 
 
 def _object_schema(
@@ -419,7 +443,7 @@ def _surface_failure(failure_report: dict[str, Any]) -> dict[str, Any]:
         if isinstance(result, dict):
             return dict(result)
     raise ValueError(
-        "native failure report must contain visible_failure or " "latest_attempt.result"
+        "native failure report must contain visible_failure or latest_attempt.result"
     )
 
 
@@ -581,8 +605,7 @@ def run_native_family_agent(
     if scenario.split == "hidden_test":
         if hidden_evaluation_session is None or hidden_freeze_path is None:
             raise RuntimeError(
-                "hidden-test provider access requires a runner-managed "
-                "evaluation lock"
+                "hidden-test provider access requires a runner-managed evaluation lock"
             )
         if (
             hidden_evaluation_session.provider != str(client.provider)
@@ -703,7 +726,7 @@ def run_native_family_agent(
         destination = Path(output_path)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            _native_report_json(report),
             encoding="utf-8",
         )
     return report
@@ -890,9 +913,7 @@ def run_live_native_agent(
         )
         formal_input_lock_verification = verified_input_lock.as_dict()
         if pre_model_boundary_evidence_path is None:
-            raise ValueError(
-                "formal input lock requires " "--pre-model-boundary-evidence"
-            )
+            raise ValueError("formal input lock requires --pre-model-boundary-evidence")
         evidence_path = Path(pre_model_boundary_evidence_path)
         if not evidence_path.is_file() or evidence_path.is_symlink():
             raise ValueError("pre-model boundary evidence must be a regular file")
@@ -912,8 +933,7 @@ def run_live_native_agent(
             evidence_sha256=digest,
         ):
             raise ValueError(
-                "pre-model live boundary evidence does not match "
-                "the formal input lock"
+                "pre-model live boundary evidence does not match the formal input lock"
             )
         pre_model_boundary_evidence = {
             "variant_id": str(failure_report["variant"]),
@@ -990,7 +1010,7 @@ def run_live_native_agent(
         if output_path is not None:
             destination = Path(output_path)
             destination.write_text(
-                json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+                _native_report_json(report),
                 encoding="utf-8",
             )
     return report
