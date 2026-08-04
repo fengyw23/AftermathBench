@@ -23,8 +23,12 @@ class SharedBatchPrefix:
     scenario_id: str
     company: str
     shared_component: str
+    primary_finished_item: str
+    secondary_finished_item: str
     supplier_batch_id: str
     shared_purchase_receipt: str
+    primary_purchase_receipt_item: str
+    secondary_purchase_receipt_item: str
     shared_landed_cost_voucher: str
     primary_bom: str
     secondary_bom: str
@@ -45,9 +49,12 @@ class SharedBatchPrefix:
     stock_reservation_entry: str
     unrelated_receipt: str
     certificate_reference: str
+    certificate_webhook: str
+    quality_parameter: str
     accepted_quantity: float
     rework_quantity: float
     secondary_quantity: float
+    expected_corrective_operation_cost: float
     protected_fingerprints: dict[str, str]
     trace: tuple[dict[str, Any], ...]
 
@@ -449,13 +456,22 @@ class ERPNextSharedBatchPrefixBuilder:
                     "items": [
                         {
                             "item_code": shared["item_code"],
-                            "received_qty": shared["received_quantity"],
-                            "qty": shared["received_quantity"],
+                            "received_qty": primary["ordered_quantity"],
+                            "qty": primary["ordered_quantity"],
                             "rate": shared["valuation_rate"],
                             "warehouse": self.STORES_WAREHOUSE,
                             "use_serial_batch_fields": 1,
                             "batch_no": batch_id,
-                        }
+                        },
+                        {
+                            "item_code": shared["item_code"],
+                            "received_qty": secondary["ordered_quantity"],
+                            "qty": secondary["ordered_quantity"],
+                            "rate": shared["valuation_rate"],
+                            "warehouse": self.STORES_WAREHOUSE,
+                            "use_serial_batch_fields": 1,
+                            "batch_no": batch_id,
+                        },
                     ],
                 },
             )
@@ -465,6 +481,20 @@ class ERPNextSharedBatchPrefixBuilder:
             self.adapter.submit_document("Purchase Receipt", str(receipt["name"]))
         )
         self._trace(trace, "submit shared-batch Purchase Receipt", receipt)
+        receipt_rows = receipt.get("items", [])
+        if len(receipt_rows) != 2:
+            raise RuntimeError("shared Purchase Receipt must retain two native rows")
+        rows_by_quantity = {
+            float(row["qty"]): row
+            for row in receipt_rows
+            if row.get("item_code") == shared["item_code"]
+        }
+        primary_receipt_item = rows_by_quantity.get(float(primary["ordered_quantity"]))
+        secondary_receipt_item = rows_by_quantity.get(
+            float(secondary["ordered_quantity"])
+        )
+        if primary_receipt_item is None or secondary_receipt_item is None:
+            raise RuntimeError("shared Purchase Receipt lost its 12/8 branch identity")
 
         expense_account = (
             f"Expenses Included In Valuation - {self.fixture['company_abbr']}"
@@ -760,8 +790,12 @@ class ERPNextSharedBatchPrefixBuilder:
             scenario_id=self.scenario_id,
             company=str(self.fixture["company"]),
             shared_component=str(shared["item_code"]),
+            primary_finished_item=str(primary["item_code"]),
+            secondary_finished_item=str(secondary["item_code"]),
             supplier_batch_id=batch_id,
             shared_purchase_receipt=str(receipt["name"]),
+            primary_purchase_receipt_item=str(primary_receipt_item["name"]),
+            secondary_purchase_receipt_item=str(secondary_receipt_item["name"]),
             shared_landed_cost_voucher=str(landed_cost["name"]),
             primary_bom=str(primary_bom["name"]),
             secondary_bom=str(secondary_bom["name"]),
@@ -784,9 +818,12 @@ class ERPNextSharedBatchPrefixBuilder:
             certificate_reference=str(
                 self.fixture["external_certificate"]["idempotency_key"]
             ),
+            certificate_webhook=self.CERTIFICATE_WEBHOOK,
+            quality_parameter=self.QUALITY_PARAMETER,
             accepted_quantity=accepted_quantity,
             rework_quantity=rework_quantity,
             secondary_quantity=float(secondary["accepted_quantity"]),
+            expected_corrective_operation_cost=float(self.HOUR_RATE),
             protected_fingerprints={
                 key: shared_batch_document_fingerprint(document)
                 for key, document in protected_documents.items()

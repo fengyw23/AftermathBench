@@ -192,6 +192,11 @@ def evaluate_shared_batch_terminal(
         "general_ledger_balanced": (
             _same_decimal(
                 landed_cost.get("gl_debit_total"),
+                landed_cost.get("gl_debit_total"),
+            )
+            and not _same_decimal(landed_cost.get("gl_debit_total"), 0)
+            and _same_decimal(
+                landed_cost.get("gl_debit_total"),
                 landed_cost.get("gl_credit_total"),
             )
         ),
@@ -205,7 +210,10 @@ def evaluate_shared_batch_terminal(
         "certificate_exactly_once": (
             isinstance(certificate_deliveries, list)
             and len(certificate_deliveries) == 1
-            and certificate_deliveries[0].get("idempotency_key")
+            and (
+                certificate_deliveries[0].get("key")
+                or certificate_deliveries[0].get("idempotency_key")
+            )
             == certificate_expected["idempotency_key"]
             and certificate_deliveries[0].get("accepted") is True
             and _same_decimal(

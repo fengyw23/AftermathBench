@@ -39,6 +39,22 @@ def validate_prefix(
     stock_reservation = evidence["stock_reservation_entry"]
     lcv_items = lcv.get("items", [])
     receipt_items = purchase_receipt.get("items", [])
+    receipt_by_name = {str(row.get("name")): row for row in receipt_items}
+    lcv_by_receipt_item = {
+        str(row.get("purchase_receipt_item")): row for row in lcv_items
+    }
+    primary_receipt_item = receipt_by_name.get(
+        str(prefix["primary_purchase_receipt_item"]), {}
+    )
+    secondary_receipt_item = receipt_by_name.get(
+        str(prefix["secondary_purchase_receipt_item"]), {}
+    )
+    primary_lcv_item = lcv_by_receipt_item.get(
+        str(prefix["primary_purchase_receipt_item"]), {}
+    )
+    secondary_lcv_item = lcv_by_receipt_item.get(
+        str(prefix["secondary_purchase_receipt_item"]), {}
+    )
     # ERPNext posts the LCV revaluation by cancelling/reposting the referenced
     # Purchase Receipt's GL entries; the voucher identity remains the PR.
     relevant_lcv_gl = [
@@ -65,22 +81,35 @@ def validate_prefix(
     }
     checks = {
         "purchase_receipt_submitted": _submitted(purchase_receipt),
-        "one_native_batch_receipt_row": (
-            len(receipt_items) == 1
-            and receipt_items[0].get("item_code") == shared["item_code"]
-            and _decimal(receipt_items[0].get("qty"))
+        "two_native_branch_receipt_rows_share_one_batch": (
+            len(receipt_items) == 2
+            and all(
+                row.get("item_code") == shared["item_code"] for row in receipt_items
+            )
+            and sum((_decimal(row.get("qty")) for row in receipt_items), Decimal(0))
             == _decimal(shared["received_quantity"])
-            and receipt_items[0].get("batch_no") == shared["supplier_batch_id"]
-            and bool(receipt_items[0].get("serial_and_batch_bundle"))
+            and all(
+                row.get("batch_no") == shared["supplier_batch_id"]
+                and bool(row.get("serial_and_batch_bundle"))
+                for row in receipt_items
+            )
+            and _decimal(primary_receipt_item.get("qty"))
+            == _decimal(primary["ordered_quantity"])
+            and _decimal(secondary_receipt_item.get("qty"))
+            == _decimal(secondary["ordered_quantity"])
         ),
         "landed_cost_submitted_and_native": (
             _submitted(lcv)
             and _decimal(lcv.get("total_taxes_and_charges")) == _decimal(cost["amount"])
-            and len(lcv_items) == 1
-            and _decimal(lcv_items[0].get("applicable_charges"))
-            == _decimal(cost["amount"])
-            and _decimal(receipt_items[0].get("landed_cost_voucher_amount"))
-            == _decimal(cost["amount"])
+            and len(lcv_items) == 2
+            and _decimal(primary_lcv_item.get("applicable_charges"))
+            == _decimal(cost["primary_allocation"])
+            and _decimal(secondary_lcv_item.get("applicable_charges"))
+            == _decimal(cost["secondary_allocation"])
+            and _decimal(primary_receipt_item.get("landed_cost_voucher_amount"))
+            == _decimal(cost["primary_allocation"])
+            and _decimal(secondary_receipt_item.get("landed_cost_voucher_amount"))
+            == _decimal(cost["secondary_allocation"])
         ),
         "landed_cost_gl_balanced": (
             len(relevant_lcv_gl) >= 2 and gl_debit > 0 and gl_debit == gl_credit

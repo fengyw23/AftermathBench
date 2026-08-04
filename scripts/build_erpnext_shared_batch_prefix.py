@@ -22,7 +22,7 @@ def main() -> int:
     args = parser.parse_args()
 
     scenario = load_native_scenario(args.scenario)
-    if scenario.family != "erpnext-shared-batch-recovery":
+    if scenario.family_id != "erpnext-shared-batch-recovery":
         raise ValueError("scenario is not an ERPNext shared-batch recovery task")
     credentials = json.loads(args.credentials.read_text(encoding="utf-8"))
     adapter = FrappeHTTPAdapter(

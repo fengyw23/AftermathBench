@@ -61,9 +61,7 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
             },
             "certificate_deliveries": [
                 {
-                    "idempotency_key": (
-                        "calibration:CARDIAC-MONITOR-Z7:corrective-001"
-                    ),
+                    "key": ("calibration:CARDIAC-MONITOR-Z7:corrective-001"),
                     "accepted": True,
                     "quantity": 3,
                     "attempt_count": 1,

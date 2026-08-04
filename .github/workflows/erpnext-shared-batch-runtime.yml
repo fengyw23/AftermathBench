@@ -79,6 +79,32 @@ jobs:
             --evidence "$RUNTIME_OUTPUT/evidence/prefix-state.json" \
             --output "$RUNTIME_OUTPUT/prefix-validation.json"
 
+      - name: Replay four ambiguous boundaries and reference recoveries
+        run: |
+          mapfile -t variants < <(
+            python -c 'import json,sys; print(*[row["id"] for row in json.load(open(sys.argv[1]))["matched_variants"]], sep="\n")' \
+              "$SCENARIO"
+          )
+          test "${#variants[@]}" -eq 4
+          mkdir -p "$RUNTIME_OUTPUT/boundaries" "$RUNTIME_OUTPUT/references"
+          for variant in "${variants[@]}"
+          do
+            python scripts/run_erpnext_shared_batch_failure.py \
+              --variant "$variant" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix "$RUNTIME_OUTPUT/prefix.json" \
+              --snapshot-bundle "$RUNTIME_OUTPUT/prefix-bundle" \
+              --output "$RUNTIME_OUTPUT/boundaries/$variant.json" \
+              > "$RUNTIME_OUTPUT/logs/$variant-boundary.log" 2>&1
+            python scripts/run_erpnext_shared_batch_control.py \
+              --variant "$variant" \
+              --scenario "$SCENARIO" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --prefix "$RUNTIME_OUTPUT/prefix.json" \
+              --output "$RUNTIME_OUTPUT/references/$variant.json" \
+              > "$RUNTIME_OUTPUT/logs/$variant-reference.log" 2>&1
+          done
+
       - name: Capture native diagnostics
         if: always()
         run: |
