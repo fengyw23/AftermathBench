@@ -91,10 +91,10 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("--hidden-freeze", self.text)
         self.assertIn("--hidden-usage-ledger", self.text)
 
-    def test_candidate_branch_runs_the_default_execution_control(self) -> None:
+    def test_candidate_push_freezes_without_consuming_the_hidden_instance(self) -> None:
         self.assertIn("forgejo-publication-candidate", self.text)
         self.assertIn(
-            "github.event_name == 'push' || inputs.run_execution_control",
+            "github.event_name == 'workflow_dispatch' && inputs.run_execution_control",
             self.text,
         )
         self.assertIn("inputs.model || 'glm-5.2'", self.text)
