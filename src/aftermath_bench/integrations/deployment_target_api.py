@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -55,3 +56,7 @@ class DeploymentTargetAPI:
 
     def record_audit(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/audit-events", payload)
+
+    def delete_artifact_for_fault_injection(self, version: str) -> dict[str, Any]:
+        encoded = urllib.parse.quote(version, safe="")
+        return self._request("DELETE", f"/admin/artifacts/{encoded}")

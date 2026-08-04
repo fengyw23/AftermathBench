@@ -3,15 +3,16 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import urllib.parse
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class DeploymentStore:
@@ -336,6 +337,23 @@ class DeploymentStore:
             ).fetchone()
         return {**dict(row), "payload": json.loads(row["payload"]), "first_record": first_record}
 
+    def delete_artifact(self, version: str) -> dict[str, Any]:
+        """Fault-injection administration for a lost registry record.
+
+        The public agent API does not expose this operation.  Native boundary
+        construction uses it to represent an independently missing registry
+        effect while preserving a deployment that already consumed the digest.
+        """
+
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM artifacts WHERE version = ?", (version,)
+            ).fetchone()
+            if row is None:
+                return {"version": version, "deleted": False}
+            connection.execute("DELETE FROM artifacts WHERE version = ?", (version,))
+        return {"version": version, "deleted": True}
+
     def state(self) -> dict[str, Any]:
         with self._connection() as connection:
             result = {}
@@ -383,7 +401,7 @@ def make_handler(store: DeploymentStore) -> type[BaseHTTPRequestHandler]:
             length = int(self.headers.get("Content-Length", "0"))
             value = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(value, dict):
-                raise ValueError("request body must be an object")
+                raise TypeError("request body must be an object")
             return value
 
         def do_GET(self) -> None:
@@ -409,15 +427,23 @@ def make_handler(store: DeploymentStore) -> type[BaseHTTPRequestHandler]:
                     self._respond(404, {"error": "not_found"})
                     return
                 self._respond(200, operation(self._payload()))
-            except (KeyError, ValueError, json.JSONDecodeError) as error:
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
                 self._respond(409, {"error": str(error)})
 
         def do_DELETE(self) -> None:
-            if self.path != "/admin/reset":
-                self._respond(404, {"error": "not_found"})
+            if self.path == "/admin/reset":
+                store.reset()
+                self._respond(200, {"ok": True})
                 return
-            store.reset()
-            self._respond(200, {"ok": True})
+            prefix = "/admin/artifacts/"
+            if self.path.startswith(prefix):
+                version = urllib.parse.unquote(self.path[len(prefix) :])
+                if not version:
+                    self._respond(400, {"error": "version_required"})
+                    return
+                self._respond(200, store.delete_artifact(version))
+                return
+            self._respond(404, {"error": "not_found"})
 
     return Handler
 

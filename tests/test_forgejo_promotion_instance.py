@@ -82,6 +82,8 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
         self.assertIn("/webhooks/events", workflow)
         self.assertIn("resume_stage", workflow)
         self.assertIn("stop_after", workflow)
+        self.assertIn("stop_after == 'artifact'", workflow)
+        self.assertIn("resume_stage == 'after_artifact'", workflow)
 
     def test_runtime_replays_fixed_policies_from_each_boundary_bundle(self) -> None:
         workflow = (

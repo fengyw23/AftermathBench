@@ -8,6 +8,24 @@ from aftermath_bench.runtime_services.deployment_target import DeploymentStore
 
 
 class DeploymentTargetTest(unittest.TestCase):
+    def test_fault_injection_can_remove_registry_without_erasing_deployment(self) -> None:
+        store = self.store
+        store.register_artifact(
+            {"version": "2.0", "digest": "sha256:two", "source_commit": "abc"}
+        )
+        store.request_artifact_deployment(
+            {
+                "environment": "production",
+                "version": "2.0",
+                "artifact_digest": "sha256:two",
+            }
+        )
+        store.run_workers()
+        self.assertTrue(store.delete_artifact("2.0")["deleted"])
+        state = store.state()
+        self.assertFalse(state["artifacts"])
+        self.assertEqual(state["deployments"][0]["desired_version"], "2.0")
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.store = DeploymentStore(Path(self.temporary.name) / "target.sqlite3")
