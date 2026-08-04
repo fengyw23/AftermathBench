@@ -39,6 +39,9 @@ class ERPNextMultiwarehouseWorkflowTests(unittest.TestCase):
             "generate_erpnext_multiwarehouse_formal_build_spec.py",
             "build_formal_evidence.py",
             "formal-input-lock.json",
+            "run-native-model",
+            "validate_native_control_summary.py",
+            "completion/declarations.json",
         ):
             self.assertIn(token, self.text)
 

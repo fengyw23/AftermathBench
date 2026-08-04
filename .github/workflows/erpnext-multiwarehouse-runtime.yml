@@ -20,8 +20,10 @@ jobs:
       RUN_ROOT: runtimes/erpnext/.runtime/multiwarehouse
       BLUEPRINT: data/scenario_blueprints/erpnext-multiwarehouse-transfer-dev-001/scenario.json
       GENERATED_SCENARIO: data/scenarios/erpnext-multiwarehouse-transfer-dev-001
+      CONTROL_ROOT: runtimes/erpnext/.runtime/multiwarehouse/control
       FORMAL_OUTPUT: data/evidence/formal/aftermathbench-2026.08-r1/erpnext/erpnext-multiwarehouse-transfer/dev-001
       BENCHMARK_RELEASE_ID: aftermathbench-2026.08-r1
+      AFTERMATH_MODEL_BASE_URL: https://ws-ogjwl5f71op9q2jf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,7 +68,9 @@ jobs:
           fi
           python scripts/manage_erpnext_stack.py snapshot-bundle \
             --snapshot "$RUN_ROOT/bundles/prefix"
-          mkdir -p "$RUN_ROOT/runtime/state-evidence" "$RUN_ROOT/specs"
+          mkdir -p "$RUN_ROOT/runtime/state-evidence" "$RUN_ROOT/specs" \
+            "$CONTROL_ROOT/model-runs/repetition-01" \
+            "$CONTROL_ROOT/pre-model-boundaries"
 
       - name: Replay four ambiguous boundaries and references
         run: |
@@ -228,6 +232,100 @@ jobs:
             --root . \
             --phase inputs
           test -s "$FORMAL_OUTPUT/formal-input-lock.json"
+
+      - name: Run execution controls from the locked native boundaries
+        env:
+          AFTERMATH_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+          MODEL_ID: glm-5.2
+        run: |
+          test -n "$AFTERMATH_API_KEY"
+          runtime_root="runtimes/erpnext/.runtime"
+          variants=(
+            request_not_reached
+            database_committed_response_lost
+            after_commit_enqueue_failed
+            async_job_pending
+          )
+          run_status=0
+          for variant in "${variants[@]}"
+          do
+            pre_model="$CONTROL_ROOT/pre-model-boundaries/$variant-boundary.json"
+            output="$CONTROL_ROOT/model-runs/repetition-01/$variant.json"
+            python scripts/manage_erpnext_stack.py restore-bundle \
+              --snapshot "$RUN_ROOT/bundles/boundary-$variant"
+            python scripts/capture_erpnext_multiwarehouse_state_evidence.py \
+              --phase boundary \
+              --scenario "$GENERATED_SCENARIO/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --variant "$variant" \
+              --bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json" \
+              --reset-evidence "$RUN_ROOT/runtime/state-evidence/$variant-reset.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --output "$pre_model"
+            cmp "$RUN_ROOT/runtime/state-evidence/$variant-boundary.json" "$pre_model"
+            python -m aftermath_bench run-native-model \
+              --provider openai-compatible \
+              --base-url "$AFTERMATH_MODEL_BASE_URL" \
+              --model "$MODEL_ID" \
+              --scenario "$GENERATED_SCENARIO/scenario.json" \
+              --credentials "$runtime_root/credentials.json" \
+              --prefix "$RUN_ROOT/runtime/prefix.json" \
+              --failure-report "$RUN_ROOT/runtime/$variant-boundary.json" \
+              --max-turns 25 \
+              --execution-control \
+              --formal-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+              --pre-model-boundary-evidence "$pre_model" \
+              --output "$output" \
+              > "$RUN_ROOT/logs/control-$variant.log" 2>&1 \
+              || run_status=1
+          done
+          python scripts/summarize_native_model_runs.py \
+            --run-directory "$CONTROL_ROOT/model-runs" \
+            --scenario "$GENERATED_SCENARIO/scenario.json" \
+            --expected-execution-control true \
+            --output "$CONTROL_ROOT/model-runs/summary.json" \
+            > "$RUN_ROOT/logs/control-summary.log" 2>&1 \
+            || run_status=1
+          python scripts/validate_native_control_summary.py \
+            --summary "$CONTROL_ROOT/model-runs/summary.json" \
+            --expected-cases 4 \
+            --minimum-pass-rate 0.8 \
+            > "$RUN_ROOT/logs/control-gate.log" 2>&1 \
+            || run_status=1
+          test "$run_status" -eq 0
+
+      - name: Complete the seven-role formal evidence package
+        run: |
+          python scripts/build_evidence_file_manifest.py \
+            --root "$CONTROL_ROOT" \
+            --output "$CONTROL_ROOT/files.json"
+          capture_args=(
+            --capture-bundle-manifest "$RUN_ROOT/bundles/prefix/bundle.json"
+          )
+          for variant in request_not_reached database_committed_response_lost after_commit_enqueue_failed async_job_pending
+          do
+            capture_args+=(
+              --capture-bundle-manifest "$RUN_ROOT/bundles/boundary-$variant/bundle.json"
+            )
+          done
+          python scripts/generate_erpnext_multiwarehouse_formal_build_spec.py \
+            --phase complete \
+            --benchmark-release-id "$BENCHMARK_RELEASE_ID" \
+            --scenario "$GENERATED_SCENARIO/scenario.json" \
+            --runtime-manifest "$RUN_ROOT/files.json" \
+            --capture-directory "$RUN_ROOT/runtime/state-evidence" \
+            "${capture_args[@]}" \
+            --control-manifest "$CONTROL_ROOT/files.json" \
+            --model-input-lock "$FORMAL_OUTPUT/formal-input-lock.json" \
+            --formal-output-directory "$FORMAL_OUTPUT" \
+            --output-spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root .
+          python scripts/build_formal_evidence.py \
+            --spec "$RUN_ROOT/specs/formal-complete.json" \
+            --root . \
+            --phase complete
+          test -s "$FORMAL_OUTPUT/completion/declarations.json"
 
       - name: Publish admitted scenario to evidence branch
         run: |
