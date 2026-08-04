@@ -7,7 +7,6 @@ from .erpnext_shared_batch_agent import (
     reference_shared_batch_recovery,
 )
 
-
 SHARED_BATCH_INTERACTION_PROBE = "repair_then_cancel_customer_reservation"
 
 

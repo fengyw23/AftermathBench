@@ -130,9 +130,7 @@ def main() -> int:
         json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
-    expected_conflict = bool(repaired) and (
-        "customer_reservation_preserved" in broken
-    )
+    expected_conflict = bool(repaired) and ("customer_reservation_preserved" in broken)
     print(
         json.dumps(
             {

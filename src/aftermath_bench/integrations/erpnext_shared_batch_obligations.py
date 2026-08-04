@@ -2,16 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from aftermath_bench.obligation_interaction_audit import (
+from ..obligation_interaction_audit import (
     ObligationInteractionAudit,
     analyze_obligation_interactions,
 )
-
 from .erpnext_shared_batch_evaluator import evaluate_shared_batch_terminal
 from .erpnext_shared_batch_probes import SHARED_BATCH_INTERACTION_PROBE
 from .erpnext_shared_batch_projection import project_shared_batch_terminal
 from .erpnext_shared_batch_scope import SHARED_BATCH_RECOVERY_SIGNATURES
-
 
 PROTECTED_SHARED_BATCH_OBLIGATIONS = {
     "accepted_primary_quantity_preserved",
