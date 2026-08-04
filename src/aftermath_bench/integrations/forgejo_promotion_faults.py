@@ -77,6 +77,12 @@ class ForgejoPromotionFaultController:
         self._set(self.api_control_url, specification.api_mode)
         return specification
 
+    def arm_dispatch_transport(self, mode: str) -> None:
+        if mode not in {"drop_response", "suppress_request"}:
+            raise ValueError(f"unsupported ambiguous dispatch mode: {mode}")
+        self.restore()
+        self._set(self.api_control_url, mode)
+
     def disarm_api(self) -> None:
         self._set(self.api_control_url, "normal")
 

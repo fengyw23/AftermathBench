@@ -38,6 +38,19 @@ class ForgejoPromotionFaultsTest(unittest.TestCase):
         )
         self.assertTrue(any(call[3]["mode"] == "suppress_request" for call in calls))
 
+    def test_reconciliation_can_fault_one_real_dispatch_without_variant_label(self) -> None:
+        calls = []
+
+        def requester(base_url, method, path, payload):
+            calls.append((base_url, method, path, payload))
+            return {"mode": payload["mode"]}
+
+        controller = ForgejoPromotionFaultController(requester=requester)
+        controller.arm_dispatch_transport("drop_response")
+        self.assertEqual(calls[-1][3], {"mode": "drop_response"})
+        with self.assertRaisesRegex(ValueError, "unsupported"):
+            controller.arm_dispatch_transport("normal")
+
 
 if __name__ == "__main__":
     unittest.main()
