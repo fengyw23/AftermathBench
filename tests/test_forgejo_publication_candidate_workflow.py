@@ -123,6 +123,7 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
     def test_bootstrap_artifact_reports_only_a_non_sensitive_phase(self) -> None:
         self.assertIn("bootstrap-status.json", self.text)
         self.assertIn('"phase":"%s"', self.text)
+        self.assertIn("::notice::bootstrap_phase=%s", self.text)
         self.assertNotIn('cat "$run_root/private/instance.json"', self.text)
 
     def test_private_reports_and_model_diagnostics_are_not_logged(self) -> None:
