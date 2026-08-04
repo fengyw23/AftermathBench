@@ -51,6 +51,55 @@ class NativeRunBindingTests(unittest.TestCase):
                 family_id="forgejo-release-package-publication",
             )
 
+    def test_accepts_explicitly_declared_prefix_fixture(self) -> None:
+        scenario = NativeScenario(
+            path=Path("scenario.json"),
+            raw={
+                "scenario_id": "reconciliation-public-dev-001",
+                "instance_spec_sha256": "spec-a",
+                "fixture": {"scenario_id": "promotion-public-dev-001"},
+                "matched_variants": [{"id": "opaque-01"}],
+            },
+        )
+        validate_native_run_bindings(
+            scenario=scenario,
+            prefix={
+                "scenario_id": "promotion-public-dev-001",
+                "instance_spec_sha256": "spec-a",
+            },
+            failure_report={
+                "scenario_id": "reconciliation-public-dev-001",
+                "instance_spec_sha256": "spec-a",
+                "variant": "opaque-01",
+            },
+            family_id="forgejo-cross-system-reconciliation",
+        )
+
+    def test_rejects_undeclared_prefix_for_wrapped_scenario(self) -> None:
+        scenario = NativeScenario(
+            path=Path("scenario.json"),
+            raw={
+                "scenario_id": "reconciliation-public-dev-001",
+                "instance_spec_sha256": "spec-a",
+                "fixture": {"scenario_id": "promotion-public-dev-001"},
+                "matched_variants": [{"id": "opaque-01"}],
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "prefix and scenario"):
+            validate_native_run_bindings(
+                scenario=scenario,
+                prefix={
+                    "scenario_id": "other-promotion",
+                    "instance_spec_sha256": "spec-a",
+                },
+                failure_report={
+                    "scenario_id": "reconciliation-public-dev-001",
+                    "instance_spec_sha256": "spec-a",
+                    "variant": "opaque-01",
+                },
+                family_id="forgejo-cross-system-reconciliation",
+            )
+
     def test_rejects_unknown_variant_and_spec_hash_drift(self) -> None:
         with self.assertRaisesRegex(ValueError, "variant"):
             validate_native_run_bindings(

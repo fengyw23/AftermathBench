@@ -1038,9 +1038,13 @@ def validate_native_run_bindings(
     if failure_report["scenario_id"] != scenario.scenario_id:
         raise ValueError("failure report and scenario do not match")
     prefix_scenario_id = prefix.get("scenario_id")
+    fixture = scenario.raw.get("fixture")
+    declared_prefix_scenario_ids = {scenario.scenario_id}
+    if isinstance(fixture, dict) and fixture.get("scenario_id") is not None:
+        declared_prefix_scenario_ids.add(str(fixture["scenario_id"]))
     if (
         prefix_scenario_id is not None
-        and str(prefix_scenario_id) != scenario.scenario_id
+        and str(prefix_scenario_id) not in declared_prefix_scenario_ids
     ):
         raise ValueError("prefix and scenario do not match")
     if str(failure_report.get("variant", "")) not in scenario.variants:
@@ -1057,6 +1061,7 @@ def validate_native_run_bindings(
     instance_bound_families = {
         "forgejo-release-package-publication",
         "forgejo-migration-deployment",
+        "forgejo-cross-system-reconciliation",
     }
     if family_id in instance_bound_families and any(
         value is None
