@@ -292,13 +292,20 @@ jobs:
           else
             admission_script=scripts/build_forgejo_publication_admission.py
           fi
-          python "$admission_script" \
+          # Capture a safe gate name on rejection.  GitHub executes shell
+          # steps with fail-fast enabled, so the command must be inside an
+          # explicit conditional for the diagnostic below to run.
+          if python "$admission_script" \
             --runtime-directory "$run_root/private/runtime" \
             --baseline-directory "$run_root/private/baselines" \
             --blueprint "$run_root/private/blueprint.json" \
             --output-directory "$run_root/private/scenario" \
             > "$run_root/private/logs/admission.log" 2>&1
-          admission_status=$?
+          then
+            admission_status=0
+          else
+            admission_status=$?
+          fi
           if [ "$admission_status" -ne 0 ]
           then
             write_safe_admission_failure

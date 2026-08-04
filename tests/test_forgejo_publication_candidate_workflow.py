@@ -184,6 +184,14 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(token, self.text)
 
+    def test_admission_rejection_emits_a_redacted_gate_summary(self) -> None:
+        admission = self.text.index("Admit and freeze before any provider request")
+        model = self.text.index("Lock and run execution control on frozen state")
+        section = self.text[admission:model]
+        self.assertIn('if python "$admission_script"', section)
+        self.assertIn("write_safe_admission_failure", section)
+        self.assertIn("Native admission failed", section)
+
 
 if __name__ == "__main__":
     unittest.main()
