@@ -6,12 +6,18 @@ on:
       - native-hard-recovery-v1
     paths:
       - .github/workflows/erpnext-shared-batch-runtime.yml
-      - data/instance_specs/erpnext-shared-batch-recovery-dev-001.json
-      - data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
+      - data/instance_specs/erpnext-shared-batch-recovery-*.json
+      - data/scenario_blueprints/erpnext-shared-batch-recovery-*/scenario.json
       - scripts/*erpnext_shared_batch*.py
       - src/aftermath_bench/integrations/erpnext_shared_batch_*.py
       - tests/test_erpnext_shared_batch_*.py
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: Checked shared-batch scenario blueprint
+        required: true
+        default: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
+        type: string
 
 permissions:
   contents: read
@@ -24,8 +30,8 @@ jobs:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
-      SCENARIO: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
-      RUNTIME_OUTPUT: data/generated/erpnext-shared-batch-recovery-dev-001/native-prefix
+      SCENARIO: ${{ inputs.scenario || 'data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json' }}
+      RUNTIME_OUTPUT: data/generated/erpnext-shared-batch-runtime
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -111,7 +117,7 @@ jobs:
           done
           python scripts/build_erpnext_shared_batch_scope_matrix.py \
             --boundary-directory "$RUNTIME_OUTPUT/boundaries" \
-            --scenario-id erpnext-shared-batch-recovery-dev-001 \
+            --scenario-id "$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["scenario_id"])' "$SCENARIO")" \
             --output "$RUNTIME_OUTPUT/scope-decision-matrix.json"
 
       - name: Replay native repair-preservation conflict probes
@@ -211,7 +217,7 @@ jobs:
           name: erpnext-shared-batch-prefix-${{ github.run_id }}
           include-hidden-files: true
           path: |
-            data/generated/erpnext-shared-batch-recovery-dev-001/native-prefix
+            ${{ env.RUNTIME_OUTPUT }}
           compression-level: 9
           if-no-files-found: warn
 
