@@ -873,6 +873,16 @@ class ForgejoAPI:
             raise TypeError("Forgejo returned no workflow-artifact list")
         return [artifact for artifact in result if isinstance(artifact, dict)]
 
+    def download_action_artifact(
+        self, owner: str, repository: str, artifact_id: int
+    ) -> bytes:
+        url = (
+            f"{self.base_url.rstrip('/')}/repos/{urllib.parse.quote(owner, safe='')}"
+            f"/{urllib.parse.quote(repository, safe='')}/actions/artifacts/"
+            f"{int(artifact_id)}/zip"
+        )
+        return self.download(url)
+
     def get_action_job_logs(
         self, owner: str, repository: str, job_id: int
     ) -> str:

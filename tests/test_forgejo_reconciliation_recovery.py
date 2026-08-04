@@ -49,6 +49,16 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             "action_artifacts": [
                 {"name": "approved-6.2.0", "expired": False}
             ],
+            "approval_source_manifest": {
+                "binary.tar.gz": {"size": 1, "sha256": "binary"}
+            },
+            "action_artifact_manifests": [
+                {
+                    "files": [
+                        {"name": "binary.tar.gz", "size": 1, "sha256": "binary"}
+                    ]
+                }
+            ],
             "deployment_state": {
                 "artifacts": [
                     {
@@ -102,7 +112,7 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
     def test_each_single_gap_changes_only_its_obligation(self) -> None:
         mutations = {
             "actions_bundle_matches_approval": lambda state: state[
-                "action_artifacts"
+                "action_artifact_manifests"
             ].clear(),
             "artifact_registry_matches_bundle": lambda state: state[
                 "deployment_state"

@@ -77,6 +77,17 @@ FORGEJO_PROMOTION_TOOLS = (
         _schema(_RUN_ID, ("run_id",)),
     ),
     ToolDefinition(
+        "get_action_artifact_manifest",
+        "Download one native Actions artifact and return every file hash and size.",
+        _schema(
+            {
+                **_RUN_ID,
+                "artifact_id": {"type": "integer", "minimum": 1},
+            },
+            ("run_id", "artifact_id"),
+        ),
+    ),
+    ToolDefinition(
         "get_deployment_state",
         "Read registered signed bundles, deployment requests and replicas.",
         _schema({}),

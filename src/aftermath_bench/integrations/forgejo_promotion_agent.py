@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import time
+import zipfile
 from collections.abc import Callable
 from typing import Any
 
@@ -12,6 +15,40 @@ from .forgejo_promotion_evaluator import (
 )
 from .forgejo_promotion_instance import ForgejoPromotionInstanceSpec
 from .forgejo_stack import ForgejoStack
+
+
+def inspect_action_artifact(
+    forgejo: ForgejoAPI,
+    *,
+    owner: str,
+    repository: str,
+    run_id: int,
+    artifact_id: int,
+) -> dict[str, Any]:
+    artifacts = forgejo.list_action_run_artifacts(owner, repository, run_id)
+    artifact = next(
+        (row for row in artifacts if int(row.get("id", -1)) == artifact_id),
+        None,
+    )
+    if artifact is None:
+        raise ValueError(f"artifact {artifact_id} does not belong to run {run_id}")
+    archive = forgejo.download_action_artifact(owner, repository, artifact_id)
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        files = [
+            {
+                "name": info.filename,
+                "size": info.file_size,
+                "sha256": hashlib.sha256(bundle.read(info)).hexdigest(),
+            }
+            for info in bundle.infolist()
+            if not info.is_dir()
+        ]
+    return {
+        "run_id": run_id,
+        "artifact_id": artifact_id,
+        "artifact_name": artifact.get("name"),
+        "files": sorted(files, key=lambda row: str(row["name"])),
+    }
 
 
 class ForgejoPromotionEnvironment:
@@ -26,6 +63,7 @@ class ForgejoPromotionEnvironment:
         "list_action_runs",
         "list_action_run_jobs",
         "list_action_run_artifacts",
+        "get_action_artifact_manifest",
         "get_deployment_state",
         "get_external_attestation",
         "dispatch_workflow",
@@ -148,6 +186,10 @@ class ForgejoPromotionEnvironment:
             "list_action_run_artifacts": lambda: self.forgejo.list_action_run_artifacts(
                 owner, repository, int(kwargs["run_id"])
             ),
+            "get_action_artifact_manifest": lambda: self._action_artifact_manifest(
+                int(kwargs["run_id"]),
+                int(kwargs["artifact_id"]),
+            ),
             "get_deployment_state": self.deployment.state,
             "get_external_attestation": lambda: get_external_delivery(
                 self.external_url, str(kwargs["key"])
@@ -192,6 +234,17 @@ class ForgejoPromotionEnvironment:
         self.stack.start_action_runner()
         return {"started": True}
 
+    def _action_artifact_manifest(
+        self, run_id: int, artifact_id: int
+    ) -> dict[str, Any]:
+        return inspect_action_artifact(
+            self.forgejo,
+            owner=self.instance.owner,
+            repository=self.instance.repository,
+            run_id=run_id,
+            artifact_id=artifact_id,
+        )
+
     def snapshot(self) -> dict[str, Any]:
         evaluation = ForgejoPromotionEvaluator(
             forgejo=self.forgejo,
@@ -209,4 +262,4 @@ class ForgejoPromotionEnvironment:
         return list(self._events)
 
 
-__all__ = ["ForgejoPromotionEnvironment"]
+__all__ = ["ForgejoPromotionEnvironment", "inspect_action_artifact"]

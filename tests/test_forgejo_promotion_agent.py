@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import io
 import unittest
+import zipfile
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 from aftermath_bench.integrations.forgejo_promotion_agent import (
     ForgejoPromotionEnvironment,
+    inspect_action_artifact,
 )
 from aftermath_bench.integrations.forgejo_promotion_baselines import (
     FORGEJO_PROMOTION_BASELINES,
@@ -57,9 +60,30 @@ class ForgejoPromotionAgentTest(unittest.TestCase):
                 "get_deployment_state",
                 "get_external_attestation",
                 "dispatch_workflow",
+                "get_action_artifact_manifest",
             }.issubset(names)
         )
         self.assertFalse(any(name.startswith("repair_") for name in names))
+
+    def test_artifact_manifest_exposes_file_hashes_not_an_answer_label(self) -> None:
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("binary.tar.gz", b"approved bytes")
+        forgejo = Mock()
+        forgejo.list_action_run_artifacts.return_value = [
+            {"id": 9, "name": "approved-6.2.0"}
+        ]
+        forgejo.download_action_artifact.return_value = archive.getvalue()
+        manifest = inspect_action_artifact(
+            forgejo,
+            owner="aftermath",
+            repository="service",
+            run_id=7,
+            artifact_id=9,
+        )
+        self.assertEqual(manifest["artifact_name"], "approved-6.2.0")
+        self.assertEqual(manifest["files"][0]["name"], "binary.tar.gz")
+        self.assertEqual(len(manifest["files"][0]["sha256"]), 64)
 
     def test_waiting_for_a_run_is_classified_as_state_advancing(self) -> None:
         self.assertIn(

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import time
 from typing import Any
 
 from .deployment_target_api import DeploymentTargetAPI
 from .forgejo_api import ForgejoAPI
-from .forgejo_promotion_agent import ForgejoPromotionEnvironment
+from .forgejo_promotion_agent import (
+    ForgejoPromotionEnvironment,
+    inspect_action_artifact,
+)
 from .forgejo_promotion_evaluator import get_external_delivery
 from .forgejo_promotion_instance import ForgejoPromotionInstanceSpec
 
@@ -26,6 +31,39 @@ def collect_reconciliation_state(
             instance.owner, instance.repository, int(run["id"])
         )
     ]
+    source_paths = {
+        "binary.tar.gz": instance.binary_path,
+        "binary.tar.gz.sig": instance.signature_path,
+        "artifact.spdx.json": instance.sbom_path,
+        "artifact.intoto.jsonl": instance.provenance_path,
+    }
+    approval_source_manifest = {}
+    for archive_name, path in source_paths.items():
+        document = forgejo.get_repository_content(
+            instance.owner, instance.repository, path=path, ref="main"
+        )
+        content = base64.b64decode(
+            str(document["content"]).replace("\n", ""), validate=True
+        )
+        approval_source_manifest[archive_name] = {
+            "size": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+    action_artifact_manifests = [
+        inspect_action_artifact(
+            forgejo,
+            owner=instance.owner,
+            repository=instance.repository,
+            run_id=int(run["id"]),
+            artifact_id=int(artifact["id"]),
+        )
+        for run in runs
+        for artifact in forgejo.list_action_run_artifacts(
+            instance.owner, instance.repository, int(run["id"])
+        )
+        if artifact.get("name") == f"approved-{instance.version}"
+        and not bool(artifact.get("expired"))
+    ]
     issues = forgejo.list_issues(instance.owner, instance.repository)
     comments = forgejo.list_issue_comments(
         instance.owner,
@@ -35,6 +73,8 @@ def collect_reconciliation_state(
     return {
         "runs": runs,
         "action_artifacts": action_artifacts,
+        "action_artifact_manifests": action_artifact_manifests,
+        "approval_source_manifest": approval_source_manifest,
         "deployment_state": deployment.state(),
         "external_attestation": get_external_delivery(
             external_url, instance.attestation_key
@@ -76,13 +116,20 @@ def project_reconciliation_obligations(
         ),
         None,
     )
-    action_artifacts = [
-        row
-        for row in state["action_artifacts"]
-        if row.get("name") == f"approved-{instance.version}"
-        and not bool(row.get("expired"))
-    ]
-    actions_valid = len(action_artifacts) == 1
+    action_manifests = state["action_artifact_manifests"]
+    expected_manifest = state["approval_source_manifest"]
+    observed_manifest = (
+        {
+            str(row["name"]): {
+                "size": int(row["size"]),
+                "sha256": str(row["sha256"]),
+            }
+            for row in action_manifests[0]["files"]
+        }
+        if len(action_manifests) == 1
+        else {}
+    )
+    actions_valid = len(action_manifests) == 1 and observed_manifest == expected_manifest
     registry_valid = (
         len(target_artifacts) == 1
         and target_artifacts[0]["digest"] == instance.artifact_digest
