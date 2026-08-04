@@ -1,0 +1,150 @@
+name: forgejo-migration-hidden-candidate
+
+on:
+  push:
+    branches:
+      - forgejo-migration-hidden-test-001
+      - forgejo-migration-hidden-test-002
+  workflow_dispatch:
+    inputs:
+      instance_id:
+        required: true
+        default: test-001
+        type: choice
+        options: [test-001, test-002]
+
+permissions:
+  contents: write
+
+jobs:
+  freeze-unseen-migration-states:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: src
+      AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
+      INSTANCE_ID: ${{ inputs.instance_id || (github.ref_name == 'forgejo-migration-hidden-test-002' && 'test-002' || 'test-001') }}
+      RUN_ROOT: ${{ runner.temp }}/forgejo-migration-hidden
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate and validate a private instance before model access
+        run: |
+          mkdir -p "$RUN_ROOT/private/state-evidence" "$RUN_ROOT/private/baselines" "$RUN_ROOT/private/logs" "$RUN_ROOT/public"
+          python scripts/generate_forgejo_migration_hidden_instance.py --instance-id "$INSTANCE_ID" --output "$RUN_ROOT/private/instance.json"
+          python scripts/render_forgejo_migration_blueprint.py --instance "$RUN_ROOT/private/instance.json" --instance-id "$INSTANCE_ID" --benchmark-split hidden_test --output "$RUN_ROOT/private/blueprint.json"
+          python scripts/verify_forgejo_migration_instance_novelty.py --instance-spec "$RUN_ROOT/private/instance.json" --bound-blueprint "$RUN_ROOT/private/blueprint.json"
+          python -m unittest discover -s tests -p 'test_forgejo_migration*.py' -v
+
+      - name: Build the pinned Forgejo runtime from source
+        run: |
+          python scripts/build_forgejo_runtime.py --source-directory "$RUNNER_TEMP/forgejo" --checkout --build --report "$RUN_ROOT/private/source-verification.json"
+
+      - name: Create and snapshot the native prefix
+        run: |
+          runtime_root=runtimes/forgejo/.runtime
+          owner="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner"])' "$RUN_ROOT/private/instance.json")"
+          python scripts/manage_forgejo_stack.py up
+          python scripts/manage_forgejo_stack.py setup --username "$owner" --email "$owner@aftermath.invalid"
+          python scripts/manage_forgejo_stack.py setup-runner
+          python scripts/build_forgejo_migration_prefix.py --credentials "$runtime_root/credentials.json" --instance-spec "$RUN_ROOT/private/instance.json" --output "$RUN_ROOT/private/prefix.json"
+          python scripts/manage_forgejo_stack.py snapshot-migration-bundle --snapshot "$RUN_ROOT/private/prefix-bundle"
+
+      - name: Freeze four matched boundaries and replay references
+        run: |
+          runtime_root=runtimes/forgejo/.runtime
+          variants=(dispatch_request_not_reached workflow_queued_runner_unavailable migration_applied_workflow_failed workflow_completed_dispatch_response_lost)
+          for variant in "${variants[@]}"
+          do
+            reset="$RUN_ROOT/private/state-evidence/$variant-reset.json"
+            boundary="$RUN_ROOT/private/state-evidence/$variant-boundary.json"
+            python scripts/manage_forgejo_stack.py restore-migration-bundle --snapshot "$RUN_ROOT/private/prefix-bundle"
+            python scripts/capture_forgejo_migration_state_evidence.py --phase reset --scenario "$RUN_ROOT/private/blueprint.json" --instance-spec "$RUN_ROOT/private/instance.json" --credentials "$runtime_root/credentials.json" --prefix "$RUN_ROOT/private/prefix.json" --variant "$variant" --bundle-manifest "$RUN_ROOT/private/prefix-bundle/bundle.json" --forgejo-archive "$RUN_ROOT/private/prefix-bundle/forgejo-data.tar.gz" --deployment-target-archive "$RUN_ROOT/private/prefix-bundle/deployment-target-data.tar.gz" --output "$reset"
+            python scripts/run_forgejo_migration_boundary.py --credentials "$runtime_root/credentials.json" --instance-spec "$RUN_ROOT/private/instance.json" --variant "$variant" --output "$RUN_ROOT/private/$variant-boundary.json"
+            args=(--snapshot "$RUN_ROOT/private/$variant-bundle")
+            if [ "$variant" = workflow_queued_runner_unavailable ]; then args+=(--runner-disabled); fi
+            python scripts/manage_forgejo_stack.py snapshot-migration-bundle "${args[@]}"
+            python scripts/capture_forgejo_migration_state_evidence.py --phase boundary --scenario "$RUN_ROOT/private/blueprint.json" --instance-spec "$RUN_ROOT/private/instance.json" --credentials "$runtime_root/credentials.json" --prefix "$RUN_ROOT/private/prefix.json" --variant "$variant" --bundle-manifest "$RUN_ROOT/private/$variant-bundle/bundle.json" --forgejo-archive "$RUN_ROOT/private/$variant-bundle/forgejo-data.tar.gz" --deployment-target-archive "$RUN_ROOT/private/$variant-bundle/deployment-target-data.tar.gz" --failure-report "$RUN_ROOT/private/$variant-boundary.json" --reset-evidence "$reset" --output "$boundary"
+            python scripts/manage_forgejo_stack.py restore-migration-bundle --snapshot "$RUN_ROOT/private/$variant-bundle"
+            python scripts/run_forgejo_migration_reference.py --credentials "$runtime_root/credentials.json" --prefix "$RUN_ROOT/private/prefix.json" --instance-spec "$RUN_ROOT/private/instance.json" --variant "$variant" --output "$RUN_ROOT/private/$variant-reference.json"
+          done
+
+      - name: Replay fixed policies from every exact boundary
+        run: |
+          runtime_root=runtimes/forgejo/.runtime
+          variants=(dispatch_request_not_reached workflow_queued_runner_unavailable migration_applied_workflow_failed workflow_completed_dispatch_response_lost)
+          baselines=(no_op assume_effect_complete blind_redispatch always_skip_migration always_restart_runner close_tracking_only)
+          for baseline in "${baselines[@]}"; do for variant in "${variants[@]}"
+          do
+            python scripts/manage_forgejo_stack.py restore-migration-bundle --snapshot "$RUN_ROOT/private/$variant-bundle"
+            python scripts/run_forgejo_migration_baseline.py --credentials "$runtime_root/credentials.json" --prefix "$RUN_ROOT/private/prefix.json" --instance-spec "$RUN_ROOT/private/instance.json" --variant "$variant" --baseline "$baseline" --output "$RUN_ROOT/private/baselines/$baseline-$variant.json"
+          done; done
+
+      - name: Admit and freeze before any provider request
+        run: |
+          python scripts/build_forgejo_migration_admission.py --runtime-directory "$RUN_ROOT/private" --baseline-directory "$RUN_ROOT/private/baselines" --blueprint "$RUN_ROOT/private/blueprint.json" --output-directory "$RUN_ROOT/private/scenario"
+          python -m aftermath_bench validate-native-scenario --scenario "$RUN_ROOT/private/scenario/scenario.json"
+          revision="$(python -c 'import json; print(json.load(open("runtimes/forgejo/runtime.lock.json"))["source"]["revision"])')"
+          python scripts/freeze_native_bundle.py --bundle-root "$RUN_ROOT/private" --scenario "$RUN_ROOT/private/scenario/scenario.json" --instance-spec "$RUN_ROOT/private/instance.json" --source-commit "$GITHUB_SHA" --runtime-revision "$revision" --private-attestation "$RUN_ROOT/private/freeze.json" --public-commitment "$RUN_ROOT/private/public-commitment.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
+          python scripts/verify_hidden_test_eligibility.py --scenario "$RUN_ROOT/private/scenario/scenario.json" --freeze "$RUN_ROOT/private/freeze.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json"
+          python scripts/summarize_frozen_candidate.py --commitment "$RUN_ROOT/private/public-commitment.json" --admission "$RUN_ROOT/private/scenario/artifacts/admission.json" --reference "$RUN_ROOT/private/scenario/artifacts/reference.json" --baselines "$RUN_ROOT/private/scenario/artifacts/baselines.json" --usage-ledger "$RUN_ROOT/private/usage-ledger.json" --output "$RUN_ROOT/public/result.json"
+          cp "$RUN_ROOT/private/public-commitment.json" "$RUN_ROOT/public/pre-model-commitment.json"
+
+      - name: Seal the unseen private bundle
+        env:
+          HIDDEN_BUNDLE_ENCRYPTION_KEY: ${{ secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY }}
+        run: |
+          test -n "$HIDDEN_BUNDLE_ENCRYPTION_KEY"
+          archive="$RUNNER_TEMP/forgejo-migration-private.tar.gz"
+          cipher="$RUN_ROOT/public/hidden-bundle.tar.gz.enc"
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -czf "$archive" -C "$RUN_ROOT" private
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:HIDDEN_BUNDLE_ENCRYPTION_KEY -in "$archive" -out "$cipher"
+          python - "$RUN_ROOT/private/public-commitment.json" "$cipher" "$RUN_ROOT/public/sealed-bundle.json" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          commitment = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          cipher = Path(sys.argv[2])
+          Path(sys.argv[3]).write_text(json.dumps({"schema_version":"1.0","lifecycle_status":"frozen_unseen","source_commit":os.environ["GITHUB_SHA"],"source_run_id":int(os.environ["GITHUB_RUN_ID"]),"source_run_attempt":int(os.environ["GITHUB_RUN_ATTEMPT"]),"public_commitment_sha256":commitment["public_commitment_sha256"],"cipher":"aes-256-cbc-pbkdf2-sha256","pbkdf2_iterations":200000,"ciphertext_file":cipher.name,"ciphertext_sha256":hashlib.sha256(cipher.read_bytes()).hexdigest()}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+          PY
+          rm -f "$archive"
+
+      - name: Register the frozen-hidden receipt
+        run: |
+          receipt="data/evidence/hidden-freeze/forgejo-migration-$INSTANCE_ID.json"
+          test ! -e "$receipt"
+          python - "$RUN_ROOT/public/pre-model-commitment.json" "$RUN_ROOT/public/sealed-bundle.json" "$RUN_ROOT/public/result.json" "$receipt" data/frozen_hidden_candidates.json "$INSTANCE_ID" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          commitment_path, sealed_path, result_path, receipt_path, registry_path, instance_id = (Path(item) if index < 5 else item for index, item in enumerate(sys.argv[1:]))
+          commitment=json.loads(commitment_path.read_text(encoding="utf-8")); sealed=json.loads(sealed_path.read_text(encoding="utf-8")); result=json.loads(result_path.read_text(encoding="utf-8"))
+          receipt={"schema_version":"1.0","artifact":{"run_id":int(os.environ["GITHUB_RUN_ID"]),"url":"https://github.com/fengyw23/AftermathBench/actions/runs/"+os.environ["GITHUB_RUN_ID"]},"file_sha256":{"result":hashlib.sha256(result_path.read_bytes()).hexdigest(),"pre_model_commitment":hashlib.sha256(commitment_path.read_bytes()).hexdigest(),"sealed_bundle":hashlib.sha256(sealed_path.read_bytes()).hexdigest()},"commitment":commitment,"sealed_bundle":sealed,"result":result}
+          receipt_path.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          registry=json.loads(registry_path.read_text(encoding="utf-8")); registry["records"].append({"formal_slot_id":"forgejo/forgejo-migration-deployment/"+instance_id,"scenario_id":commitment["scenario_id"],"domain_id":"forgejo","family_id":"forgejo-migration-deployment","instance_id":instance_id,"variant_count":result["reference"]["case_count"],"freeze_run_id":int(os.environ["GITHUB_RUN_ID"]),"public_commitment_sha256":commitment["public_commitment_sha256"],"artifact_url":receipt["artifact"]["url"],"evidence_path":receipt_path.as_posix(),"evidence_sha256":hashlib.sha256(receipt_path.read_bytes()).hexdigest()}); registry_path.write_text(json.dumps(registry,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
+          PY
+          python -m unittest discover -s tests -p 'test_frozen_hidden_registry.py' -v
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$receipt" data/frozen_hidden_candidates.json
+          git commit -m "evidence(forgejo): register frozen migration $INSTANCE_ID"
+          git push
+
+      - name: Upload public commitment only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgejo-migration-${{ env.INSTANCE_ID }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/forgejo-migration-hidden/public/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Purge plaintext runtime
+        if: always()
+        run: |
+          rm -f runtimes/forgejo/.runtime/credentials.json
+          python scripts/manage_forgejo_stack.py purge || true
+          rm -rf "$RUN_ROOT/private"
