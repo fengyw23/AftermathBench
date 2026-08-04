@@ -255,6 +255,36 @@ jobs:
       - name: Admit and freeze before any provider request
         run: |
           run_root="$RUNNER_TEMP/forgejo-candidate"
+          write_safe_admission_failure() {
+            python - "$run_root/private/logs/admission.log" "$run_root/public/admission-failure.json" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          exception_types = sorted(set(re.findall(
+              r"\\b([A-Z][A-Za-z]+(?:Error|Exception))\\b", text
+          )))
+          gates = []
+          for match in re.findall(r"(?:failed|failures)[:=]\\s*\\[([^\\]]*)\\]", text, re.I):
+              gates.extend(re.findall(r"[a-z][a-z0-9_]+", match))
+          Path(sys.argv[2]).write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "phase": "admission",
+                      "exception_types": exception_types,
+                      "failed_gate_names": sorted(set(gates)),
+                      "raw_log_published": False,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\\n",
+              encoding="utf-8",
+          )
+          PY
+          }
           if [ "$SELECTED_FAMILY" = package_provenance ]
           then
             admission_script=scripts/build_forgejo_package_provenance_admission.py
@@ -267,6 +297,12 @@ jobs:
             --blueprint "$run_root/private/blueprint.json" \
             --output-directory "$run_root/private/scenario" \
             > "$run_root/private/logs/admission.log" 2>&1
+          admission_status=$?
+          if [ "$admission_status" -ne 0 ]
+          then
+            write_safe_admission_failure
+            exit "$admission_status"
+          fi
           python -m aftermath_bench validate-native-scenario \
             --scenario "$run_root/private/scenario/scenario.json" \
             > "$run_root/private/logs/scenario-validation.log" 2>&1
