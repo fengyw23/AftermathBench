@@ -821,6 +821,57 @@ class ERPNextSharedBatchPrefixBuilder:
         self._trace(trace, "create corrective Job Card", corrective)
 
         protected_documents = {
+            "shared_purchase_receipt": _payload(
+                self.adapter.get_resource("Purchase Receipt", str(receipt["name"]))
+            ),
+            "primary_bom": _payload(
+                self.adapter.get_resource("BOM", str(primary_bom["name"]))
+            ),
+            "secondary_bom": _payload(
+                self.adapter.get_resource("BOM", str(secondary_bom["name"]))
+            ),
+            "primary_transfer": _payload(
+                self.adapter.get_resource("Stock Entry", str(primary_transfer["name"]))
+            ),
+            "secondary_transfer": _payload(
+                self.adapter.get_resource(
+                    "Stock Entry", str(secondary_transfer["name"])
+                )
+            ),
+            "primary_material_quality_inspection": _payload(
+                self.adapter.get_resource(
+                    "Quality Inspection", str(primary_material_qi["name"])
+                )
+            ),
+            "secondary_material_quality_inspection": _payload(
+                self.adapter.get_resource(
+                    "Quality Inspection", str(secondary_material_qi["name"])
+                )
+            ),
+            "accepted_primary_job_card": _payload(
+                self.adapter.get_resource("Job Card", str(accepted_job["name"]))
+            ),
+            "rejected_primary_job_card": _payload(
+                self.adapter.get_resource("Job Card", str(rejected_job["name"]))
+            ),
+            "secondary_job_card": _payload(
+                self.adapter.get_resource("Job Card", str(secondary_job["name"]))
+            ),
+            "accepted_primary_quality_inspection": _payload(
+                self.adapter.get_resource(
+                    "Quality Inspection", str(accepted_qi["name"])
+                )
+            ),
+            "rejected_quality_inspection": _payload(
+                self.adapter.get_resource(
+                    "Quality Inspection", str(rejected_qi["name"])
+                )
+            ),
+            "secondary_quality_inspection": _payload(
+                self.adapter.get_resource(
+                    "Quality Inspection", str(secondary_qi["name"])
+                )
+            ),
             "accepted_primary_manufacture": _payload(
                 self.adapter.get_resource("Stock Entry", str(accepted_entry["name"]))
             ),

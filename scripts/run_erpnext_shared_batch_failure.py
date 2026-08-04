@@ -51,6 +51,36 @@ def _unfinished_jobs(evidence: dict[str, Any], reference: str) -> list[dict[str,
     ]
 
 
+def ensure_native_pending_certificate_job(
+    public_variant: str,
+    evidence: dict[str, Any],
+    prefix: dict[str, Any],
+    stack: ERPNextStack,
+) -> dict[str, Any] | None:
+    """Materialize the native pending-job boundary when the hook races.
+
+    ERPNext normally enqueues the configured Webhook in an after-commit
+    callback.  Across repeated database/Redis bundle restores, that callback
+    can occasionally leave no queue record even though the Job Card commit
+    succeeded.  The pending-job variant is only admissible when a real Frappe
+    RQ job exists, so use the same public native enqueue primitive exposed to
+    the agent, and only when the automatic hook produced no matching job.
+    Workers remain stopped, making the resulting queue state deterministic.
+    """
+
+    if public_variant != "job_card_committed_certificate_job_pending":
+        return None
+    reference = str(prefix["corrective_job_card"])
+    if _unfinished_jobs(evidence, reference):
+        return {"action": "automatic_hook_observed"}
+    result = stack.enqueue_document_webhook(
+        doctype="Job Card",
+        document_name=reference,
+        webhook_name=str(prefix["certificate_webhook"]),
+    )
+    return {"action": "native_enqueue_replayed", "result": result}
+
+
 def collect_shared_batch_boundary(
     public_variant: str,
     collector: ERPNextSharedBatchEvidenceCollector,
@@ -108,6 +138,25 @@ def validate_shared_batch_boundary(
     ]
     gateway = submit_events[-1] if submit_events else {}
     protected_documents = {
+        "shared_purchase_receipt": evidence["shared_purchase_receipt"],
+        "primary_bom": evidence["primary_bom"],
+        "secondary_bom": evidence["secondary_bom"],
+        "primary_transfer": evidence["primary_transfer"],
+        "secondary_transfer": evidence["secondary_transfer"],
+        "primary_material_quality_inspection": evidence[
+            "primary_material_quality_inspection"
+        ],
+        "secondary_material_quality_inspection": evidence[
+            "secondary_material_quality_inspection"
+        ],
+        "accepted_primary_job_card": evidence["accepted_primary_job_card"],
+        "rejected_primary_job_card": evidence["rejected_primary_job_card"],
+        "secondary_job_card": evidence["secondary_job_card"],
+        "accepted_primary_quality_inspection": evidence[
+            "accepted_primary_quality_inspection"
+        ],
+        "rejected_quality_inspection": evidence["rejected_quality_inspection"],
+        "secondary_quality_inspection": evidence["secondary_quality_inspection"],
         "accepted_primary_manufacture": evidence["accepted_primary_manufacture"],
         "secondary_manufacture": evidence["secondary_manufacture"],
         "customer_reservation": evidence["customer_reservation"],
@@ -258,9 +307,17 @@ def main() -> int:
         fault.disarm_transport_after_failure(fault_variant)
 
     gateway_events = _request_json("http://127.0.0.1:9091/audit").get("events", [])
+    collector = ERPNextSharedBatchEvidenceCollector(adapter)
+    pre_normalization_evidence = collector.collect(prefix)
+    boundary_normalization = ensure_native_pending_certificate_job(
+        args.variant,
+        pre_normalization_evidence,
+        prefix,
+        stack,
+    )
     evidence = collect_shared_batch_boundary(
         args.variant,
-        ERPNextSharedBatchEvidenceCollector(adapter),
+        collector,
         prefix,
     )
     validation = validate_shared_batch_boundary(
@@ -283,6 +340,7 @@ def main() -> int:
             "result": visible_failure,
         },
         "gateway_events": gateway_events,
+        "boundary_normalization": boundary_normalization,
         "boundary_evidence": evidence,
         "boundary_validation": validation,
     }

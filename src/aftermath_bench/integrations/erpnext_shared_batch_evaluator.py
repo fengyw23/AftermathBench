@@ -47,9 +47,27 @@ def shared_batch_document_fingerprint(document: dict[str, Any]) -> str:
         "work_order",
         "purpose",
         "production_item",
+        "item",
+        "quantity",
+        "is_active",
+        "is_default",
         "qty",
         "produced_qty",
         "fg_completed_qty",
+        "for_quantity",
+        "total_completed_qty",
+        "is_corrective_job_card",
+        "for_job_card",
+        "operation",
+        "inspection_type",
+        "reference_type",
+        "reference_name",
+        "item_code",
+        "sample_size",
+        "voucher_type",
+        "voucher_no",
+        "reserved_qty",
+        "warehouse",
         "reserve_stock",
         "total_taxes_and_charges",
         "distribute_charges_based_on",
@@ -72,9 +90,18 @@ def shared_batch_document_fingerprint(document: dict[str, Any]) -> str:
         "purchase_receipt_item",
         "applicable_charges",
         "expense_account",
+        "operation",
+        "workstation",
+        "time_in_mins",
+        "hour_rate",
+        "batch_size",
+        "specification",
+        "min_value",
+        "max_value",
+        "reading_1",
     )
     payload = {key: document.get(key) for key in scalar_fields if key in document}
-    for table in ("items", "purchase_receipts", "taxes"):
+    for table in ("items", "purchase_receipts", "taxes", "operations", "readings"):
         if table not in document:
             continue
         payload[table] = sorted(

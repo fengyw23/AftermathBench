@@ -116,6 +116,25 @@ def project_shared_batch_terminal(
     ]
 
     protected_documents = {
+        "shared_purchase_receipt": raw["shared_purchase_receipt"],
+        "primary_bom": raw["primary_bom"],
+        "secondary_bom": raw["secondary_bom"],
+        "primary_transfer": raw["primary_transfer"],
+        "secondary_transfer": raw["secondary_transfer"],
+        "primary_material_quality_inspection": raw[
+            "primary_material_quality_inspection"
+        ],
+        "secondary_material_quality_inspection": raw[
+            "secondary_material_quality_inspection"
+        ],
+        "accepted_primary_job_card": raw["accepted_primary_job_card"],
+        "rejected_primary_job_card": raw["rejected_primary_job_card"],
+        "secondary_job_card": raw["secondary_job_card"],
+        "accepted_primary_quality_inspection": raw[
+            "accepted_primary_quality_inspection"
+        ],
+        "rejected_quality_inspection": raw["rejected_quality_inspection"],
+        "secondary_quality_inspection": raw["secondary_quality_inspection"],
         "accepted_primary_manufacture": raw["accepted_primary_manufacture"],
         "secondary_manufacture": raw["secondary_manufacture"],
         "customer_reservation": raw["customer_reservation"],

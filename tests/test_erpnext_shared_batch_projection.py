@@ -26,6 +26,37 @@ class ERPNextSharedBatchProjectionTest(unittest.TestCase):
             "shared_component": {"item_code": "RAW"},
         }
         raw = {
+            "shared_purchase_receipt": {
+                "doctype": "Purchase Receipt",
+                "name": "PR-1",
+            },
+            "primary_bom": {"doctype": "BOM", "name": "BOM-P"},
+            "secondary_bom": {"doctype": "BOM", "name": "BOM-S"},
+            "primary_transfer": {"doctype": "Stock Entry", "name": "STE-TP"},
+            "secondary_transfer": {"doctype": "Stock Entry", "name": "STE-TS"},
+            "primary_material_quality_inspection": {
+                "doctype": "Quality Inspection",
+                "name": "QI-MP",
+            },
+            "secondary_material_quality_inspection": {
+                "doctype": "Quality Inspection",
+                "name": "QI-MS",
+            },
+            "accepted_primary_job_card": {"doctype": "Job Card", "name": "JC-A"},
+            "rejected_primary_job_card": {"doctype": "Job Card", "name": "JC-R"},
+            "secondary_job_card": {"doctype": "Job Card", "name": "JC-S"},
+            "accepted_primary_quality_inspection": {
+                "doctype": "Quality Inspection",
+                "name": "QI-A",
+            },
+            "rejected_quality_inspection": {
+                "doctype": "Quality Inspection",
+                "name": "QI-R",
+            },
+            "secondary_quality_inspection": {
+                "doctype": "Quality Inspection",
+                "name": "QI-S",
+            },
             "primary_work_order": {"qty": 12, "produced_qty": 12},
             "secondary_work_order": {"qty": 8, "produced_qty": 8},
             "corrective_job_card": {

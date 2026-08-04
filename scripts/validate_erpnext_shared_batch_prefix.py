@@ -69,6 +69,25 @@ def validate_prefix(
     )
 
     protected_documents = {
+        "shared_purchase_receipt": purchase_receipt,
+        "primary_bom": evidence["primary_bom"],
+        "secondary_bom": evidence["secondary_bom"],
+        "primary_transfer": evidence["primary_transfer"],
+        "secondary_transfer": evidence["secondary_transfer"],
+        "primary_material_quality_inspection": evidence[
+            "primary_material_quality_inspection"
+        ],
+        "secondary_material_quality_inspection": evidence[
+            "secondary_material_quality_inspection"
+        ],
+        "accepted_primary_job_card": evidence["accepted_primary_job_card"],
+        "rejected_primary_job_card": evidence["rejected_primary_job_card"],
+        "secondary_job_card": evidence["secondary_job_card"],
+        "accepted_primary_quality_inspection": evidence[
+            "accepted_primary_quality_inspection"
+        ],
+        "rejected_quality_inspection": evidence["rejected_quality_inspection"],
+        "secondary_quality_inspection": evidence["secondary_quality_inspection"],
         "accepted_primary_manufacture": evidence["accepted_primary_manufacture"],
         "secondary_manufacture": evidence["secondary_manufacture"],
         "customer_reservation": evidence["customer_reservation"],
