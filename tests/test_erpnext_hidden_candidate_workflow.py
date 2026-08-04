@@ -26,6 +26,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V2", self.text)
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V3", self.text)
         self.assertIn("ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64", self.text)
+        self.assertIn("ERPNEXT_MULTIWAREHOUSE_HIDDEN_INSTANCE_B64_V2", self.text)
         self.assertIn("HIDDEN_BUNDLE_ENCRYPTION_KEY", self.text)
         self.assertIn("hidden-bundle.tar.gz.enc", self.text)
         self.assertIn("sealed-bundle.json", self.text)
@@ -61,6 +62,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("erpnext-hidden-manufacturing-v2-candidate", self.text)
         self.assertIn("erpnext-hidden-manufacturing-v3-candidate", self.text)
         self.assertIn("erpnext-hidden-multiwarehouse-candidate", self.text)
+        self.assertIn("erpnext-hidden-multiwarehouse-v2-candidate", self.text)
         self.assertIn("SELECTED_FAMILY", self.text)
         self.assertIn("SELECTED_INSTANCE_ID", self.text)
 
