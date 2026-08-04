@@ -9,9 +9,9 @@ claims.
 
 | Domain / family | Native failure boundaries | Exact replay + reference | Replay-derived hard admission | Fixed-policy matched-group resistance | Execution control | Ordinary model experiment | Formal release package |
 |---|---:|---|---|---|---|---|---|
-| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | not yet run on current interface | not yet run on current interface | native evidence archived; release integration pending |
+| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | ordinary GLM-5.2 run 30864390353 in progress | native evidence archived; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
-| ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | not yet run without supplied scope | complete; formally bound as `dev-002` |
+| ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | ordinary GLM-5.2 run 30864156919 in progress | complete; formally bound as `dev-002` |
 
 ## What is already established
 
@@ -34,6 +34,19 @@ group. This is materially stronger than reference-trace length: it proves the
 different recovery scopes require composed boundary observations. Because this
 gate was added after family construction, it is reported as a retrospective
 audit; future families must freeze the matrix and thresholds before model runs.
+
+Current-interface execution control
+[30860821930](https://github.com/fengyw23/AftermathBench/actions/runs/30860821930)
+passed 12/13 states (92.31%), above the predeclared 80% gate, with zero
+infrastructure errors and complete six-group investigation before every first
+write. In the sole failure (`state_03`), GLM-5.2 created the required suspended
+transition-owner Job but incorrectly also labeled it as a migration Job. The
+strict evaluator consequently detected duplicate migration ownership and stale
+UIDs in the audit/closure records. This is a model execution error after correct
+scope identification, not missing evidence or interface ambiguity. Ordinary
+scope-inference run
+[30864390353](https://github.com/fengyw23/AftermathBench/actions/runs/30864390353)
+was launched only after this control gate passed.
 
 ### Forgejo
 
@@ -68,6 +81,11 @@ offline after fixing that inconsistency. The seven-role package now validates
 and is formally bound as `erpnext/erpnext-manufacturing-rework/dev-002`; no
 native runtime or provider rerun was needed.
 
+The ordinary no-supplied-scope GLM-5.2 experiment is now running as
+[30864156919](https://github.com/fengyw23/AftermathBench/actions/runs/30864156919)
+against the formally bound public `dev-002` instance. Its result is not used in
+claims until the artifact has been downloaded and audited.
+
 ## Claim boundary
 
 The repository currently supports the following narrow claim:
@@ -78,8 +96,8 @@ The repository currently supports the following narrow claim:
 
 It does **not** yet support a top-conference benchmark claim. Missing evidence is:
 
-1. an ordinary-model ERPNext manufacturing evaluation without supplied scope;
-2. current-interface Kubernetes execution controls and model experiments;
+1. audited ordinary-model ERPNext manufacturing results without supplied scope;
+2. audited ordinary-model Kubernetes results without supplied scope;
 3. unsaturated ordinary recovery families with interacting native obligations;
 4. more independent families and hidden instances per domain;
 5. a frozen cross-model leaderboard with repeated runs.
