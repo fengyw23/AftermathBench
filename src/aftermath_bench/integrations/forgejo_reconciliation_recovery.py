@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from .deployment_target_api import DeploymentTargetAPI
@@ -200,8 +201,14 @@ def reference_reconciliation_recovery(
             ref="main",
             inputs=inputs,
         )
-        runs = environment.forgejo.list_action_runs(spec.owner, spec.repository)
-        created = [row for row in runs if int(row["id"]) not in before]
+        created: list[dict[str, Any]] = []
+        for attempt in range(40):
+            runs = environment.forgejo.list_action_runs(spec.owner, spec.repository)
+            created = [row for row in runs if int(row["id"]) not in before]
+            if created:
+                break
+            if attempt + 1 < 40:
+                time.sleep(0.25)
         if len(created) != 1:
             raise RuntimeError(f"targeted recovery created {len(created)} owners")
         environment.invoke(
