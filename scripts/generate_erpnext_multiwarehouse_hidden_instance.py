@@ -51,9 +51,9 @@ def build_instance(instance_id: str) -> dict[str, object]:
             "source_warehouse": f"East Network Depot {token}",
             "transit_warehouse": f"Clinical Transit Hub {token}",
             "destination_warehouse": f"Lakeside Clinic {token}",
-            "protected_warehouse": f"North Emergency Store {token}",
+            "protected_warehouse": f"Cedar Reserve Store {token}",
             "deployment_customer": f"Lakeside Deployment {token}",
-            "protected_customer": f"North Emergency Operations {token}",
+            "protected_customer": f"Cedar Clinic Network {token}",
         },
     }
 

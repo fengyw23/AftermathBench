@@ -29,7 +29,7 @@ def build_instance(instance_id: str) -> dict[str, object]:
             "company_abbr": "AL",
             "finished_item": {
                 "item_code": f"PUMP-CTRL-{suffix}",
-                "item_name": f"Infusion Pump Controller {suffix}",
+                "item_name": f"Infusion Flow Regulator {suffix}",
                 "valuation_rate": 910,
             },
             "raw_items": [
@@ -56,9 +56,9 @@ def build_instance(instance_id: str) -> dict[str, object]:
             "rework_quantity": 5,
             "workstation_type": f"Clinical Electronics Assembly {token}",
             "workstation": f"Cedar Assembly Cell {token}",
-            "assembly_operation": f"Pump Controller Final Assembly {token}",
-            "corrective_operation": f"Pump Controller Corrective Calibration {token}",
-            "quality_parameter": f"Pump Controller Functional Output {token}",
+            "assembly_operation": f"Flow Module Integration {token}",
+            "corrective_operation": f"Flow Sensor Calibration {token}",
+            "quality_parameter": f"Regulated Flow Output {token}",
             "hour_rate": 145,
         },
     }
