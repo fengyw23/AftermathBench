@@ -125,7 +125,14 @@ promoted into the final native-runtime benchmark.
   fixed-policy trajectories across both instances. Run `30902308186` passes all
   native gates; the strongest fixed strategy reaches 2/6 and no strategy solves
   either matched group.
-- [ ] Pass the task-specific GLM-5.2 execution control before any ordinary run.
+- [x] Pass the task-specific GLM-5.2 execution control. Source-bound run
+  `30905646467` passes 6/6 with no provider or runtime failures.
+- [x] Run ordinary GLM-5.2 on the same commit and snapshots. Run `30908258071`
+  also passes 6/6, proving the one-gap/one-local-repair family is saturated even
+  though its replayed evidence depth is 6/6 and fixed policies fail.
+- [ ] Build an interacting-gap successor whose mutation operators have
+  overlapping effects and preservation conflicts; add an intervention-plan
+  complexity gate distinct from evidence-query depth.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

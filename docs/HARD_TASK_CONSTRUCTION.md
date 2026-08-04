@@ -203,6 +203,34 @@ any single-surface solver. This does not require the Agent to follow a fixed
 query order. It rejects only tasks whose recovery-scope decision is
 information-theoretically simpler than their surrounding graph suggests.
 
+## Intervention-plan complexity, not evidence depth alone
+
+The source-bound Forgejo cross-system reconciliation family exposed a second
+limitation. Its six matched boundaries require all six evidence surfaces in
+both the smallest static certificate and the optimal adaptive decision tree;
+the strongest fixed policy passes only two boundaries. Nevertheless, GLM-5.2
+passes both the explicit-scope control and ordinary condition 6/6. Every
+boundary contains at most one missing obligation, and every missing obligation
+maps to one local repair operator. Once the model queries all evidence, repair
+is a direct lookup.
+
+Hard admission must therefore measure two independent structures:
+
+- **evidence complexity:** which observations are needed to reconstruct the
+  boundary state;
+- **intervention complexity:** how mutation operators compose, overlap and
+  threaten already-valid effects.
+
+The design-time implementation is
+`aftermath_bench.intervention_plan_audit.audit_intervention_design`. It models
+public mutations by their preconditions, repaired obligations, invalidated
+obligations and duplicate/destructive application conditions. It computes safe
+minimal plans for every boundary and rejects a one-gap/one-local-repair star.
+The next native hard family must include multiple boundaries requiring composed
+repairs, overlapping mutation effects, context-sensitive operators and
+plausible unsafe shortcuts. These declarations are only a design gate: native
+replay must later verify every operator effect before admission.
+
 ## Snapshot discipline
 
 The database, Redis cache, Redis queue, fault-gateway audit state, and external

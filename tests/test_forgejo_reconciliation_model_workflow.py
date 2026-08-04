@@ -20,6 +20,7 @@ class ForgejoReconciliationModelWorkflowTest(unittest.TestCase):
         self.assertIn("--execution-control", text)
         self.assertIn("src/aftermath_bench/native_model_runner.py", text)
         self.assertIn("tests/test_native_run_bindings.py", text)
+        self.assertIn("test_native_run_bindings.py' -v", text)
         self.assertIn("public-dev-001", text)
         self.assertIn("public-dev-002", text)
         self.assertIn("ZHIPU_CODING_API_KEY", text)
