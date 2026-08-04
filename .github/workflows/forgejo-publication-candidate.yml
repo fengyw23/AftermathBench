@@ -301,6 +301,17 @@ jobs:
           if [ "$admission_status" -ne 0 ]
           then
             write_safe_admission_failure
+            summary="$(python - "$run_root/public/admission-failure.json" <<'PY'
+          import json
+          import sys
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(
+              "exceptions=" + ",".join(payload["exception_types"] or ["none"])
+              + ";gates=" + ",".join(payload["failed_gate_names"] or ["none"])
+          )
+          PY
+            )"
+            echo "::error title=Native admission failed::$summary"
             exit "$admission_status"
           fi
           python -m aftermath_bench validate-native-scenario \
