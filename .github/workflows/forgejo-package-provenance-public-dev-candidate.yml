@@ -34,12 +34,11 @@ jobs:
           instance_spec="${specs[0]}"
           scenario_id="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["scenario_id"])' "$instance_spec")"
           blueprint="data/scenario_blueprints/$scenario_id/scenario.json"
-          scenario_directory="data/scenarios/$scenario_id"
+          scenario_directory="$RUN_ROOT/scenario-staging"
           echo "INSTANCE_SPEC=$instance_spec" >> "$GITHUB_ENV"
           echo "BLUEPRINT=$blueprint" >> "$GITHUB_ENV"
           echo "SCENARIO_DIRECTORY=$scenario_directory" >> "$GITHUB_ENV"
           test ! -e "$RUN_ROOT"
-          test ! -e "$scenario_directory"
           mkdir -p "$RUN_ROOT/runtime" "$RUN_ROOT/baselines"
           python scripts/verify_forgejo_instance_novelty.py \
             --instance-spec "$instance_spec" \
@@ -152,8 +151,6 @@ jobs:
             --output-directory "$SCENARIO_DIRECTORY"
           python -m aftermath_bench validate-native-scenario \
             --scenario "$SCENARIO_DIRECTORY/scenario.json"
-          mkdir -p "$RUN_ROOT/candidate-scenario"
-          cp -R "$SCENARIO_DIRECTORY/." "$RUN_ROOT/candidate-scenario/"
           python scripts/build_evidence_file_manifest.py \
             --root "$RUN_ROOT" \
             --output "$RUN_ROOT/files.json"

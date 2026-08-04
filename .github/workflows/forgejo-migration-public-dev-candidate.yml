@@ -36,10 +36,9 @@ jobs:
           test -n "$scenario_id"
           echo "BLUEPRINT=data/scenario_blueprints/$scenario_id/scenario.json" \
             >> "$GITHUB_ENV"
-          echo "SCENARIO_DIRECTORY=data/scenarios/$scenario_id" \
+          echo "SCENARIO_DIRECTORY=$RUN_ROOT/scenario-staging" \
             >> "$GITHUB_ENV"
           test ! -e "$RUN_ROOT"
-          test ! -e "data/scenarios/$scenario_id"
           mkdir -p "$RUN_ROOT/state-evidence" "$RUN_ROOT/baselines"
           python scripts/verify_forgejo_migration_instance_novelty.py \
             --instance-spec "$INSTANCE_SPEC" \
@@ -210,8 +209,6 @@ jobs:
             --output-directory "$SCENARIO_DIRECTORY"
           python -m aftermath_bench validate-native-scenario \
             --scenario "$SCENARIO_DIRECTORY/scenario.json"
-          mkdir -p "$RUN_ROOT/candidate-scenario"
-          cp -R "$SCENARIO_DIRECTORY/." "$RUN_ROOT/candidate-scenario/"
           python scripts/build_evidence_file_manifest.py \
             --root "$RUN_ROOT" \
             --output "$RUN_ROOT/files.json"
