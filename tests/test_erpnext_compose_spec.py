@@ -68,7 +68,13 @@ class ERPNextComposeSpecTest(unittest.TestCase):
             "frappe.integrations.doctype.webhook.webhook.enqueue_webhook",
             bridge,
         )
-        self.assertIn("track_job=True", bridge)
+        # This pinned Frappe release exposes every Redis job through the
+        # virtual ``RQ Job`` DocType.  ``track_job`` is not an enqueue option
+        # here and would be forwarded to the webhook worker as an invalid
+        # application argument.
+        self.assertNotIn("track_job=True", bridge)
+        self.assertIn("def find_background_jobs", bridge)
+        self.assertIn("RQJob.get_list", bridge)
 
     def test_site_creation_is_one_atomic_shell_command(self) -> None:
         command = next(

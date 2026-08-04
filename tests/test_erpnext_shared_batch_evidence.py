@@ -64,12 +64,12 @@ class _Collector(ERPNextSharedBatchEvidenceCollector):
                 {"name": "kept", "voucher_no": "PR-SHARED"},
                 {"name": "dropped", "voucher_no": "UNRELATED"},
             ]
-        if doctype == "RQ Job":
-            return [
-                {"name": "kept-job", "arguments": "JC-CORRECTIVE"},
-                {"name": "dropped-job", "arguments": "OTHER"},
-            ]
         raise AssertionError(doctype)
+
+    def find_background_jobs(self, reference: str) -> list[dict[str, Any]]:
+        if reference != "JC-CORRECTIVE":
+            raise AssertionError(reference)
+        return [{"name": "kept-job", "arguments": reference}]
 
     def get_delivery(self, key: str) -> dict[str, Any]:
         self.delivery_keys.append(key)

@@ -8,6 +8,8 @@ to run Frappe's own webhook delivery function.
 
 from __future__ import annotations
 
+import json
+
 import frappe
 
 
@@ -68,7 +70,6 @@ def enqueue_document_webhook(
         doc=document,
         webhook=webhook,
         queue=webhook.background_jobs_queue or "default",
-        track_job=True,
     )
     return {
         "job_id": str(job.id),
@@ -77,6 +78,26 @@ def enqueue_document_webhook(
         "webhook": webhook_name,
         "queue": webhook.background_jobs_queue or "default",
     }
+
+
+@frappe.whitelist()
+def find_background_jobs(reference: str) -> dict[str, object]:
+    """Search the pinned runtime's native Redis/RQ operational records."""
+    from frappe.core.doctype.rq_job.rq_job import RQJob
+
+    jobs = RQJob.get_list(
+        {
+            "start": 0,
+            "page_length": 500,
+            "order_by": "creation desc",
+        }
+    )
+    matched = [
+        dict(job)
+        for job in jobs
+        if reference in json.dumps(dict(job), sort_keys=True, default=str)
+    ]
+    return {"reference": reference, "jobs": matched}
 
 
 def reconcile_party_documents(

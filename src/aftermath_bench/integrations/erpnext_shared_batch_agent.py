@@ -51,6 +51,10 @@ class ERPNextSharedBatchEnvironment(ERPNextManufacturingEnvironment):
         document = _payload(self.adapter.create_resource("Stock Entry", template))
         return {"ok": True, "document": document}
 
+    def _find_jobs(self, reference: str) -> dict[str, Any]:
+        jobs = self.collector.find_background_jobs(reference)
+        return {"ok": True, "reference": reference, "jobs": jobs}
+
 
 def reference_shared_batch_recovery(
     environment: ERPNextSharedBatchEnvironment,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .erpnext_return_evidence import ERPNextPartialReturnEvidenceCollector
@@ -17,6 +16,16 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
         event_url: str = "http://127.0.0.1:9092",
     ) -> None:
         super().__init__(adapter, event_url=event_url)
+
+    def find_background_jobs(self, reference: str) -> list[dict[str, Any]]:
+        response = self.adapter.call_method(
+            "frappe.aftermath_bridge.find_background_jobs",
+            {"reference": reference},
+        )
+        payload = response.get("message")
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            raise TypeError("native background-job query returned no jobs list")
+        return [dict(row) for row in payload["jobs"]]
 
     def collect(self, prefix: dict[str, Any]) -> dict[str, Any]:
         document_fields = {
@@ -125,16 +134,7 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             if str(row.get("voucher_no")) in voucher_names
         ]
         corrective_name = str(prefix["corrective_job_card"])
-        jobs = [
-            row
-            for row in self.list_documents(
-                "RQ Job",
-                fields=["name", "job_name", "status", "arguments", "queue"],
-                order_by="creation desc",
-                limit=500,
-            )
-            if corrective_name in json.dumps(row, sort_keys=True, default=str)
-        ]
+        jobs = self.find_background_jobs(corrective_name)
         return {
             **documents,
             "supplier_batch": self.get_document(

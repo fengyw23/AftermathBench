@@ -58,6 +58,17 @@ class ERPNextSharedBatchAgentTest(unittest.TestCase):
             }.issubset(ERPNextSharedBatchEnvironment.ALLOWED_DOCUMENT_TYPES)
         )
 
+    def test_background_job_query_uses_native_operational_bridge(self) -> None:
+        class Collector:
+            def find_background_jobs(self, reference: str):
+                return [{"name": "job-1", "status": "queued", "ref": reference}]
+
+        environment = object.__new__(ERPNextSharedBatchEnvironment)
+        environment.collector = Collector()  # type: ignore[assignment]
+        result = environment._find_jobs("PO-JOB00004")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["jobs"][0]["ref"], "PO-JOB00004")
+
 
 if __name__ == "__main__":
     unittest.main()
