@@ -267,6 +267,7 @@ def main() -> int:
         "schema_version": "0.1",
         "artifact_type": "forgejo_cross_system_reconciliation_boundary",
         "scenario_id": reconciliation_scenario_id(instance),
+        "instance_spec_sha256": instance.sha256,
         "variant": variant,
         "surface_result": {
             "ok": False,

@@ -34,6 +34,22 @@ class ForgejoReconciliationWorkflowTest(unittest.TestCase):
         self.assertIn("$RUN_ROOT/$variant-bundle", text)
         self.assertIn("path: ${{ env.RUN_ROOT }}", text)
 
+    def test_native_artifacts_are_instance_bound_before_model_use(self) -> None:
+        root = repository_root()
+        boundary = (
+            root / "scripts" / "run_forgejo_reconciliation_boundary.py"
+        ).read_text(encoding="utf-8")
+        reference = (
+            root / "scripts" / "run_forgejo_reconciliation_reference.py"
+        ).read_text(encoding="utf-8")
+        audit = (
+            root / "scripts" / "audit_forgejo_reconciliation_runtime.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"instance_spec_sha256": instance.sha256', boundary)
+        self.assertIn('"instance_spec_sha256": instance.sha256', reference)
+        self.assertIn("boundary instance drifted", audit)
+        self.assertIn("reference instance drifted", audit)
+
 
 if __name__ == "__main__":
     unittest.main()

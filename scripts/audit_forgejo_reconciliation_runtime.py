@@ -26,6 +26,10 @@ def main() -> int:
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    prefix = _read(args.run_root / "prefix.json")
+    expected_instance_hash = prefix.get("instance_spec_sha256")
+    if not isinstance(expected_instance_hash, str) or not expected_instance_hash:
+        raise ValueError("prefix has no instance_spec_sha256")
     first_variant = next(iter(FORGEJO_RECONCILIATION_VARIANTS))
     first_boundary = _read(args.run_root / f"{first_variant}-boundary.json")
     design = reconciliation_scope_matrix(
@@ -44,12 +48,17 @@ def main() -> int:
             raise ValueError(f"boundary scenario drifted for {variant}")
         if reference.get("scenario_id") != design["scenario_id"]:
             raise ValueError(f"reference scenario drifted for {variant}")
+        if boundary.get("instance_spec_sha256") != expected_instance_hash:
+            raise ValueError(f"boundary instance drifted for {variant}")
+        if reference.get("instance_spec_sha256") != expected_instance_hash:
+            raise ValueError(f"reference instance drifted for {variant}")
         projection = boundary["dimension_projection"]
         expected_gap = specification.missing_obligation
         observed_gaps = [name for name, valid in projection.items() if not valid]
         reports[variant] = {
             "boundary_passed": bool(boundary["passed"]),
             "reference_passed": bool(reference["passed"]),
+            "instance_spec_sha256": expected_instance_hash,
             "dimension_projection": projection,
             "expected_gap": expected_gap,
             "observed_gaps": observed_gaps,
