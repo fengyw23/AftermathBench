@@ -26,9 +26,10 @@ def main() -> int:
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    prefix = _read(args.run_root / "prefix.json")
+    first_variant = next(iter(FORGEJO_RECONCILIATION_VARIANTS))
+    first_boundary = _read(args.run_root / f"{first_variant}-boundary.json")
     design = reconciliation_scope_matrix(
-        scenario_id=f"{prefix['scenario_id']}--reconciliation"
+        scenario_id=str(first_boundary["scenario_id"])
     )
     signatures = {
         variant: specification.recovery_kind

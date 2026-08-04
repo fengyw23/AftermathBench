@@ -13,6 +13,10 @@ from aftermath_bench.integrations.forgejo_promotion_agent import (
 from aftermath_bench.integrations.forgejo_promotion_instance import (
     ForgejoPromotionInstanceSpec,
 )
+from aftermath_bench.integrations.forgejo_reconciliation_baselines import (
+    FORGEJO_RECONCILIATION_BASELINES,
+    run_fixed_forgejo_reconciliation_baseline,
+)
 from aftermath_bench.integrations.forgejo_reconciliation_faults import (
     FORGEJO_RECONCILIATION_VARIANTS,
 )
@@ -22,7 +26,6 @@ from aftermath_bench.integrations.forgejo_reconciliation_instance import (
 from aftermath_bench.integrations.forgejo_reconciliation_recovery import (
     collect_reconciliation_state,
     evaluate_reconciliation_terminal,
-    reference_reconciliation_recovery,
 )
 from aftermath_bench.integrations.forgejo_stack import ForgejoStack
 from aftermath_bench.schema import repository_root
@@ -36,14 +39,15 @@ def _read(path: Path) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Replay the state-driven Forgejo reconciliation reference."
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument("--credentials", type=Path, required=True)
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--instance-spec", type=Path, required=True)
     parser.add_argument(
         "--variant", choices=tuple(FORGEJO_RECONCILIATION_VARIANTS), required=True
+    )
+    parser.add_argument(
+        "--baseline", choices=FORGEJO_RECONCILIATION_BASELINES, required=True
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--deployment-url", default="http://127.0.0.1:9095")
@@ -57,20 +61,21 @@ def main() -> int:
         base_url=str(credentials["base_url"]), token=str(credentials["token"])
     )
     deployment = DeploymentTargetAPI(args.deployment_url)
-    stack = ForgejoStack(
-        compose_file=repository_root() / "runtimes" / "forgejo" / "compose.yaml"
-    )
     environment = ForgejoPromotionEnvironment(
         forgejo=forgejo,
         deployment=deployment,
-        stack=stack,
+        stack=ForgejoStack(
+            compose_file=repository_root() / "runtimes" / "forgejo" / "compose.yaml"
+        ),
         instance=instance,
         prefix=prefix,
         variant=args.variant,
         external_url=args.external_url,
     )
-    trace = reference_reconciliation_recovery(environment)
-    state = collect_reconciliation_state(
+    trace = run_fixed_forgejo_reconciliation_baseline(
+        args.baseline, environment=environment
+    )
+    final_state = collect_reconciliation_state(
         forgejo=forgejo,
         deployment=deployment,
         instance=instance,
@@ -78,31 +83,32 @@ def main() -> int:
         external_url=args.external_url,
     )
     evaluation = evaluate_reconciliation_terminal(
-        state, instance=instance, prefix=prefix
+        final_state, instance=instance, prefix=prefix
     )
     payload = {
-        "schema_version": "0.1",
-        "artifact_type": "forgejo_cross_system_reconciliation_reference",
+        "schema_version": "1.0",
         "scenario_id": reconciliation_scenario_id(instance),
         "variant": args.variant,
-        "reference_trace": trace,
-        "final_state": state,
+        "baseline": args.baseline,
+        "trace": trace,
         "evaluation": evaluation,
-        "passed": evaluation["passed"],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n",
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n",
         encoding="utf-8",
         newline="\n",
     )
     print(
         json.dumps(
-            {"variant": args.variant, "passed": evaluation["passed"]},
-            ensure_ascii=False,
+            {
+                "variant": args.variant,
+                "baseline": args.baseline,
+                "passed": evaluation["passed"],
+            }
         )
     )
-    return 0 if evaluation["passed"] else 1
+    return 0
 
 
 if __name__ == "__main__":

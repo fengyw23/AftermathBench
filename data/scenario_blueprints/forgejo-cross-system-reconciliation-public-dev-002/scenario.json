@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "forgejo-cross-system-reconciliation-public-dev-002",
+  "domain_id": "forgejo",
+  "instance_id": "public-dev-002",
+  "instance_spec_sha256": "601aed1889d3ccdb0fa33fffa38209fac714a7ca7a03be4541299a1520c8b6f9",
+  "family": "forgejo-cross-system-reconciliation",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "native_hard_candidate",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay validated",
+  "title": "Recover independently missing effects of an approved promotion",
+  "user_instruction": "Complete the approved radiology-routing-service 7.3.1 promotion to radiology-production. The native Actions bundle must exactly match the approved repository sources; the artifact registry, production replicas, external transparency attestation, target release and rollout issue must agree on the approved digest sha256:2e042cbe13ccee6e53eec69747b6be2d69e344c59d418d73e12d492b82af7a5f. Preserve the prior release v7.2.6, the protected environment radiology-canary-next, approval records and unrelated work. A promotion operation returned a connection error. Determine which effects actually completed, finish exactly the missing effects, and do not duplicate valid work.",
+  "fixture": {
+    "scenario_id": "forgejo-approved-artifact-promotion-public-dev-002",
+    "owner": "aftermath",
+    "repository": "radiology-routing-service",
+    "version": "7.3.1",
+    "prior_version": "7.2.6",
+    "approved_commit": "8f0fca64fc5c9b5d9e7f6b126136c27551e4b6a2",
+    "workflow_path": ".forgejo/workflows/promote-production.yml",
+    "approval_manifest_path": "ops/promotion/approved-v7.3.1.json",
+    "binary_path": "dist/radiology-routing-service_7.3.1_linux_amd64.tar.gz",
+    "signature_path": "dist/radiology-routing-service_7.3.1_linux_amd64.tar.gz.sig",
+    "sbom_path": "dist/radiology-routing-service_7.3.1.spdx.json",
+    "provenance_path": "dist/radiology-routing-service_7.3.1.intoto.jsonl",
+    "artifact_digest": "sha256:2e042cbe13ccee6e53eec69747b6be2d69e344c59d418d73e12d492b82af7a5f",
+    "signer_identity": "radiology-release@aftermath.example",
+    "production_environment": "radiology-production",
+    "protected_environment": "radiology-canary-next",
+    "release_tag": "v7.3.1",
+    "protected_release_tag": "v7.2.6",
+    "rollout_issue_title": "Promote radiology routing service 7.3.1 to production",
+    "approval_issue_title": "Security and operations approval for radiology routing service 7.3.1",
+    "unrelated_issue_title": "Evaluate regional imaging failover for the next release train",
+    "attestation_key": "transparency:radiology-routing-service:v7.3.1"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/promote-production.yml for v7.3.1",
+    "surface_result": "connection closed before the promotion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "all_effects_valid_response_lost",
+      "boundary_class_id": "all_effects_valid",
+      "recovery_signature_class": "verify_and_preserve"
+    },
+    {
+      "id": "actions_bundle_missing",
+      "boundary_class_id": "actions_bundle_matches_approval",
+      "recovery_signature_class": "repair_actions_bundle_only"
+    },
+    {
+      "id": "artifact_registry_missing",
+      "boundary_class_id": "artifact_registry_matches_bundle",
+      "recovery_signature_class": "repair_artifact_registry_only"
+    },
+    {
+      "id": "production_deployment_missing",
+      "boundary_class_id": "production_matches_registry",
+      "recovery_signature_class": "repair_production_only"
+    },
+    {
+      "id": "external_attestation_missing",
+      "boundary_class_id": "attestation_matches_production",
+      "recovery_signature_class": "repair_attestation_only"
+    },
+    {
+      "id": "release_metadata_missing",
+      "boundary_class_id": "release_metadata_matches_all_effects",
+      "recovery_signature_class": "repair_release_metadata_only"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "verify_and_preserve",
+    "repair_actions_bundle_only",
+    "repair_artifact_registry_only",
+    "repair_production_only",
+    "repair_attestation_only",
+    "repair_release_metadata_only"
+  ],
+  "required_public_evidence": [
+    "repository approval source contents",
+    "native Actions owner and uploaded ZIP entry hashes",
+    "deployment artifact registry",
+    "production deployment and replicas",
+    "external transparency attestation attempts",
+    "target and protected releases plus issue state"
+  ],
+  "public_tool_policy": {
+    "ordinary_cross_system_queries": true,
+    "ordinary_workflow_and_metadata_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 6,
+      "minimum_static_certificate_size": 6
+    }
+  }
+}

@@ -19,6 +19,9 @@ from aftermath_bench.integrations.forgejo_promotion_instance import (
 from aftermath_bench.integrations.forgejo_reconciliation_faults import (
     FORGEJO_RECONCILIATION_VARIANTS,
 )
+from aftermath_bench.integrations.forgejo_reconciliation_instance import (
+    reconciliation_scenario_id,
+)
 from aftermath_bench.integrations.forgejo_reconciliation_recovery import (
     collect_reconciliation_state,
     project_reconciliation_obligations,
@@ -259,7 +262,7 @@ def main() -> int:
     payload = {
         "schema_version": "0.1",
         "artifact_type": "forgejo_cross_system_reconciliation_boundary",
-        "scenario_id": f"{instance.scenario_id}--reconciliation",
+        "scenario_id": reconciliation_scenario_id(instance),
         "variant": variant,
         "surface_result": {
             "ok": False,

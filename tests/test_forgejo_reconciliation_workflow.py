@@ -29,6 +29,10 @@ class ForgejoReconciliationWorkflowTest(unittest.TestCase):
         self.assertIn("public-dev-001", text)
         self.assertIn("public-dev-002", text)
         self.assertIn("matrix.instance_id", text)
+        self.assertIn("run_forgejo_reconciliation_baseline.py", text)
+        self.assertIn("summarize_forgejo_reconciliation_baselines.py", text)
+        self.assertIn("$RUN_ROOT/$variant-bundle", text)
+        self.assertIn("path: ${{ env.RUN_ROOT }}", text)
 
 
 if __name__ == "__main__":

@@ -115,6 +115,40 @@ jobs:
             --run-root "$RUN_ROOT" \
             --output "$RUN_ROOT/boundary-audit.json"
 
+      - name: Execute and reject fixed recovery policies
+        run: |
+          variants=(
+            all_effects_valid_response_lost
+            actions_bundle_missing
+            artifact_registry_missing
+            production_deployment_missing
+            external_attestation_missing
+            release_metadata_missing
+          )
+          mapfile -t baselines < <(
+            python -c 'from aftermath_bench.integrations.forgejo_reconciliation_baselines import FORGEJO_RECONCILIATION_BASELINES; print(*FORGEJO_RECONCILIATION_BASELINES, sep="\n")'
+          )
+          mkdir -p "$RUN_ROOT/baselines"
+          for baseline in "${baselines[@]}"
+          do
+            for variant in "${variants[@]}"
+            do
+              python scripts/manage_forgejo_stack.py restore-promotion-bundle \
+                --snapshot "$RUN_ROOT/$variant-bundle"
+              timeout 90s python scripts/run_forgejo_reconciliation_baseline.py \
+                --credentials runtimes/forgejo/.runtime/credentials.json \
+                --prefix "$RUN_ROOT/prefix.json" \
+                --instance-spec "$INSTANCE" \
+                --variant "$variant" \
+                --baseline "$baseline" \
+                --output "$RUN_ROOT/baselines/$baseline-$variant.json"
+            done
+          done
+          python scripts/summarize_forgejo_reconciliation_baselines.py \
+            --run-directory "$RUN_ROOT/baselines" \
+            --scenario-id "forgejo-cross-system-reconciliation-${{ matrix.instance_id }}" \
+            --output "$RUN_ROOT/baseline-summary.json"
+
       - name: Surface native logs on failure
         if: failure()
         run: |
@@ -130,7 +164,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: forgejo-cross-system-reconciliation-${{ matrix.instance_id }}-${{ github.run_id }}
-          path: runtimes/forgejo/.runtime/reconciliation
+          path: ${{ env.RUN_ROOT }}
           if-no-files-found: error
 
       - name: Tear down services

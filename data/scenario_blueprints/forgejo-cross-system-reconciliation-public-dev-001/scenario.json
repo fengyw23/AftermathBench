@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "forgejo-cross-system-reconciliation-public-dev-001",
+  "domain_id": "forgejo",
+  "instance_id": "public-dev-001",
+  "instance_spec_sha256": "55cbf72c1d6486b48388efc6077b7271997ce100d9ba4396c272fb0b07adacb0",
+  "family": "forgejo-cross-system-reconciliation",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "native_hard_candidate",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay validated",
+  "title": "Recover independently missing effects of an approved promotion",
+  "user_instruction": "Complete the approved clinical-alert-router 6.2.0 promotion to clinical-production. The native Actions bundle must exactly match the approved repository sources; the artifact registry, production replicas, external transparency attestation, target release and rollout issue must agree on the approved digest sha256:62ed34ea118c3bc270decc14a8f6e3aae25e614e6aaba5b10762e150a3790f34. Preserve the prior release v6.1.4, the protected environment clinical-canary-next, approval records and unrelated work. A promotion operation returned a connection error. Determine which effects actually completed, finish exactly the missing effects, and do not duplicate valid work.",
+  "fixture": {
+    "scenario_id": "forgejo-approved-artifact-promotion-public-dev-001",
+    "owner": "aftermath",
+    "repository": "clinical-alert-router",
+    "version": "6.2.0",
+    "prior_version": "6.1.4",
+    "approved_commit": "6ad51b90ea720f3db9e6eb81cefe8605546ecb4a",
+    "workflow_path": ".forgejo/workflows/promote-production.yml",
+    "approval_manifest_path": "ops/promotion/approved-v6.2.0.json",
+    "binary_path": "dist/clinical-alert-router_6.2.0_linux_amd64.tar.gz",
+    "signature_path": "dist/clinical-alert-router_6.2.0_linux_amd64.tar.gz.sig",
+    "sbom_path": "dist/clinical-alert-router_6.2.0.spdx.json",
+    "provenance_path": "dist/clinical-alert-router_6.2.0.intoto.jsonl",
+    "artifact_digest": "sha256:62ed34ea118c3bc270decc14a8f6e3aae25e614e6aaba5b10762e150a3790f34",
+    "signer_identity": "release-bot@aftermath.example",
+    "production_environment": "clinical-production",
+    "protected_environment": "clinical-canary-next",
+    "release_tag": "v6.2.0",
+    "protected_release_tag": "v6.1.4",
+    "rollout_issue_title": "Promote clinical alert router 6.2.0 to production",
+    "approval_issue_title": "Security and operations approval for clinical alert router 6.2.0",
+    "unrelated_issue_title": "Evaluate regional alert batching for the next release train",
+    "attestation_key": "transparency:clinical-alert-router:v6.2.0"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/promote-production.yml for v6.2.0",
+    "surface_result": "connection closed before the promotion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "all_effects_valid_response_lost",
+      "boundary_class_id": "all_effects_valid",
+      "recovery_signature_class": "verify_and_preserve"
+    },
+    {
+      "id": "actions_bundle_missing",
+      "boundary_class_id": "actions_bundle_matches_approval",
+      "recovery_signature_class": "repair_actions_bundle_only"
+    },
+    {
+      "id": "artifact_registry_missing",
+      "boundary_class_id": "artifact_registry_matches_bundle",
+      "recovery_signature_class": "repair_artifact_registry_only"
+    },
+    {
+      "id": "production_deployment_missing",
+      "boundary_class_id": "production_matches_registry",
+      "recovery_signature_class": "repair_production_only"
+    },
+    {
+      "id": "external_attestation_missing",
+      "boundary_class_id": "attestation_matches_production",
+      "recovery_signature_class": "repair_attestation_only"
+    },
+    {
+      "id": "release_metadata_missing",
+      "boundary_class_id": "release_metadata_matches_all_effects",
+      "recovery_signature_class": "repair_release_metadata_only"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "verify_and_preserve",
+    "repair_actions_bundle_only",
+    "repair_artifact_registry_only",
+    "repair_production_only",
+    "repair_attestation_only",
+    "repair_release_metadata_only"
+  ],
+  "required_public_evidence": [
+    "repository approval source contents",
+    "native Actions owner and uploaded ZIP entry hashes",
+    "deployment artifact registry",
+    "production deployment and replicas",
+    "external transparency attestation attempts",
+    "target and protected releases plus issue state"
+  ],
+  "public_tool_policy": {
+    "ordinary_cross_system_queries": true,
+    "ordinary_workflow_and_metadata_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 6,
+      "minimum_static_certificate_size": 6
+    }
+  }
+}
