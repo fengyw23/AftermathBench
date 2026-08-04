@@ -16,6 +16,7 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             version="6.2.0",
             approved_commit="approved",
             artifact_digest="sha256:approved",
+            signer_identity="release@example.test",
             attestation_key="transparency:service:v6.2.0",
             production_environment="production",
             protected_environment="canary",
@@ -40,6 +41,8 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
         ]
         self.prefix = {
             "rollout_issue_index": 2,
+            "approval_issue_index": 1,
+            "unrelated_issue_index": 3,
             "protected_state": {
                 "deployments": [protected_deployment],
                 "replicas": protected_replicas,
@@ -94,7 +97,12 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             },
             "external_attestation": {
                 "attempt_count": 1,
-                "payload": {"artifact_digest": "sha256:approved"},
+                "payload": {
+                    "artifact_digest": "sha256:approved",
+                    "version": "6.2.0",
+                    "signer_identity": "release@example.test",
+                    "environment": "production",
+                },
             },
             "releases": [
                 {"tag_name": "v6.1.4"},
@@ -107,7 +115,11 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
                     "draft": False,
                 },
             ],
-            "issues": [{"number": 2, "state": "closed"}],
+            "issues": [
+                {"number": 1, "state": "closed"},
+                {"number": 2, "state": "closed"},
+                {"number": 3, "state": "open"},
+            ],
             "comments": [],
         }
 
@@ -177,6 +189,37 @@ class ForgejoReconciliationRecoveryTest(unittest.TestCase):
             state, instance=self.instance, prefix=self.prefix
         )
         self.assertTrue(projection["release_metadata_matches_all_effects"])
+
+    def test_protected_issue_states_are_hard_preservation_checks(self) -> None:
+        for issue_number, state in ((1, "open"), (3, "closed")):
+            with self.subTest(issue_number=issue_number):
+                changed = copy.deepcopy(self.state)
+                issue = next(
+                    row
+                    for row in changed["issues"]
+                    if row["number"] == issue_number
+                )
+                issue["state"] = state
+                result = evaluate_reconciliation_terminal(
+                    changed, instance=self.instance, prefix=self.prefix
+                )
+                self.assertFalse(result["passed"])
+                self.assertFalse(result["components"]["preservation"])
+
+    def test_attestation_must_bind_all_production_identity_fields(self) -> None:
+        for field, value in (
+            ("artifact_digest", "sha256:wrong"),
+            ("version", "6.2.1"),
+            ("signer_identity", "wrong@example.test"),
+            ("environment", "canary"),
+        ):
+            with self.subTest(field=field):
+                changed = copy.deepcopy(self.state)
+                changed["external_attestation"]["payload"][field] = value
+                projection = project_reconciliation_obligations(
+                    changed, instance=self.instance, prefix=self.prefix
+                )
+                self.assertFalse(projection["attestation_matches_production"])
 
 
 if __name__ == "__main__":

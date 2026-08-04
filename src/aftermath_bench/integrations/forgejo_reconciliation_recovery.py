@@ -154,6 +154,11 @@ def project_reconciliation_obligations(
         and int(attestation.get("attempt_count", 0)) == 1
         and attestation.get("payload", {}).get("artifact_digest")
         == instance.artifact_digest
+        and attestation.get("payload", {}).get("version") == instance.version
+        and attestation.get("payload", {}).get("signer_identity")
+        == instance.signer_identity
+        and attestation.get("payload", {}).get("environment")
+        == instance.production_environment
     )
     target_release = target_releases[0] if len(target_releases) == 1 else {}
     release_body = str(target_release.get("body", ""))
@@ -191,6 +196,22 @@ def evaluate_reconciliation_terminal(
         for row in deployment_state["replicas"]
         if row["environment"] == instance.protected_environment
     ]
+    approval_issue = next(
+        (
+            row
+            for row in state["issues"]
+            if int(row.get("number", -1)) == int(prefix["approval_issue_index"])
+        ),
+        None,
+    )
+    unrelated_issue = next(
+        (
+            row
+            for row in state["issues"]
+            if int(row.get("number", -1)) == int(prefix["unrelated_issue_index"])
+        ),
+        None,
+    )
     preservation = {
         "protected_deployment_preserved": protected_deployments
         == [
@@ -209,6 +230,12 @@ def evaluate_reconciliation_terminal(
             for row in state["releases"]
         )
         == 1,
+        "approval_record_preserved": (
+            approval_issue is not None and approval_issue.get("state") == "closed"
+        ),
+        "unrelated_work_preserved": (
+            unrelated_issue is not None and unrelated_issue.get("state") == "open"
+        ),
     }
     checks = {**obligations, **preservation}
     return {
