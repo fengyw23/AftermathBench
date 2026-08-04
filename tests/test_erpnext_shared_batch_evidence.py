@@ -83,13 +83,22 @@ class ERPNextSharedBatchEvidenceTest(unittest.TestCase):
             {
                 "shared_purchase_receipt": "PR-SHARED",
                 "shared_landed_cost_voucher": "LCV-SHARED",
+                "primary_bom": "BOM-PRIMARY",
+                "secondary_bom": "BOM-SECONDARY",
                 "primary_work_order": "WO-PRIMARY",
                 "secondary_work_order": "WO-SECONDARY",
+                "primary_transfer": "STE-PRIMARY-TRANSFER",
+                "secondary_transfer": "STE-SECONDARY-TRANSFER",
+                "accepted_primary_job_card": "JC-PRIMARY-ACCEPTED",
+                "rejected_primary_job_card": "JC-PRIMARY-REJECTED",
+                "secondary_job_card": "JC-SECONDARY",
                 "accepted_primary_manufacture": "STE-PRIMARY-ACCEPTED",
                 "secondary_manufacture": "STE-SECONDARY",
                 "corrective_job_card": "JC-CORRECTIVE",
                 "customer_reservation": "SO-CROSS-001",
+                "stock_reservation_entry": "SRE-CROSS-001",
                 "unrelated_receipt": "STE-UNRELATED",
+                "supplier_batch_id": "SUP-BATCH-Z7-2408",
                 "certificate_reference": "CERT-CORRECTIVE",
             }
         )

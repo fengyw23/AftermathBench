@@ -106,9 +106,11 @@ class ERPNextNativeInstanceSpec:
             (primary, "accepted_quantity"),
             (primary, "rework_quantity"),
             (primary, "component_quantity_per_unit"),
+            (primary, "output_valuation_rate"),
             (secondary, "ordered_quantity"),
             (secondary, "accepted_quantity"),
             (secondary, "component_quantity_per_unit"),
+            (secondary, "output_valuation_rate"),
         )
         if any(
             isinstance(record.get(field), bool)
@@ -121,22 +123,25 @@ class ERPNextNativeInstanceSpec:
             primary["accepted_quantity"] + primary["rework_quantity"]
             != primary["ordered_quantity"]
         ):
-            raise ValueError("primary accepted and rework quantities must close the order")
+            raise ValueError(
+                "primary accepted and rework quantities must close the order"
+            )
         if secondary["accepted_quantity"] != secondary["ordered_quantity"]:
             raise ValueError("secondary work order must be accepted at the boundary")
         required_component_quantity = (
             primary["ordered_quantity"] * primary["component_quantity_per_unit"]
-            + secondary["ordered_quantity"]
-            * secondary["component_quantity_per_unit"]
+            + secondary["ordered_quantity"] * secondary["component_quantity_per_unit"]
         )
-        if shared["received_quantity"] < required_component_quantity:
-            raise ValueError("shared supplier batch cannot cover both work orders")
+        if shared["received_quantity"] != required_component_quantity:
+            raise ValueError(
+                "shared supplier batch must exactly cover both work orders so the "
+                "native landed-cost allocation has no hidden remainder"
+            )
         landed_cost = self.fixture["shared_landed_cost"]
         reservation = self.fixture["customer_reservation"]
         certificate = self.fixture["external_certificate"]
         if not all(
-            isinstance(item, dict)
-            for item in (landed_cost, reservation, certificate)
+            isinstance(item, dict) for item in (landed_cost, reservation, certificate)
         ):
             raise ValueError("shared-batch obligations must be objects")
         allocations = (
@@ -144,18 +149,31 @@ class ERPNextNativeInstanceSpec:
             landed_cost.get("secondary_allocation"),
         )
         if any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or value <= 0
+            isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0
             for value in (*allocations, landed_cost.get("amount"))
         ):
             raise ValueError("shared landed-cost amounts must be positive")
         if sum(allocations) != landed_cost["amount"]:
             raise ValueError("shared landed-cost allocations must sum to the voucher")
+        primary_component_quantity = (
+            primary["ordered_quantity"] * primary["component_quantity_per_unit"]
+        )
+        secondary_component_quantity = (
+            secondary["ordered_quantity"] * secondary["component_quantity_per_unit"]
+        )
         if (
-            reservation.get("item_code") != secondary.get("item_code")
-            or reservation.get("quantity") != secondary.get("accepted_quantity")
+            allocations[0] * required_component_quantity
+            != landed_cost["amount"] * primary_component_quantity
+            or allocations[1] * required_component_quantity
+            != landed_cost["amount"] * secondary_component_quantity
         ):
+            raise ValueError(
+                "shared landed-cost allocations must match ERPNext's amount-based "
+                "per-unit distribution across both work orders"
+            )
+        if reservation.get("item_code") != secondary.get(
+            "item_code"
+        ) or reservation.get("quantity") != secondary.get("accepted_quantity"):
             raise ValueError("customer reservation must protect all secondary output")
         if certificate.get("required_quantity") != primary.get("rework_quantity"):
             raise ValueError("certificate quantity must match the corrective branch")
@@ -168,7 +186,9 @@ class ERPNextNativeInstanceSpec:
             str(self.fixture["unrelated_item"].get("item_code", "")),
         }
         if "" in item_codes or len(item_codes) != 4:
-            raise ValueError("shared-batch native item codes must be nonempty and unique")
+            raise ValueError(
+                "shared-batch native item codes must be nonempty and unique"
+            )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -217,9 +237,7 @@ def render_erpnext_native_blueprint(
     if instance.family == "erpnext-manufacturing-rework":
         rework_quantity = instance.fixture.get("rework_quantity")
         if not isinstance(rework_quantity, (int, float)) or rework_quantity <= 0:
-            raise ValueError(
-                "manufacturing instance rework_quantity must be positive"
-            )
+            raise ValueError("manufacturing instance rework_quantity must be positive")
         rendered_quantity = (
             str(int(rework_quantity))
             if float(rework_quantity).is_integer()
@@ -227,9 +245,7 @@ def render_erpnext_native_blueprint(
         )
         ambiguous = payload.get("ambiguous_operation")
         if not isinstance(ambiguous, dict):
-            raise ValueError(
-                "manufacturing template lacks ambiguous_operation"
-            )
+            raise ValueError("manufacturing template lacks ambiguous_operation")
         ambiguous["operation"] = (
             f"submit the prepared {rendered_quantity}-unit corrective Job Card"
         )

@@ -45,7 +45,7 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
                 "supplier_batch_id": "SUP-BATCH-Z7-2408",
                 "primary_consumed_quantity": 12,
                 "secondary_consumed_quantity": 8,
-                "remaining_quantity": 4,
+                "remaining_quantity": 0,
             },
             "shared_landed_cost": {
                 "total_amount": 1440,
@@ -88,7 +88,7 @@ class ERPNextSharedBatchEvaluatorTest(unittest.TestCase):
         evidence["secondary_work_order"]["manufactured_quantity"] = 0
         evidence["secondary_work_order"]["reserved_quantity"] = 0
         evidence["shared_batch"]["secondary_consumed_quantity"] = 0
-        evidence["shared_batch"]["remaining_quantity"] = 12
+        evidence["shared_batch"]["remaining_quantity"] = 8
         result = self.evaluate(evidence)
         self.assertTrue(result["components"]["goal_completion"])
         self.assertFalse(result["components"]["preservation"])

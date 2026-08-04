@@ -1,0 +1,103 @@
+name: erpnext-shared-batch-native-runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-audit-prefix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: src
+      AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
+      AFTERMATH_ADMIN_PASSWORD: aftermath-admin
+      SCENARIO: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
+      RUNTIME_OUTPUT: data/generated/erpnext-shared-batch-recovery-dev-001/native-prefix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate shared-batch code and immutable runtime
+        run: |
+          python -m unittest discover -s tests -p 'test_erpnext_shared_batch_*.py' -v
+          python -m aftermath_bench validate-runtimes
+
+      - name: Build pinned ERPNext and Frappe from source
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT"
+          python scripts/build_erpnext_runtime.py \
+            --source-directory "$RUNNER_TEMP/frappe_docker" \
+            --execute \
+            --report "$RUNTIME_OUTPUT/source-verification.json"
+
+      - name: Start native services and initialize the public company
+        run: |
+          python scripts/manage_erpnext_stack.py up
+          python scripts/manage_erpnext_stack.py setup
+
+      - name: Build native shared-batch prefix
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT/logs" "$RUNTIME_OUTPUT/evidence"
+          if ! python scripts/build_erpnext_shared_batch_prefix.py \
+              --scenario "$SCENARIO" \
+              --credentials runtimes/erpnext/.runtime/credentials.json \
+              --output "$RUNTIME_OUTPUT/prefix.json" \
+              > "$RUNTIME_OUTPUT/logs/prefix.log" 2>&1
+          then
+            cat "$RUNTIME_OUTPUT/logs/prefix.log"
+            exit 1
+          fi
+          python scripts/manage_erpnext_stack.py snapshot-bundle \
+            --snapshot "$RUNTIME_OUTPUT/prefix-bundle" \
+            > "$RUNTIME_OUTPUT/prefix-bundle.json"
+
+      - name: Collect and validate native prefix evidence
+        run: |
+          python scripts/collect_erpnext_shared_batch_evidence.py \
+            --credentials runtimes/erpnext/.runtime/credentials.json \
+            --prefix "$RUNTIME_OUTPUT/prefix.json" \
+            --output "$RUNTIME_OUTPUT/evidence/prefix-state.json" \
+            > "$RUNTIME_OUTPUT/logs/evidence.log"
+          python scripts/validate_erpnext_shared_batch_prefix.py \
+            --scenario "$SCENARIO" \
+            --prefix "$RUNTIME_OUTPUT/prefix.json" \
+            --evidence "$RUNTIME_OUTPUT/evidence/prefix-state.json" \
+            --output "$RUNTIME_OUTPUT/prefix-validation.json"
+
+      - name: Capture native diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNTIME_OUTPUT/logs"
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            ps --all \
+            > "$RUNTIME_OUTPUT/logs/compose-ps.txt" 2>&1 || true
+          docker compose \
+            --project-name aftermath-erpnext \
+            --file runtimes/erpnext/compose.yaml \
+            logs --no-color \
+            > "$RUNTIME_OUTPUT/logs/compose.log" 2>&1 || true
+
+      - name: Remove ephemeral API credentials
+        if: always()
+        run: rm -f runtimes/erpnext/.runtime/credentials.json
+
+      - name: Upload native shared-batch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erpnext-shared-batch-prefix-${{ github.run_id }}
+          include-hidden-files: true
+          path: |
+            data/generated/erpnext-shared-batch-recovery-dev-001/native-prefix
+          if-no-files-found: warn
+
+      - name: Tear down services
+        if: always()
+        run: python scripts/manage_erpnext_stack.py purge

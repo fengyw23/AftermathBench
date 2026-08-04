@@ -22,12 +22,20 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
         document_fields = {
             "shared_purchase_receipt": "Purchase Receipt",
             "shared_landed_cost_voucher": "Landed Cost Voucher",
+            "primary_bom": "BOM",
+            "secondary_bom": "BOM",
             "primary_work_order": "Work Order",
             "secondary_work_order": "Work Order",
+            "primary_transfer": "Stock Entry",
+            "secondary_transfer": "Stock Entry",
+            "accepted_primary_job_card": "Job Card",
+            "rejected_primary_job_card": "Job Card",
+            "secondary_job_card": "Job Card",
             "accepted_primary_manufacture": "Stock Entry",
             "secondary_manufacture": "Stock Entry",
             "corrective_job_card": "Job Card",
             "customer_reservation": "Sales Order",
+            "stock_reservation_entry": "Stock Reservation Entry",
             "unrelated_receipt": "Stock Entry",
         }
         documents = {
@@ -67,6 +75,8 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
             str(prefix["shared_landed_cost_voucher"]),
             str(prefix["accepted_primary_manufacture"]),
             str(prefix["secondary_manufacture"]),
+            str(prefix["primary_transfer"]),
+            str(prefix["secondary_transfer"]),
             str(prefix["unrelated_receipt"]),
             *(str(document.get("name")) for document in stock_entries),
         }
@@ -122,6 +132,9 @@ class ERPNextSharedBatchEvidenceCollector(ERPNextPartialReturnEvidenceCollector)
         ]
         return {
             **documents,
+            "supplier_batch": self.get_document(
+                "Batch", str(prefix["supplier_batch_id"])
+            ),
             "job_cards": sorted(job_cards, key=lambda row: str(row.get("name", ""))),
             "manufacture_stock_entries": sorted(
                 stock_entries, key=lambda row: str(row.get("name", ""))

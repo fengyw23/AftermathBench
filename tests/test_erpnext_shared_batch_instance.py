@@ -55,9 +55,7 @@ class ERPNextSharedBatchInstanceTest(unittest.TestCase):
             + fixture["secondary_work_order"]["ordered_quantity"]
             * fixture["secondary_work_order"]["component_quantity_per_unit"]
         )
-        self.assertGreaterEqual(
-            fixture["shared_component"]["received_quantity"], required
-        )
+        self.assertEqual(fixture["shared_component"]["received_quantity"], required)
         self.assertEqual(
             fixture["shared_landed_cost"]["primary_allocation"]
             + fixture["shared_landed_cost"]["secondary_allocation"],
@@ -71,7 +69,7 @@ class ERPNextSharedBatchInstanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "instance.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "cannot cover both work orders"):
+            with self.assertRaisesRegex(ValueError, "exactly cover both work orders"):
                 ERPNextNativeInstanceSpec.from_path(path)
 
     def test_rejects_primary_quantity_that_does_not_close(self) -> None:
@@ -92,6 +90,17 @@ class ERPNextSharedBatchInstanceTest(unittest.TestCase):
             path = Path(directory) / "instance.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "must sum to the voucher"):
+                ERPNextNativeInstanceSpec.from_path(path)
+
+    def test_rejects_non_native_landed_cost_split(self) -> None:
+        payload = json.loads(self.spec_path.read_text(encoding="utf-8"))
+        payload = copy.deepcopy(payload)
+        payload["fixture"]["shared_landed_cost"]["primary_allocation"] = 900
+        payload["fixture"]["shared_landed_cost"]["secondary_allocation"] = 540
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "instance.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "amount-based"):
                 ERPNextNativeInstanceSpec.from_path(path)
 
     def test_rejects_reservation_that_does_not_protect_secondary_output(self) -> None:

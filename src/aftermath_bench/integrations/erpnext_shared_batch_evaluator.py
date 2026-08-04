@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -24,6 +25,66 @@ def _sum_matches(parts: tuple[Any, ...], total: Any) -> bool:
         )
     except (InvalidOperation, TypeError, ValueError):
         return False
+
+
+def shared_batch_document_fingerprint(document: dict[str, Any]) -> str:
+    """Fingerprint the persistent fields that encode a protected obligation.
+
+    Volatile Frappe metadata (timestamps, owners and child-row names) is
+    excluded, while quantities, ledger links, reservation fields and landed
+    cost allocations remain visible.  The same function is used at the
+    failure boundary and at evaluation time.
+    """
+
+    scalar_fields = (
+        "doctype",
+        "name",
+        "docstatus",
+        "status",
+        "company",
+        "supplier",
+        "customer",
+        "work_order",
+        "purpose",
+        "production_item",
+        "qty",
+        "produced_qty",
+        "fg_completed_qty",
+        "reserve_stock",
+        "total_taxes_and_charges",
+        "distribute_charges_based_on",
+    )
+    child_fields = (
+        "item_code",
+        "qty",
+        "stock_qty",
+        "rate",
+        "amount",
+        "warehouse",
+        "s_warehouse",
+        "t_warehouse",
+        "batch_no",
+        "serial_and_batch_bundle",
+        "reserve_stock",
+        "stock_reserved_qty",
+        "receipt_document_type",
+        "receipt_document",
+        "purchase_receipt_item",
+        "applicable_charges",
+        "expense_account",
+    )
+    payload = {key: document.get(key) for key in scalar_fields if key in document}
+    for table in ("items", "purchase_receipts", "taxes"):
+        if table not in document:
+            continue
+        payload[table] = sorted(
+            (
+                {key: row.get(key) for key in child_fields if key in row}
+                for row in document.get(table, [])
+            ),
+            key=lambda row: json.dumps(row, sort_keys=True, default=str),
+        )
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def evaluate_shared_batch_terminal(
@@ -198,3 +259,9 @@ def evaluate_shared_batch_terminal(
         "checks": checks,
         "failures": [key for key, value in checks.items() if not value],
     }
+
+
+__all__ = [
+    "evaluate_shared_batch_terminal",
+    "shared_batch_document_fingerprint",
+]
