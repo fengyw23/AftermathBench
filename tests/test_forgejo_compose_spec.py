@@ -71,7 +71,12 @@ class ForgejoComposeSpecTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn(pinned, runner_containerfile)
         self.assertIn(
-            f'nodejs={runner["runtime_dependencies"]["nodejs"]["version"]}',
+            runner["runtime_dependencies"]["nodejs"]["artifact_url"],
+            runner_containerfile,
+        )
+        self.assertIn(
+            "--checksum=sha256:"
+            + runner["runtime_dependencies"]["nodejs"]["sha256"],
             runner_containerfile,
         )
         self.assertIn(
