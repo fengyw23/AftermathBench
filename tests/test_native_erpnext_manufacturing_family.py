@@ -210,6 +210,7 @@ class NativeERPNextManufacturingFamilyTest(unittest.TestCase):
         self.assertEqual(report["maximum_observed_quality_release_attempts"], 2)
         self.assertTrue(report["final_claims_exactly_once"])
         self.assertTrue(report["verification_missed_observed_violation"])
+        self.assertTrue(report["side_effect_contract_missed"])
 
     def test_resubmitting_committed_corrective_card_is_state_inference_failure(
         self,

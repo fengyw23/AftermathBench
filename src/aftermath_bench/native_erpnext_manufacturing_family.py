@@ -394,6 +394,9 @@ def diagnose_manufacturing_trajectory(
     verification_missed_observed_violation = (
         maximum_observed_release_attempts > 1 and final_claims_exactly_once
     )
+    side_effect_contract_missed = (
+        manual_enqueue_after_submit and not webhook_contract_inspected
+    )
     return {
         "primary_error": primary_error,
         "evidence_groups": evidence_groups,
@@ -412,6 +415,7 @@ def diagnose_manufacturing_trajectory(
         "verification_missed_observed_violation": (
             verification_missed_observed_violation
         ),
+        "side_effect_contract_missed": side_effect_contract_missed,
     }
 
 
