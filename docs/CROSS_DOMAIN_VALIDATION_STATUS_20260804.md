@@ -9,7 +9,7 @@ claims.
 
 | Domain / family | Native failure boundaries | Exact replay + reference | Replay-derived hard admission | Fixed-policy matched-group resistance | Execution control | Ordinary model experiment | Formal release package |
 |---|---:|---|---|---|---|---|---|
-| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | ordinary GLM-5.2 run 30865035666 in progress | native evidence archived; release integration pending |
+| Kubernetes constraint interactions | 13 | complete (13/13) | complete | complete (0 matched groups; best per-task policy 46.15%) | complete (GLM-5.2 12/13; 92.31%) | provisional: 2/11 completed states; 2 provider-missing states excluded and retrying | native evidence archived; release integration pending |
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
 
@@ -46,7 +46,18 @@ UIDs in the audit/closure records. This is a model execution error after correct
 scope identification, not missing evidence or interface ambiguity. Ordinary
 scope-inference run
 [30865035666](https://github.com/fengyw23/AftermathBench/actions/runs/30865035666)
-was launched only after this control gate passed. An earlier dispatch
+completed scored trajectories for 11 of 13 states. GLM-5.2 passed 2/11
+(18.18%); matched-group success was false. Goal completion remained 72.73%
+and the model collected all six evidence groups before its first write in all
+11 scored trajectories, but repair completeness was only 18.18%. Nine failures
+were classified as scope failures, most often leaving the wrong transition or
+publication owner active after otherwise broad investigation. This is evidence
+of recovery-scope composition difficulty rather than missing tools. States 01
+and 02 produced no trajectory after provider retries and are excluded, not
+scored as failures. A streamed retry with a longer provider timeout is run
+[30872359883](https://github.com/fengyw23/AftermathBench/actions/runs/30872359883).
+
+An earlier dispatch
 [30864390353](https://github.com/fengyw23/AftermathBench/actions/runs/30864390353)
 stopped during preflight because a source hash generated from Windows line
 endings did not match the Linux LF checkout; it reached neither the native
@@ -109,7 +120,7 @@ The repository currently supports the following narrow claim:
 
 It does **not** yet support a top-conference benchmark claim. Missing evidence is:
 
-1. audited ordinary-model Kubernetes results without supplied scope;
+1. complete ordinary-model Kubernetes coverage for the two provider-missing states;
 2. unsaturated ordinary recovery families with interacting native obligations;
 3. more independent families and hidden instances per domain;
 4. a frozen cross-model leaderboard with repeated runs.

@@ -33,10 +33,13 @@ Before the ambiguous failure, public ERPNext writes create:
 7. one idempotent external calibration-certificate obligation.
 
 The observed failure is a connection error while submitting the corrective
-operation. Matched boundaries vary whether the submit committed, whether its
-stock/accounting continuation exists, whether the shared cost allocation was
-already posted, and whether the certificate was accepted by the external
-receiver.
+operation. The implemented development family currently varies whether the
+corrective Job Card submit committed and whether the external certificate was
+already delivered, failed before enqueue, or exists as a pending native RQ job.
+Stock, accounting, landed-cost, quality, and reservation effects are protected
+obligations shared by all four boundaries; they are not yet independently varied
+boundary dimensions. A later family may vary those dimensions, but this one may
+not be cited as doing so.
 
 The Agent must close all of these native obligations:
 
@@ -77,7 +80,8 @@ The scenario opts in with:
       "minimum_gold_scope_count": 4,
       "minimum_cross_obligation_witnesses": 4,
       "minimum_repair_preservation_conflict_witnesses": 3,
-      "minimum_variants_with_conflict": 3
+      "minimum_variants_with_conflict": 3,
+      "minimum_conflicting_action_count": 3
     }
   },
   "admission_artifacts": {
@@ -98,8 +102,8 @@ obligations from evaluator deltas; it does not trust claimed repair labels.
 2. Implement the prefix using ordinary ERPNext writes.
 3. Capture at least four same-error failure boundaries.
 4. Implement the deterministic evaluator before writing reference recovery.
-5. Replay the three crossed-obligation traps and one additional shared-effect
-   action from every relevant boundary.
+5. Replay three distinct crossed-obligation traps from every boundary; repeated
+   variants of the same destructive action do not satisfy this requirement.
 6. Generate and hash-bind the obligation interaction artifact.
 7. Require reference 100%, explicit-scope control at least 80%, no fixed-policy
    matched-group solver, and the existing scope-decision certificate.
