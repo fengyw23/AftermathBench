@@ -19,7 +19,11 @@ class ERPNextManufacturingModelWorkflowTests(unittest.TestCase):
         self.assertIn("erpnext-manufacturing-control", self.text)
         self.assertIn("requested_control=true", self.text)
         self.assertIn(
-            "data/scenarios/erpnext-manufacturing-rework-dev-001/scenario.json",
+            "data/scenarios/erpnext-manufacturing-rework-public-dev-002/scenario.json",
+            self.text,
+        )
+        self.assertIn(
+            "data/scenario_blueprints/erpnext-manufacturing-rework-public-dev-002/scenario.json",
             self.text,
         )
         self.assertIn("validate-native-scenario", self.text)
