@@ -66,6 +66,17 @@ class BenchmarkStatusTest(unittest.TestCase):
             report["implemented"]["target_matched_case_state_counts"],
             coverage["matched_case_state_counts"],
         )
+        self.assertEqual(coverage["slot_state_counts"]["frozen_hidden"], 4)
+        self.assertEqual(
+            coverage["matched_case_state_counts"]["frozen_hidden"],
+            16,
+        )
+        self.assertEqual(
+            report["implemented"]["frozen_hidden_slot_count"], 4
+        )
+        self.assertEqual(
+            report["implemented"]["frozen_hidden_matched_case_count"], 16
+        )
         self.assertEqual(
             sum(coverage["slot_state_counts"].values()),
             coverage["required_slot_count"],
@@ -82,6 +93,18 @@ class BenchmarkStatusTest(unittest.TestCase):
                 "kubernetes/k8s-constraint-interaction-recovery/test-001"
             ]["state"],
             "missing",
+        )
+        self.assertEqual(
+            by_id[
+                "erpnext/erpnext-manufacturing-rework/test-001"
+            ]["state"],
+            "frozen_hidden",
+        )
+        self.assertEqual(
+            by_id[
+                "erpnext/erpnext-multiwarehouse-transfer/test-002"
+            ]["state"],
+            "frozen_hidden",
         )
 
     def test_status_is_derived_from_admission_and_runtime_evidence(self) -> None:

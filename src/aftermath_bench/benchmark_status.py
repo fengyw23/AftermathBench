@@ -8,6 +8,10 @@ from .benchmark_matrix import (
     load_benchmark_matrix,
     validate_benchmark_matrix,
 )
+from .frozen_hidden_registry import (
+    FrozenHiddenRecord,
+    load_frozen_hidden_registry,
+)
 from .native_admission import validate_native_scenario
 from .native_scenario import (
     load_native_scenario,
@@ -34,6 +38,7 @@ def _slot_coverage(
     matrix_slots: dict[str, dict[str, Any]],
     scenario_rows: list[dict[str, Any]],
     formal_bindings: tuple[dict[str, Any], ...],
+    frozen_hidden_records: tuple[FrozenHiddenRecord, ...] = (),
 ) -> dict[str, Any]:
     """Describe each planned release slot without double-counting replicas.
 
@@ -56,6 +61,9 @@ def _slot_coverage(
         for binding in formal_bindings
         if binding.get("formal_slot_id") is not None and binding.get("passed")
     }
+    frozen_by_slot = {
+        record.formal_slot_id: record for record in frozen_hidden_records
+    }
 
     slots: list[dict[str, Any]] = []
     for slot_id, slot in sorted(matrix_slots.items()):
@@ -73,8 +81,11 @@ def _slot_coverage(
             and row["runtime_execution_admitted"]
         ]
         binding = bindings_by_slot.get(slot_id)
+        frozen = frozen_by_slot.get(slot_id)
         if binding is not None:
             state = "formal_bound"
+        elif frozen is not None:
+            state = "frozen_hidden"
         elif hard_candidates:
             state = "hard_candidate"
         else:
@@ -95,6 +106,12 @@ def _slot_coverage(
                 "formal_binding_scenario_id": (
                     str(binding["scenario_id"]) if binding is not None else None
                 ),
+                "frozen_hidden_scenario_id": (
+                    frozen.scenario_id if frozen is not None else None
+                ),
+                "frozen_hidden_freeze_run_id": (
+                    frozen.freeze_run_id if frozen is not None else None
+                ),
                 "hard_candidate_scenario_ids": sorted(
                     str(row["scenario_id"]) for row in hard_candidates
                 ),
@@ -106,7 +123,12 @@ def _slot_coverage(
 
     state_counts = {
         state: sum(1 for row in slots if row["state"] == state)
-        for state in ("formal_bound", "hard_candidate", "missing")
+        for state in (
+            "formal_bound",
+            "frozen_hidden",
+            "hard_candidate",
+            "missing",
+        )
     }
     case_counts = {
         state: sum(
@@ -114,7 +136,12 @@ def _slot_coverage(
             for row in slots
             if row["state"] == state
         )
-        for state in ("formal_bound", "hard_candidate", "missing")
+        for state in (
+            "formal_bound",
+            "frozen_hidden",
+            "hard_candidate",
+            "missing",
+        )
     }
     return {
         "required_slot_count": len(slots),
@@ -213,10 +240,15 @@ def build_benchmark_status() -> dict[str, Any]:
         load_release_manifest(default_release_manifest_path()),
         root=root,
     )
+    frozen_hidden_records = load_frozen_hidden_registry(
+        root / "data" / "frozen_hidden_candidates.json",
+        root=root,
+    )
     slot_coverage = _slot_coverage(
         matrix_slots=matrix_slots,
         scenario_rows=scenario_rows,
         formal_bindings=release.bindings,
+        frozen_hidden_records=frozen_hidden_records,
     )
     return {
         "status_schema_version": "1.0",
@@ -271,6 +303,10 @@ def build_benchmark_status() -> dict[str, Any]:
             "hard_development_candidate_case_count": release.observed[
                 "hard_development_candidate_case_count"
             ],
+            "frozen_hidden_slot_count": len(frozen_hidden_records),
+            "frozen_hidden_matched_case_count": sum(
+                record.variant_count for record in frozen_hidden_records
+            ),
         },
         "release_manifest": {
             "passed": release.passed,
@@ -281,6 +317,20 @@ def build_benchmark_status() -> dict[str, Any]:
             "bindings": list(release.bindings),
         },
         "slot_coverage": slot_coverage,
+        "frozen_hidden_candidates": [
+            {
+                "formal_slot_id": record.formal_slot_id,
+                "scenario_id": record.scenario_id,
+                "variant_count": record.variant_count,
+                "freeze_run_id": record.freeze_run_id,
+                "public_commitment_sha256": (
+                    record.public_commitment_sha256
+                ),
+                "artifact_url": record.artifact_url,
+                "evidence_path": record.evidence_path,
+            }
+            for record in frozen_hidden_records
+        ],
         "runtimes": [
             {
                 "runtime_id": report.runtime_id,
