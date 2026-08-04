@@ -16,6 +16,11 @@ on:
         required: true
         default: true
         type: boolean
+      instance_id:
+        description: Fresh hidden instance slot to freeze or evaluate
+        required: true
+        default: candidate-001
+        type: string
 
 permissions:
   contents: read
@@ -52,7 +57,7 @@ jobs:
           python scripts/render_forgejo_publication_blueprint.py \
             --instance-spec "$run_root/private/instance.json" \
             --output "$run_root/private/blueprint.json" \
-            --instance-id candidate-001 \
+            --instance-id "${{ inputs.instance_id || 'candidate-001' }}" \
             --benchmark-split hidden_test
           python -m unittest discover -s tests -v
 
@@ -347,7 +352,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forgejo-publication-candidate-${{ github.run_id }}
+          name: forgejo-publication-${{ inputs.instance_id || 'candidate-001' }}-${{ github.run_id }}
           path: ${{ runner.temp }}/forgejo-candidate/public/
           if-no-files-found: error
           retention-days: 90
