@@ -23,7 +23,7 @@ class ERPNextHiddenCandidateWorkflowTests(unittest.TestCase):
 
     def test_private_data_is_secret_backed_and_only_ciphertext_is_uploaded(self) -> None:
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64", self.text)
-        self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V2", self.text)
+        self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V4", self.text)
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V3", self.text)
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V4", self.text)
         self.assertIn("ERPNEXT_MANUFACTURING_HIDDEN_INSTANCE_B64_V5", self.text)
