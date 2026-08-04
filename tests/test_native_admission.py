@@ -215,6 +215,89 @@ class NativeAdmissionTest(unittest.TestCase):
                 report.observed["scope_decision_optimal_adaptive_depth"], 1
             )
 
+    def test_obligation_profile_rejects_unbound_action_probe(self) -> None:
+        source = (
+            repository_root()
+            / "data"
+            / "scenarios"
+            / "forgejo-package-provenance-nonmonotonic-dev-001"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            scenario_root = Path(directory) / source.name
+            shutil.copytree(source, scenario_root)
+            scenario_path = scenario_root / "scenario.json"
+            payload = json.loads(scenario_path.read_text(encoding="utf-8"))
+            payload["admission_profile"]["obligation_interaction"] = {
+                "minimum_obligation_count": 2,
+                "minimum_protected_obligation_count": 1,
+                "minimum_gold_scope_count": 2,
+                "minimum_cross_obligation_witnesses": 0,
+                "minimum_repair_preservation_conflict_witnesses": 0,
+                "minimum_variants_with_conflict": 0,
+            }
+            payload["admission_artifacts"]["obligation_interactions"] = (
+                "artifacts/obligation-interactions.json"
+            )
+            scenario_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            rows = []
+            for index, variant in enumerate(payload["matched_variants"]):
+                action = "keep" if index % 2 == 0 else "rebuild"
+                rows.append(
+                    {
+                        "variant": variant,
+                        "boundary_evaluation": {
+                            "failed_goal": False,
+                            "protected_release": True,
+                        },
+                        "gold_action_ids": [action],
+                        "probes": [
+                            {
+                                "action_id": action,
+                                "tool_events": [
+                                    {"tool": "repair", "arguments": {"mode": action}}
+                                ],
+                                "result_state_sha256": "not-a-native-hash",
+                                "result_evaluation": {
+                                    "failed_goal": True,
+                                    "protected_release": True,
+                                },
+                            }
+                        ],
+                    }
+                )
+            artifact_path = (
+                scenario_root / "artifacts" / "obligation-interactions.json"
+            )
+            artifact_path.write_text(
+                json.dumps(
+                    {
+                        "scenario_id": payload["scenario_id"],
+                        "obligations": [
+                            {"id": "failed_goal", "protected": False},
+                            {"id": "protected_release", "protected": True},
+                        ],
+                        "actions": [{"id": "keep"}, {"id": "rebuild"}],
+                        "rows": rows,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            report = validate_native_scenario(load_native_scenario(scenario_path))
+
+            self.assertFalse(report.passed)
+            self.assertTrue(report.checks["obligation_interaction_artifact_valid"])
+            self.assertFalse(
+                report.checks["obligation_interaction_probes_replay_bound"]
+            )
+            self.assertIn("obligation_interactions", report.artifact_sha256)
+
     def test_derived_admission_report_is_not_a_recursive_input(self) -> None:
         source = (
             repository_root()

@@ -257,6 +257,24 @@ This pattern can later be transferred to ITSM, cloud operations, and coding
 tasks, but each domain needs native states and invariants rather than renamed
 ERP records.
 
+## Cross-obligation replay gate
+
+Graph size and long query traces do not prove that a recovery decision is hard.
+New unsaturated families can therefore opt into `obligation_interaction`
+admission. The associated artifact restores each exact boundary, applies a
+public-tool semantic action, and records the deterministic evaluator vector
+before and after the action. Admission derives two kinds of witnesses:
+
+- a cross-obligation witness changes at least two terminal obligations; and
+- a repair-preservation conflict makes an unsatisfied obligation true while
+  making a protected, previously true obligation false.
+
+Every probe must contain public tool events and a native result-state SHA-256.
+The reusable implementation is
+`aftermath_bench.obligation_interaction_audit`; author-written labels do not
+count. The first intended application is the native ERPNext shared-batch
+manufacturing family specified in `CROSS_OBLIGATION_FAMILY_SPEC.md`.
+
 ## Frozen holdout outcome
 
 The final same-job comparison in Actions run

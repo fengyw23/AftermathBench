@@ -102,7 +102,10 @@ class KubernetesInteractionScopeTest(unittest.TestCase):
         }
         for row in matrix["rows"]:
             boundary_path = runtime / f"{row['variant']}-boundary.json"
-            boundary_bytes = boundary_path.read_bytes()
+            # Source artifacts are released with LF through .gitattributes.
+            # Normalize the Windows development checkout before checking the
+            # release-byte hash so the test asserts one cross-platform value.
+            boundary_bytes = boundary_path.read_bytes().replace(b"\r\n", b"\n")
             self.assertEqual(
                 row["source_boundary_sha256"],
                 hashlib.sha256(boundary_bytes).hexdigest(),

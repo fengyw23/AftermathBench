@@ -11,6 +11,7 @@ from typing import Any
 
 from .evidence_replay import replay_graph
 from .native_scenario import NativeScenario
+from .obligation_interaction_audit import analyze_obligation_interactions
 from .scope_decision_audit import analyze_scope_decision_matrix
 
 
@@ -562,6 +563,9 @@ def validate_native_scenario(
     scope_decision_profile = scenario.raw.get("admission_profile", {}).get(
         "scope_decision", {}
     )
+    obligation_profile = scenario.raw.get("admission_profile", {}).get(
+        "obligation_interaction", {}
+    )
     if constraint_profile:
         paths["prompt_audit"] = scenario.resolve_artifact("prompt_audit")
         if bool(constraint_profile.get("require_projection_witnesses", False)):
@@ -573,6 +577,10 @@ def validate_native_scenario(
     if scope_decision_profile:
         paths["scope_decision_matrix"] = scenario.resolve_artifact(
             "scope_decision_matrix"
+        )
+    if obligation_profile:
+        paths["obligation_interactions"] = scenario.resolve_artifact(
+            "obligation_interactions"
         )
     missing = [name for name, path in paths.items() if not path.is_file()]
     if missing:
@@ -880,6 +888,97 @@ def validate_native_scenario(
                     ),
                     "scope_decision_has_no_single_surface_solver": (
                         not decision_audit.single_surface_solvers
+                    ),
+                }
+            )
+    if obligation_profile:
+        interaction_payload = artifact_payloads["obligation_interactions"]
+        try:
+            interaction_audit = analyze_obligation_interactions(interaction_payload)
+        except (TypeError, ValueError):
+            checks["obligation_interaction_artifact_valid"] = False
+        else:
+            interaction_variants = {
+                str(row.get("variant", ""))
+                for row in interaction_payload.get("rows", ())
+                if isinstance(row, dict)
+            }
+            required_obligations = int(
+                obligation_profile.get("minimum_obligation_count", 5)
+            )
+            required_protected = int(
+                obligation_profile.get("minimum_protected_obligation_count", 3)
+            )
+            required_scopes = int(
+                obligation_profile.get("minimum_gold_scope_count", 3)
+            )
+            required_cross = int(
+                obligation_profile.get("minimum_cross_obligation_witnesses", 3)
+            )
+            required_conflicts = int(
+                obligation_profile.get(
+                    "minimum_repair_preservation_conflict_witnesses", 2
+                )
+            )
+            required_conflict_variants = int(
+                obligation_profile.get("minimum_variants_with_conflict", 2)
+            )
+            observed.update(
+                {
+                    "obligation_count": interaction_audit.obligation_count,
+                    "protected_obligation_count": (
+                        interaction_audit.protected_obligation_count
+                    ),
+                    "obligation_action_count": interaction_audit.action_count,
+                    "obligation_gold_scope_count": interaction_audit.gold_scope_count,
+                    "obligation_probe_count": interaction_audit.probe_count,
+                    "cross_obligation_witness_count": (
+                        interaction_audit.cross_obligation_witness_count
+                    ),
+                    "repair_preservation_conflict_count": (
+                        interaction_audit.repair_preservation_conflict_count
+                    ),
+                    "variants_with_cross_obligation_witness": (
+                        interaction_audit.variants_with_cross_obligation_witness
+                    ),
+                    "variants_with_repair_preservation_conflict": (
+                        interaction_audit.variants_with_repair_preservation_conflict
+                    ),
+                    "minimum_gold_action_count": (
+                        interaction_audit.minimum_gold_action_count
+                    ),
+                }
+            )
+            checks.update(
+                {
+                    "obligation_interaction_artifact_valid": True,
+                    "obligation_interaction_variants_exact": (
+                        interaction_variants == expected_variants
+                    ),
+                    "obligation_interaction_probes_replay_bound": (
+                        interaction_audit.replay_bound
+                    ),
+                    "obligation_count_meets_profile": (
+                        interaction_audit.obligation_count >= required_obligations
+                    ),
+                    "protected_obligation_count_meets_profile": (
+                        interaction_audit.protected_obligation_count
+                        >= required_protected
+                    ),
+                    "obligation_gold_scopes_meet_profile": (
+                        interaction_audit.gold_scope_count >= required_scopes
+                    ),
+                    "cross_obligation_witnesses_meet_profile": (
+                        interaction_audit.cross_obligation_witness_count
+                        >= required_cross
+                    ),
+                    "repair_preservation_conflicts_meet_profile": (
+                        interaction_audit.repair_preservation_conflict_count
+                        >= required_conflicts
+                    ),
+                    "conflict_variants_meet_profile": (
+                        interaction_audit.variants_with_repair_preservation_conflict
+                        >= required_conflict_variants
                     ),
                 }
             )
