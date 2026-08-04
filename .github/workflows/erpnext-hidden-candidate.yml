@@ -115,11 +115,28 @@ jobs:
           python scripts/manage_erpnext_stack.py setup
           cp "$runtime_root/credentials.json" \
             "$RUN_ROOT/private/runtime/credentials.json"
-          python "$PREFIX_SCRIPT" \
+          if ! python "$PREFIX_SCRIPT" \
             --scenario "$RUN_ROOT/private/blueprint.json" \
             --credentials "$runtime_root/credentials.json" \
             --output "$RUN_ROOT/private/runtime/prefix.json" \
             > "$RUN_ROOT/private/logs/prefix.log" 2>&1
+          then
+            python - "$RUN_ROOT/private/logs/prefix.log" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          types = sorted(set(re.findall(r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", text)))
+          codes = sorted(set(re.findall(r"\b(?:HTTP|status)[ :=]+([0-9]{3})\b", text, re.I)))
+          print(
+              "::error title=ERPNext hidden prefix failed::"
+              f"exception_types={','.join(types[-6:]) or 'none'};"
+              f"http_codes={','.join(codes[-4:]) or 'none'}"
+          )
+          PY
+            exit 1
+          fi
           python scripts/manage_erpnext_stack.py snapshot-bundle \
             --snapshot "$RUN_ROOT/private/bundles/prefix"
 
