@@ -77,6 +77,21 @@ class NativeForgejoPromotionFamilyTest(unittest.TestCase):
         self.assertIn("connection lost", message)
         self.assertIn("create_release", message)
 
+    def test_initial_message_accepts_native_surface_result_layout(self) -> None:
+        message = forgejo_promotion_initial_message(
+            scenario=self.scenario,
+            prefix=self.prefix,
+            failure_report={
+                "variant": "dispatch_request_not_reached",
+                "surface_result": {
+                    "ok": False,
+                    "error": "connection closed before promotion was acknowledged",
+                },
+            },
+        )
+        self.assertIn("dispatch_workflow", message)
+        self.assertIn("connection closed", message)
+
 
 if __name__ == "__main__":
     unittest.main()

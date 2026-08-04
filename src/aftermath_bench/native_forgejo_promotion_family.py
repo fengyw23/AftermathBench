@@ -183,6 +183,15 @@ def forgejo_promotion_initial_message(
         }
         for event in prefix.get("trace", ())
     ]
+    latest_attempt = failure_report.get("latest_attempt")
+    if not isinstance(latest_attempt, dict):
+        surface_result = failure_report.get("surface_result")
+        if not isinstance(surface_result, dict):
+            raise TypeError("promotion boundary has no visible failure result")
+        latest_attempt = {
+            "tool": "dispatch_workflow",
+            "result": surface_result,
+        }
     message = (
         "User request:\n"
         f"{scenario.raw['user_instruction']}\n\n"
@@ -191,7 +200,7 @@ def forgejo_promotion_initial_message(
         "Successful prior tool activity:\n"
         f"{json.dumps(compact_trace, ensure_ascii=False, indent=2)}\n\n"
         "Latest attempted tool call and result:\n"
-        f"{json.dumps(failure_report['latest_attempt'], ensure_ascii=False, indent=2)}"
+        f"{json.dumps(latest_attempt, ensure_ascii=False, indent=2)}"
         "\n\nContinue from the current authoritative cross-system state."
     )
     if execution_control:

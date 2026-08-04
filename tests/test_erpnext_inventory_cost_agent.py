@@ -10,7 +10,7 @@ from aftermath_bench.schema import repository_root
 
 
 class ERPNextInventoryCostAgentTest(unittest.TestCase):
-    def test_public_surface_has_generic_reads_and_only_five_mutations(self) -> None:
+    def test_public_surface_has_generic_reads_and_state_advancing_tools(self) -> None:
         self.assertIn("get_document", ERPNextInventoryCostEnvironment.TOOL_NAMES)
         self.assertIn("list_documents", ERPNextInventoryCostEnvironment.TOOL_NAMES)
         self.assertIn(
@@ -19,7 +19,11 @@ class ERPNextInventoryCostAgentTest(unittest.TestCase):
         )
         self.assertNotIn("inspect_inventory_cost_state", ERPNextInventoryCostEnvironment.TOOL_NAMES)
         self.assertNotIn("repair_inventory_cost", ERPNextInventoryCostEnvironment.TOOL_NAMES)
-        self.assertEqual(len(ERPNextInventoryCostEnvironment.MUTATION_TOOLS), 5)
+        self.assertEqual(len(ERPNextInventoryCostEnvironment.MUTATION_TOOLS), 6)
+        self.assertIn(
+            "wait_for_external_delivery",
+            ERPNextInventoryCostEnvironment.MUTATION_TOOLS,
+        )
 
     def test_scheduler_tool_executes_pinned_native_reposting_function(self) -> None:
         environment = object.__new__(ERPNextInventoryCostEnvironment)

@@ -44,6 +44,9 @@ class ERPNextInventoryCostEnvironment(ERPNextPartialReturnEnvironment):
         "run_stock_reposting_scheduler",
         "enqueue_document_webhook",
         "resume_workers",
+        # Waiting can observe the already-running worker complete an external
+        # delivery, so it is state advancing rather than a pure query.
+        "wait_for_external_delivery",
     }
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

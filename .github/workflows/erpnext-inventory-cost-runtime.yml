@@ -14,12 +14,6 @@ on:
       - tests/test_erpnext_inventory_cost_*.py
       - tests/test_inventory_cost_boundary_audit.py
   workflow_dispatch:
-    inputs:
-      scenario:
-        description: Checked inventory-cost scenario blueprint
-        required: true
-        default: data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json
-        type: string
 
 permissions:
   contents: read
@@ -28,12 +22,20 @@ jobs:
   build-and-replay:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - instance: public-dev-001
+            scenario: data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json
+          - instance: public-dev-002
+            scenario: data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-002/scenario.json
     env:
       PYTHONPATH: src
       AFTERMATH_DB_ROOT_PASSWORD: aftermath-root
       AFTERMATH_ADMIN_PASSWORD: aftermath-admin
-      SCENARIO: ${{ inputs.scenario || 'data/scenario_blueprints/erpnext-inventory-cost-settlement-public-dev-001/scenario.json' }}
-      RUNTIME_OUTPUT: data/generated/erpnext-inventory-cost-runtime
+      SCENARIO: ${{ matrix.scenario }}
+      RUNTIME_OUTPUT: data/generated/erpnext-inventory-cost-runtime/${{ matrix.instance }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -179,7 +181,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: erpnext-inventory-cost-${{ github.run_id }}
+          name: erpnext-inventory-cost-${{ matrix.instance }}-${{ github.run_id }}
           include-hidden-files: true
           path: ${{ env.RUNTIME_OUTPUT }}
           compression-level: 9

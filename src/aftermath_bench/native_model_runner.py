@@ -439,13 +439,17 @@ def _surface_failure(failure_report: dict[str, Any]) -> dict[str, Any]:
     direct = failure_report.get("visible_failure")
     if isinstance(direct, dict):
         return dict(direct)
+    surface_result = failure_report.get("surface_result")
+    if isinstance(surface_result, dict):
+        return dict(surface_result)
     latest_attempt = failure_report.get("latest_attempt")
     if isinstance(latest_attempt, dict):
         result = latest_attempt.get("result")
         if isinstance(result, dict):
             return dict(result)
     raise ValueError(
-        "native failure report must contain visible_failure or latest_attempt.result"
+        "native failure report must contain visible_failure, surface_result, "
+        "or latest_attempt.result"
     )
 
 

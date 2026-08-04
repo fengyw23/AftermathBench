@@ -1,0 +1,124 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "erpnext-inventory-cost-settlement-public-dev-002",
+  "domain_id": "erpnext",
+  "instance_id": "public-dev-002",
+  "family": "erpnext-inventory-cost-settlement",
+  "runtime_id": "erpnext-v15",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "unvalidated",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay pending",
+  "title": "Recover a retroactive customs-cost settlement across two multi-input production branches",
+  "user_instruction": "A single NEURO-PROCESSOR-X9 supplier batch has already been received and completely consumed by two valid production branches with different component ratios: 5 SURGICAL-CONSOLE-X9 units use 2 processors each, while 7 ICU-BRIDGE-X9 units use 3 processors each. All ICU bridge stock is reserved for SO-ICU-009 and both branches must remain valid. A USD 1,550 customs and freight voucher was prepared after production, but its submission returned a connection error. Determine whether the voucher, its stock revaluation, accounting entries, and settlement attestation actually completed. Finish exactly the missing effects, preserve both production branches, the ICU reservation, and unrelated sterilization stock, and do not duplicate any voucher, reposting job, GL effect, or external attestation.",
+  "fixture": {
+    "company": "Aftermath Laboratories LLC",
+    "company_abbr": "AL",
+    "shared_component": {
+      "item_code": "NEURO-PROCESSOR-X9",
+      "item_name": "Neural Signal Processor X9",
+      "supplier_batch_id": "SUP-BATCH-X9-2608",
+      "received_quantity": 31,
+      "valuation_rate": 720,
+      "valuation_method": "FIFO"
+    },
+    "primary_branch": {
+      "item_code": "SURGICAL-CONSOLE-X9",
+      "item_name": "Surgical Console X9",
+      "output_quantity": 5,
+      "component_quantity_per_unit": 2
+    },
+    "secondary_branch": {
+      "item_code": "ICU-BRIDGE-X9",
+      "item_name": "ICU Bridge X9",
+      "output_quantity": 7,
+      "component_quantity_per_unit": 3
+    },
+    "landed_cost": {
+      "voucher_title": "X9 customs and freight settlement",
+      "amount": 1550,
+      "primary_allocation": 500,
+      "secondary_allocation": 1050
+    },
+    "customer_reservation": {
+      "sales_order": "SO-ICU-009",
+      "item_code": "ICU-BRIDGE-X9",
+      "quantity": 7
+    },
+    "external_attestation": {
+      "idempotency_key": "landed-cost:NEURO-PROCESSOR-X9:SUP-BATCH-X9-2608",
+      "landed_cost_amount": 1550
+    },
+    "unrelated_item": {
+      "item_code": "STERILIZATION-RIG-X9",
+      "item_name": "Sterilization Validation Rig X9",
+      "quantity": 3,
+      "valuation_rate": 8200
+    }
+  },
+  "ambiguous_operation": {
+    "operation": "submit the prepared USD 1,550.00 Landed Cost Voucher",
+    "surface_result": "HTTP connection lost before the Landed Cost Voucher submission response"
+  },
+  "matched_variants": [
+    {
+      "id": "request_not_reached",
+      "boundary_class_id": "voucher_draft_no_valuation_effect",
+      "recovery_signature_class": "submit_voucher_and_settle_revaluation"
+    },
+    {
+      "id": "voucher_committed_repost_queued_attested_response_lost",
+      "boundary_class_id": "voucher_committed_repost_queued_attestation_completed",
+      "recovery_signature_class": "settle_repost_preserve_attestation"
+    },
+    {
+      "id": "voucher_committed_repost_queued_attestation_pending",
+      "boundary_class_id": "voucher_committed_repost_and_attestation_queued",
+      "recovery_signature_class": "settle_existing_repost_and_attestation"
+    },
+    {
+      "id": "voucher_committed_repost_completed_attestation_pending",
+      "boundary_class_id": "voucher_repost_completed_attestation_queued",
+      "recovery_signature_class": "deliver_existing_attestation_only"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "submit_voucher_and_settle_revaluation",
+    "settle_repost_preserve_attestation",
+    "settle_existing_repost_and_attestation",
+    "deliver_existing_attestation_only"
+  ],
+  "state_dimensions_that_must_vary": [
+    "Landed Cost Voucher docstatus",
+    "Stock Ledger valuation effects for both consumed branches",
+    "GL Entry effects for both consumed branches",
+    "Repost Item Valuation owner state",
+    "external settlement attestation"
+  ],
+  "public_tool_policy": {
+    "generic_document_reads": true,
+    "generic_document_mutations": true,
+    "stock_and_gl_ledger_reads": true,
+    "background_job_reads": true,
+    "idempotent_external_delivery_reads": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 3,
+      "minimum_static_certificate_size": 4
+    },
+    "obligation_interaction": {
+      "minimum_obligation_count": 8,
+      "minimum_protected_obligation_count": 4,
+      "minimum_gold_scope_count": 4,
+      "minimum_cross_obligation_witnesses": 6,
+      "minimum_repair_preservation_conflict_witnesses": 4,
+      "minimum_variants_with_conflict": 4,
+      "minimum_conflicting_action_count": 4
+    }
+  },
+  "instance_spec_sha256": "3d253356b005f00d4ed8a1eb4b9838403d68cd832efc8b2d3de5506a5d406553"
+}

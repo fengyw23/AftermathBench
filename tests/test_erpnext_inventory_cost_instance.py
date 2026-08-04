@@ -54,6 +54,64 @@ class ERPNextInventoryCostInstanceTest(unittest.TestCase):
         )
         self.assertEqual(len(checked["state_dimensions_that_must_vary"]), 5)
 
+    def test_second_instance_is_rendered_and_topologically_independent(self) -> None:
+        root = repository_root()
+        second_spec = ERPNextNativeInstanceSpec.from_path(
+            root
+            / "data"
+            / "instance_specs"
+            / "erpnext-inventory-cost-settlement-public-dev-002.json"
+        )
+        second_blueprint_path = (
+            root
+            / "data"
+            / "scenario_blueprints"
+            / "erpnext-inventory-cost-settlement-public-dev-002"
+            / "scenario.json"
+        )
+        second_blueprint = json.loads(
+            second_blueprint_path.read_text(encoding="utf-8")
+        )
+        rendered = render_erpnext_native_blueprint(
+            second_spec,
+            template=json.loads(self.blueprint_path.read_text(encoding="utf-8")),
+            instance_id="public-dev-002",
+            benchmark_split="public_dev",
+        )
+        self.assertEqual(rendered, second_blueprint)
+
+        first = ERPNextNativeInstanceSpec.from_path(self.spec_path)
+        first_codes = {
+            first.fixture[key]["item_code"]
+            for key in (
+                "shared_component",
+                "primary_branch",
+                "secondary_branch",
+                "unrelated_item",
+            )
+        }
+        second_codes = {
+            second_spec.fixture[key]["item_code"]
+            for key in (
+                "shared_component",
+                "primary_branch",
+                "secondary_branch",
+                "unrelated_item",
+            )
+        }
+        self.assertTrue(first_codes.isdisjoint(second_codes))
+        self.assertEqual(
+            (
+                second_spec.fixture["primary_branch"][
+                    "component_quantity_per_unit"
+                ],
+                second_spec.fixture["secondary_branch"][
+                    "component_quantity_per_unit"
+                ],
+            ),
+            (2, 3),
+        )
+
     def test_rejects_uncovered_consumption(self) -> None:
         payload = json.loads(self.spec_path.read_text(encoding="utf-8"))
         payload = copy.deepcopy(payload)
