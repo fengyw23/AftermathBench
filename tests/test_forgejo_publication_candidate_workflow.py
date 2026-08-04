@@ -58,11 +58,8 @@ class ForgejoPublicationCandidateWorkflowTests(unittest.TestCase):
             "Upload commitment and aggregate only"
         )
         section = self.text[seal:upload]
-        self.assertIn(
-            "github.event_name == 'workflow_dispatch' && "
-            "!inputs.run_execution_control",
-            section,
-        )
+        self.assertIn("github.event_name == 'push' ||", section)
+        self.assertIn("!inputs.run_execution_control", section)
         self.assertIn("secrets.HIDDEN_BUNDLE_ENCRYPTION_KEY", section)
         self.assertIn("verify_hidden_test_eligibility.py", section)
         self.assertIn("hidden-bundle.tar.gz.enc", section)
