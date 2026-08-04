@@ -332,6 +332,58 @@ jobs:
             --output "$RUN_ROOT/formal-release-binding.json" \
             --root .
 
+      # A formal-evidence failure is construction feedback, not a benchmark
+      # result.  Keep the raw runtime logs private while publishing a small,
+      # structured summary on a dedicated diagnostics branch.
+      - name: Publish safe formal-evidence rejection diagnostic
+        if: ${{ failure() }}
+        run: |
+          output="$RUNNER_TEMP/multiwarehouse-formal-diagnostic.json"
+          python - "$RUN_ROOT/logs" "$output" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          log_root = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          text = "\n".join(
+              path.read_text(encoding="utf-8", errors="replace")
+              for path in sorted(log_root.glob("*.log"))
+          )
+          exception_types = sorted(set(re.findall(
+              r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", text
+          )))
+          gate_names = sorted(set(re.findall(
+              r"(?:failed|failure|failures)\s*[:=]\s*\[([^\]]*)\]",
+              text,
+              flags=re.I,
+          )))
+          output.write_text(
+              json.dumps(
+                  {
+                      "schema_version": "1.0",
+                      "phase": "formal_evidence",
+                      "exception_types": exception_types,
+                      "failed_gate_fragments": gate_names,
+                      "raw_logs_published": False,
+                      "source_run_id": int(__import__("os").environ["GITHUB_RUN_ID"]),
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B multiwarehouse-formal-diagnostic
+          mkdir -p data/evidence/admission-diagnostics
+          cp "$output" "data/evidence/admission-diagnostics/erpnext-multiwarehouse-${GITHUB_RUN_ID}.json"
+          git add "data/evidence/admission-diagnostics/erpnext-multiwarehouse-${GITHUB_RUN_ID}.json"
+          git commit -m "diagnostic(erpnext): record multiwarehouse formal rejection"
+          git push --force origin HEAD:refs/heads/generated/erpnext-multiwarehouse-formal-diagnostic
+
       - name: Publish admitted scenario to evidence branch
         run: |
           git config user.name "github-actions[bot]"

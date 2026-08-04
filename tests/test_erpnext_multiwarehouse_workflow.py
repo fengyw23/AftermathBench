@@ -46,6 +46,15 @@ class ERPNextMultiwarehouseWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(token, self.text)
 
+    def test_formal_rejection_publishes_only_a_redacted_diagnostic(self) -> None:
+        start = self.text.index("Publish safe formal-evidence rejection diagnostic")
+        end = self.text.index("Publish admitted scenario to evidence branch")
+        section = self.text[start:end]
+        self.assertIn("${{ failure() }}", section)
+        self.assertIn("raw_logs_published", section)
+        self.assertIn("generated/erpnext-multiwarehouse-formal-diagnostic", section)
+        self.assertNotIn('cat "$RUN_ROOT/logs', section)
+
 
 if __name__ == "__main__":
     unittest.main()
