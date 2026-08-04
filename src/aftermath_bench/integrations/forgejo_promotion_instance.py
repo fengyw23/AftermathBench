@@ -53,6 +53,13 @@ class ForgejoPromotionInstanceSpec:
             raise ValueError("target and protected environments must differ")
         if not self.artifact_digest.startswith("sha256:"):
             raise ValueError("promotion artifact digest must use sha256")
+        expected_digest = hashlib.sha256(
+            f"{self.repository} {self.version}\n".encode("utf-8")
+        ).hexdigest()
+        if self.artifact_digest != f"sha256:{expected_digest}":
+            raise ValueError(
+                "promotion artifact digest must match the native binary fixture"
+            )
         if len(self.approved_commit) != 40 or any(
             character not in "0123456789abcdef" for character in self.approved_commit
         ):

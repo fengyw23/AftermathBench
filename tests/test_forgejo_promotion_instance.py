@@ -69,6 +69,51 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "release tags must differ"):
                 ForgejoPromotionInstanceSpec.from_path(path)
 
+        payload = json.loads(self.spec_path.read_text(encoding="utf-8"))
+        payload["artifact_digest"] = "sha256:" + "0" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "instance.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "native binary fixture"):
+                ForgejoPromotionInstanceSpec.from_path(path)
+
+    def test_second_instance_is_semantically_disjoint(self) -> None:
+        second_path = (
+            repository_root()
+            / "data"
+            / "instance_specs"
+            / "forgejo-approved-artifact-promotion-public-dev-002.json"
+        )
+        first = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
+        second = ForgejoPromotionInstanceSpec.from_path(second_path)
+        for field in (
+            "repository",
+            "version",
+            "prior_version",
+            "approved_commit",
+            "artifact_digest",
+            "production_environment",
+            "protected_environment",
+            "release_tag",
+            "protected_release_tag",
+            "attestation_key",
+        ):
+            self.assertNotEqual(getattr(first, field), getattr(second, field))
+
+        checked = json.loads(
+            (
+                repository_root()
+                / "data"
+                / "scenario_blueprints"
+                / "forgejo-approved-artifact-promotion-public-dev-002"
+                / "scenario.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            checked,
+            promotion_blueprint(second, instance_id="public-dev-002"),
+        )
+
     def test_native_workflow_materializes_all_recovery_systems(self) -> None:
         instance = ForgejoPromotionInstanceSpec.from_path(self.spec_path)
         workflow = promotion_workflow(instance)
@@ -84,6 +129,9 @@ class ForgejoPromotionInstanceTest(unittest.TestCase):
         self.assertIn("stop_after", workflow)
         self.assertIn("stop_after == 'artifact'", workflow)
         self.assertIn("resume_stage == 'after_artifact'", workflow)
+        self.assertIn(
+            f"{instance.repository} {instance.version}", workflow
+        )
 
     def test_runtime_replays_fixed_policies_from_each_boundary_bundle(self) -> None:
         workflow = (

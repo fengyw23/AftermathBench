@@ -26,6 +26,9 @@ class ForgejoReconciliationWorkflowTest(unittest.TestCase):
         self.assertIn("run_forgejo_reconciliation_reference.py", text)
         self.assertIn("audit_forgejo_reconciliation_runtime.py", text)
         self.assertIn("restore-promotion-bundle", text)
+        self.assertIn("public-dev-001", text)
+        self.assertIn("public-dev-002", text)
+        self.assertIn("matrix.instance_id", text)
 
 
 if __name__ == "__main__":

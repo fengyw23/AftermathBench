@@ -56,7 +56,9 @@ FORGEJO_RECONCILIATION_VARIANTS: dict[str, ForgejoReconciliationVariant] = {
 }
 
 
-def reconciliation_scope_matrix() -> dict[str, object]:
+def reconciliation_scope_matrix(
+    *, scenario_id: str = "forgejo-cross-system-reconciliation-dev-001"
+) -> dict[str, object]:
     obligations = tuple(
         item.missing_obligation
         for item in FORGEJO_RECONCILIATION_VARIANTS.values()
@@ -64,7 +66,7 @@ def reconciliation_scope_matrix() -> dict[str, object]:
     )
     return {
         "schema_version": "1.0-design",
-        "scenario_id": "forgejo-cross-system-reconciliation-dev-001",
+        "scenario_id": scenario_id,
         "surface_requirements": {
             "actions_bundle_matches_approval": [
                 "approval_manifest",

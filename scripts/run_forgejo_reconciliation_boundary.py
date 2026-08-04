@@ -259,7 +259,7 @@ def main() -> int:
     payload = {
         "schema_version": "0.1",
         "artifact_type": "forgejo_cross_system_reconciliation_boundary",
-        "scenario_id": "forgejo-cross-system-reconciliation-dev-001",
+        "scenario_id": f"{instance.scenario_id}--reconciliation",
         "variant": variant,
         "surface_result": {
             "ok": False,

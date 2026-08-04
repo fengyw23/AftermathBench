@@ -23,13 +23,22 @@ permissions:
 
 jobs:
   replay-independent-gaps:
+    name: replay-independent-gaps (${{ matrix.instance_id }})
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - instance_id: public-dev-001
+            instance: data/instance_specs/forgejo-approved-artifact-promotion-public-dev-001.json
+          - instance_id: public-dev-002
+            instance: data/instance_specs/forgejo-approved-artifact-promotion-public-dev-002.json
     env:
       PYTHONPATH: src
       AFTERMATH_FORGEJO_ADMIN_PASSWORD: aftermath-admin
-      INSTANCE: data/instance_specs/forgejo-approved-artifact-promotion-public-dev-001.json
-      RUN_ROOT: runtimes/forgejo/.runtime/reconciliation
+      INSTANCE: ${{ matrix.instance }}
+      RUN_ROOT: runtimes/forgejo/.runtime/reconciliation-${{ matrix.instance_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -120,7 +129,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: forgejo-cross-system-reconciliation-${{ github.run_id }}
+          name: forgejo-cross-system-reconciliation-${{ matrix.instance_id }}-${{ github.run_id }}
           path: runtimes/forgejo/.runtime/reconciliation
           if-no-files-found: error
 

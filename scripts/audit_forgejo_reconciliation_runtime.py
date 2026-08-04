@@ -26,7 +26,10 @@ def main() -> int:
     parser.add_argument("--run-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    design = reconciliation_scope_matrix()
+    prefix = _read(args.run_root / "prefix.json")
+    design = reconciliation_scope_matrix(
+        scenario_id=f"{prefix['scenario_id']}--reconciliation"
+    )
     signatures = {
         variant: specification.recovery_kind
         for variant, specification in FORGEJO_RECONCILIATION_VARIANTS.items()
@@ -36,6 +39,10 @@ def main() -> int:
     for variant, specification in FORGEJO_RECONCILIATION_VARIANTS.items():
         boundary = _read(args.run_root / f"{variant}-boundary.json")
         reference = _read(args.run_root / f"{variant}-reference.json")
+        if boundary.get("scenario_id") != design["scenario_id"]:
+            raise ValueError(f"boundary scenario drifted for {variant}")
+        if reference.get("scenario_id") != design["scenario_id"]:
+            raise ValueError(f"reference scenario drifted for {variant}")
         projection = boundary["dimension_projection"]
         expected_gap = specification.missing_obligation
         observed_gaps = [name for name, valid in projection.items() if not valid]

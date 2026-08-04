@@ -66,10 +66,14 @@ promoted into the final native-runtime benchmark.
   real Stock Ledger, GL, Repost Item Valuation, and external-attestation state;
   Job Card/certificate-only variants cannot satisfy this item. Four references
   and 28 fixed-policy native executions passed run `30889742165`; model control
-  passed 4/4 in run `30892895880`, and the ordinary condition is in progress.
-- [ ] Complete native replay of the independent inventory-cost `public-dev-002`
+  passed 4/4 in run `30892895880`, and ordinary GLM-5.2 passed 3/4 in
+  `30895587333` but failed the matched group after duplicating an asynchronous
+  external delivery.
+- [x] Complete native replay of the independent inventory-cost `public-dev-002`
   instance, which uses disjoint items and 2:3 component ratios instead of the
-  first instance's 1:1 topology.
+  first instance's 1:1 topology. Run `30896418025` passes both independent
+  instances, but retrospective static/adaptive depth is only 2/2; retain this
+  family as a diagnostic instead of admitting it to the hard split.
 - [ ] Construct and freeze two unconsumed hidden instances without model
   access.
 
@@ -96,25 +100,29 @@ promoted into the final native-runtime benchmark.
   all references and cross-system boundary checks.
 - [x] Reject fixed promotion policies with 36 native executions; the strongest
   procedures pass 2/6 and no procedure solves the matched group.
-- [ ] Complete the corrected execution-control and ordinary-model gates. The
-  first control dispatch is invalid because it stopped before provider access
-  on a boundary-report field mismatch and is excluded from results.
+- [x] Complete the corrected execution-control gate. Run `30897349405` passes
+  6/6 with no provider or runtime errors. Do not spend an ordinary-model run on
+  this family because replay-derived depth rejects it from the hard split.
 - [x] Audit the second control run (`30895584547`): its apparent 2/6 result was
   entirely caused by an undisclosed exact verification-comment body. Keep that
   check as a diagnostic rather than a hard invariant and rerun the control.
 - [x] Add replay-derived scope-decision auditing. It correctly rejects the
   six-stage promotion family as too shallow (static certificate 3, adaptive
   depth 2 versus its predeclared 5/4 profile).
-- [ ] Build a non-monotonic Forgejo reconciliation family whose independently
+- [x] Build a non-monotonic Forgejo reconciliation family whose independently
   missing or inconsistent Actions evidence, artifact registration, deployment,
   attestation and metadata force all five public evidence surfaces to matter.
 - [x] Add a design-time independent-gap gate with joined-evidence accounting.
   Both the Forgejo and ERPNext target designs currently require six public
   surfaces in the worst case; native replay must reproduce this before hard
   admission.
-- [ ] Materialize the six Forgejo design boundaries in native Actions,
+- [x] Materialize the six Forgejo design boundaries in native Actions,
   deployment, attestation and release services, then rebuild the decision
-  matrix from replay instead of accepting the design declaration.
+  matrix from replay instead of accepting the design declaration. Run
+  `30899866459` passes all boundaries/references and reconstructs static and
+  adaptive depth 6/6 on the first instance.
+- [ ] Replay the disjoint `radiology-routing-service` instance, then add fixed
+  baselines and task-specific model execution control before any ordinary run.
 - [ ] Freeze an independent hidden package-publication instance and make
   replay identity/payload semantics explicit before any hidden model call.
 

@@ -13,8 +13,9 @@ claims.
 | Forgejo package provenance r2 | 4 | complete (4/4) | complete | complete (0/4 for every fixed policy) | complete (GLM-5.2 4/4; DeepSeek-V4-Pro 4/4) | complete but saturated (both models 4/4) | valid diagnostic frozen; formal release integration pending |
 | ERPNext manufacturing rework | 4 | complete (4/4) | complete | complete (28 policy-boundary runs) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | complete; formally bound as `dev-002` |
 | ERPNext shared-batch corrective recovery | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 2/4; matched group failed) | hard-admitted development evidence; formal integration pending |
-| ERPNext inventory-cost settlement | 4 | complete (4/4) | complete | complete (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | running | first native archive complete; second independent instance running |
-| Forgejo approved signed-artifact promotion | 6 | complete (6/6) | native cross-system audit complete | complete (best fixed policy 2/6; no matched-group solver) | rerunning after pre-provider interface fix | pending control gate | native replay archive complete; model evidence pending |
+| ERPNext inventory-cost settlement | 4 per instance | complete (8/8 across two instances) | rejected by retrospective depth gate (static/adaptive 2/2) | complete on both instances (best fixed policy 1/4; no matched-group solver) | complete (GLM-5.2 4/4) | complete (GLM-5.2 3/4; matched group failed) | two independent native archives complete; retain as diagnostic |
+| Forgejo approved signed-artifact promotion | 6 | complete (6/6) | rejected by retrospective depth gate (static/adaptive 3/2) | complete (best fixed policy 2/6; no matched-group solver) | complete (GLM-5.2 6/6) | not run after depth rejection | native replay archive complete; retain as diagnostic |
+| Forgejo cross-system reconciliation | 6 per instance | complete on first instance (6/6) | complete on first instance (static/adaptive 6/6) | pending | pending | pending | second independent native instance prepared |
 
 ## What is already established
 
@@ -155,15 +156,27 @@ passed all four boundary and reference replays. The four failure states have
 four distinct signatures and independently vary the submitted Landed Cost
 Voucher, Stock Ledger effects, GL effects, Repost Item Valuation ownership and
 external attestation. Across 28 native fixed-policy executions, the strongest
-policy passed only 1/4 and no policy solved the matched group. This closes the
-specific ERP state-dimensionality gate. Its GLM-5.2 execution control then
+policy passed only 1/4 and no policy solved the matched group. Its GLM-5.2 execution control then
 passed 4/4 in
 [30892895880](https://github.com/fengyw23/AftermathBench/actions/runs/30892895880)
-with no provider or runtime errors. The ordinary condition is running from the
-same boundary builder. A second independently parameterized instance changes
-all item identities, branch quantities, component ratios and cost allocation;
-its native replay was frozen before execution and is currently running, so no
-independence claim is made yet.
+with no provider or runtime errors. Ordinary run
+[30895587333](https://github.com/fengyw23/AftermathBench/actions/runs/30895587333)
+then passed 3/4 without provider or runtime errors and failed the matched group.
+Goal Completion and Preservation were 4/4. In `request_not_reached`, the model
+correctly submitted the draft voucher but explicitly enqueued its Webhook before
+allowing the native `on_submit` Webhook owner to run. Both owners delivered the
+same idempotency key, producing two externally audited attempts. This is an
+asynchronous ownership/exactly-once execution error, not hidden evidence.
+
+Two-instance native run
+[30896418025](https://github.com/fengyw23/AftermathBench/actions/runs/30896418025)
+passed all eight boundary/reference replays and 56 fixed-policy executions. Both
+disjoint instances have a maximum fixed-policy pass rate of 1/4 and no
+matched-group solver. However, the replay-derived decision audit finds only a
+two-surface static certificate and adaptive depth two on both instances, below
+the predeclared 4/3 profile. This closes instance independence for the family,
+but the family remains an asynchronous-recovery diagnostic rather than a
+hard-admitted scope-inference task.
 
 The approved signed-artifact promotion family passed its initial six-boundary
 native audit in run
@@ -178,10 +191,7 @@ The strongest fixed procedures passed 2/6 and none solved the matched group.
 The first execution-control dispatch, run `30894539768`, is excluded: all six
 attempts terminated before provider access because the generic runner accepted
 `visible_failure` and `latest_attempt.result` but not the boundary builder's
-equivalent `surface_result` field. The normalized interface is now tested and
-the control is rerunning. Construction and fixed-policy resistance are
-established, but the Forgejo saturation risk remains open until valid model
-controls and an ordinary run complete.
+equivalent `surface_result` field. The normalized interface is now tested.
 
 The corrected execution-control run `30895584547` completed all six variants
 without provider or runtime errors, but initially scored only 2/6. All four
@@ -190,8 +200,11 @@ and preservation state; they failed only because a free-form verification
 comment did not repeat the complete digest and attestation key. The public task
 did not prescribe that comment format. This is a hidden output-format
 constraint, not recovery difficulty, so the comment-content check is now a
-diagnostic and has been removed from the hard pass aggregate. A fresh control
-run is required before model scores from this family are interpreted.
+diagnostic and has been removed from the hard pass aggregate. Fresh control
+[30897349405](https://github.com/fengyw23/AftermathBench/actions/runs/30897349405)
+then passed 6/6 with matched-group success, every component at 100%, and no
+provider or runtime errors. The family is excluded from the hard split for
+decision-depth reasons, not execution-interface reasons.
 
 A replay-derived scope-decision audit now prevents a different false positive:
 many state dimensions do not by themselves imply difficult recovery reasoning.
@@ -216,8 +229,16 @@ cross-system obligations and explicitly charges joined evidence to every base
 query surface. The proposed Forgejo and ERPNext designs each have six recovery
 signatures (all-valid plus five one-gap counterfactuals), require all six public
 query surfaces as a static certificate, and have optimal adaptive worst-case
-depth six. These are design-time lower bounds only; no family is promoted until
-the same matrix is reconstructed from native replay.
+depth six. Forgejo native run
+[30899866459](https://github.com/fengyw23/AftermathBench/actions/runs/30899866459)
+now reproduces that matrix in real Actions, artifact-registry, deployment,
+external-attestation, release and issue state. All six boundaries and targeted
+references pass; the replayed matrix has six recovery signatures, static
+certificate six, adaptive worst-case depth six, and no single-surface solver.
+Actions evidence is checked by downloading and hashing ZIP entries against
+repository source. Release metadata must semantically bind the production
+digest and attestation key without fixed prose. Fixed baselines and model gates
+remain open, so this is a native construction result only.
 
 ## Claim boundary
 
@@ -238,26 +259,24 @@ It does **not** yet support a top-conference benchmark claim. Missing evidence i
 The next development cycle is intentionally constrained by three risks. They
 are not considered closed by adding more variants to an existing template.
 
-1. **ERP state-dimensionality risk (native gate closed).** The
+1. **ERP state-dimensionality risk (partially closed).** The
    inventory-cost-settlement family now places the ambiguous failure at a real
    Landed Cost Voucher boundary and varies Stock Ledger, GL, Repost Item
-   Valuation and external-attestation state. Run `30889742165` passed four
-   references and rejected all matched-group fixed strategies. Model controls
-   are still required before the family can support a model-performance claim.
-2. **Instance-independence risk (closed for shared batch).** A family needs at least two independently
+   Valuation and external-attestation state, but its replay-derived decision
+   depth is only 2/2. The next ERP family must use independently missing
+   obligations instead of more points on one voucher-to-repost sequence.
+2. **Instance-independence risk (closed for shared batch and inventory cost).** A family needs at least two independently
    parameterized business instances whose item identities are disjoint and whose
    quantities or dependency topology differ. Both must pass the same replay,
    reference, fixed-policy, and admission pipeline. The second shared-batch
-   instance now passes this gate in run `30881600867`; the requirement remains
-   active for newly added families.
-3. **Forgejo saturation risk (native construction closed; model gate open).**
-   The new six-boundary family now crosses approval state, signed build
-   artifacts, deployment status, external attestation and prior-release
-   preservation, and fixed strategies fail the matched group. However, the
-   replay-derived decision depth is only two, so native construction alone does
-   not close the scientific risk. Closure now requires a non-monotonic family
-   that passes the predeclared scope-decision profile, an execution control, and
-   ordinary strong-model evaluation.
+   instance now passes this gate in run `30881600867`; inventory-cost instances
+   pass it in `30896418025`. The requirement remains active for new families;
+   the second Forgejo reconciliation instance is prepared but not replayed yet.
+3. **Forgejo saturation risk (new native construction passes; model gate open).**
+   The earlier linear promotion family remains shallow, but the independent-gap
+   reconciliation family passes the predeclared 6/6 decision-depth profile in
+   native replay. Closure still requires a second native instance, fixed-policy
+   resistance, execution control, and ordinary strong-model evaluation.
 
 These gates keep effort focused on new recovery reasoning rather than increasing
 case count through surface-level renaming.

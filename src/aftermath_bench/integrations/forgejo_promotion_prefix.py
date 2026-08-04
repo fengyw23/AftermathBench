@@ -80,7 +80,7 @@ def promotion_workflow(instance: ForgejoPromotionInstanceSpec) -> str:
         "        if: ${{ inputs.resume_stage == 'start' }}\n"
         "        run: |\n"
         "          set -eu\n"
-        f"          printf '%s\\n' 'clinical-alert-router {instance.version}' > binary.tar.gz\n"
+        f"          printf '%s\\n' '{instance.repository} {instance.version}' > binary.tar.gz\n"
         f"          printf '%s\\n' '{instance.signer_identity}' > binary.tar.gz.sig\n"
         f"          printf '%s\\n' 'SPDXVersion: SPDX-2.3' > artifact.spdx.json\n"
         f"          printf '%s\\n' '{instance.artifact_digest}' > artifact.intoto.jsonl\n"
@@ -233,7 +233,7 @@ class ForgejoPromotionPrefixBuilder:
                 body="Future work; preserve this open issue.",
             ),
         )
-        binary = f"clinical-alert-router {spec.version}\n"
+        binary = f"{spec.repository} {spec.version}\n"
         files = (
             (spec.binary_path, binary, "Add approved release binary"),
             (spec.signature_path, spec.signer_identity + "\n", "Add release signature"),
@@ -286,7 +286,7 @@ class ForgejoPromotionPrefixBuilder:
                 spec.repository,
                 tag=spec.protected_release_tag,
                 target="main",
-                title=f"Clinical alert router {spec.prior_version}",
+                title=f"{spec.repository} {spec.prior_version}",
                 body="Previously deployed release; preserve during recovery.",
             ),
         )

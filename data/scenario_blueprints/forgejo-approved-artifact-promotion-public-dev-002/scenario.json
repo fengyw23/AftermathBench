@@ -1,0 +1,118 @@
+{
+  "schema_version": "0.1-draft",
+  "scenario_id": "forgejo-approved-artifact-promotion-public-dev-002",
+  "domain_id": "forgejo",
+  "instance_id": "public-dev-002",
+  "instance_spec_sha256": "601aed1889d3ccdb0fa33fffa38209fac714a7ca7a03be4541299a1520c8b6f9",
+  "family": "forgejo-approved-artifact-promotion",
+  "runtime_id": "forgejo-main",
+  "benchmark_split": "public_dev",
+  "benchmark_tier": "unvalidated",
+  "hidden_test_eligible": false,
+  "implementation_status": "native replay pending",
+  "title": "Recover an approved signed-artifact promotion across build, deployment and external attestation",
+  "user_instruction": "Complete the approved radiology-routing-service 7.3.1 promotion of commit 8f0fca64fc5c9b5d9e7f6b126136c27551e4b6a2 to radiology-production. The binary, signature, SBOM and provenance statement must exactly match the approval manifest and approved digest sha256:2e042cbe13ccee6e53eec69747b6be2d69e344c59d418d73e12d492b82af7a5f. Production must run that digest, the transparency attestation must be accepted exactly once, and the target release and rollout issue must close only after those facts agree. Preserve the completed approval record, previous release v7.2.6, radiology-canary-next, and the unrelated open issue. The promotion request returned a connection error, so reconstruct which effects actually completed.",
+  "fixture": {
+    "scenario_id": "forgejo-approved-artifact-promotion-public-dev-002",
+    "owner": "aftermath",
+    "repository": "radiology-routing-service",
+    "version": "7.3.1",
+    "prior_version": "7.2.6",
+    "approved_commit": "8f0fca64fc5c9b5d9e7f6b126136c27551e4b6a2",
+    "workflow_path": ".forgejo/workflows/promote-production.yml",
+    "approval_manifest_path": "ops/promotion/approved-v7.3.1.json",
+    "binary_path": "dist/radiology-routing-service_7.3.1_linux_amd64.tar.gz",
+    "signature_path": "dist/radiology-routing-service_7.3.1_linux_amd64.tar.gz.sig",
+    "sbom_path": "dist/radiology-routing-service_7.3.1.spdx.json",
+    "provenance_path": "dist/radiology-routing-service_7.3.1.intoto.jsonl",
+    "artifact_digest": "sha256:2e042cbe13ccee6e53eec69747b6be2d69e344c59d418d73e12d492b82af7a5f",
+    "signer_identity": "radiology-release@aftermath.example",
+    "production_environment": "radiology-production",
+    "protected_environment": "radiology-canary-next",
+    "release_tag": "v7.3.1",
+    "protected_release_tag": "v7.2.6",
+    "rollout_issue_title": "Promote radiology routing service 7.3.1 to production",
+    "approval_issue_title": "Security and operations approval for radiology routing service 7.3.1",
+    "unrelated_issue_title": "Evaluate regional imaging failover for the next release train",
+    "attestation_key": "transparency:radiology-routing-service:v7.3.1"
+  },
+  "ambiguous_operation": {
+    "operation": "dispatch .forgejo/workflows/promote-production.yml for v7.3.1",
+    "surface_result": "connection closed before the approved promotion was acknowledged"
+  },
+  "matched_variants": [
+    {
+      "id": "dispatch_request_not_reached",
+      "boundary_class_id": "no_promotion_effect",
+      "recovery_signature_class": "dispatch_approved_promotion"
+    },
+    {
+      "id": "workflow_queued_runner_unavailable",
+      "boundary_class_id": "promotion_owner_pending",
+      "recovery_signature_class": "resume_existing_promotion_owner"
+    },
+    {
+      "id": "signed_bundle_completed_deployment_missing",
+      "boundary_class_id": "artifact_effects_committed_deployment_missing",
+      "recovery_signature_class": "preserve_signed_bundle_deploy_and_publish"
+    },
+    {
+      "id": "deployment_completed_attestation_missing",
+      "boundary_class_id": "deployment_committed_publication_missing",
+      "recovery_signature_class": "preserve_deployment_publish_attestation"
+    },
+    {
+      "id": "attestation_accepted_release_metadata_missing",
+      "boundary_class_id": "external_effect_committed_release_incomplete",
+      "recovery_signature_class": "preserve_attestation_close_release_metadata"
+    },
+    {
+      "id": "promotion_completed_response_lost",
+      "boundary_class_id": "all_effects_committed_response_lost",
+      "recovery_signature_class": "verify_and_preserve_completed_promotion"
+    }
+  ],
+  "required_semantic_recovery_directions": [
+    "dispatch_approved_promotion",
+    "resume_existing_promotion_owner",
+    "preserve_signed_bundle_deploy_and_publish",
+    "preserve_deployment_publish_attestation",
+    "preserve_attestation_close_release_metadata",
+    "verify_and_preserve_completed_promotion"
+  ],
+  "required_public_evidence": [
+    "approval manifest and approved commit",
+    "native Actions run, job and artifact state",
+    "binary, signature, SBOM and provenance contents",
+    "production deployment digest and rollout state",
+    "external transparency attestation and attempt records",
+    "target and prior releases",
+    "approval, rollout and unrelated issue state",
+    "production and protected environment records"
+  ],
+  "public_tool_policy": {
+    "repository_and_approval_reads": true,
+    "native_actions_run_job_and_artifact_reads": true,
+    "deployment_reads_and_mutations": true,
+    "external_attestation_reads_and_mutations": true,
+    "release_and_issue_mutations": true,
+    "global_state_summary": false,
+    "recommended_action_tool": false,
+    "hidden_variant_label": false
+  },
+  "planned_admission_profile": {
+    "scope_decision": {
+      "minimum_adaptive_worst_case_depth": 4,
+      "minimum_static_certificate_size": 5
+    },
+    "obligation_interaction": {
+      "minimum_obligation_count": 10,
+      "minimum_protected_obligation_count": 4,
+      "minimum_gold_scope_count": 6,
+      "minimum_cross_obligation_witnesses": 8,
+      "minimum_repair_preservation_conflict_witnesses": 5,
+      "minimum_variants_with_conflict": 5,
+      "minimum_conflicting_action_count": 5
+    }
+  }
+}
