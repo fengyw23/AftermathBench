@@ -24,8 +24,9 @@ def build_instance(instance_id: str) -> dict[str, object]:
             "material consumption and unrelated calibration inventory."
         ),
         "fixture": {
-            "company": f"Cedar Clinical Manufacturing {token} LLC",
-            "company_abbr": f"C{token[:3]}",
+            # ERPNext setup provisions this company deterministically.
+            "company": "Aftermath Laboratories LLC",
+            "company_abbr": "AL",
             "finished_item": {
                 "item_code": f"PUMP-CTRL-{suffix}",
                 "item_name": f"Infusion Pump Controller {suffix}",

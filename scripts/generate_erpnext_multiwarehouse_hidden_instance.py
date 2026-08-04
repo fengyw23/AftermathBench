@@ -28,8 +28,11 @@ def build_instance(instance_id: str) -> dict[str, object]:
             "emergency-router reservation and all North warehouse balances."
         ),
         "fixture": {
-            "company": f"Northstar Clinical Logistics {token} LLC",
-            "company_abbr": f"N{token[:3]}",
+            # The pinned ERPNext runtime creates this company during setup.
+            # Novelty comes from all business objects below, not from asking
+            # the runtime to provision a different tenant.
+            "company": "Aftermath Laboratories LLC",
+            "company_abbr": "AL",
             "transfer_item": {
                 "item_code": f"CLINIC-NET-{item_suffix}",
                 "item_name": f"Traceable Clinic Network Gateway {item_suffix}",
