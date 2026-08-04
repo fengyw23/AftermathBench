@@ -57,7 +57,8 @@ jobs:
           if [ "$GITHUB_REF_NAME" = "erpnext-shared-batch-control" ]; then
             echo "EXECUTION_CONTROL=true" >> "$GITHUB_ENV"
           fi
-          python -m aftermath_bench validate-native-scenario --scenario "$SCENARIO"
+          mkdir -p "$RUN_ROOT/runtime"
+          python -c 'import sys; from aftermath_bench.native_scenario import load_native_scenario, validate_native_scenario_document; s=load_native_scenario(sys.argv[1]); failures=validate_native_scenario_document(s); assert not failures, failures' "$SCENARIO"
           python -m unittest discover -s tests -p 'test_erpnext_shared_batch_*.py' -v
           python -m unittest discover -s tests -p 'test_native_erpnext_shared_batch_family.py' -v
           python -m unittest discover -s tests -p 'test_native_model_runner.py' -v
