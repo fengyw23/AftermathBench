@@ -40,6 +40,18 @@ class ForgejoPackageProvenancePublicDevWorkflowTest(unittest.TestCase):
         self.assertIn("--generation r2", package_block)
         self.assertIn("build_forgejo_package_provenance_admission.py", hidden)
 
+    def test_hidden_package_candidate_does_not_reuse_publication_secret(self) -> None:
+        hidden = (
+            repository_root()
+            / ".github"
+            / "workflows"
+            / "forgejo-publication-candidate.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'if [ "$SELECTED_FAMILY" != package_provenance ] && [ -n "$HIDDEN_INSTANCE_B64" ]',
+            hidden,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

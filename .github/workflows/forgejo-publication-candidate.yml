@@ -61,7 +61,11 @@ jobs:
             "$run_root/private/logs" \
             "$run_root/private/snapshots" \
             "$run_root/public"
-          if [ -n "$HIDDEN_INSTANCE_B64" ]
+          # The legacy publication secret is only valid for the publication
+          # family.  Package provenance uses a separately generated private
+          # instance for every hidden slot; reusing the publication payload
+          # makes the rendered test-002 identity disagree with its slot.
+          if [ "$SELECTED_FAMILY" != package_provenance ] && [ -n "$HIDDEN_INSTANCE_B64" ]
           then
             printf '%s' "$HIDDEN_INSTANCE_B64" \
               | base64 --decode > "$run_root/private/instance.json"
