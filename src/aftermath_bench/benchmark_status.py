@@ -29,6 +29,101 @@ from .schema import repository_root
 FORMAL_RELEASE_SPLITS = frozenset({"public_dev", "hidden_test"})
 
 
+def _slot_coverage(
+    *,
+    matrix_slots: dict[str, dict[str, Any]],
+    scenario_rows: list[dict[str, Any]],
+    formal_bindings: tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
+    """Describe each planned release slot without double-counting replicas.
+
+    The repository can contain historical development scenarios, consumed hidden
+    instances, and several views of the same business instance.  A benchmark
+    progress number is useful only when it says which *planned* slot those
+    artifacts satisfy.  This projection deliberately requires exact
+    ``domain/family/instance/split`` agreement before a scenario can advance a
+    slot.
+    """
+
+    scenarios_by_slot: dict[str, list[dict[str, Any]]] = {}
+    for row in scenario_rows:
+        slot_id = (
+            f"{row['domain_id']}/{row['family_id']}/{row['instance_id']}"
+        )
+        scenarios_by_slot.setdefault(slot_id, []).append(row)
+    bindings_by_slot = {
+        str(binding["formal_slot_id"]): binding
+        for binding in formal_bindings
+        if binding.get("formal_slot_id") is not None and binding.get("passed")
+    }
+
+    slots: list[dict[str, Any]] = []
+    for slot_id, slot in sorted(matrix_slots.items()):
+        expected_split = str(slot["split"])
+        candidates = [
+            row
+            for row in scenarios_by_slot.get(slot_id, [])
+            if str(row["split"]) == expected_split
+        ]
+        hard_candidates = [
+            row
+            for row in candidates
+            if row["admission_passed"]
+            and row["admitted_tier"] == "hard"
+            and row["runtime_execution_admitted"]
+        ]
+        binding = bindings_by_slot.get(slot_id)
+        if binding is not None:
+            state = "formal_bound"
+        elif hard_candidates:
+            state = "hard_candidate"
+        else:
+            state = "missing"
+        slots.append(
+            {
+                "slot_id": slot_id,
+                "domain_id": str(slot["domain_id"]),
+                "family_id": str(slot["family_id"]),
+                "instance_id": str(slot["instance_id"]),
+                "split": expected_split,
+                "variant_count": int(
+                    dict(slot["variant_profile"]).get(
+                        "required_variant_count", 0
+                    )
+                ),
+                "state": state,
+                "formal_binding_scenario_id": (
+                    str(binding["scenario_id"]) if binding is not None else None
+                ),
+                "hard_candidate_scenario_ids": sorted(
+                    str(row["scenario_id"]) for row in hard_candidates
+                ),
+                "matching_scenario_ids": sorted(
+                    str(row["scenario_id"]) for row in candidates
+                ),
+            }
+        )
+
+    state_counts = {
+        state: sum(1 for row in slots if row["state"] == state)
+        for state in ("formal_bound", "hard_candidate", "missing")
+    }
+    case_counts = {
+        state: sum(
+            int(row["variant_count"])
+            for row in slots
+            if row["state"] == state
+        )
+        for state in ("formal_bound", "hard_candidate", "missing")
+    }
+    return {
+        "required_slot_count": len(slots),
+        "slot_state_counts": state_counts,
+        "matched_case_state_counts": case_counts,
+        "slots": slots,
+    }
+
+
 def build_benchmark_status() -> dict[str, Any]:
     """Derive release state from canonical slots and bound evidence."""
 
@@ -118,6 +213,11 @@ def build_benchmark_status() -> dict[str, Any]:
         load_release_manifest(default_release_manifest_path()),
         root=root,
     )
+    slot_coverage = _slot_coverage(
+        matrix_slots=matrix_slots,
+        scenario_rows=scenario_rows,
+        formal_bindings=release.bindings,
+    )
     return {
         "status_schema_version": "1.0",
         "release_state": release.release_state,
@@ -170,6 +270,7 @@ def build_benchmark_status() -> dict[str, Any]:
             "observed": release.observed,
             "bindings": list(release.bindings),
         },
+        "slot_coverage": slot_coverage,
         "runtimes": [
             {
                 "runtime_id": report.runtime_id,

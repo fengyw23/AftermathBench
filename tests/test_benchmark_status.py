@@ -45,6 +45,37 @@ class BenchmarkStatusTest(unittest.TestCase):
         )
         self.assertTrue(report["release_manifest"]["passed"])
 
+    def test_status_reports_exact_target_slot_coverage(self) -> None:
+        report = build_benchmark_status()
+        coverage = report["slot_coverage"]
+
+        self.assertEqual(coverage["required_slot_count"], 36)
+        self.assertEqual(
+            coverage["slot_state_counts"]["formal_bound"],
+            report["implemented"]["formal_release_scenario_count"],
+        )
+        self.assertEqual(
+            coverage["matched_case_state_counts"]["formal_bound"],
+            report["implemented"]["formal_release_matched_case_count"],
+        )
+        self.assertEqual(
+            sum(coverage["slot_state_counts"].values()),
+            coverage["required_slot_count"],
+        )
+        by_id = {item["slot_id"]: item for item in coverage["slots"]}
+        self.assertEqual(
+            by_id[
+                "kubernetes/k8s-constraint-interaction-recovery/dev-006"
+            ]["state"],
+            "formal_bound",
+        )
+        self.assertEqual(
+            by_id[
+                "kubernetes/k8s-constraint-interaction-recovery/test-001"
+            ]["state"],
+            "missing",
+        )
+
     def test_status_is_derived_from_admission_and_runtime_evidence(self) -> None:
         report = build_benchmark_status()
         scenarios = {
