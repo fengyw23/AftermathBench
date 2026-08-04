@@ -22,6 +22,11 @@ on:
         required: true
         default: false
         type: boolean
+      scenario:
+        description: Repository-relative shared-batch scenario path
+        required: true
+        default: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
+        type: string
 
 permissions:
   contents: read
@@ -39,8 +44,8 @@ jobs:
       MODEL_ID: ${{ inputs.model || 'glm-5.2' }}
       REPETITIONS: ${{ inputs.repetitions || '1' }}
       EXECUTION_CONTROL: ${{ inputs.execution_control || 'false' }}
-      SCENARIO: data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json
-      RUN_ROOT: data/generated/erpnext-shared-batch-recovery-dev-001/model
+      SCENARIO: ${{ inputs.scenario || 'data/scenario_blueprints/erpnext-shared-batch-recovery-dev-001/scenario.json' }}
+      RUN_ROOT: data/generated/erpnext-shared-batch-model
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,6 +59,11 @@ jobs:
           case "$REPETITIONS" in
             ''|*[!0-9]*|0) echo "repetitions must be a positive integer" >&2; exit 2 ;;
           esac
+          case "$SCENARIO" in
+            data/scenario_blueprints/erpnext-shared-batch-recovery-*/scenario.json) ;;
+            *) echo "scenario must be a checked-in shared-batch blueprint" >&2; exit 2 ;;
+          esac
+          test -f "$SCENARIO"
           if [ "$GITHUB_REF_NAME" = "erpnext-shared-batch-control" ]; then
             echo "EXECUTION_CONTROL=true" >> "$GITHUB_ENV"
           fi
