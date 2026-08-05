@@ -13,6 +13,7 @@ from .frozen_hidden_registry import (
     load_frozen_hidden_registry,
 )
 from .native_admission import validate_native_scenario
+from .model_evidence_registry import load_model_evidence_registry
 from .native_scenario import (
     load_native_scenario,
     native_scenario_paths,
@@ -250,6 +251,7 @@ def build_benchmark_status() -> dict[str, Any]:
         formal_bindings=release.bindings,
         frozen_hidden_records=frozen_hidden_records,
     )
+    model_evidence = load_model_evidence_registry(root=root)
     return {
         "status_schema_version": "1.0",
         "release_state": release.release_state,
@@ -316,6 +318,7 @@ def build_benchmark_status() -> dict[str, Any]:
             "observed": release.observed,
             "bindings": list(release.bindings),
         },
+        "model_evidence": model_evidence,
         "slot_coverage": slot_coverage,
         "frozen_hidden_candidates": [
             {

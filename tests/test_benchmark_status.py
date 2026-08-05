@@ -44,6 +44,18 @@ class BenchmarkStatusTest(unittest.TestCase):
             0,
         )
         self.assertTrue(report["release_manifest"]["passed"])
+        self.assertEqual(
+            report["model_evidence"]["counts"][
+                "active_hard_ordinary_unique_state_count"
+            ],
+            25,
+        )
+        self.assertEqual(
+            report["model_evidence"]["counts"][
+                "current_formal_model_tested_unique_state_count"
+            ],
+            0,
+        )
 
     def test_status_reports_exact_target_slot_coverage(self) -> None:
         report = build_benchmark_status()
@@ -97,7 +109,7 @@ class BenchmarkStatusTest(unittest.TestCase):
             by_id[
                 "kubernetes/k8s-constraint-interaction-recovery/test-001"
             ]["state"],
-            "missing",
+            "frozen_hidden",
         )
         self.assertEqual(
             by_id[
@@ -177,6 +189,10 @@ class BenchmarkStatusTest(unittest.TestCase):
         )
         self.assertEqual(args.command, "validate-release")
         self.assertTrue(args.require_full)
+
+    def test_cli_exposes_model_evidence_validation(self) -> None:
+        args = build_parser().parse_args(["validate-model-evidence"])
+        self.assertEqual(args.command, "validate-model-evidence")
 
 
 if __name__ == "__main__":

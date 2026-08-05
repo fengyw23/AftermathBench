@@ -11,6 +11,8 @@ from pathlib import Path
 def build_instance(instance_id: str) -> dict[str, str]:
     token = secrets.token_hex(5).lower()
     stem = f"cobalt-{token}"
+    release_number = int(token[-2:], 16) % 90 + 10
+    protected_release_number = int(token[-4:-2], 16) % 90 + 10
     return {
         "scenario_id": f"forgejo-publication-hidden-{instance_id}-{token}",
         "owner": f"{stem}-ops",
@@ -23,8 +25,13 @@ def build_instance(instance_id: str) -> dict[str, str]:
         "base_branch": f"release/cobalt-{token}",
         "feature_branch": f"release/cobalt-{token}-publish",
         "protected_branch": f"work/cobalt-{token}-next",
-        "release_tag": f"v2026.08.{int(token[-2:], 16) % 90 + 10}",
-        "protected_release_tag": f"v2026.07.{int(token[-4:-2], 16) % 90 + 10}",
+        # Keep the human-readable version while retaining the full random
+        # identity token; truncating it to a small date-like number caused
+        # independently generated instances to collide.
+        "release_tag": f"v2026.08.{release_number}-{token}",
+        "protected_release_tag": (
+            f"v2026.07.{protected_release_number}-{token}"
+        ),
         "manifest_path": f"release/{token}/publication-manifest.json",
         "protected_file_path": f"docs/{token}/next-release.md",
         "branch_protection_rule": f"release/cobalt-{token}*",

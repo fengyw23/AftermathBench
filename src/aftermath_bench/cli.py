@@ -15,6 +15,7 @@ from .model_runner import (
     run_itsm_suite,
 )
 from .native_admission import validate_native_scenario
+from .model_evidence_registry import load_model_evidence_registry
 from .native_model_runner import run_live_native_agent
 from .native_scenario import load_native_scenario, native_scenario_paths
 from .release_manifest import (
@@ -203,6 +204,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "status",
         help="report the evidence-derived implemented/planned release boundary",
+    )
+    subparsers.add_parser(
+        "validate-model-evidence",
+        help="validate the immutable model-evidence registry and score bindings",
     )
     release_validation = subparsers.add_parser(
         "validate-release",
@@ -428,6 +433,9 @@ def main() -> int:
         return _validate_runtimes()
     if args.command == "status":
         print(json.dumps(build_benchmark_status(), indent=2))
+        return 0
+    if args.command == "validate-model-evidence":
+        print(json.dumps(load_model_evidence_registry(), indent=2))
         return 0
     if args.command == "validate-release":
         report = validate_release_manifest(
