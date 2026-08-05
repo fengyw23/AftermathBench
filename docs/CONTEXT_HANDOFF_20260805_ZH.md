@@ -32,8 +32,8 @@
 
 | Run | 内容 | 工作流状态 | 研究结果是否已入库 |
 |---|---|---|---|
-| [30985603153](https://github.com/fengyw23/AftermathBench/actions/runs/30985603153) | Forgejo migration，GLM-5.2，4 个 matched boundaries | workflow `success` | 否；成功仅表示工作流完成，仍需导入并读取 summary/轨迹 |
-| [30985786988](https://github.com/fengyw23/AftermathBench/actions/runs/30985786988) | Forgejo package provenance r1，GLM-5.2 + DeepSeek-V4-Pro | 迁移时仍在模型交互步骤 | 否 |
+| [30985603153](https://github.com/fengyw23/AftermathBench/actions/runs/30985603153) | Forgejo migration，GLM-5.2，4 个 matched boundaries | workflow `success`，771,020 B artifact 已上传 | 否；成功仅表示工作流完成，仍需导入并读取 summary/轨迹 |
+| [30985786988](https://github.com/fengyw23/AftermathBench/actions/runs/30985786988) | Forgejo package provenance r1，GLM-5.2 + DeepSeek-V4-Pro | workflow `success`，343,828 B artifact 已上传 | 否；仍需导入并审计确定性得分 |
 
 注意：GitHub workflow 的绿色成功不等于 `Recovery Integrity Pass`。只有拿到轨迹和确定性 evaluator summary 后才能计入模型证据。
 
