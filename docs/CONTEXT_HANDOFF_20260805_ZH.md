@@ -13,7 +13,7 @@
 5. 同一 matched group 中，不同真实边界给模型相同的表面错误，但需要不同恢复范围；每一道边界本身仍由确定性终态检查判分。
 6. “至少三种正确恢复范围”指**同一组不同边界之间至少有三种正确恢复签名**，不是一道题同时随意接受三种相互矛盾的答案。
 7. 当前 `94` 表示 replay-admitted hard failure states，不表示 94 道题都做过普通强模型实验，也不表示 94 道正式发布题。
-8. 当前普通强模型证据至少覆盖 `25` 个仍有效的 hard development states；另有 `12` 个历史轨迹对应已变化的任务定义。
+8. 当前普通强模型证据至少覆盖 `25` 个仍有效的 hard development states，但其中只有 `21` 个属于当前 active 94；另有 `12` 个历史轨迹对应已变化的任务定义。
 9. 隐藏题冻结后不得用模型结果反向调题；模型已消费的开发题也不能改名冒充 hidden test。
 10. 眼前优先级是：收拢正在运行的 Forgejo 实验、建立机器可验证的模型证据 registry、补公共困难题的普通模型覆盖，然后继续补齐正式矩阵。
 
@@ -309,6 +309,8 @@ python -m aftermath_bench validate-release
 
 这里的 ordinary 表示没有向模型提供正确恢复范围。
 
+这 25 个 states 不是“当前 active 94 的已测子集”：其中 Kubernetes 13 + manufacturing 4 + package provenance 4，共 21 个属于当前 active scenario 口径；shared-batch 的 4 个仍有有效 hard replay/model evidence，但没有注册进当前 active scenario/status 94。应分别报告“跨全部 hard development evidence 的 25”和“当前 active 94 中的 21”。
+
 | 家族/实例 | states | 模型 | Recovery Integrity 结果 | matched group |
 |---|---:|---|---:|---|
 | Kubernetes constraint interactions `dev-005` | 13 | GLM-5.2 | 2/13 | 失败 |
@@ -329,8 +331,11 @@ Kubernetes interaction 的 supplied-scope execution control 为 12/13，而 ordi
 
 历史证据不能因发布包装升级而随意作废，也不能在任务定义变化后冒充当前榜单结果。只有以下情况才需要重跑：场景/实例变了、模型可见工具契约变了、evaluator 变了、缺少足以核验身份的原始轨迹，或该题按设计从未给模型看过。
 
+另有 12 个已经消费的 hidden methodology states：Forgejo hidden 8/8、ERPNext manufacturing hidden test-003 3/4。它们只证明 hidden lifecycle 方法，不是当前 leaderboard；hidden registry 中还有 3 个 invalidated lifecycle，不能计分。当前新冻结的 48 states 尚未被模型消费，必须继续保护。
+
 ### 9.3 当前最需要补的证据
 
+- 在 model-evidence registry 落位前，严格口径是“0 个由机器 registry 认证的 current-formal ordinary states”；29/29 formal controls 全部是 `control-only`。Manufacturing `dev-002` 的 3/4 ordinary 与当前场景最接近，可先做 fingerprint equivalence audit，若输入锁、工具契约和 evaluator 身份相容再晋升，不要直接手工改标签；
 - 四个 current formal public slots 的 lock-bound ordinary runs；
 - ERPNext multiwarehouse、当前 sales-return r1、Kubernetes dev-006 等尚未有当前正式普通模型证据的公共题；
 - 当前 Forgejo migration 与 package provenance 两个工作流的产物导入；
@@ -473,7 +478,7 @@ Forgejo 已有一个 intervention-plan 设计：9 states、8 个组合修复状�
 
 | 风险 | 当前表现 | 应对 |
 |---|---|---|
-| hard 数量和实证数量混淆 | 94 hard-admitted，但普通模型仅明确覆盖 25 | model-evidence registry；所有汇报并列多个口径 |
+| hard 数量和实证数量混淆 | 94 active hard-admitted；普通证据跨全部 hard development 为 25、其中 active 为 21 | model-evidence registry；所有汇报并列多个口径 |
 | 复杂度门槛不能预测模型难度 | Forgejo depth 6/6 仍被 GLM 6/6 | 增加 intervention interaction/non-monotonicity 指标 |
 | 原生性被质疑 | Kubernetes 部分跨系统 contract 为 benchmark-authored | 明确标注；用 ERPNext/Forgejo 原生证据做主要现实性支撑 |
 | 文档数字漂移 | spec/roadmap/README 含旧阶段数字 | 由 CLI 生成状态表，减少手写数字 |
