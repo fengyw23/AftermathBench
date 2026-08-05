@@ -139,8 +139,10 @@ jobs:
                 --secret-env MODEL_SECRET_PARATERA
             )"
             then
+              scan_output="$(printf '%s' "$scan_output" | jq -c .)"
               echo "::error title=Artifact safety scan failed::$evidence_id: $scan_output"
-              exit 2
+              touch "$source_root/rejected"
+              continue
             fi
             echo "::notice title=Model evidence validated::$evidence_id"
           done
@@ -153,6 +155,11 @@ jobs:
           jq -r '.sources[].evidence_id' "$GATE_PATH" | while read -r evidence_id
           do
             source_root="$RUNNER_TEMP/model-evidence/$evidence_id"
+            if [ -e "$source_root/rejected" ]
+            then
+              echo "Skipping rejected evidence: $evidence_id"
+              continue
+            fi
             destination="$IMPORT_ROOT/$evidence_id"
             mkdir -p "$destination/artifact"
             cp -a "$source_root/artifact/." "$destination/artifact/"
@@ -185,3 +192,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "import reviewed ordinary model evidence"
           git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Keep rejected artifacts quarantined
+        if: always()
+        run: |
+          set -euo pipefail
+          if find "$RUNNER_TEMP/model-evidence" -name rejected -print -quit \
+              | grep -q .
+          then
+            echo "one or more model artifacts remain quarantined" >&2
+            exit 2
+          fi
