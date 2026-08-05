@@ -1,5 +1,25 @@
 # AftermathBench execution contract
 
+## Data-source redesign override (2026-08-05)
+
+The earlier ERPNext/Forgejo/Kubernetes expansion order below is suspended until
+the provenance-first pilot defined in
+`docs/DATA_PIPELINE_REDESIGN_20260805_ZH.md` is complete. Those runtimes are
+retained engineering assets, not mandatory benchmark domains.
+
+Do not construct new large scenario families, call models, or consume frozen
+hidden data merely to fill the old matrix. First create externally sourced
+candidate cards, establish issue/incident or official-spec provenance, prove a
+material counterfactual action inversion with ordinary visible evidence, and
+pass independent review. Select the cheapest faithful runtime only after those
+gates pass. Existing formal, development, historical, control, and hidden
+records keep their current classifications and must not be relabeled.
+
+For this redesign phase, progress is measured by independently sourced failure
+mechanisms that survive the source, license, counterfactual, observability, and
+review gates, not by matched-state count. The old fixed execution order remains
+below as historical context and resumes only after an explicit user decision.
+
 ## North star
 
 Advance the repository toward the declared `top-conference-full` release.
@@ -11,7 +31,7 @@ substitutes for those outcomes.
 Run `python -m aftermath_bench status` before making a stage decision. Treat
 `data/benchmark_matrix.json` and `data/release_manifest.json` as authoritative.
 
-## Fixed execution order
+## Historical fixed execution order (currently suspended)
 
 1. Close the in-flight Kubernetes K3, K4 and K5 chain, then freeze the shared
    formal-evidence protocol.

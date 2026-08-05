@@ -1,5 +1,13 @@
 # AftermathBench
 
+> **2026-08-05 data-pipeline redesign:** expansion of the preselected ERPNext,
+> Forgejo and Kubernetes matrix is paused. Existing artifacts remain preserved,
+> but future cases will be selected from public incidents, upstream
+> issue/PR/regression-test evidence, and official reliability specifications
+> before a runtime is chosen. See the
+> [data-pipeline redesign decision](docs/DATA_PIPELINE_REDESIGN_20260805_ZH.md)
+> and the [provenance audit](docs/DATA_PROVENANCE_AUDIT_20260805_ZH.md).
+
 > Current status: the canonical manifest verifies four formal
 > public-development slots across ERPNext, Forgejo and Kubernetes: 29 matched
 > cases with native runtime admission, strict hard admission, execution
