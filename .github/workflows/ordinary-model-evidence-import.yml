@@ -5,6 +5,7 @@ on:
     branches:
       - native-hard-recovery-v1
     paths:
+      - ".github/workflows/ordinary-model-evidence-import.yml"
       - "data/control_gates/ordinary-model-evidence-import-20260805.json"
 
 permissions:
@@ -80,7 +81,11 @@ jobs:
             source_scenario_sha256="$(
               git show "$source_commit:$scenario_path" | sha256sum | cut -d' ' -f1
             )"
-            test "$source_scenario_sha256" = "$scenario_sha256"
+            if [ "$source_scenario_sha256" != "$scenario_sha256" ]
+            then
+              echo "::error title=Source scenario fingerprint mismatch::$evidence_id"
+              exit 2
+            fi
             source_root="$RUNNER_TEMP/model-evidence/$evidence_id"
             stage="$source_root/artifact"
             mkdir -p "$stage"
@@ -92,29 +97,52 @@ jobs:
               --header "X-GitHub-Api-Version: 2022-11-28" \
               "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id/artifacts?per_page=100" \
               > "$source_root/artifacts.json"
-            python scripts/validate_model_evidence_import.py \
-              --gate "$GATE_PATH" \
-              --evidence-id "$evidence_id" \
-              provenance \
-              --run-metadata "$source_root/run.json" \
-              --artifacts-metadata "$source_root/artifacts.json" \
-              --output "$source_root/import-provenance.json"
-            gh run download "$source_run_id" \
-              --repo "$GITHUB_REPOSITORY" \
-              --name "$artifact_name" \
-              --dir "$stage"
-            python scripts/validate_model_evidence_import.py \
-              --gate "$GATE_PATH" \
-              --evidence-id "$evidence_id" \
-              artifact \
-              --stage "$stage" \
-              --root . \
-              --output "$source_root/artifact-audit.json"
-            python scripts/verify_public_evidence_safe.py \
-              --root "$stage" \
-              --secret-env MODEL_SECRET_ZHIPU \
-              --secret-env MODEL_SECRET_BAILIAN \
-              --secret-env MODEL_SECRET_PARATERA
+            if ! validation_output="$(
+              python scripts/validate_model_evidence_import.py \
+                --gate "$GATE_PATH" \
+                --evidence-id "$evidence_id" \
+                provenance \
+                --run-metadata "$source_root/run.json" \
+                --artifacts-metadata "$source_root/artifacts.json" \
+                --output "$source_root/import-provenance.json"
+            )"
+            then
+              echo "::error title=Source provenance rejected::$evidence_id: $validation_output"
+              exit 2
+            fi
+            if ! gh run download "$source_run_id" \
+                --repo "$GITHUB_REPOSITORY" \
+                --name "$artifact_name" \
+                --dir "$stage"
+            then
+              echo "::error title=Artifact download failed::$evidence_id"
+              exit 2
+            fi
+            if ! validation_output="$(
+              python scripts/validate_model_evidence_import.py \
+                --gate "$GATE_PATH" \
+                --evidence-id "$evidence_id" \
+                artifact \
+                --stage "$stage" \
+                --root . \
+                --output "$source_root/artifact-audit.json"
+            )"
+            then
+              echo "::error title=Artifact evidence rejected::$evidence_id: $validation_output"
+              exit 2
+            fi
+            if ! scan_output="$(
+              python scripts/verify_public_evidence_safe.py \
+                --root "$stage" \
+                --secret-env MODEL_SECRET_ZHIPU \
+                --secret-env MODEL_SECRET_BAILIAN \
+                --secret-env MODEL_SECRET_PARATERA
+            )"
+            then
+              echo "::error title=Artifact safety scan failed::$evidence_id: $scan_output"
+              exit 2
+            fi
+            echo "::notice title=Model evidence validated::$evidence_id"
           done
 
       - name: Import complete reviewed model evidence
