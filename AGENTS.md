@@ -63,3 +63,39 @@ Status reports must separate:
 Report the active milestone, the next release-producing action and any blocker.
 Avoid extended investigation of already understood historical failures unless
 they block the active milestone.
+
+## Case-quality gate
+
+Passing replay-derived hard admission proves that a case is natively
+constructed, replayable, and resistant to the registered fixed policies. It
+does not by itself prove that a model failure is a scientifically meaningful
+recovery-reasoning failure.
+
+Before spending substantial implementation, CI, provider, or formalization
+effort on a new public-development case, write and review a decision brief that
+identifies the same visible failure, the materially different native boundary
+states, the action that is required in one state and unsafe in another, the
+real-world consequence of choosing incorrectly, and the ordinary public
+evidence that distinguishes the states.
+
+- Core cases must expose a material native consequence such as duplicated
+  fulfillment/payment/publication, inventory or ledger corruption, loss of a
+  valid commitment, or unavailable/incompatible service. A label, wording,
+  formatting, or bookkeeping-only mismatch is not sufficient as the primary
+  failure consequence.
+- Every scored fact must be clearly obtainable through ordinary model-visible
+  tools. If a trajectory, scorer, and claimed boundary disagree about whether a
+  decisive owner or fact was observable, quarantine the case and audit the
+  tool/evaluator contract before using it as model evidence.
+- A near-correct recovery that only misses arbitrary presentation or metadata
+  exactness is an evaluator-design finding, not a headline model-reasoning
+  failure, unless the exact value itself is a visible native commitment with a
+  material downstream effect.
+- Test counterfactual inversion directly: applying the recovery for boundary A
+  to boundary B, and vice versa, must cause a visible native integrity failure.
+  Otherwise do not claim that the matched group measures scope discrimination.
+- Keep native diagnostics and execution controls, but do not promote them to
+  core difficulty evidence solely because a model has a low pass rate.
+
+The detailed rationale, case-review template, and quarantine standard are in
+`docs/CASE_QUALITY_DOCTRINE_20260805_ZH.md`.
