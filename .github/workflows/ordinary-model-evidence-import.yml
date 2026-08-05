@@ -1,0 +1,159 @@
+name: ordinary-model-evidence-import
+
+on:
+  push:
+    branches:
+      - native-hard-recovery-v1
+    paths:
+      - "data/control_gates/ordinary-model-evidence-import-20260805.json"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: ordinary-model-evidence-import-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  import-reviewed-model-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      GATE_PATH: data/control_gates/ordinary-model-evidence-import-20260805.json
+      IMPORT_ROOT: data/evidence/model-runs
+      MODEL_SECRET_ZHIPU: ${{ secrets.ZHIPU_CODING_API_KEY }}
+      MODEL_SECRET_BAILIAN: ${{ secrets.BAILIAN_API_KEY }}
+      MODEL_SECRET_PARATERA: ${{ secrets.PARATERA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate reviewed import declaration
+        run: |
+          set -euo pipefail
+          python scripts/validate_model_evidence_import.py \
+            --gate "$GATE_PATH" gate
+          test -n "$MODEL_SECRET_ZHIPU"
+          test -n "$MODEL_SECRET_BAILIAN"
+          test -n "$MODEL_SECRET_PARATERA"
+
+      - name: Download and validate immutable artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/model-evidence"
+          jq -r '.sources[].evidence_id' "$GATE_PATH" | while read -r evidence_id
+          do
+            source_run_id="$(
+              jq -r --arg id "$evidence_id" \
+                '.sources[] | select(.evidence_id == $id) | .source_run_id' \
+                "$GATE_PATH"
+            )"
+            source_commit="$(
+              jq -r --arg id "$evidence_id" \
+                '.sources[] | select(.evidence_id == $id) | .source_commit' \
+                "$GATE_PATH"
+            )"
+            scenario_path="$(
+              jq -r --arg id "$evidence_id" \
+                '.sources[] | select(.evidence_id == $id) | .scenario_path' \
+                "$GATE_PATH"
+            )"
+            scenario_sha256="$(
+              jq -r --arg id "$evidence_id" \
+                '.sources[] | select(.evidence_id == $id) | .scenario_sha256' \
+                "$GATE_PATH"
+            )"
+            artifact_name="$(
+              jq -r --arg id "$evidence_id" \
+                '.sources[] | select(.evidence_id == $id) | .artifact_name' \
+                "$GATE_PATH"
+            )"
+            source_scenario_sha256="$(
+              git show "$source_commit:$scenario_path" | sha256sum | cut -d' ' -f1
+            )"
+            test "$source_scenario_sha256" = "$scenario_sha256"
+            source_root="$RUNNER_TEMP/model-evidence/$evidence_id"
+            stage="$source_root/artifact"
+            mkdir -p "$stage"
+            gh api \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id" \
+              > "$source_root/run.json"
+            gh api \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id/artifacts?per_page=100" \
+              > "$source_root/artifacts.json"
+            python scripts/validate_model_evidence_import.py \
+              --gate "$GATE_PATH" \
+              --evidence-id "$evidence_id" \
+              provenance \
+              --run-metadata "$source_root/run.json" \
+              --artifacts-metadata "$source_root/artifacts.json" \
+              --output "$source_root/import-provenance.json"
+            gh run download "$source_run_id" \
+              --repo "$GITHUB_REPOSITORY" \
+              --name "$artifact_name" \
+              --dir "$stage"
+            python scripts/validate_model_evidence_import.py \
+              --gate "$GATE_PATH" \
+              --evidence-id "$evidence_id" \
+              artifact \
+              --stage "$stage" \
+              --root . \
+              --output "$source_root/artifact-audit.json"
+            python scripts/verify_public_evidence_safe.py \
+              --root "$stage" \
+              --secret-env MODEL_SECRET_ZHIPU \
+              --secret-env MODEL_SECRET_BAILIAN \
+              --secret-env MODEL_SECRET_PARATERA
+          done
+
+      - name: Import complete reviewed model evidence
+        run: |
+          set -euo pipefail
+          test ! -e "$IMPORT_ROOT"
+          mkdir -p "$IMPORT_ROOT"
+          jq -r '.sources[].evidence_id' "$GATE_PATH" | while read -r evidence_id
+          do
+            source_root="$RUNNER_TEMP/model-evidence/$evidence_id"
+            destination="$IMPORT_ROOT/$evidence_id"
+            mkdir -p "$destination/artifact"
+            cp -a "$source_root/artifact/." "$destination/artifact/"
+            cp "$source_root/import-provenance.json" "$destination/import-provenance.json"
+            cp "$source_root/artifact-audit.json" "$destination/artifact-audit.json"
+            python scripts/build_evidence_file_manifest.py \
+              --root "$destination" \
+              --output "$destination/files.json"
+          done
+          python scripts/verify_public_evidence_safe.py \
+            --root "$IMPORT_ROOT" \
+            --secret-env MODEL_SECRET_ZHIPU \
+            --secret-env MODEL_SECRET_BAILIAN \
+            --secret-env MODEL_SECRET_PARATERA
+
+      - name: Commit only reviewed model evidence
+        run: |
+          set -euo pipefail
+          git add -- "$IMPORT_ROOT"
+          test -n "$(git diff --cached --name-only)"
+          if git status --porcelain --untracked-files=all \
+              | grep -Ev '^(A |M |R |\?\?) data/evidence/model-runs/' \
+              | grep -q .
+          then
+            echo "unexpected file outside model evidence import allowlist" >&2
+            git status --short
+            exit 2
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "import reviewed ordinary model evidence"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
